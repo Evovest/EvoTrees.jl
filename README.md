@@ -1,3 +1,3 @@
 # EvoTrees
 
-A julia 
+A Julia implementation of boosted trees.  
