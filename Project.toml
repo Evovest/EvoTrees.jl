@@ -1,6 +1,7 @@
-authors = ["jeremiedb <jeremie_db@hotmail.com>"]
 name = "EvoTrees"
 uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
+authors = ["jeremiedb <jeremie_db@hotmail.com>"]
 version = "0.1.0"
 
 [deps]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
