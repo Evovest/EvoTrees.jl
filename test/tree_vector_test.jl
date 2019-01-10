@@ -4,12 +4,12 @@ using Statistics
 using Base.Threads: @threads
 using BenchmarkTools
 using Profile
-import StatsBase
+using StatsBase: sample
 
 using Revise
 using Traceur
-using GBT
-using GBT: get_gain, update_gains!, get_max_gain, update_grads!, grow_tree!, grow_gbtree, SplitInfo2, Tree, Node, Params, predict, find_split!, SplitTrack, update_track!, sigmoid
+using EvoTrees
+using EvoTrees: get_gain, update_gains!, get_max_gain, update_grads!, grow_tree!, grow_gbtree, SplitInfo2, Tree, Node, Params, predict, find_split!, SplitTrack, update_track!, sigmoid
 
 # prepare a dataset
 data = CSV.read("./data/performance_tot_v2_perc.csv", allowmissing = :auto)

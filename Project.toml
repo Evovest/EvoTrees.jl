@@ -1,6 +1,9 @@
-authors = ["jeremiedb <jeremie_db@hotmail.com>"]
 name = "EvoTrees"
 uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
+authors = ["jeremiedb <jeremie_db@hotmail.com>"]
 version = "0.1.0"
 
 [deps]
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+Traceur = "37b6cedf-1f77-55f8-9503-c64b63398394"
