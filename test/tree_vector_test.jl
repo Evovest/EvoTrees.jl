@@ -9,7 +9,7 @@ using StatsBase: sample
 using Revise
 using Traceur
 using EvoTrees
-using EvoTrees: get_gain, update_gains!, get_max_gain, update_grads!, grow_tree!, grow_gbtree, SplitInfo2, Tree, Node, Params, predict, find_split!, SplitTrack, update_track!, sigmoid
+using EvoTrees: get_gain, update_gains!, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, SplitNode, LeafNode, Params, predict, predict!, find_split!, SplitTrack, update_track!, sigmoid
 
 # prepare a dataset
 data = CSV.read("./data/performance_tot_v2_perc.csv", allowmissing = :auto)
@@ -22,14 +22,13 @@ Y = convert(Array{Float64}, Y)
 𝑖 = collect(1:size(X,1))
 
 # train-eval split
-𝑖_sample = StatsBase.sample(𝑖, size(𝑖, 1), replace = false)
+𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
 train_size = 0.8
 𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
 𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
 
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
-
 
 # idx
 X_perm = zeros(Int, size(X))
@@ -44,7 +43,7 @@ perm_ini = zeros(Int, size(X))
 # set parameters
 nrounds = 1
 λ = 1.0
-γ = 1e-3
+γ = 1e-15
 η = 0.5
 max_depth = 5
 min_weight = 5.0
@@ -62,14 +61,19 @@ pred = zeros(size(Y, 1))
 
 gain = get_gain(∑δ, ∑δ², params1.λ)
 𝑖 = collect(1:size(X,1))
-root = Node(1, ∑δ, ∑δ², gain, 0, 0.0, 0, 0, - ∑δ / (∑δ² + params1.λ), 𝑖)
-tree = Tree([root])
-grow_tree!(tree, X, δ, δ², params1, perm_ini)
-# tree = Tree([root])
-# @btime grow_tree!(tree, X, δ, δ², params1, perm_ini)
+𝑗 = collect(1:size(X,2))
+
+# initialize train_nodes
+train_nodes = Vector{TrainNode}(undef, 2^params1.max_depth-1)
+for feat in 1:2^params1.max_depth-1
+    train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, [0], [0])
+end
+
+root = TrainNode(1, ∑δ, ∑δ², gain, 𝑖, 𝑗)
+train_nodes[1] = root
+tree = grow_tree(X, δ, δ², params1, perm_ini, train_nodes)
 
 # predict - map a sample to tree-leaf prediction
-tree
 pred = predict(tree, X)
 # pred = sigmoid(pred)
 mean((pred .- Y) .^ 2)
@@ -77,8 +81,8 @@ mean((pred .- Y) .^ 2)
 
 function test_grow(n, X, δ, δ², perm_ini, params)
     for i in 1:n
-        tree = Tree([Node(1, ∑δ, ∑δ², gain, 0, 0.0, 0, 0, - ∑δ / (∑δ² + params1.λ), 𝑖)])
-        grow_tree!(tree, X, δ, δ², params, perm_ini)
+        tree = Tree([TrainNode(1, ∑δ, ∑δ², gain, 𝑖, 𝑗)])
+        grow_tree(X, δ, δ², params, perm_ini, train_nodes)
         # grow_tree!(tree, view(X, :, :), view(δ, :), view(δ², :), params1)
     end
 end
@@ -88,11 +92,14 @@ end
 @time test_grow(100, X, δ, δ², perm_ini, params1)
 
 # full model
-params1 = Params(:linear, 100, λ, γ, 0.05, 5, min_weight, rowsample, colsample)
+params1 = Params(:linear, 10, λ, γ, 0.05, 5, min_weight, 1.0, 1.0)
 @time model = grow_gbtree(X, Y, params1)
 
 # predict - map a sample to tree-leaf prediction
 pred = predict(model, X)
+
+@time pred = predict(model, X)
+@time predict!(pred, tree, X)
 # pred = sigmoid(pred)
 mean((pred .- Y) .^ 2)
 

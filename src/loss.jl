@@ -47,7 +47,7 @@ end
 #     return δ, δ²
 # end
 
-function update_gains!(info::SplitInfo2{T}, ∑δL, ∑δ²L, ∑δR, ∑δ²R, λ::T) where T <: AbstractFloat
+function update_gains!(info::SplitInfo{T}, ∑δL::T, ∑δ²L::T, ∑δR::T, ∑δ²R::T, λ::T) where T <: AbstractFloat
     info.gainL = (∑δL ^ 2 / (∑δ²L + λ)) / 2.0
     info.gainR = (∑δR ^ 2 / (∑δ²R + λ)) / 2.0
 end
