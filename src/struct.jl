@@ -34,15 +34,13 @@ mutable struct SplitTrack{T<:AbstractFloat}
     gain::T
 end
 
-struct LeafNode{T<:AbstractFloat} <: Node{T}
-    pred::T
-end
-
-struct SplitNode{T<:AbstractFloat} <: Node{T}
-    left::Int
-    right::Int
-    feat::Int
+struct TreeNode{T<:AbstractFloat, S<:Int}
+    left::S
+    right::S
+    feat::S
     cond::T
+    pred::T
+    split::Bool
 end
 
 struct Params{T<:AbstractFloat}
@@ -58,8 +56,8 @@ struct Params{T<:AbstractFloat}
 end
 
 # single tree is made of a root node that containes nested nodes and leafs
-struct TrainNode{T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{Int, 1}} <: Node{T}
-    depth::Int
+struct TrainNode{T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{Int, 1}, S<:Int}
+    depth::S
     ∑δ::T
     ∑δ²::T
     gain::T
@@ -69,7 +67,7 @@ end
 
 # single tree is made of a root node that containes nested nodes and leafs
 struct Tree
-    nodes::Vector{Node}
+    nodes::Vector{TreeNode{<:AbstractFloat, <:Int}}
 end
 
 # gradient-boosted tree is formed by a vector of trees

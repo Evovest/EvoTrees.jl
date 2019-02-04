@@ -5,7 +5,7 @@ function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{Float64, 1}, δ²::
     leaf_count = 1
     tree_depth = 1
 
-    tree = Tree(Vector{Node}())
+    tree = Tree(Vector{TreeNode}())
 
     splits = Vector{SplitInfo}(undef, size(X, 2))
     for feat in 1:size(X, 2)
@@ -27,7 +27,7 @@ function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{Float64, 1}, δ²::
             node = train_nodes[id]
 
             if tree_depth == params.max_depth
-                push!(tree.nodes, LeafNode(- node.∑δ / (node.∑δ² + params.λ)))
+                push!(tree.nodes, TreeNode(- node.∑δ / (node.∑δ² + params.λ)))
             else
                 node_size = size(node.𝑖, 1)
 
@@ -53,14 +53,14 @@ function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{Float64, 1}, δ²::
 
                     # push split Node
                     # push!(tree.nodes, SplitNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond))
-                    push!(tree.nodes, SplitNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond))
+                    push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond))
 
                     push!(next_active_id, leaf_count + 1)
                     push!(next_active_id, leaf_count + 2)
 
                     leaf_count += 2
                 else
-                    push!(tree.nodes, LeafNode(- node.∑δ / (node.∑δ² + params.λ)))
+                    push!(tree.nodes, TreeNode(- node.∑δ / (node.∑δ² + params.λ)))
                 end # end of single node split search
             end
             # node.𝑖 = [0]
@@ -96,7 +96,7 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
     ∑δ, ∑δ² = sum(δ), sum(δ²)
     gain = get_gain(∑δ, ∑δ², params.λ)
 
-    bias = LeafNode(μ)
+    bias = TreeNode(μ)
     bias = Tree([bias])
     gbtree = GBTree([bias], params)
 
@@ -114,8 +114,12 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
 
     for i in 1:params.nrounds
         # select random rows and cols
-        𝑖 = view(𝑖_, sample(𝑖_, floor(Int, params.rowsample * X_size[1]), replace = false))
-        𝑗 = view(𝑗_, sample(𝑗_, floor(Int, params.colsample * X_size[2]), replace = false))
+        # 𝑖 = view(𝑖_, sample(𝑖_, floor(Int, params.rowsample * X_size[1]), replace = false))
+        # 𝑗 = view(𝑗_, sample(𝑗_, floor(Int, params.colsample * X_size[2]), replace = false))
+        𝑖 = 𝑖_[sample(𝑖_, floor(Int, params.rowsample * X_size[1]), replace = false)]
+        𝑗 = 𝑗_[sample(𝑗_, floor(Int, params.colsample * X_size[2]), replace = false)]
+        # 𝑖 = 𝑖_
+        # 𝑗 = 𝑗_
 
         # get gradients
         update_grads!(Val{params.loss}(), pred, Y, δ, δ²)
