@@ -43,6 +43,9 @@ struct TreeNode{T<:AbstractFloat, S<:Int}
     split::Bool
 end
 
+TreeNode(left::S, right::S, feat::S, cond::T) where {S<:Int, T<:AbstractFloat} = TreeNode(left, right, feat, cond, 0.0, true)
+TreeNode(pred::T) where {T<:AbstractFloat} = TreeNode(0, 0, 0, 0.0, pred, false)
+
 struct Params{T<:AbstractFloat}
     loss::Symbol
     nrounds::Int

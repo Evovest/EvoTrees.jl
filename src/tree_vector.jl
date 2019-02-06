@@ -142,9 +142,9 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
         # callback function
         if mod(i, 10) == 0
             if size(Y_eval, 1) > 0
-                println("iter:", i, ", train:", mean((pred .- Y) .^ 2), ", eval: ", mean((pred_eval .- Y_eval) .^ 2))
+                println("iter:", i, ", train:", sqrt(mean((pred .- Y) .^ 2)), ", eval: ", sqrt(mean((pred_eval .- Y_eval) .^ 2)))
             else
-                println("iter:", i, ", train:", mean((pred .- Y) .^ 2))
+                println("iter:", i, ", train:", sqrt(mean((pred .- Y) .^ 2)))
             end
         end # end of callback
 

@@ -99,14 +99,19 @@ params1 = Params(:linear, 100, λ, γ, 1.0, 5, min_weight, 1.0, 1.0)
 # predict - map a sample to tree-leaf prediction
 @time pred = predict(model, X)
 # pred = sigmoid(pred)
-mean((pred .- Y) .^ 2)
+sqrt(mean((pred .- Y) .^ 2))
 
 
 # train model
-params1 = Params(:linear, 100, 1000.0, 0.0, 0.05, 5, min_weight, 1.0, 1.0)
+params1 = Params(:linear, 100, 10000.0, 0.0, 0.1, 5, 1.0, 0.5, 0.5)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval)
-pred = predict(model, X_eval)
-mean((pred .- Y_eval) .^ 2)
+
+pred_train = predict(model, X_train)
+sqrt(mean((pred_train .- Y_train) .^ 2))
+
+pred_eval = predict(model, X_eval)
+sqrt(mean((pred_eval .- Y_eval) .^ 2))
+sqrt(mean((mean(Y_eval) .- Y_eval) .^ 2))
 
 
 ####################################################
