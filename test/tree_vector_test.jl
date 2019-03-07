@@ -16,7 +16,7 @@ data = CSV.read("./data/performance_tot_v2_perc.csv", allowmissing = :auto)
 names(data)
 
 features = data[1:53]
-X = convert(Array, features)
+X = convert(Matrix, features)
 Y = data[54]
 Y = convert(Array{Float64}, Y)
 𝑖 = collect(1:size(X,1))
@@ -103,7 +103,7 @@ sqrt(mean((pred .- Y) .^ 2))
 
 
 # train model
-params1 = Params(:linear, 100, 10000.0, 0.0, 0.1, 5, 1.0, 0.5, 0.5)
+params1 = Params(:linear, 100, 0.0, 0.0, 0.0, 5, 1.0, 0.5, 0.5)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval)
 
 pred_train = predict(model, X_train)
