@@ -2,8 +2,8 @@ using DataFrames
 using CSV
 using Statistics
 using Base.Threads: @threads
-# using BenchmarkTools
-# using Profile
+using BenchmarkTools
+using Profile
 using StatsBase: sample
 
 using Revise
@@ -77,59 +77,39 @@ tree = grow_tree(X, δ, δ², params1, perm_ini, train_nodes)
 @time pred = predict(tree, X)
 # pred = sigmoid(pred)
 mean((pred .- Y) .^ 2)
-# println(sort(unique(pred)))
 
-function test_grow(n, X, δ, δ², perm_ini, params)
-    for i in 1:n
-        root = TrainNode(1, ∑δ, ∑δ², gain, 𝑖, 𝑗)
-        train_nodes[1] = root
-        grow_tree(X, δ, δ², params, perm_ini, train_nodes)
-        # grow_tree!(tree, view(X, :, :), view(δ, :), view(δ², :), params1)
+
+# prediction from single tree - assign each observation to its final leaf
+function predict_1(tree::Tree, X::AbstractArray{T, 2}) where T<:Real
+    pred = zeros(Float64, size(X, 1))
+    @threads for i in 1:size(X, 1)
+        id = Int(1)
+        while tree.nodes[id].split
+            if X[i, tree.nodes[id].feat] <= tree.nodes[id].cond
+                id = tree.nodes[id].left
+            else
+                id = tree.nodes[id].right
+            end
+        end
+        pred[i] += tree.nodes[id].pred
     end
+    return pred
 end
 
-@time test_grow(1, X, δ, δ², perm_ini, params1)
-@time test_grow(10, X, δ, δ², perm_ini, params1)
-@time test_grow(100, X, δ, δ², perm_ini, params1)
-
-# full model
-params1 = Params(:linear, 100, λ, γ, 1.0, 5, min_weight, 1.0, 1.0)
-@time model = grow_gbtree(X, Y, params1)
-
-# predict - map a sample to tree-leaf prediction
-@time pred = predict(model, X)
-# pred = sigmoid(pred)
-sqrt(mean((pred .- Y) .^ 2))
+@time pred = predict_1(tree, X)
+mean((pred .- Y) .^ 2)
 
 
-# train model
-params1 = Params(:linear, 100, 10000.0, 0.0, 0.1, 5, 1.0, 0.5, 0.5)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval)
+# prediction from single tree - assign each observation to its final leaf
+function predict_2(tree::Tree, X::AbstractArray{T, 2}) where T<:Real
+    pred = zeros(size(X, 1))
+    for i in size(X, 1)
+        pred[i] += tree.nodes[30].pred
+    end
+    return pred
+end
 
-pred_train = predict(model, X_train)
-sqrt(mean((pred_train .- Y_train) .^ 2))
+@time pred = predict_2(tree, X)
 
-pred_eval = predict(model, X_eval)
-sqrt(mean((pred_eval .- Y_eval) .^ 2))
-sqrt(mean((mean(Y_eval) .- Y_eval) .^ 2))
-
-
-####################################################
-### Pred on binarised data
-####################################################
-X_bin = convert(Array{UInt8}, round.(X*64))
-@time test_grow(1, X_bin, δ, δ², perm_ini, params1)
-@time test_grow(10, X_bin, δ, δ², perm_ini, params1)
-@time test_grow(100, X_bin, δ, δ², perm_ini, params1)
-@time model = grow_gbtree(X_bin, Y, params1)
-
-X_train_bin = convert(Array{UInt8}, round.(X_train*64))
-X_eval_bin = convert(Array{UInt8}, round.(X_eval*64))
-
-@time model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval)
-# predict - map a sample to tree-leaf prediction
-pred = predict(model, X_eval_bin)
-mean((pred .- Y_eval) .^ 2)
-
-pred = predict(model, X_train_bin)
-mean((pred .- Y_train) .^ 2)
+sizeof(X)/1000
+sizeof(pred)/1000
