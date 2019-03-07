@@ -11,12 +11,13 @@ using Traceur
 using EvoTrees
 using EvoTrees: get_gain, update_gains!, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, Params, predict, predict!, find_split!, SplitTrack, update_track!, sigmoid
 
+
 # prepare a dataset
 data = CSV.read("./data/performance_tot_v2_perc.csv", allowmissing = :auto)
 names(data)
 
 features = data[1:53]
-X = convert(Array, features)
+X = convert(Matrix, features)
 Y = data[54]
 Y = convert(Array{Float64}, Y)
 𝑖 = collect(1:size(X,1))
@@ -56,7 +57,8 @@ params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, rowsample, colsample)
 # initial info
 δ, δ² = zeros(size(X, 1)), zeros(size(X, 1))
 pred = zeros(size(Y, 1))
-@time update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
+# @time update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
+update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
 ∑δ, ∑δ² = sum(δ), sum(δ²)
 
 gain = get_gain(∑δ, ∑δ², params1.λ)
@@ -74,7 +76,9 @@ train_nodes[1] = root
 tree = grow_tree(X, δ, δ², params1, perm_ini, train_nodes)
 
 # predict - map a sample to tree-leaf prediction
-@time pred = predict(tree, X)
+# @time pred = predict(tree, X)
+pred = predict(tree, X)
+
 # pred = sigmoid(pred)
 mean((pred .- Y) .^ 2)
 # println(sort(unique(pred)))
@@ -88,22 +92,29 @@ function test_grow(n, X, δ, δ², perm_ini, params)
     end
 end
 
-@time test_grow(1, X, δ, δ², perm_ini, params1)
-@time test_grow(10, X, δ, δ², perm_ini, params1)
-@time test_grow(100, X, δ, δ², perm_ini, params1)
+# @time test_grow(1, X, δ, δ², perm_ini, params1)
+# @time test_grow(10, X, δ, δ², perm_ini, params1)
+# @time test_grow(100, X, δ, δ², perm_ini, params1)
+
+test_grow(1, X, δ, δ², perm_ini, params1)
+test_grow(10, X, δ, δ², perm_ini, params1)
+test_grow(100, X, δ, δ², perm_ini, params1)
 
 # full model
 params1 = Params(:linear, 100, λ, γ, 1.0, 5, min_weight, 1.0, 1.0)
 @time model = grow_gbtree(X, Y, params1)
+# model = grow_gbtree(X, Y, params1)
 
 # predict - map a sample to tree-leaf prediction
-@time pred = predict(model, X)
+# @time pred = predict(model, X)
+pred = predict(model, X)
+
 # pred = sigmoid(pred)
 sqrt(mean((pred .- Y) .^ 2))
 
 
 # train model
-params1 = Params(:linear, 100, 10000.0, 0.0, 0.1, 5, 1.0, 0.5, 0.5)
+params1 = Params(:linear, 100, 0.0, 0.0, 0.0, 5, 1.0, 0.5, 0.5)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval)
 
 pred_train = predict(model, X_train)
@@ -118,15 +129,22 @@ sqrt(mean((mean(Y_eval) .- Y_eval) .^ 2))
 ### Pred on binarised data
 ####################################################
 X_bin = convert(Array{UInt8}, round.(X*64))
-@time test_grow(1, X_bin, δ, δ², perm_ini, params1)
-@time test_grow(10, X_bin, δ, δ², perm_ini, params1)
-@time test_grow(100, X_bin, δ, δ², perm_ini, params1)
-@time model = grow_gbtree(X_bin, Y, params1)
+# @time test_grow(1, X_bin, δ, δ², perm_ini, params1)
+# @time test_grow(10, X_bin, δ, δ², perm_ini, params1)
+# @time test_grow(100, X_bin, δ, δ², perm_ini, params1)
+# @time model = grow_gbtree(X_bin, Y, params1)
+
+# test_grow(1, X_bin, δ, δ², perm_ini, params1)
+# test_grow(10, X_bin, δ, δ², perm_ini, params1)
+# test_grow(100, X_bin, δ, δ², perm_ini, params1)
+# model = grow_gbtree(X_bin, Y, params1)
 
 X_train_bin = convert(Array{UInt8}, round.(X_train*64))
 X_eval_bin = convert(Array{UInt8}, round.(X_eval*64))
 
 @time model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval)
+# model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval)
+
 # predict - map a sample to tree-leaf prediction
 pred = predict(model, X_eval_bin)
 mean((pred .- Y_eval) .^ 2)

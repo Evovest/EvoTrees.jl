@@ -4,3 +4,4 @@
 deps/deps.jl
 
 data/
+.Rproj.user
