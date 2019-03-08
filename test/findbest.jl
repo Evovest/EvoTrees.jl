@@ -65,7 +65,7 @@ x_sort = x[x_sortperm]
 δ²_sort = δ²[x_sortperm]
 
 
-function find_split_1(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, ∑δ, ∑δ², λ, info::SplitInfo, track::SplitTrack) where T<:Real
+function find_split_1(x::AbstractArray, δ::AbstractArray, δ²::AbstractArray, ∑δ, ∑δ², λ, info::SplitInfo, track::SplitTrack)
 
     info.gain = (∑δ ^ 2 / (∑δ² + λ)) / 2.0
 
@@ -100,4 +100,5 @@ end
 
 
 @time split_1 = find_split_1(x_sort, δ_sort, δ²_sort, ∑δ, ∑δ², params1.λ, splits[1], tracks[1])
+@code_warntype find_split_1(x_sort, δ_sort, δ²_sort, ∑δ, ∑δ², params1.λ, splits[1], tracks[1])
 splits[1]

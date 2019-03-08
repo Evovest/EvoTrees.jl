@@ -7,10 +7,9 @@ using Base.Threads: @threads
 using StatsBase: sample
 
 using Revise
-using Traceur
+# using Traceur
 using EvoTrees
 using EvoTrees: get_gain, update_gains!, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, Params, predict, predict!, find_split!, SplitTrack, update_track!, sigmoid
-
 
 # prepare a dataset
 data = CSV.read("./data/performance_tot_v2_perc.csv", allowmissing = :auto)
@@ -75,12 +74,13 @@ root = TrainNode(1, ∑δ, ∑δ², gain, 𝑖, 𝑗)
 train_nodes[1] = root
 tree = grow_tree(X, δ, δ², params1, perm_ini, train_nodes)
 
+@code_warntype  grow_tree(X, δ, δ², params1, perm_ini, train_nodes)
 # predict - map a sample to tree-leaf prediction
 # @time pred = predict(tree, X)
-pred = predict(tree, X)
+@time pred = predict(tree, X)
 
 # pred = sigmoid(pred)
-mean((pred .- Y) .^ 2)
+(mean((pred .- Y) .^ 2))
 # println(sort(unique(pred)))
 
 function test_grow(n, X, δ, δ², perm_ini, params)
@@ -92,13 +92,9 @@ function test_grow(n, X, δ, δ², perm_ini, params)
     end
 end
 
-# @time test_grow(1, X, δ, δ², perm_ini, params1)
-# @time test_grow(10, X, δ, δ², perm_ini, params1)
+@time test_grow(1, X, δ, δ², perm_ini, params1)
+@time test_grow(10, X, δ, δ², perm_ini, params1)
 # @time test_grow(100, X, δ, δ², perm_ini, params1)
-
-test_grow(1, X, δ, δ², perm_ini, params1)
-test_grow(10, X, δ, δ², perm_ini, params1)
-test_grow(100, X, δ, δ², perm_ini, params1)
 
 # full model
 params1 = Params(:linear, 100, λ, γ, 1.0, 5, min_weight, 1.0, 1.0)
@@ -107,17 +103,17 @@ params1 = Params(:linear, 100, λ, γ, 1.0, 5, min_weight, 1.0, 1.0)
 
 # predict - map a sample to tree-leaf prediction
 # @time pred = predict(model, X)
-pred = predict(model, X)
+@time pred = predict(model, X)
 
 # pred = sigmoid(pred)
 sqrt(mean((pred .- Y) .^ 2))
 
 
 # train model
-params1 = Params(:linear, 100, 0.0, 0.0, 0.0, 5, 1.0, 0.5, 0.5)
+params1 = Params(:linear, 100, 10000.0, 0.0, 0.0, 5, 1.0, 0.5, 0.5)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval)
 
-pred_train = predict(model, X_train)
+@time pred_train = predict(model, X_train)
 sqrt(mean((pred_train .- Y_train) .^ 2))
 
 pred_eval = predict(model, X_eval)

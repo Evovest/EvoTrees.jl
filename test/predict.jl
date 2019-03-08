@@ -2,12 +2,9 @@ using DataFrames
 using CSV
 using Statistics
 using Base.Threads: @threads
-using BenchmarkTools
-using Profile
 using StatsBase: sample
 
 using Revise
-using Traceur
 using EvoTrees
 using EvoTrees: get_gain, update_gains!, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, Params, predict, predict!, find_split!, SplitTrack, update_track!, sigmoid
 
@@ -71,18 +68,34 @@ end
 
 root = TrainNode(1, ∑δ, ∑δ², gain, 𝑖, 𝑗)
 train_nodes[1] = root
-tree = grow_tree(X, δ, δ², params1, perm_ini, train_nodes)
+@time tree = grow_tree(X, δ, δ², params1, perm_ini, train_nodes)
 
 # predict - map a sample to tree-leaf prediction
 @time pred = predict(tree, X)
 # pred = sigmoid(pred)
-mean((pred .- Y) .^ 2)
+sqrt(mean((pred .- Y) .^ 2))
 
 
 # prediction from single tree - assign each observation to its final leaf
 function predict_1(tree::Tree, X::AbstractArray{T, 2}) where T<:Real
     pred = zeros(Float64, size(X, 1))
-    @threads for i in 1:size(X, 1)
+    for i in 1:size(X, 1)
+        id = Int(1)
+        while tree.nodes[id].split
+            if X[i, tree.nodes[id].feat] <= tree.nodes[id].cond
+                id = tree.nodes[id].left
+            else
+                id = tree.nodes[id].right
+            end
+        end
+        pred[i] += tree.nodes[id].pred
+    end
+    return pred
+end
+
+function predict_1!(pred, tree::Tree, X::AbstractArray{T, 2}) where T<:Real
+
+    for i in 1:size(X, 1)
         id = Int(1)
         while tree.nodes[id].split
             if X[i, tree.nodes[id].feat] <= tree.nodes[id].cond
@@ -97,6 +110,16 @@ function predict_1(tree::Tree, X::AbstractArray{T, 2}) where T<:Real
 end
 
 @time pred = predict_1(tree, X)
+@code_warntype predict_1(tree, X)
+
+pred = zeros(Float32, size(X, 1))
+@code_warntype predict_1!(pred, tree, X)
+@time pred = predict_1!(pred, tree, X)
+@time pred = predict_2!(pred, tree, X)
+
+sizeof(pred)/1024
+
+
 mean((pred .- Y) .^ 2)
 
 

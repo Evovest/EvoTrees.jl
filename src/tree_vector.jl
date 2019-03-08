@@ -1,25 +1,26 @@
 # initialize train_nodes
-function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, params::Params, perm_ini::AbstractArray{Int}, train_nodes::Vector{TrainNode}) where T<:Real
+function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, params::Params, perm_ini::AbstractArray{Int}, train_nodes::Vector{TrainNode}) where {T<:AbstractFloat, I, J, S}
 
-    active_id = [1]
-    leaf_count = 1
-    tree_depth = 1
+    active_id = ones(Int, 1)
+    leaf_count = 1::Int
+    tree_depth = 1::Int
 
-    tree = Tree(Vector{TreeNode}())
+    # tree = Tree(Vector{TreeNode}())
+    tree = Tree(Vector{TreeNode{Float64, Int}}())
 
-    splits = Vector{SplitInfo}(undef, size(X, 2))
+    splits = Vector{SplitInfo{Float64}}(undef, size(X, 2))
     for feat in 1:size(X, 2)
         splits[feat] = SplitInfo(-Inf, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, 0, 0.0)
     end
 
-    tracks = Vector{SplitTrack}(undef, size(X, 2))
+    tracks = Vector{SplitTrack{Float64}}(undef, size(X, 2))
     for feat in 1:size(X, 2)
         tracks[feat] = SplitTrack(0.0, 0.0, 0.0, 0.0, -Inf, -Inf, -Inf)
     end
 
     # grow while there are remaining active nodes
     while size(active_id, 1) > 0 && tree_depth <= params.max_depth
-        next_active_id = Int[]
+        next_active_id = ones(Int, 0)
 
         # grow nodes
         for id in active_id

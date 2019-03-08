@@ -60,7 +60,7 @@ end
 
 
 # prediction from single tree - assign each observation to its final leaf
-function predict(model::GBTree, X)
+function predict(model::GBTree, X::AbstractArray{T, 2}) where T<:Real
     pred = zeros(size(X, 1))
     @threads for i in 1:size(X, 1)
     # for i in 1:size(X, 1)
