@@ -72,12 +72,13 @@ end
 
 root = TrainNode(1, ∑δ, ∑δ², gain, 𝑖, 𝑗)
 train_nodes[1] = root
-tree = grow_tree(X, δ, δ², params1, perm_ini, train_nodes)
+@time tree = grow_tree(X, δ, δ², params1, perm_ini, train_nodes)
 
-@code_warntype  grow_tree(X, δ, δ², params1, perm_ini, train_nodes)
+@code_warntype grow_tree(X, δ, δ², params1, perm_ini, train_nodes)
 # predict - map a sample to tree-leaf prediction
 # @time pred = predict(tree, X)
 @time pred = predict(tree, X)
+@code_warntype predict(tree, X)
 
 # pred = sigmoid(pred)
 (mean((pred .- Y) .^ 2))
@@ -110,7 +111,7 @@ sqrt(mean((pred .- Y) .^ 2))
 
 
 # train model
-params1 = Params(:linear, 100, 10000.0, 0.0, 0.0, 5, 1.0, 0.5, 0.5)
+params1 = Params(:linear, 100, 0.0, 0.0, 0.0, 5, 1.0, 0.5, 0.5)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval)
 
 @time pred_train = predict(model, X_train)

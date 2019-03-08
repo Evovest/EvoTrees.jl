@@ -1,12 +1,12 @@
 # initialize train_nodes
-function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, params::Params, perm_ini::AbstractArray{Int}, train_nodes::Vector{TrainNode}) where {T<:AbstractFloat, I, J, S}
+function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, params::Params, perm_ini::AbstractArray{Int}, train_nodes::Vector{TrainNode}) where {T<:Real}
 
     active_id = ones(Int, 1)
     leaf_count = 1::Int
     tree_depth = 1::Int
 
-    # tree = Tree(Vector{TreeNode}())
-    tree = Tree(Vector{TreeNode{Float64, Int}}())
+    tree = Tree(Vector{TreeNode}())
+    # tree = Tree(Vector{TreeNode{Float64, Int}}())
 
     splits = Vector{SplitInfo{Float64}}(undef, size(X, 2))
     for feat in 1:size(X, 2)
