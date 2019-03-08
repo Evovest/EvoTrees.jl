@@ -53,9 +53,9 @@ struct Params{T<:AbstractFloat}
     γ::T
     η::T
     max_depth::Int
-    min_weight::T
-    rowsample::T
-    colsample::T
+    min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
+    rowsample::T # subsample
+    colsample::T # colsample_bytree
 end
 
 # single tree is made of a root node that containes nested nodes and leafs

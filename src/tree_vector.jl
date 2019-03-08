@@ -32,6 +32,7 @@ function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{Float64, 1}, δ²::
                 node_size = size(node.𝑖, 1)
 
                 @threads for feat in node.𝑗
+                # for feat in node.𝑗
                     sortperm!(view(perm_ini, 1:node_size, feat), view(X, node.𝑖, feat), alg = QuickSort, initialized = false)
                     find_split!(view(X, view(node.𝑖, view(perm_ini, 1:node_size, feat)), feat), view(δ, view(node.𝑖, view(perm_ini, 1:node_size, feat))) , view(δ², view(node.𝑖, view(perm_ini, 1:node_size, feat))), node.∑δ, node.∑δ², params.λ, splits[feat], tracks[feat])
                     # find_split!(view(X, node.𝑖[perm_ini[1:node_size, feat]], feat), view(δ, node.𝑖[perm_ini[1:node_size, feat]]) , view(δ², node.𝑖[perm_ini[1:node_size, feat]]), node.∑δ, node.∑δ², params.λ, splits[feat], tracks[feat])
@@ -84,13 +85,16 @@ end
 
 function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1}, params::Params; X_eval::AbstractArray{T, 2} = Array{T, 2}(undef, (0,0)), Y_eval::AbstractArray{<:AbstractFloat, 1} = Array{Float64, 1}(undef, 0))  where T<:Real
     μ = mean(Y)
-    pred = ones(size(Y, 1)) .* μ
+    # pred = ones(size(Y, 1)) .* μ
+    @fastmath pred = ones(size(Y, 1)) .* μ
+
     δ, δ² = zeros(Float64, size(Y, 1)), zeros(Float64, size(Y, 1))
     update_grads!(Val{params.loss}(), pred, Y, δ, δ²)
 
     # eval init
     if size(Y_eval, 1) > 0
-        pred_eval = ones(size(Y_eval, 1)) .* μ
+        # pred_eval = ones(size(Y_eval, 1)) .* μ
+        @fastmath pred_eval = ones(size(Y_eval, 1)) .* μ
     end
 
     ∑δ, ∑δ² = sum(δ), sum(δ²)
@@ -155,21 +159,25 @@ end
 
 function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, ∑δ, ∑δ², λ, info::SplitInfo, track::SplitTrack) where T<:Real
 
-    info.gain = (∑δ ^ 2 / (∑δ² + λ)) / 2.0
+    # info.gain = (∑δ ^ 2 / (∑δ² + λ)) / 2.0
+    @fastmath info.gain = (∑δ ^ 2 / (∑δ² + λ)) / 2.0
 
     track.∑δL = 0.0
     track.∑δ²L = 0.0
     track.∑δR = ∑δ
     track.∑δ²R = ∑δ²
 
-    @inbounds for i in 1:(size(x, 1) - 1)
+    @fastmath @inbounds for i in 1:(size(x, 1) - 1)
+    # @inbounds for i in 1:(size(x, 1) - 1)
 
         track.∑δL += δ[i]
         track.∑δ²L += δ²[i]
         track.∑δR -= δ[i]
         track.∑δ²R -= δ²[i]
 
-        @inbounds if x[i] < x[i+1] # check gain only if there's a change in value
+        @fastmath @inbounds if x[i] < x[i+1] # check gain only if there's a change in value
+        # @inbounds if x[i] < x[i+1] # check gain only if there's a change in value
+
             update_track!(track, λ)
             if track.gain > info.gain
                 info.gain = track.gain

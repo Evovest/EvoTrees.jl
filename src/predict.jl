@@ -2,6 +2,7 @@
 function predict(tree::Tree, X::AbstractArray{T, 2}) where T<:Real
     pred = zeros(size(X, 1))
     @threads for i in 1:size(X, 1)
+    # for i in 1:size(X, 1)
         id = Int(1)
         x = view(X, i, :)
         while tree.nodes[id].split
@@ -41,6 +42,7 @@ end
 # prediction from single tree - assign each observation to its final leaf
 function predict!(pred, tree::Tree, X::AbstractArray{T, 2}) where T<:Real
     @threads for i in 1:size(X, 1)
+    # for i in 1:size(X, 1)
         id = Int(1)
         x = view(X, i, :)
         while tree.nodes[id].split
@@ -61,6 +63,7 @@ end
 function predict(model::GBTree, X)
     pred = zeros(size(X, 1))
     @threads for i in 1:size(X, 1)
+    # for i in 1:size(X, 1)
         x = view(X, i, :)
         for tree in model.trees
             id = Int(1)
