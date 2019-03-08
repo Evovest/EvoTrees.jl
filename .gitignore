@@ -5,3 +5,8 @@ deps/deps.jl
 
 data/
 .Rproj.user
+
+.DS_Store
+
+JuliaGBT-Benchmark.R
+
