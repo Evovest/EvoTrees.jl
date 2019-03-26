@@ -54,6 +54,7 @@ params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, rowsample, colsample)
 δ, δ² = zeros(size(X, 1)), zeros(size(X, 1))
 pred = zeros(size(Y, 1))
 @time update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
+# @code_warntype update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
 ∑δ, ∑δ² = sum(δ), sum(δ²)
 
 gain = get_gain(∑δ, ∑δ², params1.λ)
