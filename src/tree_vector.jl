@@ -6,7 +6,6 @@ function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{Float64, 1}, δ²::
     tree_depth = 1::Int
 
     tree = Tree(Vector{TreeNode}())
-    # tree = Tree(Vector{TreeNode{Float64, Int}}())
 
     splits = Vector{SplitInfo{Float64}}(undef, size(X, 2))
     for feat in 1:size(X, 2)
@@ -36,25 +35,20 @@ function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{Float64, 1}, δ²::
                 # for feat in node.𝑗
                     sortperm!(view(perm_ini, 1:node_size, feat), view(X, node.𝑖, feat), alg = QuickSort, initialized = false)
                     find_split!(view(X, view(node.𝑖, view(perm_ini, 1:node_size, feat)), feat), view(δ, view(node.𝑖, view(perm_ini, 1:node_size, feat))) , view(δ², view(node.𝑖, view(perm_ini, 1:node_size, feat))), node.∑δ, node.∑δ², params.λ, splits[feat], tracks[feat])
-                    # find_split!(view(X, node.𝑖[perm_ini[1:node_size, feat]], feat), view(δ, node.𝑖[perm_ini[1:node_size, feat]]) , view(δ², node.𝑖[perm_ini[1:node_size, feat]]), node.∑δ, node.∑δ², params.λ, splits[feat], tracks[feat])
                     splits[feat].feat = feat
                 end
 
                 # assign best split
                 best = get_max_gain(splits)
-                # println(best)
 
                 # grow node if best split improve gain
                 if best.gain > node.gain + params.γ
 
                     # Node: depth, ∑δ, ∑δ², gain, 𝑖, 𝑗
-                    # train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.gainL, view(node.𝑖, view(perm_ini, 1:best.𝑖, best.feat)), view(node.𝑗, :))
-                    # train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.gainR, view(node.𝑖, view(perm_ini, best.𝑖+1:node_size, best.feat)), view(node.𝑗, :))
                     train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.gainL, node.𝑖[perm_ini[1:best.𝑖, best.feat]], node.𝑗[:])
                     train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.gainR, node.𝑖[perm_ini[best.𝑖+1:node_size, best.feat]], node.𝑗[:])
 
                     # push split Node
-                    # push!(tree.nodes, SplitNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond))
                     push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond))
 
                     push!(next_active_id, leaf_count + 1)
@@ -119,12 +113,8 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
 
     for i in 1:params.nrounds
         # select random rows and cols
-        # 𝑖 = view(𝑖_, sample(𝑖_, floor(Int, params.rowsample * X_size[1]), replace = false))
-        # 𝑗 = view(𝑗_, sample(𝑗_, floor(Int, params.colsample * X_size[2]), replace = false))
         𝑖 = 𝑖_[sample(𝑖_, floor(Int, params.rowsample * X_size[1]), replace = false)]
         𝑗 = 𝑗_[sample(𝑗_, floor(Int, params.colsample * X_size[2]), replace = false)]
-        # 𝑖 = 𝑖_
-        # 𝑗 = 𝑗_
 
         # get gradients
         update_grads!(Val{params.loss}(), pred, Y, δ, δ²)
@@ -147,9 +137,9 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
         # callback function
         if mod(i, 10) == 0
             if size(Y_eval, 1) > 0
-                println("iter:", i, ", train:", sqrt(mean((pred .- Y) .^ 2)), ", eval: ", sqrt(mean((pred_eval .- Y_eval) .^ 2)))
+                println("iter:", i, ", train:", get_eval(Val{:rmse}(), pred, Y), ", eval: ", get_eval(Val{:rmse}(), pred_eval, Y_eval))
             else
-                println("iter:", i, ", train:", sqrt(mean((pred .- Y) .^ 2)))
+                println("iter:", i, ", train:", get_eval(Val{:rmse}(), pred, Y))
             end
         end # end of callback
 
@@ -169,7 +159,6 @@ function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²
     track.∑δ²R = ∑δ²
 
     @fastmath @inbounds for i in 1:(size(x, 1) - 1)
-    # @inbounds for i in 1:(size(x, 1) - 1)
 
         track.∑δL += δ[i]
         track.∑δ²L += δ²[i]
@@ -177,7 +166,6 @@ function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²
         track.∑δ²R -= δ²[i]
 
         @fastmath @inbounds if x[i] < x[i+1] # check gain only if there's a change in value
-        # @inbounds if x[i] < x[i+1] # check gain only if there's a change in value
 
             update_track!(track, λ)
             if track.gain > info.gain

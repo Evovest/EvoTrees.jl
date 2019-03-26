@@ -9,7 +9,7 @@ using StatsBase: sample
 using Revise
 # using Traceur
 using EvoTrees
-using EvoTrees: get_gain, update_gains!, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, Params, predict, predict!, find_split!, SplitTrack, update_track!, sigmoid
+using EvoTrees: get_gain, update_gains!, get_max_gain, update_grads!, eval_metric, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, Params, predict, predict!, find_split!, SplitTrack, update_track!, sigmoid
 
 # prepare a dataset
 data = CSV.read("./data/performance_tot_v2_perc.csv", allowmissing = :auto)
@@ -125,7 +125,7 @@ sqrt(mean((mean(Y_eval) .- Y_eval) .^ 2))
 ####################################################
 ### Pred on binarised data
 ####################################################
-X_bin = convert(Array{UInt8}, round.(X*64))
+X_bin = convert(Array{UInt8}, round.(X*255))
 # @time test_grow(1, X_bin, δ, δ², perm_ini, params1)
 # @time test_grow(10, X_bin, δ, δ², perm_ini, params1)
 # @time test_grow(100, X_bin, δ, δ², perm_ini, params1)
@@ -136,8 +136,8 @@ X_bin = convert(Array{UInt8}, round.(X*64))
 # test_grow(100, X_bin, δ, δ², perm_ini, params1)
 # model = grow_gbtree(X_bin, Y, params1)
 
-X_train_bin = convert(Array{UInt8}, round.(X_train*64))
-X_eval_bin = convert(Array{UInt8}, round.(X_eval*64))
+X_train_bin = convert(Array{UInt8}, round.(X_train*255))
+X_eval_bin = convert(Array{UInt8}, round.(X_eval*255))
 
 @time model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval)
 # model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval)

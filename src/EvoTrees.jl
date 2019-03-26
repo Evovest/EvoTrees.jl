@@ -10,6 +10,7 @@ export grow_tree!, grow_gbtree, Tree, Node, Params, predict
 
 include("struct.jl")
 include("loss.jl")
+include("eval.jl")
 include("predict.jl")
 include("tree_vector.jl")
 
