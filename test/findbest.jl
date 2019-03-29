@@ -43,19 +43,20 @@ perm_ini = zeros(Int, size(X))
 
 params1 = Params(:linear, 1, 1.0, 0.1, 1.0, 5, 5.0, 0.8, 0.9)
 Val{params1.loss}()
-δ, δ² = zeros(size(X, 1)), zeros(size(X, 1))
+δ, δ² = zeros(Float64, size(X, 1)), zeros(Float64, size(X, 1))
+𝑤 = ones(Float64, size(X, 1))
 pred = zeros(size(Y, 1))
-@time update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
-∑δ, ∑δ² = sum(δ), sum(δ²)
-gain = get_gain(∑δ, ∑δ², params1.λ)
+@time update_grads!(Val{params1.loss}(), pred, Y, δ, δ², 𝑤)
+∑δ, ∑δ², ∑𝑤 = sum(δ), sum(δ²), sum(𝑤)
+gain = get_gain(∑δ, ∑δ², ∑𝑤, params1.λ)
 
 splits = Vector{SplitInfo}(undef, size(X, 2))
 for feat in 1:size(X, 2)
-    splits[feat] = SplitInfo(-Inf, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, 0, 0.0)
+    splits[feat] = SplitInfo(-Inf, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, 0, 0.0)
 end
 tracks = Vector{SplitTrack}(undef, size(X, 2))
 for feat in 1:size(X, 2)
-    tracks[feat] = SplitTrack(0.0, 0.0, 0.0, 0.0, -Inf, -Inf, -Inf)
+    tracks[feat] = SplitTrack(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, -Inf)
 end
 
 x = X[:, 5]
@@ -101,4 +102,8 @@ end
 
 @time split_1 = find_split_1(x_sort, δ_sort, δ²_sort, ∑δ, ∑δ², params1.λ, splits[1], tracks[1])
 @code_warntype find_split_1(x_sort, δ_sort, δ²_sort, ∑δ, ∑δ², params1.λ, splits[1], tracks[1])
+
+@time find_split!(x_sort, δ_sort, δ²_sort, 𝑤, ∑δ, ∑δ², ∑𝑤, params1.λ, splits[1], tracks[1])
+@code_warntype find_split!(x_sort, δ_sort, δ²_sort, ∑δ, ∑δ², params1.λ, splits[1], tracks[1])
+
 splits[1]
