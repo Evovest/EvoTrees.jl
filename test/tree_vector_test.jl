@@ -9,7 +9,7 @@ using StatsBase: sample
 using Revise
 # using Traceur
 using EvoTrees
-using EvoTrees: get_gain, update_gains!, get_max_gain, update_grads!, eval_metric, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, Params, predict, predict!, find_split!, SplitTrack, update_track!, sigmoid
+using EvoTrees: grow_tree_dev, get_gain, update_gains!, get_max_gain, update_grads!, eval_metric, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, Params, predict, predict!, find_split!, SplitTrack, update_track!, sigmoid
 
 # prepare a dataset
 data = CSV.read("./data/performance_tot_v2_perc.csv", allowmissing = :auto)
@@ -55,26 +55,41 @@ params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, rowsample, colsample)
 
 # initial info
 δ, δ² = zeros(size(X, 1)), zeros(size(X, 1))
+𝑤 = ones(size(X, 1))
 pred = zeros(size(Y, 1))
 # @time update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
-update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
-∑δ, ∑δ² = sum(δ), sum(δ²)
+update_grads!(Val{params1.loss}(), pred, Y, δ, δ², 𝑤)
+∑δ, ∑δ², ∑𝑤 = sum(δ), sum(δ²), sum(𝑤)
 
-gain = get_gain(∑δ, ∑δ², params1.λ)
+gain = get_gain(∑δ, ∑δ², ∑𝑤, params1.λ)
 𝑖 = collect(1:size(X,1))
 𝑗 = collect(1:size(X,2))
 
 # initialize train_nodes
 train_nodes = Vector{TrainNode}(undef, 2^params1.max_depth-1)
 for feat in 1:2^params1.max_depth-1
-    train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, [0], [0])
+    train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, [0], [0])
+end
+# initializde node splits info and tracks - colsample size (𝑗)
+splits = Vector{SplitInfo{Float64}}(undef, size(𝑗, 1))
+for feat in 1:size(𝑗, 1)
+    splits[feat] = SplitInfo{Float64}(-Inf, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, 0, 0.0)
+end
+tracks = Vector{SplitTrack{Float64}}(undef, size(𝑗, 1))
+for feat in 1:size(𝑗, 1)
+    tracks[feat] = SplitTrack{Float64}(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, -Inf)
 end
 
-root = TrainNode(1, ∑δ, ∑δ², gain, 𝑖, 𝑗)
+root = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
 train_nodes[1] = root
-@time tree = grow_tree(X, δ, δ², params1, perm_ini, train_nodes)
+@time tree = grow_tree(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
+@code_warntype grow_tree(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
 
-@code_warntype grow_tree(X, δ, δ², params1, perm_ini, train_nodes)
+root = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
+train_nodes[1] = root
+@time tree = grow_tree_dev(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
+@code_warntype grow_tree_dev(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
+
 # predict - map a sample to tree-leaf prediction
 # @time pred = predict(tree, X)
 @time pred = predict(tree, X)
@@ -84,17 +99,17 @@ train_nodes[1] = root
 (mean((pred .- Y) .^ 2))
 # println(sort(unique(pred)))
 
-function test_grow(n, X, δ, δ², perm_ini, params)
+function test_grow(n, X, δ, δ², 𝑤, perm_ini, params)
     for i in 1:n
-        root = TrainNode(1, ∑δ, ∑δ², gain, 𝑖, 𝑗)
+        root = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
         train_nodes[1] = root
-        grow_tree(X, δ, δ², params, perm_ini, train_nodes)
+        grow_tree(X, δ, δ², 𝑤, params, perm_ini, train_nodes, splits, tracks)
         # grow_tree!(tree, view(X, :, :), view(δ, :), view(δ², :), params1)
     end
 end
 
-@time test_grow(1, X, δ, δ², perm_ini, params1)
-@time test_grow(10, X, δ, δ², perm_ini, params1)
+@time test_grow(1, X, δ, δ², 𝑤, perm_ini, params1)
+@time test_grow(10, X, δ, δ², 𝑤, perm_ini, params1)
 # @time test_grow(100, X, δ, δ², perm_ini, params1)
 
 # full model
@@ -105,13 +120,14 @@ params1 = Params(:linear, 100, λ, γ, 1.0, 5, min_weight, 1.0, 1.0)
 # predict - map a sample to tree-leaf prediction
 # @time pred = predict(model, X)
 @time pred = predict(model, X)
+@code_warntype predict(model, X)
 
 # pred = sigmoid(pred)
 sqrt(mean((pred .- Y) .^ 2))
 
 
 # train model
-params1 = Params(:linear, 100, 0.0, 0.0, 0.0, 5, 1.0, 0.5, 0.5)
+params1 = Params(:linear, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 0.5)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval)
 
 @time pred_train = predict(model, X_train)
@@ -119,7 +135,6 @@ sqrt(mean((pred_train .- Y_train) .^ 2))
 
 pred_eval = predict(model, X_eval)
 sqrt(mean((pred_eval .- Y_eval) .^ 2))
-sqrt(mean((mean(Y_eval) .- Y_eval) .^ 2))
 
 
 ####################################################
@@ -148,3 +163,10 @@ mean((pred .- Y_eval) .^ 2)
 
 pred = predict(model, X_train_bin)
 mean((pred .- Y_train) .^ 2)
+
+# big data test
+X_train_bin2 = hcat(X_train_bin, X_train_bin, X_train_bin, X_train_bin, X_train_bin)
+# X_train_bin2 = vcat(X_train_bin, X_train_bin, X_train_bin, X_train_bin, X_train_bin)
+X_train_bin2 = vcat(X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2)
+Y_train2 = vcat(Y_train, Y_train, Y_train, Y_train, Y_train)
+@time model = grow_gbtree(X_train_bin2, Y_train2, params1)

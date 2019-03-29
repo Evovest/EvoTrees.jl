@@ -9,14 +9,17 @@ struct TrainData{T<:AbstractFloat}
     Y::Matrix{T}
     δ::Vector{T}
     δ²::Vector{T}
+    𝑤::Vector{T}
 end
 
 mutable struct SplitInfo{T<:AbstractFloat}
     gain::T
     ∑δL::T
     ∑δ²L::T
+    ∑𝑤L::T
     ∑δR::T
     ∑δ²R::T
+    ∑𝑤R::T
     gainL::T
     gainR::T
     𝑖::Int
@@ -27,8 +30,10 @@ end
 mutable struct SplitTrack{T<:AbstractFloat}
     ∑δL::T
     ∑δ²L::T
+    ∑𝑤L::T
     ∑δR::T
     ∑δ²R::T
+    ∑𝑤R::T
     gainL::T
     gainR::T
     gain::T
@@ -43,8 +48,8 @@ struct TreeNode{T<:AbstractFloat, S<:Int}
     split::Bool
 end
 
-TreeNode(left::S, right::S, feat::S, cond::T) where {S<:Int, T<:AbstractFloat} = TreeNode(left, right, feat, cond, 0.0, true)
-TreeNode(pred::T) where {T<:AbstractFloat} = TreeNode(0, 0, 0, 0.0, pred, false)
+TreeNode(left::S, right::S, feat::S, cond::T) where {S<:Int, T<:AbstractFloat} = TreeNode{T,S}(left, right, feat, cond, 0.0, true)
+TreeNode(pred::T) where {T<:AbstractFloat} = TreeNode{T, Int}(0, 0, 0, 0.0, pred, false)
 
 struct Params{T<:AbstractFloat}
     loss::Symbol
@@ -63,6 +68,7 @@ struct TrainNode{T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{In
     depth::S
     ∑δ::T
     ∑δ²::T
+    ∑𝑤::T
     gain::T
     𝑖::I
     𝑗::J
