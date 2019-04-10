@@ -85,11 +85,6 @@ train_nodes[1] = root
 @time tree = grow_tree(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
 @code_warntype grow_tree(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
 
-root = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
-train_nodes[1] = root
-@time tree = grow_tree_dev(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
-@code_warntype grow_tree_dev(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
-
 # predict - map a sample to tree-leaf prediction
 # @time pred = predict(tree, X)
 @time pred = predict(tree, X)
@@ -109,11 +104,11 @@ function test_grow(n, X, δ, δ², 𝑤, perm_ini, params)
 end
 
 @time test_grow(1, X, δ, δ², 𝑤, perm_ini, params1)
-@time test_grow(10, X, δ, δ², 𝑤, perm_ini, params1)
+@time test_grow(100, X, δ, δ², 𝑤, perm_ini, params1)
 # @time test_grow(100, X, δ, δ², perm_ini, params1)
 
 # full model
-params1 = Params(:linear, 100, λ, γ, 1.0, 5, min_weight, 1.0, 1.0)
+params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, 1.0, 1.0)
 @time model = grow_gbtree(X, Y, params1)
 # model = grow_gbtree(X, Y, params1)
 
@@ -170,3 +165,11 @@ X_train_bin2 = hcat(X_train_bin, X_train_bin, X_train_bin, X_train_bin, X_train_
 X_train_bin2 = vcat(X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2)
 Y_train2 = vcat(Y_train, Y_train, Y_train, Y_train, Y_train)
 @time model = grow_gbtree(X_train_bin2, Y_train2, params1)
+
+
+using StatsBase
+x = [11, 12, 13, 10, 15]
+x_rank = ordinalrank(x)
+id = [1, 3, 5]
+x_view = x[id]
+x_rank_view = x_rank[id]
