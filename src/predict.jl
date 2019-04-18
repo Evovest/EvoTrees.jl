@@ -28,10 +28,8 @@ function predict(model::GBTree, X::AbstractArray{T, 2}) where T<:Real
     for tree in model.trees
         predict!(pred, tree, X)
     end
-
     if model.params.loss == :logistic
-        pred .= sigmoid.(pred)
+        @. pred = sigmoid(pred)
     end
-
     return pred
 end
