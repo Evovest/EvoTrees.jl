@@ -5,7 +5,7 @@ function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{Float64, 1}, δ²::
     leaf_count = 1::Int
     tree_depth = 1::Int
 
-    tree = Tree(Vector{TreeNode}())
+    tree = Tree(Vector{TreeNode{Float64, Int}}())
 
     # grow while there are remaining active nodes
     while size(active_id, 1) > 0 && tree_depth <= params.max_depth
@@ -20,7 +20,6 @@ function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{Float64, 1}, δ²::
                 push!(tree.nodes, TreeNode(- params.η * node.∑δ / (node.∑δ² + params.λ * node.∑𝑤)))
             else
                 node_size = size(node.𝑖, 1)
-
                 @threads for feat in node.𝑗
                 # for feat in node.𝑗
                     sortperm!(view(perm_ini, 1:node_size, feat), view(X, node.𝑖, feat), alg = QuickSort, initialized = false)
@@ -33,17 +32,13 @@ function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{Float64, 1}, δ²::
 
                 # grow node if best split improve gain
                 if best.gain > node.gain + params.γ
-
                     # Node: depth, ∑δ, ∑δ², gain, 𝑖, 𝑗
                     train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, node.𝑖[perm_ini[1:best.𝑖, best.feat]], node.𝑗[:])
                     train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, node.𝑖[perm_ini[best.𝑖+1:node_size, best.feat]], node.𝑗[:])
-
                     # push split Node
                     push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond))
-
                     push!(next_active_id, leaf_count + 1)
                     push!(next_active_id, leaf_count + 2)
-
                     leaf_count += 2
                 else
                     push!(tree.nodes, TreeNode(- params.η * node.∑δ / (node.∑δ² + params.λ * node.∑𝑤)))
@@ -57,7 +52,6 @@ function grow_tree(X::AbstractArray{T, 2}, δ::AbstractArray{Float64, 1}, δ²::
     return tree
 end
 
-
 # extract the gain value from the vector of best splits and return the split info associated with best split
 function get_max_gain(splits::Vector{SplitInfo{Float64}})
     gains = (x -> x.gain).(splits)
@@ -67,11 +61,11 @@ function get_max_gain(splits::Vector{SplitInfo{Float64}})
     return best
 end
 
-
-function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1}, params::Params; X_eval::AbstractArray{T, 2} = Array{T, 2}(undef, (0,0)), Y_eval::AbstractArray{<:AbstractFloat, 1} = Array{Float64, 1}(undef, 0))  where T<:Real
+# grow_gbtree
+function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1}, params::Params; X_eval::AbstractArray{T, 2} = Array{T, 2}(undef, (0,0)), Y_eval::AbstractArray{<:AbstractFloat, 1} = Array{Float64, 1}(undef, 0), metric::Symbol = :rmse)  where T<:Real
     μ = mean(Y)
     # pred = ones(size(Y, 1)) .* μ
-    @fastmath pred = ones(size(Y, 1)) .* μ
+    pred = ones(size(Y, 1)) .* μ
 
     # initialize gradients and weights
     δ, δ² = zeros(Float64, size(Y, 1)), zeros(Float64, size(Y, 1))
@@ -81,7 +75,7 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
     # eval init
     if size(Y_eval, 1) > 0
         # pred_eval = ones(size(Y_eval, 1)) .* μ
-        @fastmath pred_eval = ones(size(Y_eval, 1)) .* μ
+        pred_eval = ones(size(Y_eval, 1)) .* μ
     end
 
     bias = Tree([TreeNode(μ)])
@@ -123,6 +117,8 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
         # assign a root and grow tree
         train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
         tree = grow_tree(X, δ, δ², 𝑤, params, perm_ini, train_nodes, splits, tracks)
+        # update push tree to model
+        push!(gbtree.trees, tree)
 
         # get update predictions
         predict!(pred, tree, X)
@@ -130,15 +126,13 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
         if size(Y_eval, 1) > 0
             predict!(pred_eval, tree, X_eval)
         end
-        # update push tree to model
-        push!(gbtree.trees, tree)
 
         # callback function
         if mod(i, 10) == 0
             if size(Y_eval, 1) > 0
-                println("iter:", i, ", train:", eval_metric(Val{:rmse}(), pred, Y), ", eval: ", eval_metric(Val{:rmse}(), pred_eval, Y_eval))
+                println("iter:", i, ", train:", eval_metric(Val{metric}(), pred, Y), ", eval: ", eval_metric(Val{metric}(), pred_eval, Y_eval))
             else
-                println("iter:", i, ", train:", eval_metric(Val{:rmse}(), pred, Y))
+                println("iter:", i, ", train:", eval_metric(Val{metric}(), pred, Y))
             end
         end # end of callback
 
@@ -146,7 +140,7 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
     return gbtree
 end
 
-
+# find best split
 function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, λ, info::SplitInfo, track::SplitTrack) where T<:Real
 
     # info.gain = (∑δ ^ 2 / (∑δ² + λ)) / 2.0

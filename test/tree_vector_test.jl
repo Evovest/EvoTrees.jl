@@ -9,7 +9,7 @@ using StatsBase: sample
 using Revise
 # using Traceur
 using EvoTrees
-using EvoTrees: grow_tree_dev, get_gain, update_gains!, get_max_gain, update_grads!, eval_metric, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, Params, predict, predict!, find_split!, SplitTrack, update_track!, sigmoid
+using EvoTrees: get_gain, update_gains!, get_max_gain, update_grads!, eval_metric, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, Params, predict, predict!, find_split!, SplitTrack, update_track!, sigmoid
 
 # prepare a dataset
 data = CSV.read("./data/performance_tot_v2_perc.csv", allowmissing = :auto)
@@ -82,6 +82,11 @@ end
 
 root = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
 train_nodes[1] = root
+
+tree = [TreeNode(1.3)]
+Tree(tree)
+tree = Vector{TreeNode{Float64, Int}}()
+
 @time tree = grow_tree(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
 @code_warntype grow_tree(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
 
@@ -124,13 +129,16 @@ sqrt(mean((pred .- Y) .^ 2))
 # train model
 params1 = Params(:linear, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 0.5)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval)
-
 @time pred_train = predict(model, X_train)
 sqrt(mean((pred_train .- Y_train) .^ 2))
-
 pred_eval = predict(model, X_eval)
 sqrt(mean((pred_eval .- Y_eval) .^ 2))
 
+# train model
+params1 = Params(:logistic, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 0.5)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, metric = :logloss)
+@time pred_train = predict(model, X_train)
+sqrt(mean((pred_train .- Y_train) .^ 2))
 
 ####################################################
 ### Pred on binarised data
@@ -149,15 +157,23 @@ X_bin = convert(Array{UInt8}, round.(X*255))
 X_train_bin = convert(Array{UInt8}, round.(X_train*255))
 X_eval_bin = convert(Array{UInt8}, round.(X_eval*255))
 
-@time model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval)
+@time model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval, metric = :mse)
 # model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval)
 
 # predict - map a sample to tree-leaf prediction
 pred = predict(model, X_eval_bin)
 mean((pred .- Y_eval) .^ 2)
 
-pred = predict(model, X_train_bin)
+@time pred = predict(model, X_train_bin)
 mean((pred .- Y_train) .^ 2)
+
+params1 = Params(:logistic, 100, 0.0, 1.0, 0.1, 6, 1.0, 0.5, 0.5)
+@time model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval, metric = :logloss)
+@time pred = predict(model, X_train_bin)
+mean((pred .- Y_train) .^ 2)
+
+minimum(pred)
+maximum(pred)
 
 # big data test
 X_train_bin2 = hcat(X_train_bin, X_train_bin, X_train_bin, X_train_bin, X_train_bin)
@@ -165,11 +181,3 @@ X_train_bin2 = hcat(X_train_bin, X_train_bin, X_train_bin, X_train_bin, X_train_
 X_train_bin2 = vcat(X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2)
 Y_train2 = vcat(Y_train, Y_train, Y_train, Y_train, Y_train)
 @time model = grow_gbtree(X_train_bin2, Y_train2, params1)
-
-
-using StatsBase
-x = [11, 12, 13, 10, 15]
-x_rank = ordinalrank(x)
-id = [1, 3, 5]
-x_view = x[id]
-x_rank_view = x_rank[id]

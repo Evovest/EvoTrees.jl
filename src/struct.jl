@@ -75,12 +75,12 @@ struct TrainNode{T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{In
 end
 
 # single tree is made of a root node that containes nested nodes and leafs
-struct Tree
-    nodes::Vector{TreeNode}
+struct Tree{T<:AbstractFloat, S<:Int}
+    nodes::Vector{TreeNode{T,S}}
 end
 
 # gradient-boosted tree is formed by a vector of trees
-struct GBTree
-    trees::Vector{Tree}
-    params::Params
+struct GBTree{T<:AbstractFloat, S<:Int}
+    trees::Vector{Tree{T,S}}
+    params::Params{T}
 end
