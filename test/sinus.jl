@@ -40,7 +40,7 @@ params1 = Params(:linear, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 1.0)
 sqrt(mean((pred_train .- Y_train) .^ 2))
 
 # train model
-params1 = Params(:logistic, 100, 0.0, 0.0, 0.5, 5, 1.0, 0.5, 1.0)
+params1 = Params(:logistic, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, metric = :logloss)
 @time pred_train = predict(model, X_train)
 sqrt(mean((pred_train .- Y_train) .^ 2))
