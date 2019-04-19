@@ -84,3 +84,10 @@ struct GBTree{T<:AbstractFloat, S<:Int}
     trees::Vector{Tree{T,S}}
     params::Params{T}
 end
+
+
+struct Metric
+    iter::Vector{Int}
+    metric::Vector{Float64}
+end
+Metric() = Metric([0], [Inf])

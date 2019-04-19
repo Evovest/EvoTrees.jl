@@ -21,6 +21,7 @@ X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # set parameters
+loss = :linear
 nrounds = 1
 λ = 1.0
 γ = 1e-15
@@ -35,12 +36,12 @@ params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, rowsample, colsample)
 
 # train model
 params1 = Params(:linear, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:none)
 @time pred_train = predict(model, X_train)
 sqrt(mean((pred_train .- Y_train) .^ 2))
 
 # train model
 params1 = Params(:logistic, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, metric = :logloss)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=10, metric = :logloss)
 @time pred_train = predict(model, X_train)
 sqrt(mean((pred_train .- Y_train) .^ 2))

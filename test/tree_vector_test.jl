@@ -109,8 +109,7 @@ function test_grow(n, X, δ, δ², 𝑤, perm_ini, params)
 end
 
 @time test_grow(1, X, δ, δ², 𝑤, perm_ini, params1)
-@time test_grow(100, X, δ, δ², 𝑤, perm_ini, params1)
-# @time test_grow(100, X, δ, δ², perm_ini, params1)
+# @time test_grow(100, X, δ, δ², 𝑤, perm_ini, params1)
 
 # full model
 params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, 1.0, 1.0)
@@ -128,7 +127,8 @@ sqrt(mean((pred .- Y) .^ 2))
 
 # train model
 params1 = Params(:linear, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 0.5)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, metric = :mse, print_every_n=10, early_stopping_rounds=100)
+
 @time pred_train = predict(model, X_train)
 sqrt(mean((pred_train .- Y_train) .^ 2))
 pred_eval = predict(model, X_eval)
@@ -136,7 +136,7 @@ sqrt(mean((pred_eval .- Y_eval) .^ 2))
 
 # train model
 params1 = Params(:logistic, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 0.5)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, metric = :logloss)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, metric = :logloss, print_every_n=10, early_stopping_rounds=100)
 @time pred_train = predict(model, X_train)
 sqrt(mean((pred_train .- Y_train) .^ 2))
 
@@ -157,7 +157,7 @@ X_bin = convert(Array{UInt8}, round.(X*255))
 X_train_bin = convert(Array{UInt8}, round.(X_train*255))
 X_eval_bin = convert(Array{UInt8}, round.(X_eval*255))
 
-@time model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval, metric = :mse)
+@time model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval, metric = :mse, print_every_n=10, early_stopping_rounds=100)
 # model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval)
 
 # predict - map a sample to tree-leaf prediction
@@ -168,7 +168,7 @@ mean((pred .- Y_eval) .^ 2)
 mean((pred .- Y_train) .^ 2)
 
 params1 = Params(:logistic, 100, 0.0, 1.0, 0.1, 6, 1.0, 0.5, 0.5)
-@time model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval, metric = :logloss)
+@time model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval, metric = :logloss, print_every_n=10, early_stopping_rounds=100)
 @time pred = predict(model, X_train_bin)
 mean((pred .- Y_train) .^ 2)
 

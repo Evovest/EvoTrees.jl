@@ -62,9 +62,11 @@ function get_max_gain(splits::Vector{SplitInfo{Float64}})
 end
 
 # grow_gbtree
-function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1}, params::Params; X_eval::AbstractArray{T, 2} = Array{T, 2}(undef, (0,0)), Y_eval::AbstractArray{<:AbstractFloat, 1} = Array{Float64, 1}(undef, 0), metric::Symbol = :rmse)  where T<:Real
+function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1}, params::Params;
+    X_eval::AbstractArray{T, 2} = Array{T, 2}(undef, (0,0)), Y_eval::AbstractArray{<:AbstractFloat, 1} = Array{Float64, 1}(undef, 0),
+    metric::Symbol = :none, early_stopping_rounds = Int(1e5), print_every_n = 100)  where T<:Real
+
     μ = mean(Y)
-    # pred = ones(size(Y, 1)) .* μ
     pred = ones(size(Y, 1)) .* μ
 
     # initialize gradients and weights
@@ -74,7 +76,6 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
 
     # eval init
     if size(Y_eval, 1) > 0
-        # pred_eval = ones(size(Y_eval, 1)) .* μ
         pred_eval = ones(size(Y_eval, 1)) .* μ
     end
 
@@ -88,9 +89,17 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
     𝑖_ = collect(1:X_size[1])
     𝑗_ = collect(1:X_size[2])
 
+    # initialize train nodes
     train_nodes = Vector{TrainNode}(undef, 2^params.max_depth-1)
     for feat in 1:2^params.max_depth-1
         train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, [0], [0])
+    end
+
+    # initialize metric
+    if metric != :none
+        metric_track = Metric()
+        metric_best = Metric()
+        iter_since_best = 0
     end
 
     # loop over nrounds
@@ -128,16 +137,26 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
         end
 
         # callback function
-        if mod(i, 10) == 0
-            if size(Y_eval, 1) > 0
-                display(string("iter:", i, ", train:", eval_metric(Val{metric}(), pred, Y), ", eval: ", eval_metric(Val{metric}(), pred_eval, Y_eval)))
-                # println("iter:", i, ", train:", eval_metric(Val{metric}(), pred, Y), ", eval: ", eval_metric(Val{metric}(), pred_eval, Y_eval))
-            else
-                display(string("iter:", i, ", train:", eval_metric(Val{metric}(), pred, Y)))
-                # println("iter:", i, ", train:", eval_metric(Val{metric}(), pred, Y))
-            end
-        end # end of callback
+        if metric != :none
 
+            if size(Y_eval, 1) > 0
+                metric_track.metric .= eval_metric(Val{metric}(), pred_eval, Y_eval)
+            else
+                metric_track.metric .= eval_metric(Val{metric}(), pred, Y)
+            end
+
+            if metric_track.metric < metric_best.metric
+                metric_best.metric .=  metric_track.metric
+                metric_best.iter .=  i
+            else
+                iter_since_best += 1
+            end
+
+            if mod(i, print_every_n) == 0
+                display(string("iter:", i, ", eval: ", metric_track.metric))
+            end
+            iter_since_best >= early_stopping_rounds ? break : nothing
+        end
     end #end of nrounds
     return gbtree
 end
