@@ -1,7 +1,7 @@
 name = "EvoTrees"
 uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
 authors = ["jeremiedb <jeremie_db@hotmail.com>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"

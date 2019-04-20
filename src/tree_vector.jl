@@ -80,7 +80,7 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
     end
 
     bias = Tree([TreeNode(μ)])
-    gbtree = GBTree([bias], params)
+    gbtree = GBTree([bias], params, Metric())
 
     # sort perm id placeholder
     perm_ini = zeros(Int, size(X))
@@ -158,6 +158,11 @@ function grow_gbtree(X::AbstractArray{T, 2}, Y::AbstractArray{<:AbstractFloat, 1
             iter_since_best >= early_stopping_rounds ? break : nothing
         end
     end #end of nrounds
+
+    if metric != :none
+        gbtree.metric.iter .= metric_best.iter
+        gbtree.metric.metric .= metric_best.metric
+    end
     return gbtree
 end
 

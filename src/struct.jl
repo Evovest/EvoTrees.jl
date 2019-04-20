@@ -79,15 +79,16 @@ struct Tree{T<:AbstractFloat, S<:Int}
     nodes::Vector{TreeNode{T,S}}
 end
 
-# gradient-boosted tree is formed by a vector of trees
-struct GBTree{T<:AbstractFloat, S<:Int}
-    trees::Vector{Tree{T,S}}
-    params::Params{T}
-end
-
-
+# eval metric tracking
 struct Metric
     iter::Vector{Int}
     metric::Vector{Float64}
 end
 Metric() = Metric([0], [Inf])
+
+# gradient-boosted tree is formed by a vector of trees
+struct GBTree{T<:AbstractFloat, S<:Int}
+    trees::Vector{Tree{T,S}}
+    params::Params{T}
+    metric::Metric
+end
