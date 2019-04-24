@@ -66,14 +66,14 @@ gain = get_gain(∑δ, ∑δ², ∑𝑤, params1.λ)
 𝑗 = collect(1:size(X,2))
 
 # initialize train_nodes
-train_nodes = Vector{TrainNode}(undef, 2^params1.max_depth-1)
+train_nodes = Vector{TrainNode{Float64, Array{Int64,1}, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
 for feat in 1:2^params1.max_depth-1
     train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, [0], [0])
 end
 # initializde node splits info and tracks - colsample size (𝑗)
-splits = Vector{SplitInfo{Float64}}(undef, size(𝑗, 1))
+splits = Vector{SplitInfo{Float64, Int}}(undef, size(𝑗, 1))
 for feat in 1:size(𝑗, 1)
-    splits[feat] = SplitInfo{Float64}(-Inf, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, 0, 0.0)
+    splits[feat] = SplitInfo{Float64, Int}(-Inf, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, 0, 0.0)
 end
 tracks = Vector{SplitTrack{Float64}}(undef, size(𝑗, 1))
 for feat in 1:size(𝑗, 1)
@@ -85,7 +85,7 @@ train_nodes[1] = root
 
 tree = [TreeNode(1.3)]
 Tree(tree)
-tree = Vector{TreeNode{Float64, Int}}()
+tree = Vector{TreeNode{Float64, Int, Bool}}()
 
 @time tree = grow_tree(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
 @code_warntype grow_tree(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
@@ -157,6 +157,7 @@ X_bin = convert(Array{UInt8}, round.(X*255))
 X_train_bin = convert(Array{UInt8}, round.(X_train*255))
 X_eval_bin = convert(Array{UInt8}, round.(X_eval*255))
 
+params1 = Params(:linear, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 0.5)
 @time model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval, metric = :mse, print_every_n=10, early_stopping_rounds=100)
 # model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval)
 

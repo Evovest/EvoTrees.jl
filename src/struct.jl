@@ -12,7 +12,7 @@ struct TrainData{T<:AbstractFloat}
     𝑤::Vector{T}
 end
 
-mutable struct SplitInfo{T<:AbstractFloat}
+mutable struct SplitInfo{T<:AbstractFloat, S<:Int}
     gain::T
     ∑δL::T
     ∑δ²L::T
@@ -22,8 +22,8 @@ mutable struct SplitInfo{T<:AbstractFloat}
     ∑𝑤R::T
     gainL::T
     gainR::T
-    𝑖::Int
-    feat::Int
+    𝑖::S
+    feat::S
     cond::T
 end
 
@@ -39,25 +39,25 @@ mutable struct SplitTrack{T<:AbstractFloat}
     gain::T
 end
 
-struct TreeNode{T<:AbstractFloat, S<:Int}
+struct TreeNode{T<:AbstractFloat, S<:Int, B<:Bool}
     left::S
     right::S
     feat::S
     cond::T
     pred::T
-    split::Bool
+    split::B
 end
 
-TreeNode(left::S, right::S, feat::S, cond::T) where {S<:Int, T<:AbstractFloat} = TreeNode{T,S}(left, right, feat, cond, 0.0, true)
-TreeNode(pred::T) where {T<:AbstractFloat} = TreeNode{T, Int}(0, 0, 0, 0.0, pred, false)
+TreeNode(left::S, right::S, feat::S, cond::T) where {T<:AbstractFloat, S<:Int} = TreeNode{T,S,Bool}(left, right, feat, cond, 0.0, true)
+TreeNode(pred::T) where {T<:AbstractFloat} = TreeNode{T,Int,Bool}(0, 0, 0, 0.0, pred, false)
 
-struct Params{T<:AbstractFloat}
-    loss::Symbol
-    nrounds::Int
+struct Params{T<:AbstractFloat, U<:Symbol, S<:Int}
+    loss::U
+    nrounds::S
     λ::T
     γ::T
     η::T
-    max_depth::Int
+    max_depth::S
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T # colsample_bytree
@@ -76,7 +76,7 @@ end
 
 # single tree is made of a root node that containes nested nodes and leafs
 struct Tree{T<:AbstractFloat, S<:Int}
-    nodes::Vector{TreeNode{T,S}}
+    nodes::Vector{TreeNode{T,S,Bool}}
 end
 
 # eval metric tracking
@@ -89,6 +89,6 @@ Metric() = Metric([0], [Inf])
 # gradient-boosted tree is formed by a vector of trees
 struct GBTree{T<:AbstractFloat, S<:Int}
     trees::Vector{Tree{T,S}}
-    params::Params{T}
+    params::Params{T, Symbol, Int}
     metric::Metric
 end
