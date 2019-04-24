@@ -30,7 +30,7 @@ function predict(model::GBTree, X::AbstractArray{T, 2}) where T<:Real
     end
     if model.params.loss == :logistic
         @. pred = sigmoid(pred)
-    else if model.params.loss == :poisson
+    elseif model.params.loss == :poisson
         @. pred = exp(pred)
     end
     return pred
