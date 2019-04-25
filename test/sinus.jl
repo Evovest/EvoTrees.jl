@@ -35,13 +35,13 @@ colsample = 1.0
 params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, rowsample, colsample)
 
 # train model
-params1 = Params(:linear, 200, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:none)
+params1 = Params(:linear, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 1.0)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:mae)
 @time pred_train = predict(model, X_train)
 sqrt(mean((pred_train .- Y_train) .^ 2))
 
 # train model
 params1 = Params(:logistic, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=10, metric = :logloss)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
 @time pred_train = predict(model, X_train)
 sqrt(mean((pred_train .- Y_train) .^ 2))
