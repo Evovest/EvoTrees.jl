@@ -67,6 +67,11 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
     metric::Symbol = :none, early_stopping_rounds = Int(1e5), print_every_n = 100) where {R<:Real, T<:AbstractFloat}
 
     μ = mean(Y)
+    if params.loss == :logistic
+        μ = logit(μ)
+    elseif params.loss == :poisson
+        μ = log(μ)
+    end
     pred = ones(size(Y, 1)) .* μ
 
     # initialize gradients and weights

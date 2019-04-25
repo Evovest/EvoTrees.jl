@@ -22,8 +22,13 @@ function update_grads!(::Val{:poisson}, pred::AbstractArray{T, 1}, target::Abstr
 end
 
 function logit(x::AbstractArray{T, 1}) where T <: AbstractFloat
-    @. x = x / (1 - x)
-    return δ, δ²
+    @. x = log(x / (1 - x))
+    return x
+end
+
+function logit(x::T) where T <: AbstractFloat
+    x = log(x / (1 - x))
+    return x
 end
 
 function sigmoid(x::AbstractArray{T, 1}) where T <: AbstractFloat
