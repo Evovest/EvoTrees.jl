@@ -20,6 +20,7 @@ X = convert(Matrix, features)
 Y = data[54]
 Y = convert(Array{Float64}, Y)
 𝑖 = collect(1:size(X,1))
+𝑗 = collect(1:size(X,2))
 
 # train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
@@ -51,7 +52,7 @@ rowsample = 1.0
 colsample = 1.0
 
 # params1 = Params(nrounds, λ, γ, η, max_depth, min_weight, :linear)
-params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, rowsample, colsample)
+params1 = Params(:linear, 1, λ, γ, 1.0, 2, min_weight, rowsample, colsample)
 
 # initial info
 δ, δ² = zeros(size(X, 1)), zeros(size(X, 1))
@@ -62,8 +63,6 @@ update_grads!(Val{params1.loss}(), pred, Y, δ, δ², 𝑤)
 ∑δ, ∑δ², ∑𝑤 = sum(δ), sum(δ²), sum(𝑤)
 
 gain = get_gain(∑δ, ∑δ², ∑𝑤, params1.λ)
-𝑖 = collect(1:size(X,1))
-𝑗 = collect(1:size(X,2))
 
 # initialize train_nodes
 train_nodes = Vector{TrainNode{Float64, Array{Int64,1}, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
