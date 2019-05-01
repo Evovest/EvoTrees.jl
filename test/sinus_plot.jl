@@ -3,6 +3,7 @@ using CSV
 using Statistics
 using StatsBase: sample
 using Test
+using Plots
 
 using EvoTrees
 using EvoTrees: sigmoid, logit
@@ -52,3 +53,11 @@ params1 = Params(:poisson, nrounds, λ, γ, η, max_depth, min_weight, rowsample
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
 @time pred_train_poisson = predict(model, X_train)
 sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
+
+x_perm = sortperm(X_train[:,1])
+plot(X_train, Y_train, ms = 1, mcolor = evo_gray, mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot!(X_train[:,1][x_perm], pred_train_linear[x_perm], color = "navy", linewidth = 1.5, label = "Linear")
+plot!(X_train[:,1][x_perm], pred_train_logistic[x_perm], color = "darkred", linewidth = 1.5, label = "Logistic")
+plot!(X_train[:,1][x_perm], pred_train_poisson[x_perm], color = "green", linewidth = 1.5, label = "Poisson")
+
+savefig("regression_sinus.png")
