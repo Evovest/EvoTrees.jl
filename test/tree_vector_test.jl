@@ -87,12 +87,12 @@ Tree(tree)
 tree = Vector{TreeNode{Float64, Int, Bool}}()
 
 @time tree = grow_tree(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
-@code_warntype grow_tree(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
+# @code_warntype grow_tree(X, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks)
 
 # predict - map a sample to tree-leaf prediction
 # @time pred = predict(tree, X)
 @time pred = predict(tree, X)
-@code_warntype predict(tree, X)
+# @code_warntype predict(tree, X)
 
 # pred = sigmoid(pred)
 (mean((pred .- Y) .^ 2))
@@ -118,7 +118,7 @@ params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, 1.0, 1.0)
 # predict - map a sample to tree-leaf prediction
 # @time pred = predict(model, X)
 @time pred = predict(model, X)
-@code_warntype predict(model, X)
+# @code_warntype predict(model, X)
 
 # pred = sigmoid(pred)
 sqrt(mean((pred .- Y) .^ 2))
@@ -142,22 +142,14 @@ sqrt(mean((pred_train .- Y_train) .^ 2))
 ####################################################
 ### Pred on binarised data
 ####################################################
-X_bin = convert(Array{UInt8}, round.(X*255))
-# @time test_grow(1, X_bin, δ, δ², perm_ini, params1)
-# @time test_grow(10, X_bin, δ, δ², perm_ini, params1)
-# @time test_grow(100, X_bin, δ, δ², perm_ini, params1)
-# @time model = grow_gbtree(X_bin, Y, params1)
 
-# test_grow(1, X_bin, δ, δ², perm_ini, params1)
-# test_grow(10, X_bin, δ, δ², perm_ini, params1)
-# test_grow(100, X_bin, δ, δ², perm_ini, params1)
-# model = grow_gbtree(X_bin, Y, params1)
-
-X_train_bin = convert(Array{UInt8}, round.(X_train*255))
-X_eval_bin = convert(Array{UInt8}, round.(X_eval*255))
+X_bin = mapslices(x -> round.(31 .* (x .- minimum(x)) / (maximum(x) - minimum(x))), X, dims = 2)
+X_bin = convert(Array{UInt8}, X_bin)
+X_train_bin = convert(Array{UInt8}, round.(X_train*31))
+X_eval_bin = convert(Array{UInt8}, round.(X_eval*31))
 
 params1 = Params(:linear, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 0.5)
-@time model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval, metric = :mse, print_every_n=10, early_stopping_rounds=100)
+@time model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval, metric = :mse, print_every_n=20, early_stopping_rounds=100)
 # model = grow_gbtree(X_train_bin, Y_train, params1, X_eval = X_eval_bin, Y_eval = Y_eval)
 
 # predict - map a sample to tree-leaf prediction
@@ -176,8 +168,8 @@ minimum(pred)
 maximum(pred)
 
 # big data test
-X_train_bin2 = hcat(X_train_bin, X_train_bin, X_train_bin, X_train_bin, X_train_bin)
-# X_train_bin2 = vcat(X_train_bin, X_train_bin, X_train_bin, X_train_bin, X_train_bin)
-X_train_bin2 = vcat(X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2)
-Y_train2 = vcat(Y_train, Y_train, Y_train, Y_train, Y_train)
-@time model = grow_gbtree(X_train_bin2, Y_train2, params1)
+X_train_bin2 = hcat(X_train_bin, X_train_bin, X_train_bin, X_train_bin)
+X_train_bin2 = vcat(X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2, X_train_bin2)
+Y_train2 = vcat(Y_train, Y_train, Y_train, Y_train, Y_train, Y_train, Y_train, Y_train, Y_train, Y_train, Y_train, Y_train)
+params1 = Params(:logistic, 10, 0.0, 1.0, 0.1, 6, 1.0, 0.5, 0.5)
+@time model = grow_gbtree(X_train_bin2, Y_train2, params1, metric = :logloss, print_every_n=5)

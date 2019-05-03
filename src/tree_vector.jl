@@ -68,6 +68,14 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
     X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractArray{T, 1} = Array{Float64, 1}(undef, 0),
     metric::Symbol = :none, early_stopping_rounds = Int(1e5), print_every_n = 100) where {R<:Real, T<:AbstractFloat}
 
+    # patch to force UInt8 format
+    X = mapslices(x -> round.(31 .* (x .- minimum(x)) / (maximum(x) - minimum(x))), X, dims = 2)
+    X = convert(Array{UInt8}, X)
+    if size(Y_eval, 1) > 0
+        X_eval = mapslices(x -> round.(31 .* (x .- minimum(x)) / (maximum(x) - minimum(x))), X_eval, dims = 2)
+        X_eval = convert(Array{UInt8}, X_eval)
+    end
+
     μ = mean(Y)
     if params.loss == :logistic
         μ = logit(μ)
@@ -176,8 +184,7 @@ end
 # find best split
 function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, λ, info::SplitInfo, track::SplitTrack) where T<:Real
 
-    # info.gain = (∑δ ^ 2 / (∑δ² + λ)) / 2.0
-    @fastmath info.gain = (∑δ ^ 2 / (∑δ² + λ .* ∑𝑤)) / 2.0
+    info.gain = (∑δ ^ 2 / (∑δ² + λ * ∑𝑤)) / 2.0
 
     track.∑δL = 0.0
     track.∑δ²L = 0.0

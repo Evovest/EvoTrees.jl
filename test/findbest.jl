@@ -18,6 +18,7 @@ X = convert(Array, features)
 Y = data[54]
 Y = convert(Array{Float64}, Y)
 𝑖 = collect(1:size(X,1))
+𝑗 = collect(1:size(X,2))
 
 # train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
@@ -58,10 +59,7 @@ pred = zeros(size(Y, 1))
 # @time update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
 update_grads!(Val{params1.loss}(), pred, Y, δ, δ², 𝑤)
 ∑δ, ∑δ², ∑𝑤 = sum(δ), sum(δ²), sum(𝑤)
-
 gain = get_gain(∑δ, ∑δ², ∑𝑤, params1.λ)
-𝑖 = collect(1:size(X,1))
-𝑗 = collect(1:size(X,2))
 
 # initialize train_nodes
 train_nodes = Vector{TrainNode{Float64, Array{Int64,1}, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
