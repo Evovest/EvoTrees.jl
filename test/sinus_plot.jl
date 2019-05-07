@@ -40,24 +40,33 @@ colsample = 1.0
 params1 = Params(:linear, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:mae)
 @time pred_train_linear = predict(model, X_train)
+@time pred_eval_linear = predict(model, X_eval)
 sqrt(mean((pred_train_linear .- Y_train) .^ 2))
 
 # logistic / cross-entropy
 params1 = Params(:logistic, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
 @time pred_train_logistic = predict(model, X_train)
+@time pred_eval_logistic = predict(model, X_eval)
 sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
 
 # Poisson
 params1 = Params(:poisson, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
 @time pred_train_poisson = predict(model, X_train)
+@time pred_eval_poisson = predict(model, X_eval)
 sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
 
 x_perm = sortperm(X_train[:,1])
-plot(X_train, Y_train, ms = 1, mcolor = evo_gray, mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
 plot!(X_train[:,1][x_perm], pred_train_linear[x_perm], color = "navy", linewidth = 1.5, label = "Linear")
 plot!(X_train[:,1][x_perm], pred_train_logistic[x_perm], color = "darkred", linewidth = 1.5, label = "Logistic")
 plot!(X_train[:,1][x_perm], pred_train_poisson[x_perm], color = "green", linewidth = 1.5, label = "Poisson")
 
 savefig("regression_sinus.png")
+
+x_perm = sortperm(X_eval[:,1])
+plot(X_eval, Y_eval, ms = 1, mcolor = "gray", mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot!(X_eval[:,1][x_perm], pred_eval_linear[x_perm], color = "navy", linewidth = 1.5, label = "Linear")
+plot!(X_eval[:,1][x_perm], pred_eval_logistic[x_perm], color = "darkred", linewidth = 1.5, label = "Logistic")
+plot!(X_eval[:,1][x_perm], pred_eval_poisson[x_perm], color = "green", linewidth = 1.5, label = "Poisson")
