@@ -23,6 +23,7 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
                 @threads for feat in node.𝑗
                     sortperm!(view(perm_ini, 1:node_size, feat), view(X, node.𝑖, feat), alg = QuickSort, initialized = false)
                     find_split!(view(X, view(node.𝑖, view(perm_ini, 1:node_size, feat)), feat), view(δ, view(node.𝑖, view(perm_ini, 1:node_size, feat))) , view(δ², view(node.𝑖, view(perm_ini, 1:node_size, feat))), view(𝑤, view(node.𝑖, view(perm_ini, 1:node_size, feat))), node.∑δ, node.∑δ², node.∑𝑤, params.λ, splits[feat], tracks[feat])
+                    # find_split!(X[node.𝑖[perm_ini[1:node_size, feat]], feat], δ[node.𝑖[perm_ini[1:node_size, feat]]] , δ²[node.𝑖[perm_ini[1:node_size, feat]]], 𝑤[node.𝑖[perm_ini[1:node_size, feat]]], node.∑δ, node.∑δ², node.∑𝑤, params.λ, splits[feat], tracks[feat])
 
                     splits[feat].feat = feat
                 end
@@ -68,13 +69,13 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
     X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractArray{T, 1} = Array{Float64, 1}(undef, 0),
     metric::Symbol = :none, early_stopping_rounds = Int(1e5), print_every_n = 100) where {R<:Real, T<:AbstractFloat}
 
-    # patch to force UInt8 format
-    X = mapslices(x -> round.(31 .* (x .- minimum(x)) / (maximum(x) - minimum(x))), X, dims = 2)
-    X = convert(Array{UInt8}, X)
-    if size(Y_eval, 1) > 0
-        X_eval = mapslices(x -> round.(31 .* (x .- minimum(x)) / (maximum(x) - minimum(x))), X_eval, dims = 2)
-        X_eval = convert(Array{UInt8}, X_eval)
-    end
+    # patch to force UInt8 format - Need to create a mapping of bin to values for proper inference
+    # X = mapslices(x -> round.(31 .* (x .- minimum(x)) / (maximum(x) - minimum(x))), X, dims = 2)
+    # X = convert(Array{UInt8}, X)
+    # if size(Y_eval, 1) > 0
+    #     X_eval = mapslices(x -> round.(31 .* (x .- minimum(x)) / (maximum(x) - minimum(x))), X_eval, dims = 2)
+    #     X_eval = convert(Array{UInt8}, X_eval)
+    # end
 
     μ = mean(Y)
     if params.loss == :logistic
