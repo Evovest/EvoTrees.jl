@@ -3,14 +3,14 @@ using CSV
 using Statistics
 using Base.Threads: @threads
 using StatsBase: sample
-
+using StaticArrays
 using Revise
 using BenchmarkTools
 using EvoTrees
 using EvoTrees: get_gain, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, Params, predict, predict!, find_split!, SplitTrack, update_track!, sigmoid
 
 # prepare a dataset
-features = rand(200_000, 300)
+features = rand(200_000, 100)
 X = features
 Y = rand(size(X, 1))
 𝑖 = collect(1:size(X,1))
@@ -230,19 +230,47 @@ y_set = Set(y)
 @btime set_1(x_set, y)
 
 
-x = rand([1,2,3,4,5], 1000)
+x = rand([1,2,3,4,5,6,7,8,9,10, 11,12], 1000)
 x = rand(1000)
-x_edges = quantile(x, (0:8)/8)
+x_edges = quantile(x, (0:10)/10)
 x_edges = unique(x_edges)
 x_edges = x_edges[2:(end-1)]
 
-function binindices(edges, data)
-    searchsortedlast.(Ref(edges), data) .+ 1
+length(x_edges)
+
+x_bin = searchsortedlast.(Ref(x_edges), x) .+ 1
+using StatsBase
+x_map = countmap(x_bin)
+
+x = reshape(x, (1000, 1))
+x_edges = get_edges(x)
+unique(quantile(view(X, :,i), (0:nbins)/nbins))[2:(end-1)]
+x_bin = searchsortedlast.(Ref(x_edges[1]), x[:,1]) .+ 1
+x_map = countmap(x_bin)
+
+function get_edges(X, nbins=32)
+    edges = Vector{Vector}(undef, size(X,2))
+    @threads for i in 1:size(X, 2)
+        edges[i] = unique(quantile(view(X, :,i), (0:nbins)/nbins))[2:(end-1)]
+        if length(edges[i]) == 0
+            edges[i] = [minimum(view(X, :,i))]
+        end
+    end
+    return edges
 end
 
-x_bin = binindices(x_edges, x)
+function binarize(X, edges)
+    X_bin = zeros(UInt8, size(X))
+    @threads for i in 1:size(X, 2)
+        X_bin[:,i] = searchsortedlast.(Ref(edges[i]), view(X,:,i)) .+ 1
+    end
+    X_bin
+end
 
-binindices(x_edges, 10)
+edges = get_edges(X, 32)
+X_bin = zeros(UInt8, size(X))
+@btime binindices(X[:,1], edges[1])
+@btime X_bin = binarize(X, edges)
 
 using StatsBase
 x_map = countmap(x_bin)

@@ -60,7 +60,8 @@ struct Params{T<:AbstractFloat, U<:Symbol, S<:Int}
     max_depth::S
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
-    colsample::T # colsample_bytree
+    colsample::T
+    nbins::S
 end
 
 # single tree is made of a root node that containes nested nodes and leafs
