@@ -1,5 +1,5 @@
 # initialize train_nodes
-function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, 𝑤::AbstractArray{T, 1}, params::Params, perm_ini::AbstractArray{Int}, train_nodes::Vector{TrainNode{T, I, J, S}}, splits::Vector{SplitInfo{Float64, Int}}, tracks::Vector{SplitTrack{Float64}}) where {R<:Real, T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{Int, 1}, S<:Int}
+function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, 𝑤::AbstractArray{T, 1}, params::Params, perm_ini::AbstractArray{Int}, train_nodes::Vector{TrainNode{T, I, J, S}}, splits::Vector{SplitInfo{Float64, Int}}, tracks::Vector{SplitTrack{Float64}}, X_edges) where {R<:Real, T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{Int, 1}, S<:Int}
 
     active_id = ones(Int, 1)
     leaf_count = 1::Int
@@ -22,10 +22,9 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
                 node_size = size(node.𝑖, 1)
                 @threads for feat in node.𝑗
                     sortperm!(view(perm_ini, 1:node_size, feat), view(X, node.𝑖, feat), alg = QuickSort, initialized = false)
-                    find_split!(view(X, view(node.𝑖, view(perm_ini, 1:node_size, feat)), feat), view(δ, view(node.𝑖, view(perm_ini, 1:node_size, feat))) , view(δ², view(node.𝑖, view(perm_ini, 1:node_size, feat))), view(𝑤, view(node.𝑖, view(perm_ini, 1:node_size, feat))), node.∑δ, node.∑δ², node.∑𝑤, params.λ, splits[feat], tracks[feat])
+                    find_split!(view(X, view(node.𝑖, view(perm_ini, 1:node_size, feat)), feat), view(δ, view(node.𝑖, view(perm_ini, 1:node_size, feat))) , view(δ², view(node.𝑖, view(perm_ini, 1:node_size, feat))), view(𝑤, view(node.𝑖, view(perm_ini, 1:node_size, feat))), node.∑δ, node.∑δ², node.∑𝑤, params.λ, splits[feat], tracks[feat], X_edges[feat])
                     # find_split!(X[node.𝑖[perm_ini[1:node_size, feat]], feat], δ[node.𝑖[perm_ini[1:node_size, feat]]] , δ²[node.𝑖[perm_ini[1:node_size, feat]]], 𝑤[node.𝑖[perm_ini[1:node_size, feat]]], node.∑δ, node.∑δ², node.∑𝑤, params.λ, splits[feat], tracks[feat])
-
-                    splits[feat].feat = feat
+                    #splits[feat].feat = feat
                 end
 
                 # assign best split
@@ -36,6 +35,7 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
                     # Node: depth, ∑δ, ∑δ², gain, 𝑖, 𝑗
 
                     train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, node.𝑖[perm_ini[1:best.𝑖, best.feat]], node.𝑗)
+                    # println("size: ", node_size, " sizei:", size(node.𝑖), " besti:", best.𝑖, " feat:", best.feat, " cond:", best.cond)
                     train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, node.𝑖[perm_ini[best.𝑖+1:node_size, best.feat]], node.𝑗)
 
                     # push split Node
@@ -64,18 +64,32 @@ function get_max_gain(splits::Vector{SplitInfo{Float64,Int}})
     return best
 end
 
+function get_edges(X, nbins=250)
+    edges = Vector{Vector}(undef, size(X,2))
+    @threads for i in 1:size(X, 2)
+        edges[i] = unique(quantile(view(X, :,i), (0:nbins)/nbins))[2:(end-1)]
+        if length(edges[i]) == 0
+            edges[i] = [minimum(view(X, :,i))]
+        end
+    end
+    return edges
+end
+
+function binarize(X, edges)
+    X_bin = zeros(UInt8, size(X))
+    @threads for i in 1:size(X, 2)
+        X_bin[:,i] = searchsortedlast.(Ref(edges[i]), view(X,:,i)) .+ 1
+    end
+    X_bin
+end
+
 # grow_gbtree
 function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Params;
     X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractArray{T, 1} = Array{Float64, 1}(undef, 0),
     metric::Symbol = :none, early_stopping_rounds = Int(1e5), print_every_n = 100) where {R<:Real, T<:AbstractFloat}
 
-    # patch to force UInt8 format - Need to create a mapping of bin to values for proper inference
-    # X = mapslices(x -> round.(31 .* (x .- minimum(x)) / (maximum(x) - minimum(x))), X, dims = 2)
-    # X = convert(Array{UInt8}, X)
-    # if size(Y_eval, 1) > 0
-    #     X_eval = mapslices(x -> round.(31 .* (x .- minimum(x)) / (maximum(x) - minimum(x))), X_eval, dims = 2)
-    #     X_eval = convert(Array{UInt8}, X_eval)
-    # end
+    X_edges = get_edges(X, params.nbins)
+    X_bin = binarize(X, X_edges)
 
     μ = mean(Y)
     if params.loss == :logistic
@@ -99,7 +113,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
     gbtree = GBTree([bias], params, Metric())
 
     # sort perm id placeholder
-    perm_ini = zeros(Int, size(X))
+    perm_ini = zeros(Int, size(X_bin))
 
     X_size = size(X)
     𝑖_ = collect(1:X_size[1])
@@ -121,8 +135,8 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
     # loop over nrounds
     for i in 1:params.nrounds
         # select random rows and cols
-        𝑖 = 𝑖_[sample(𝑖_, floor(Int, params.rowsample * X_size[1]), replace = false)]
-        𝑗 = 𝑗_[sample(𝑗_, floor(Int, params.colsample * X_size[2]), replace = false)]
+        𝑖 = 𝑖_[sample(𝑖_, ceil(Int, params.rowsample * X_size[1]), replace = false)]
+        𝑗 = 𝑗_[sample(𝑗_, ceil(Int, params.colsample * X_size[2]), replace = false)]
 
         # get gradients
         update_grads!(Val{params.loss}(), pred, Y, δ, δ², 𝑤)
@@ -132,7 +146,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
         # initializde node splits info and tracks - colsample size (𝑗)
         splits = Vector{SplitInfo{Float64, Int64}}(undef, X_size[2])
         for feat in 𝑗_
-            splits[feat] = SplitInfo{Float64, Int64}(-Inf, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, 0, 0.0)
+            splits[feat] = SplitInfo{Float64, Int64}(-Inf, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, feat, 0.0)
         end
         tracks = Vector{SplitTrack{Float64}}(undef, X_size[2])
         for feat in 𝑗_
@@ -141,7 +155,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
 
         # assign a root and grow tree
         train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
-        tree = grow_tree(X, δ, δ², 𝑤, params, perm_ini, train_nodes, splits, tracks)
+        tree = grow_tree(X_bin, δ, δ², 𝑤, params, perm_ini, train_nodes, splits, tracks, X_edges)
         # update push tree to model
         push!(gbtree.trees, tree)
 
@@ -183,7 +197,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
 end
 
 # find best split
-function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, λ, info::SplitInfo, track::SplitTrack) where T<:Real
+function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, λ, info::SplitInfo, track::SplitTrack, x_edges) where T<:Real
 
     info.gain = (∑δ ^ 2 / (∑δ² + λ * ∑𝑤)) / 2.0
 
@@ -217,7 +231,7 @@ function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²
                 info.∑δR = track.∑δR
                 info.∑δ²R = track.∑δ²R
                 info.∑𝑤R = track.∑𝑤R
-                info.cond = x[i]
+                info.cond = x_edges[x[i]]
                 info.𝑖 = i
             end
         end

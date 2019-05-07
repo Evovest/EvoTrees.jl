@@ -2,7 +2,7 @@ using DataFrames
 using CSV
 using Statistics
 using Base.Threads: @threads
-# using BenchmarkTools
+using BenchmarkTools
 # using Profile
 using StatsBase: sample
 
@@ -50,9 +50,10 @@ max_depth = 5
 min_weight = 5.0
 rowsample = 1.0
 colsample = 1.0
+nbins = 128
 
 # params1 = Params(nrounds, λ, γ, η, max_depth, min_weight, :linear)
-params1 = Params(:linear, 1, λ, γ, 1.0, 2, min_weight, rowsample, colsample)
+params1 = Params(:linear, 1, λ, γ, 1.0, 2, min_weight, rowsample, colsample, nbins)
 
 # initial info
 δ, δ² = zeros(size(X, 1)), zeros(size(X, 1))
@@ -125,13 +126,13 @@ sqrt(mean((pred .- Y) .^ 2))
 
 
 # train model
-params1 = Params(:linear, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 0.5)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, metric = :mse, print_every_n=10, early_stopping_rounds=100)
+params1 = Params(:linear, 100, 0.0, 0.0, 0.1, 6, 1.0, 0.5, 0.5, 250)
+@btime model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, metric = :mse, print_every_n=20, early_stopping_rounds=100)
 
 @time pred_train = predict(model, X_train)
 sqrt(mean((pred_train .- Y_train) .^ 2))
 pred_eval = predict(model, X_eval)
-sqrt(mean((pred_eval .- Y_eval) .^ 2))
+mean((pred_eval .- Y_eval) .^ 2)
 
 # train model
 params1 = Params(:logistic, 100, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 0.5)

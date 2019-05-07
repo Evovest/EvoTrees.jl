@@ -35,23 +35,24 @@ max_depth = 5
 min_weight = 1.0
 rowsample = 0.5
 colsample = 1.0
+nbins = 250
 
 # linear
-params1 = Params(:linear, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample)
+params1 = Params(:linear, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:mae)
 @time pred_train_linear = predict(model, X_train)
 @time pred_eval_linear = predict(model, X_eval)
 sqrt(mean((pred_train_linear .- Y_train) .^ 2))
 
 # logistic / cross-entropy
-params1 = Params(:logistic, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample)
+params1 = Params(:logistic, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
 @time pred_train_logistic = predict(model, X_train)
 @time pred_eval_logistic = predict(model, X_eval)
 sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
 
 # Poisson
-params1 = Params(:poisson, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample)
+params1 = Params(:poisson, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
 @time pred_train_poisson = predict(model, X_train)
 @time pred_eval_poisson = predict(model, X_eval)
