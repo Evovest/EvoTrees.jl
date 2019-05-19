@@ -6,7 +6,7 @@ using Revise
 using EvoTrees
 
 # prepare a dataset
-features = rand(200_000, 100)
+features = rand(100_000, 100)
 X = features
 Y = rand(size(X, 1))
 𝑖 = collect(1:size(X,1))
@@ -30,13 +30,13 @@ max_depth = 5
 min_weight = 5.0
 rowsample = 1.0
 colsample = 1.0
-nbins = 250
+nbins = 32
 
 # params1 = Params(nrounds, λ, γ, η, max_depth, min_weight, :linear)
 params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, rowsample, colsample, nbins)
 
 # train model
-params1 = Params(:linear, 10, 0.0, 0.0, 0.1, 5, 1.0, 0.5, 1.0, nbins)
+params1 = Params(:linear, 10, 0.0, 0.0, 0.1, 5, 1.0, 1.0, 1.0, nbins)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 1, metric=:mae)
 @time pred_train = predict(model, X_train)
 sqrt(mean((pred_train .- Y_train) .^ 2))
