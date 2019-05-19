@@ -65,7 +65,7 @@ struct Params{T<:AbstractFloat, U<:Symbol, S<:Int}
 end
 
 # single tree is made of a root node that containes nested nodes and leafs
-struct TrainNode{T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{Int, 1}, S<:Int}
+struct TrainNode{T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
     depth::S
     ∑δ::T
     ∑δ²::T
@@ -73,6 +73,7 @@ struct TrainNode{T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{In
     gain::T
     𝑖::I
     𝑗::J
+    bags::Vector{Vector{I}}
 end
 
 # single tree is made of a root node that containes nested nodes and leafs
