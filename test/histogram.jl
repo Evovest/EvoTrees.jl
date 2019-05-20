@@ -8,9 +8,10 @@ using Revise
 using BenchmarkTools
 using EvoTrees
 using EvoTrees: get_gain, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, Params, predict, predict!, find_split!, SplitTrack, update_track!, sigmoid
+using EvoTrees: get_edges, binarize
 
 # prepare a dataset
-features = rand(200_000, 100)
+features = rand(100_000, 100)
 X = features
 Y = rand(size(X, 1))
 𝑖 = collect(1:size(X,1))
@@ -35,9 +36,10 @@ max_depth = 5
 min_weight = 5.0
 rowsample = 1.0
 colsample = 1.0
+nbins = 250
 
 # params1 = Params(nrounds, λ, γ, η, max_depth, min_weight, :linear)
-params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, rowsample, colsample)
+params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, rowsample, colsample, nbins)
 
 # initial info
 δ, δ² = zeros(size(X, 1)), zeros(size(X, 1))
@@ -56,7 +58,7 @@ end
 # initializde node splits info and tracks - colsample size (𝑗)
 splits = Vector{SplitInfo{Float64, Int}}(undef, size(𝑗, 1))
 for feat in 1:size(𝑗, 1)
-    splits[feat] = SplitInfo{Float64, Int}(-Inf, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, 0, 0.0)
+    splits[feat] = SplitInfo{Float64, Int}(-Inf, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, feat, 0.0)
 end
 tracks = Vector{SplitTrack{Float64}}(undef, size(𝑗, 1))
 for feat in 1:size(𝑗, 1)
@@ -69,9 +71,13 @@ x_sort = x[x_sortperm]
 δ_sort = δ[x_sortperm]
 δ²_sort = δ²[x_sortperm]
 
-X_bin = convert(Array{UInt8}, round.(X*31))
-X_train_bin = convert(Array{UInt8}, round.(X_train*31))
-X_eval_bin = convert(Array{UInt8}, round.(X_eval*31))
+edges = get_edges(X, params1.nbins)
+X_bin = binarize(X, edges)
+perm_ini = zeros(Int, size(X_bin))
+
+train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
+@time grow_tree(X_bin, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks, edges)
+@btime grow_tree($X_bin, $δ, $δ², $𝑤, $params1, $perm_ini, $train_nodes, $splits, $tracks, $edges)
 
 x_bin = X_bin[:,1]
 x_bin_sort = x_bin[x_sortperm]
@@ -247,25 +253,6 @@ x_edges = get_edges(x)
 unique(quantile(view(X, :,i), (0:nbins)/nbins))[2:(end-1)]
 x_bin = searchsortedlast.(Ref(x_edges[1]), x[:,1]) .+ 1
 x_map = countmap(x_bin)
-
-function get_edges(X, nbins=32)
-    edges = Vector{Vector}(undef, size(X,2))
-    @threads for i in 1:size(X, 2)
-        edges[i] = unique(quantile(view(X, :,i), (0:nbins)/nbins))[2:(end-1)]
-        if length(edges[i]) == 0
-            edges[i] = [minimum(view(X, :,i))]
-        end
-    end
-    return edges
-end
-
-function binarize(X, edges)
-    X_bin = zeros(UInt8, size(X))
-    @threads for i in 1:size(X, 2)
-        X_bin[:,i] = searchsortedlast.(Ref(edges[i]), view(X,:,i)) .+ 1
-    end
-    X_bin
-end
 
 edges = get_edges(X, 32)
 X_bin = zeros(UInt8, size(X))
