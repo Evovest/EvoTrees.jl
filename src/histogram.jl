@@ -13,9 +13,25 @@ end
 #############################################
 function find_bags(x::AbstractArray{T, 1}) where T<:Real
     vals = sort(unique(x))
-    bags = Vector{Set}(undef, length(vals))
+    bags = Vector{BitSet}(undef, length(vals))
     for i in 1:length(vals)
         bags[i] = BitSet(findall(x .== vals[i]))
+    end
+    return bags
+end
+
+function find_bags2(bags, x::AbstractArray{T, 1}, edges) where T<:Real
+    x_perm = sortperm(x)
+    bin = 1
+    for i in x_perm
+        if bin > length(edges)
+            union!(bags[bin], BitSet(i))
+        elseif x[i] <= edges[bin]
+            union!(bags[bin], BitSet(i))
+        else
+            bin += 1
+            union!(bags[bin], BitSet(i))
+        end
     end
     return bags
 end
@@ -26,11 +42,26 @@ function update_bags!(bins, set)
     end
 end
 
-function update_bags(bins, set)
-    for i in 1:length(bins)
-        bins[i] = intersect(bins[i], set)
+function update_bags_intersect(new_bags, bags, set)
+    # new_bags = deepcopy(bags)
+    for feat in 1:length(bags)
+        for bin in 1:length(bags[feat])
+            new_bags[feat][bin] = intersect(set, bags[feat][bin])
+            # intersect!(new_bags[feat][bin], set, bags[feat][bin])
+        end
     end
-    return bins
+    nothing
+end
+
+function update_bags_setdiff(new_bags, bags, set)
+    # new_bags = deepcopy(bags)
+    for feat in 1:length(bags)
+        for bin in 1:length(bags[feat])
+            new_bags[feat][bin] = setdiff(bags[feat][bin], set)
+            # new_bags[feat][bin] = intersect(set, bags[feat][bin])
+        end
+    end
+    nothing
 end
 
 function intersect_test(bags, 𝑖_set, δ::S, δ²::S) where {T<:Real,S}
@@ -45,7 +76,7 @@ function intersect_test(bags, 𝑖_set, δ::S, δ²::S) where {T<:Real,S}
     return ∑δ
 end
 
-function find_histogram(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, λ::S, info::SplitInfo, edges, set) where {S}
+function find_histogram(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, λ::S, info::SplitInfo, edges, set::BitSet) where {S}
 
     gain = get_gain(∑δ, ∑δ², ∑𝑤, λ)
     gainL = zero(S)
@@ -62,6 +93,7 @@ function find_histogram(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, �
     for bin in 1:(length(bins)-1)
         # for i in intersect(set, bins[bin])
         for i in bins[bin]
+        # for i in set #less efficient approach
             # for i in set
             # if i in bins[bin]
             if i in set
@@ -91,11 +123,4 @@ function find_histogram(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, �
         end
     end
     return
-end
-
-function scan_histogram(node, δ::AbstractArray{S}, δ²::AbstractArray{S}, 𝑤::AbstractArray{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, λ::S, info, edges) where {S}
-    @threads for feat in node.𝑗
-        update_bags!(node.bags[feat], node.𝑖)
-        find_histogram(node.bags[feat], δ, δ², 𝑤, ∑δ::S, ∑δ²::S, ∑𝑤::S, λ::S, info[feat], edges[feat], node.set)
-    end
 end
