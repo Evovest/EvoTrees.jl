@@ -73,7 +73,6 @@ struct TrainNode{T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
     gain::T
     𝑖::I
     𝑗::J
-    bags::Vector{Vector{I}}
 end
 
 # single tree is made of a root node that containes nested nodes and leafs

@@ -76,50 +76,72 @@ function intersect_test(bags, 𝑖_set, δ::S, δ²::S) where {T<:Real,S}
     return ∑δ
 end
 
-function find_histogram(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, λ::S, info::SplitInfo, edges, set::BitSet) where {S}
+function find_histogram(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, λ::S, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}
 
-    gain = get_gain(∑δ, ∑δ², ∑𝑤, λ)
-    gainL = zero(S)
-    gainR = zero(S)
-    info.gain = gain
+    info.gain = (∑δ ^ 2 / (∑δ² + λ * ∑𝑤)) / 2.0
+    # gain = get_gain(∑δ, ∑δ², ∑𝑤, λ)
+    # gainL = zero(S)
+    # gainR = zero(S)
+    # info.gain = gain
 
-    ∑δL = zero(S)
-    ∑δ²L = zero(S)
-    ∑𝑤L = zero(S)
-    ∑δR = ∑δ
-    ∑δ²R = ∑δ²
-    ∑𝑤R = ∑𝑤
+    track.∑δL = 0.0
+    track.∑δ²L = 0.0
+    track.∑𝑤L = 0.0
+    track.∑δR = ∑δ
+    track.∑δ²R = ∑δ²
+    track.∑𝑤R = ∑𝑤
 
-    for bin in 1:(length(bins)-1)
-        # for i in intersect(set, bins[bin])
-        for i in bins[bin]
-        # for i in set #less efficient approach
-            # for i in set
-            # if i in bins[bin]
+    # ∑δL = zero(S)
+    # ∑δ²L = zero(S)
+    # ∑𝑤L = zero(S)
+    # ∑δR = ∑δ
+    # ∑δ²R = ∑δ²
+    # ∑𝑤R = ∑𝑤
+
+    @inbounds for bin in 1:(length(bins)-1)
+        @inbounds for i in bins[bin]
             if i in set
-                ∑δL += δ[i]
-                ∑δ²L += δ²[i]
-                ∑𝑤L += 𝑤[i]
-                ∑δR -= δ[i]
-                ∑δ²R -= δ²[i]
-                ∑𝑤R -= 𝑤[i]
+                # ∑δL += δ[i]
+                # ∑δ²L += δ²[i]
+                # ∑𝑤L += 𝑤[i]
+                # ∑δR -= δ[i]
+                # ∑δ²R -= δ²[i]
+                # ∑𝑤R -= 𝑤[i]
+
+                track.∑δL += δ[i]
+                track.∑δ²L += δ²[i]
+                track.∑𝑤L += 𝑤[i]
+                track.∑δR -= δ[i]
+                track.∑δ²R -= δ²[i]
+                track.∑𝑤R -= 𝑤[i]
             end
         end
-        gainL = get_gain(∑δL, ∑δ²L, ∑𝑤L, λ)
-        gainR = get_gain(∑δR, ∑δ²R, ∑𝑤R, λ)
-        gain = gainL + gainR
-        if gain > info.gain && ∑𝑤R > zero(S)
-            info.gain = gain
-            info.gainL = gainL
-            info.gainR = gainR
-            info.∑δL = ∑δL
-            info.∑δ²L = ∑δ²L
-            info.∑𝑤L = ∑𝑤L
-            info.∑δR = ∑δR
-            info.∑δ²R = ∑δ²R
-            info.∑𝑤R = ∑𝑤R
+        update_track!(track, λ)
+        # if gain > info.gain && ∑𝑤R > zero(S)
+        if track.gain > info.gain
+            info.gain = track.gain
+            info.gainL = track.gainL
+            info.gainR = track.gainR
+            info.∑δL = track.∑δL
+            info.∑δ²L = track.∑δ²L
+            info.∑𝑤L = track.∑𝑤L
+            info.∑δR = track.∑δR
+            info.∑δ²R = track.∑δ²R
+            info.∑𝑤R = track.∑𝑤R
             info.cond = edges[bin]
             info.𝑖 = bin
+
+            # info.gain = gain
+            # info.gainL = gainL
+            # info.gainR = gainR
+            # info.∑δL = ∑δL
+            # info.∑δ²L = ∑δ²L
+            # info.∑𝑤L = ∑𝑤L
+            # info.∑δR = ∑δR
+            # info.∑δ²R = ∑δ²R
+            # info.∑𝑤R = ∑𝑤R
+            # info.cond = edges[bin]
+            # info.𝑖 = bin
         end
     end
     return

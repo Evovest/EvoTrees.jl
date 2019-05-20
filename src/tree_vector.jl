@@ -1,5 +1,5 @@
 # initialize train_nodes
-function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, 𝑤::AbstractArray{T, 1}, params::Params, train_nodes::Vector{TrainNode{T, I, J, S}}, splits::Vector{SplitInfo{Float64, Int}}, edges) where {R<:Real, T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
+function grow_tree(bags::Vector{Vector{BitSet}}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, 𝑤::AbstractArray{T, 1}, params::Params, train_nodes::Vector{TrainNode{T, I, J, S}}, splits::Vector{SplitInfo{T, Int}}, tracks::Vector{SplitTrack{T}}, edges) where {R<:Real, T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
 
     active_id = ones(Int, 1)
     leaf_count = 1::Int
@@ -17,15 +17,15 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
             else
                 # node_size = length(node.𝑖)
                 @threads for feat in node.𝑗
-                    find_histogram(node.bags[feat], δ, δ², 𝑤, node.∑δ::T, node.∑δ²::T, node.∑𝑤::T, params.λ::T, splits[feat], edges[feat], node.𝑖)
+                    find_histogram(bags[feat], δ, δ², 𝑤, node.∑δ::T, node.∑δ²::T, node.∑𝑤::T, params.λ::T, splits[feat], tracks[feat], edges[feat], node.𝑖)
                 end
                 # assign best split
                 best = get_max_gain(splits)
                 # grow node if best split improve gain
                 if best.gain > node.gain + params.γ
                     # Node: depth, ∑δ, ∑δ², gain, 𝑖, 𝑗
-                    train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, intersect(node.𝑖, union(node.bags[best.feat][1:best.𝑖]...)), node.𝑗, node.bags)
-                    train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, intersect(node.𝑖, union(node.bags[best.feat][(best.𝑖+1):end]...)), node.𝑗, node.bags)
+                    train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, intersect(node.𝑖, union(bags[best.feat][1:best.𝑖]...)), node.𝑗)
+                    train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, intersect(node.𝑖, union(bags[best.feat][(best.𝑖+1):end]...)), node.𝑗)
                     # push split Node
                     push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond))
                     push!(next_active_id, leaf_count + 1)
@@ -112,7 +112,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
     # initialize train nodes
     train_nodes = Vector{TrainNode{Float64, BitSet, Array{Int64, 1}, Int64}}(undef, 2^params.max_depth-1)
     for feat in 1:2^params.max_depth-1
-        train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, BitSet([0]), [0], [[BitSet([0])]])
+        train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, BitSet([0]), [0])
     end
 
     # initialize metric
@@ -138,19 +138,23 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
         for feat in 𝑗_
             splits[feat] = SplitInfo{Float64, Int64}(-Inf, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, feat, 0.0)
         end
+        tracks = Vector{SplitTrack{Float64}}(undef, X_size[2])
+        for feat in 𝑗_
+            tracks[feat] = SplitTrack{Float64}(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, -Inf)
+        end
 
         # assign a root and grow tree
-        train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗, bags)
-        tree = grow_tree(X_bin, δ, δ², 𝑤, params, train_nodes, splits, edges)
+        train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
+        tree = grow_tree(bags, δ, δ², 𝑤, params, train_nodes, splits, tracks, edges)
         # update push tree to model
-        push!(gbtree.trees, tree)
-
-        # get update predictions
-        predict!(pred, tree, X)
-        # eval predictions
-        if size(Y_eval, 1) > 0
-            predict!(pred_eval, tree, X_eval)
-        end
+        # push!(gbtree.trees, tree)
+        #
+        # # get update predictions
+        # predict!(pred, tree, X)
+        # # eval predictions
+        # if size(Y_eval, 1) > 0
+        #     predict!(pred_eval, tree, X_eval)
+        # end
 
         # callback function
         if metric != :none
