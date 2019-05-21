@@ -20,20 +20,17 @@ function find_bags(x::AbstractArray{T, 1}) where T<:Real
     return bags
 end
 
-function find_bags2(bags, x::AbstractArray{T, 1}, edges) where T<:Real
-    x_perm = sortperm(x)
-    bin = 1
-    for i in x_perm
-        if bin > length(edges)
-            union!(bags[bin], BitSet(i))
-        elseif x[i] <= edges[bin]
-            union!(bags[bin], BitSet(i))
-        else
-            bin += 1
-            union!(bags[bin], BitSet(i))
-        end
-    end
-    return bags
+function find_bags_direct(x::Vector{T}, edges::Vector{T}) where T<:Real
+    idx = BitSet(1:length(x) |> collect)
+     bags = [BitSet() for _ in 1:length(edges)]
+     for i in idx
+         bin = 1
+         while x[i] > edges[bin]
+             bin +=1
+         end
+         union!(bags[bin], i)
+     end
+     return bags
 end
 
 function update_bags!(bins, set)
@@ -78,15 +75,11 @@ end
 
 function find_histogram(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, λ::S, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}
 
-    info.gain = (∑δ ^ 2 / (∑δ² + λ * ∑𝑤)) / 2.0
-    # gain = get_gain(∑δ, ∑δ², ∑𝑤, λ)
-    # gainL = zero(S)
-    # gainR = zero(S)
-    # info.gain = gain
+    info.gain = get_gain(∑δ, ∑δ², ∑𝑤, λ)
 
-    track.∑δL = 0.0
-    track.∑δ²L = 0.0
-    track.∑𝑤L = 0.0
+    track.∑δL = zero(S)
+    track.∑δ²L = zero(S)
+    track.∑𝑤L = zero(S)
     track.∑δR = ∑δ
     track.∑δ²R = ∑δ²
     track.∑𝑤R = ∑𝑤
@@ -118,7 +111,8 @@ function find_histogram(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, �
         end
         update_track!(track, λ)
         # if gain > info.gain && ∑𝑤R > zero(S)
-        if track.gain > info.gain
+        if track.gain > info.gain && track.∑𝑤R > zero(S)
+        # if track.gain > info.gain
             info.gain = track.gain
             info.gainL = track.gainL
             info.gainR = track.gainR

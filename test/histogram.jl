@@ -8,10 +8,11 @@ using Revise
 using BenchmarkTools
 using EvoTrees
 using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, SplitTrack, Tree, TrainNode, TreeNode, Params, predict, predict!, sigmoid
-using EvoTrees: scan, find_bags, find_bags2, scan, find_histogram, intersect_test, update_bags!, update_bags_intersect
+using EvoTrees: scan, find_bags, find_bags_direct, scan, find_histogram, intersect_test, update_bags!, update_bags_intersect
 
 # prepare a dataset
 features = rand(100_000, 100)
+# features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
 𝑖 = collect(1:size(X,1))
@@ -30,7 +31,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 loss = :linear
 nrounds = 10
 λ = 1.0
-γ = 1e-15
+γ = 0.0
 η = 0.5
 max_depth = 5
 min_weight = 5.0
@@ -74,39 +75,34 @@ for feat in 1:size(𝑗, 1)
     bags[feat] = find_bags(X_bin[:,feat])
 end
 
-function prep(X, params)
+function prep1(X, params)
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
     bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1))
-    @threads for feat in 1:size(𝑗, 1)
+    for feat in 1:size(𝑗, 1)
         bags[feat] = find_bags(X_bin[:,feat])
     end
+    return bags
 end
 
 function prep2(X, params)
     edges = get_edges(X, params.nbins)
     bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1))
-    for i in 1:length(bags)
-        bags[i] = Vector{BitSet}(undef, length(edges[i])+1)
-        for j in 1:length(bags[i])
-            bags[i][j] = BitSet()
-        end
+    for feat in 1:size(𝑗, 1)
+        bags[feat] = find_bags_direct(X[:,feat], edges[feat])
     end
-    @threads for feat in 1:size(𝑗, 1)
-        bags[feat] = find_bags2(bags[feat], X[:,feat], edges[feat])
-    end
+    return bags
 end
 
-@time prep(X_train, params1)
-@time prep2(X_train, params1)
+@time bags = prep1(X_train, params1);
+@time bags = prep2(X_train, params1);
 
 @time train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-# update_bags(bags[1], Set(1:100))
 @time tree = grow_tree(bags, δ, δ², 𝑤, params1, train_nodes, splits, tracks, edges)
 @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $params1, $train_nodes, $splits, $tracks, $edges)
 
-params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, rowsample, colsample, nbins)
-@time model = grow_gbtree(X_train, Y_train, params1)
+params1 = Params(:linear, 5, λ, γ, 1.0, 5, min_weight, rowsample, colsample, nbins)
+@btime model = grow_gbtree($X_train, $Y_train, $params1, print_every_n = 1, metric=:mae)
 @time pred_train = predict(model, X_train)
 
 params1 = Params(:linear, 10, λ, γ, 0.1, 5, min_weight, rowsample, colsample, nbins)
@@ -122,8 +118,12 @@ sqrt(mean((pred_train .- Y_train) .^ 2))
 
 𝑖_set = BitSet(𝑖);
 
+feat = 9
+find_histogram(bags[feat], δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1.λ, splits[feat], tracks[feat], edges[feat], train_nodes[feat].𝑖)
 @time find_histogram(bags[1], δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1.λ, splits[1], tracks[1], edges[1], train_nodes[1].𝑖)
 @btime find_histogram($bags[1], $δ, $δ², $𝑤, $∑δ, $∑δ², $∑𝑤, $params1.λ, $splits[1], $tracks[1], $edges[1], $train_nodes[1].𝑖)
+
+
 
 new_bags = Vector{Vector{BitSet}}(undef, length(bags))
 for i in 1:length(new_bags)

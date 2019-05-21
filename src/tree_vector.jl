@@ -55,7 +55,7 @@ end
 function get_edges(X, nbins=250)
     edges = Vector{Vector}(undef, size(X,2))
     @threads for i in 1:size(X, 2)
-        edges[i] = unique(quantile(view(X, :,i), (0:nbins)/nbins))[2:(end-1)]
+        edges[i] = unique(quantile(view(X, :,i), (0:nbins)/nbins))[2:end]
         if length(edges[i]) == 0
             edges[i] = [minimum(view(X, :,i))]
         end
@@ -75,9 +75,6 @@ end
 function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Params;
     X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractArray{T, 1} = Array{Float64, 1}(undef, 0),
     metric::Symbol = :none, early_stopping_rounds = Int(1e5), print_every_n = 100) where {R<:Real, T<:AbstractFloat}
-
-    edges = get_edges(X, params.nbins)
-    X_bin = binarize(X, edges)
 
     μ = mean(Y)
     if params.loss == :logistic
@@ -104,9 +101,11 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
     𝑖_ = collect(1:X_size[1])
     𝑗_ = collect(1:X_size[2])
 
+    edges = get_edges(X, params.nbins)
+    # X_bin = binarize(X, edges)
     bags = Vector{Vector{BitSet}}(undef, size(𝑗_, 1))
     @threads for feat in 1:size(𝑗_, 1)
-        bags[feat] = find_bags(X_bin[:,feat])
+        bags[feat] = find_bags_direct(X[:,feat], edges[feat])
     end
 
     # initialize train nodes
@@ -147,14 +146,14 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
         train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
         tree = grow_tree(bags, δ, δ², 𝑤, params, train_nodes, splits, tracks, edges)
         # update push tree to model
-        # push!(gbtree.trees, tree)
-        #
-        # # get update predictions
-        # predict!(pred, tree, X)
-        # # eval predictions
-        # if size(Y_eval, 1) > 0
-        #     predict!(pred_eval, tree, X_eval)
-        # end
+        push!(gbtree.trees, tree)
+
+        # get update predictions
+        predict!(pred, tree, X)
+        # eval predictions
+        if size(Y_eval, 1) > 0
+            predict!(pred_eval, tree, X_eval)
+        end
 
         # callback function
         if metric != :none

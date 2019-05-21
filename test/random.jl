@@ -30,7 +30,7 @@ max_depth = 5
 min_weight = 5.0
 rowsample = 1.0
 colsample = 1.0
-nbins = 250
+nbins = 32
 
 # params1 = Params(nrounds, λ, γ, η, max_depth, min_weight, :linear)
 params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, rowsample, colsample, nbins)
