@@ -64,18 +64,19 @@ mutable struct Params{T<:AbstractFloat, U<:Symbol, S<:Int}
     nbins::S
 end
 
-function EvoTrees(; loss=:linear,
+function EvoTreeRegressor(;
+    loss=:linear,
     nrounds=10,
     λ=0.0, #
     γ=0.0, # gamma: min gain to split
     η=0.1, # eta: learning rate
     max_depth=5,
-    min_weight=1.0 # minimal weight, different from xgboost (but same for linear)
-    rowsample=1.0
-    colsample=1.0
+    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
+    rowsample=1.0,
+    colsample=1.0,
     nbins=64)
 
-    model = Params(loss, nrounds=10, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins)
+    model = Params(loss, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins)
     # message = MLJBase.clean!(model)
     # isempty(message) || @warn message
     return model
