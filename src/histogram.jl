@@ -1,3 +1,16 @@
+<<<<<<< HEAD
+=======
+function scan(X, δ, δ², 𝑤, node, perm_ini, params, splits, tracks, X_edges)
+    node_size = size(node.𝑖,1)
+    @threads for feat in node.𝑗
+        # sortperm!(view(perm_ini, 1:node_size, feat), view(X, node.𝑖, feat), alg = QuickSort, initialized = false)
+        sortperm!(view(perm_ini, 1:node_size, feat), X[node.𝑖, feat], alg = QuickSort, initialized = false)
+        find_split!(view(X, view(node.𝑖, view(perm_ini, 1:node_size, feat)), feat), view(δ, view(node.𝑖, view(perm_ini, 1:node_size, feat))) , view(δ², view(node.𝑖, view(perm_ini, 1:node_size, feat))), view(𝑤, view(node.𝑖, view(perm_ini, 1:node_size, feat))), node.∑δ, node.∑δ², node.∑𝑤, params.λ, splits[feat], tracks[feat], X_edges[feat])
+    end
+end
+
+
+>>>>>>> c943b906b4b2aa845826c72b53a252dd37b49035
 #############################################
 # Quantiles with Sets
 #############################################
@@ -37,6 +50,7 @@ function update_bags_intersect(new_bags, bags, set)
             # intersect!(new_bags[feat][bin], set, bags[feat][bin])
         end
     end
+<<<<<<< HEAD
 end
 
 function update_bags_setdiff(new_bags, bags, set)
@@ -45,6 +59,32 @@ function update_bags_setdiff(new_bags, bags, set)
             new_bags[feat][bin] = setdiff(bags[feat][bin], set)
         end
     end
+=======
+    nothing
+end
+
+function update_bags_setdiff(new_bags, bags, set)
+    # new_bags = deepcopy(bags)
+    for feat in 1:length(bags)
+        for bin in 1:length(bags[feat])
+            new_bags[feat][bin] = setdiff(bags[feat][bin], set)
+            # new_bags[feat][bin] = intersect(set, bags[feat][bin])
+        end
+    end
+    nothing
+end
+
+function intersect_test(bags, 𝑖_set, δ::S, δ²::S) where {T<:Real,S}
+    ∑δ = zero(Float64)
+    ∑δ² = zero(Float64)
+    ∑δR = zero(Float64)
+    ∑δ²R = zero(Float64)
+    for bag in bags
+        intersect(𝑖_set, bag)
+        print(length(𝑖_set))
+    end
+    return ∑δ
+>>>>>>> c943b906b4b2aa845826c72b53a252dd37b49035
 end
 
 function find_histogram(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, λ::S, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}

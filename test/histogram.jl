@@ -7,11 +7,12 @@ using StaticArrays
 using Revise
 using BenchmarkTools
 using EvoTrees
-using EvoTrees: get_gain, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, Params, predict, predict!, find_split!, SplitTrack, update_track!, sigmoid
-using EvoTrees: get_edges, binarize
+using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, SplitTrack, Tree, TrainNode, TreeNode, Params, predict, predict!, sigmoid
+using EvoTrees: scan, find_bags, find_bags_direct, scan, find_histogram, intersect_test, update_bags!, update_bags_intersect
 
 # prepare a dataset
 features = rand(100_000, 100)
+
 X = features
 Y = rand(size(X, 1))
 𝑖 = collect(1:size(X,1))
@@ -28,18 +29,17 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # set parameters
 loss = :linear
-nrounds = 1
+nrounds = 10
 λ = 1.0
-γ = 1e-15
+γ = 0.0
 η = 0.5
 max_depth = 5
 min_weight = 5.0
 rowsample = 1.0
 colsample = 1.0
-nbins = 250
-
+nbins = 32
 # params1 = Params(nrounds, λ, γ, η, max_depth, min_weight, :linear)
-params1 = Params(:linear, 1, λ, γ, 1.0, 5, min_weight, rowsample, colsample, nbins)
+params1 = Params(:linear, nrounds, λ, γ, 1.0, 5, min_weight, rowsample, colsample, nbins)
 
 # initial info
 δ, δ² = zeros(size(X, 1)), zeros(size(X, 1))
@@ -51,10 +51,12 @@ update_grads!(Val{params1.loss}(), pred, Y, δ, δ², 𝑤)
 gain = get_gain(∑δ, ∑δ², ∑𝑤, params1.λ)
 
 # initialize train_nodes
-train_nodes = Vector{TrainNode{Float64, Array{Int64,1}, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
+train_nodes = Vector{TrainNode{Float64, BitSet, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
 for feat in 1:2^params1.max_depth-1
-    train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, [0], [0])
+    train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, BitSet([0]), [0])
+    # train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, Set([0]), [0], bags)
 end
+
 # initializde node splits info and tracks - colsample size (𝑗)
 splits = Vector{SplitInfo{Float64, Int}}(undef, size(𝑗, 1))
 for feat in 1:size(𝑗, 1)
@@ -65,172 +67,97 @@ for feat in 1:size(𝑗, 1)
     tracks[feat] = SplitTrack{Float64}(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, -Inf)
 end
 
-x = X[:, 5]
-x_sortperm = sortperm(x)
-x_sort = x[x_sortperm]
-δ_sort = δ[x_sortperm]
-δ²_sort = δ²[x_sortperm]
+@time edges = get_edges(X, params1.nbins)
+@time X_bin = binarize(X, edges)
 
-edges = get_edges(X, params1.nbins)
-X_bin = binarize(X, edges)
-perm_ini = zeros(Int, size(X_bin))
-
-train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
-@time grow_tree(X_bin, δ, δ², 𝑤, params1, perm_ini, train_nodes, splits, tracks, edges)
-@btime grow_tree($X_bin, $δ, $δ², $𝑤, $params1, $perm_ini, $train_nodes, $splits, $tracks, $edges)
-
-x_bin = X_bin[:,1]
-x_bin_sort = x_bin[x_sortperm]
-
-@btime sortperm($x)
-@btime sortperm($x_bin)
-
-x_sort = view(x, x_sortperm)
-δ_sort = view(δ, x_sortperm)
-δ²_sort = view(δ², x_sortperm)
-𝑤_sort = view(𝑤, x_sortperm)
-
-@btime find_split!($x_sort, $δ_sort, $δ²_sort, $𝑤_sort, $∑δ, $∑δ², $∑𝑤, $params1.λ, $splits[1], $tracks[1])
-@btime find_split!($x_bin_sort, $δ_sort, $δ²_sort, $𝑤_sort, $∑δ, $∑δ², $∑𝑤, $params1.λ, $splits[1], $tracks[1])
-
-function find_split_hist!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, λ, info::SplitInfo, track::SplitTrack) where T<:Real
-
-    info.gain = (∑δ ^ 2 / (∑δ² + λ * ∑𝑤)) / 2.0
-
-    track.∑δL = 0.0
-    track.∑δ²L = 0.0
-    track.∑𝑤L = 0.0
-    track.∑δR = ∑δ
-    track.∑δ²R = ∑δ²
-    track.∑𝑤R = ∑𝑤
-
-    vals = unique(x)
-
-    # println(vals)
-
-    @inbounds for i in vals
-
-        ids = findall(x .== i)
-
-        # for j in ids
-            # track.∑δ²L += sum(view(δ, ids))
-            # track.∑δ²L += sum(view(δ², ids))
-            # track.∑𝑤L += sum(view(𝑤, ids))
-            # track.∑δR -= sum(view(δ, ids))
-            # track.∑δ²R -= sum(view(δ², ids))
-            # track.∑𝑤R -= sum(view(𝑤, ids))
-
-            # track.∑δL += δ[j]
-            # track.∑δ²L += δ²[j]
-            # track.∑𝑤L += 𝑤[j]
-            # track.∑δR -= δ[j]
-            # track.∑δ²R -= δ²[j]
-            # track.∑𝑤R -= 𝑤[j]
-        # end
-
-        # update_track!(track, λ)
-        # if track.gain > info.gain
-        #     info.gain = track.gain
-        #     info.gainL = track.gainL
-        #     info.gainR = track.gainR
-        #     info.∑δL = track.∑δL
-        #     info.∑δ²L = track.∑δ²L
-        #     info.∑𝑤L = track.∑𝑤L
-        #     info.∑δR = track.∑δR
-        #     info.∑δ²R = track.∑δ²R
-        #     info.∑𝑤R = track.∑𝑤R
-        #     info.cond = i
-        #     info.𝑖 = i
-        # end
-    end
+bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1))
+for feat in 1:size(𝑗, 1)
+    bags[feat] = find_bags(X_bin[:,feat])
 end
 
-@btime find_split_hist!($x, $δ_sort, $δ²_sort, $𝑤, $∑δ, $∑δ², $∑𝑤, $params1.λ, $splits[1], $tracks[1])
-@btime find_split_hist!($x_bin, $δ_sort, $δ²_sort, $𝑤, $∑δ, $∑δ², $∑𝑤, $params1.λ, $splits[1], $tracks[1])
-
-
-function histogram(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, λ, info::SplitInfo, track::SplitTrack) where T<:Real
-
-    info.gain = (∑δ ^ 2 / (∑δ² + λ * ∑𝑤)) / 2.0
-
-    log2_nbins = 5
-
-    track.∑δL = 0.0
-    track.∑δ²L = 0.0
-    track.∑𝑤L = 0.0
-    track.∑δR = ∑δ
-    track.∑δ²R = ∑δ²
-    track.∑𝑤R = ∑𝑤
-
-    log2_nbins = 5
-    nbins = 2^log2_nbins
-
-    # boundaries = linspace(minimum(x[bag]), maximum(x[bag]), nbins + 1) |> collect
-    # boundaries = linspace(minimum(x), maximum(x), nbins + 1) |> collect
-    boundaries = range(minimum(x), stop=maximum(x), length=nbins+1) #|> collect
-
-    vals = unique(x)
-    bin = Vector{Vector{Int}}(undef, size(vals,1))
-
-    for k in 1:nbins
-        bin[k] = Int[]
-    end
-
-    for i in 1:length(x)
-        k = 1 # initialize bin number
-        for power in reverse(0:(log2_nbins - 1))
-            δk = 2^power
-            if x[i] >= boundaries[k + δk]
-                k += δk
-            end
-        end
-        push!(bin[k], i)
-    end
-    return bin
-end
-
-@time histogram(x, δ_sort, δ²_sort, 𝑤, ∑δ, ∑δ², ∑𝑤, params1.λ, splits[1], tracks[1])
-
-@btime histogram(x, δ_sort, δ²_sort, 𝑤, ∑δ, ∑δ², ∑𝑤, params1.λ, splits[1], tracks[1])
-@btime histogram(x_bin, δ_sort, δ²_sort, 𝑤, ∑δ, ∑δ², ∑𝑤, params1.λ, splits[1], tracks[1])
-
-
-function find_bags(x::AbstractArray{T, 1}) where T<:Real
-
-    vals = sort(unique(x))
-
-    bags = Vector{Vector{Int}}(undef, length(vals))
-
-    for i in 1:length(vals)
-        bags[i] = findall(x .== vals[i])
+function prep1(X, params)
+    edges = get_edges(X, params.nbins)
+    X_bin = binarize(X, edges)
+    bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1))
+    for feat in 1:size(𝑗, 1)
+        bags[feat] = find_bags(X_bin[:,feat])
     end
     return bags
 end
 
-@btime bags = find_bags($x_bin)
+function prep2(X, params)
+    edges = get_edges(X, params.nbins)
+    bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1))
+    for feat in 1:size(𝑗, 1)
+        bags[feat] = find_bags_direct(X[:,feat], edges[feat])
+    end
+    return bags
+end
 
-function histogram_2(bags, x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, λ, info::SplitInfo, track::SplitTrack) where T<:Real
+@time bags = prep1(X_train, params1);
+@time bags = prep2(X_train, params1);
 
-    ∑δ = Float64[]
-    for bag in bags
-        intersect(bag, 𝑖)
+@time train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
+@time tree = grow_tree(bags, δ, δ², 𝑤, params1, train_nodes, splits, tracks, edges)
+@btime tree = grow_tree($bags, $δ, $δ², $𝑤, $params1, $train_nodes, $splits, $tracks, $edges)
+
+params1 = Params(:linear, 5, λ, γ, 1.0, 5, min_weight, rowsample, colsample, nbins)
+@btime model = grow_gbtree($X_train, $Y_train, $params1, print_every_n = 1, metric=:mae)
+@time pred_train = predict(model, X_train)
+
+params1 = Params(:linear, 10, λ, γ, 0.1, 5, min_weight, rowsample, colsample, nbins)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 1, metric=:mae)
+@btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 1, metric=:mae)
+
+@time pred_train = predict(model, X_train)
+sqrt(mean((pred_train .- Y_train) .^ 2))
+
+#############################################
+# Quantiles with Sets
+#############################################
+
+𝑖_set = BitSet(𝑖);
+
+feat = 9
+find_histogram(bags[feat], δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1.λ, splits[feat], tracks[feat], edges[feat], train_nodes[feat].𝑖)
+@time find_histogram(bags[1], δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1.λ, splits[1], tracks[1], edges[1], train_nodes[1].𝑖)
+@btime find_histogram($bags[1], $δ, $δ², $𝑤, $∑δ, $∑δ², $∑𝑤, $params1.λ, $splits[1], $tracks[1], $edges[1], $train_nodes[1].𝑖)
+
+
+
+new_bags = Vector{Vector{BitSet}}(undef, length(bags))
+for i in 1:length(new_bags)
+    new_bags[i] = Vector{BitSet}(undef, length(bags[i]))
+    for j in 1:length(bags[i])
+        new_bags[i][j] = BitSet()
     end
 end
 
-@btime histogram_2($bags, $x_bin, $δ_sort, $δ²_sort, $𝑤, $∑δ, $∑δ², $∑𝑤, $params1.λ, $splits[1], $tracks[1])
+length(union(train_nodes[1].bags[1][1:13]...))
+length(union(train_nodes[1].bags[1][1:13]...))
+length(new_bags[2])
+length(new_bags[2][1])
+length(bags[2][32])
+typeof(bags)
+@btime update_bags_intersect($new_bags, $bags, $union(train_nodes[1].bags[1][1:13]...))
+length(new_bags[2])
+length(new_bags[2][2])
+length(bags[2][1])
 
+# extract the best feat from bags, and join all the underlying bins up to split point
+best_bag = bags[1]
+bins_L = union(best_bag[1:4]...)
 
 function set_1(x, y)
     intersect!(x, y)
     return x
 end
 
-
-x = rand(UInt32, 100000)
+x = rand(UInt32, 100_000)
 y = rand(x, 1000)
 
-x_set = Set(x)
-y_set = Set(y)
+x_set = BitSet(x);
+y_set = BitSet(y);
 
 @btime set_1(x, y)
 @btime set_1(x_set, y)
