@@ -1,3 +1,4 @@
+using BenchmarkTools
 using DataFrames
 using CSV
 using Statistics
@@ -5,6 +6,7 @@ using StatsBase: sample
 using Test
 using Plots
 
+using Revise
 using EvoTrees
 using EvoTrees: sigmoid, logit
 
@@ -30,16 +32,17 @@ loss = :linear
 nrounds = 200
 λ = 0.5
 γ = 0.5
-η = 0.05
+η = 0.1
 max_depth = 5
 min_weight = 1.0
 rowsample = 0.5
 colsample = 1.0
-nbins = 250
+nbins = 64
 
 # linear
 params1 = Params(:linear, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:mae)
+@btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 10, metric=:mae)
 @time pred_train_linear = predict(model, X_train)
 @time pred_eval_linear = predict(model, X_eval)
 sqrt(mean((pred_train_linear .- Y_train) .^ 2))

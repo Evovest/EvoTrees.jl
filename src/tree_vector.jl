@@ -16,15 +16,13 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
 
             node = train_nodes[id]
 
-            if tree_depth == params.max_depth
+            if tree_depth == params.max_depth || node.∑𝑤 <= params.min_weight
                 push!(tree.nodes, TreeNode(- params.η * node.∑δ / (node.∑δ² + params.λ * node.∑𝑤)))
             else
                 node_size = size(node.𝑖, 1)
                 @threads for feat in node.𝑗
                     sortperm!(view(perm_ini, 1:node_size, feat), view(X, node.𝑖, feat), alg = QuickSort, initialized = false)
-                    find_split!(view(X, view(node.𝑖, view(perm_ini, 1:node_size, feat)), feat), view(δ, view(node.𝑖, view(perm_ini, 1:node_size, feat))) , view(δ², view(node.𝑖, view(perm_ini, 1:node_size, feat))), view(𝑤, view(node.𝑖, view(perm_ini, 1:node_size, feat))), node.∑δ, node.∑δ², node.∑𝑤, params.λ, splits[feat], tracks[feat], X_edges[feat])
-                    # find_split!(X[node.𝑖[perm_ini[1:node_size, feat]], feat], δ[node.𝑖[perm_ini[1:node_size, feat]]] , δ²[node.𝑖[perm_ini[1:node_size, feat]]], 𝑤[node.𝑖[perm_ini[1:node_size, feat]]], node.∑δ, node.∑δ², node.∑𝑤, params.λ, splits[feat], tracks[feat])
-                    #splits[feat].feat = feat
+                    find_split!(view(X, view(node.𝑖, view(perm_ini, 1:node_size, feat)), feat), view(δ, view(node.𝑖, view(perm_ini, 1:node_size, feat))) , view(δ², view(node.𝑖, view(perm_ini, 1:node_size, feat))), view(𝑤, view(node.𝑖, view(perm_ini, 1:node_size, feat))), node.∑δ, node.∑δ², node.∑𝑤, params, splits[feat], tracks[feat], X_edges[feat])
                 end
 
                 # assign best split
@@ -197,9 +195,9 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
 end
 
 # find best split
-function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, λ, info::SplitInfo, track::SplitTrack, x_edges) where T<:Real
+function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, params::Params, info::SplitInfo, track::SplitTrack, x_edges) where T<:Real
 
-    info.gain = (∑δ ^ 2 / (∑δ² + λ * ∑𝑤)) / 2.0
+    info.gain = (∑δ ^ 2 / (∑δ² + params.λ * ∑𝑤)) / 2.0
 
     track.∑δL = 0.0
     track.∑δ²L = 0.0
@@ -218,9 +216,10 @@ function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²
         track.∑δ²R -= δ²[i]
         track.∑𝑤R -= 𝑤[i]
 
-        @inbounds if x[i] < x[i+1] # check gain only if there's a change in value
+        @inbounds if x[i] < x[i+1] && track.∑𝑤L >= params.min_weight && track.∑𝑤R >= params.min_weight # check gain only if there's a change in value
+        # @inbounds if x[i] < x[i+1] # check gain only if there's a change in value
 
-            update_track!(track, λ)
+            update_track!(track, params.λ)
             if track.gain > info.gain
                 info.gain = track.gain
                 info.gainL = track.gainL
