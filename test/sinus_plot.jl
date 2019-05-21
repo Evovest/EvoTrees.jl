@@ -9,7 +9,7 @@ using EvoTrees
 using EvoTrees: sigmoid, logit
 
 # prepare a dataset
-features = rand(10_000) .* 20 .- 10
+features = rand(10_000) .* 10 .- 5
 X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5
 Y = logit(Y) + randn(size(Y))
@@ -35,7 +35,7 @@ max_depth = 5
 min_weight = 1.0
 rowsample = 0.5
 colsample = 1.0
-nbins = 250
+nbins = 50
 
 # linear
 params1 = Params(:linear, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins)
