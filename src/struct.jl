@@ -51,7 +51,7 @@ end
 TreeNode(left::S, right::S, feat::S, cond::T) where {T<:AbstractFloat, S<:Int} = TreeNode{T,S,Bool}(left, right, feat, cond, 0.0, true)
 TreeNode(pred::T) where {T<:AbstractFloat} = TreeNode{T,Int,Bool}(0, 0, 0, 0.0, pred, false)
 
-struct Params{T<:AbstractFloat, U<:Symbol, S<:Int}
+mutable struct Params{T<:AbstractFloat, U<:Symbol, S<:Int}
     loss::U
     nrounds::S
     λ::T
@@ -63,6 +63,8 @@ struct Params{T<:AbstractFloat, U<:Symbol, S<:Int}
     colsample::T
     nbins::S
 end
+
+function
 
 # single tree is made of a root node that containes nested nodes and leafs
 struct TrainNode{T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{Int, 1}, S<:Int}
