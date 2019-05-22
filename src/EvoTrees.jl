@@ -6,7 +6,7 @@ using CSV
 using Base.Threads: @threads
 using StatsBase: sample
 
-export grow_tree!, grow_gbtree, Tree, Node, Params, predict
+export grow_tree!, grow_gbtree, Tree, Node, Params, predict, EvoTreeRegressor
 
 include("struct.jl")
 include("loss.jl")

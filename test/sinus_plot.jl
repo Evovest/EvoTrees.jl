@@ -3,7 +3,6 @@ using DataFrames
 using CSV
 using Statistics
 using StatsBase: sample
-using Test
 using Plots
 
 using Revise
@@ -11,7 +10,7 @@ using EvoTrees
 using EvoTrees: sigmoid, logit
 
 # prepare a dataset
-features = rand(10000) .* 20 .- 10
+features = rand(10_000) .* 5 .- 2
 X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5
 Y = logit(Y) + randn(size(Y))
@@ -40,22 +39,38 @@ colsample = 1.0
 nbins = 64
 
 # linear
-params1 = Params(:linear, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins)
+params1 = EvoTreeRegressor(
+    loss=:linear,
+    nrounds=200,
+    λ = 0.5, γ=0.5, η=0.1,
+    max_depth = 5, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
+
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:mae)
-@btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 10, metric=:mae)
+# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 10, metric=:mae)
 @time pred_train_linear = predict(model, X_train)
 @time pred_eval_linear = predict(model, X_eval)
 sqrt(mean((pred_train_linear .- Y_train) .^ 2))
 
 # logistic / cross-entropy
-params1 = Params(:logistic, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins)
+params1 = EvoTreeRegressor(
+    loss=:logistic,
+    nrounds=200,
+    λ = 0.5, γ=0.5, η=0.1,
+    max_depth = 5, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
 @time pred_train_logistic = predict(model, X_train)
 @time pred_eval_logistic = predict(model, X_eval)
 sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
 
 # Poisson
-params1 = Params(:poisson, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins)
+params1 = EvoTreeRegressor(
+    loss=:poisson,
+    nrounds=200,
+    λ = 0.5, γ=0.5, η=0.1,
+    max_depth = 5, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
 @time pred_train_poisson = predict(model, X_train)
 @time pred_eval_poisson = predict(model, X_eval)
@@ -66,11 +81,46 @@ plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "gray", background_col
 plot!(X_train[:,1][x_perm], pred_train_linear[x_perm], color = "navy", linewidth = 1.5, label = "Linear")
 plot!(X_train[:,1][x_perm], pred_train_logistic[x_perm], color = "darkred", linewidth = 1.5, label = "Logistic")
 plot!(X_train[:,1][x_perm], pred_train_poisson[x_perm], color = "green", linewidth = 1.5, label = "Poisson")
-
 savefig("regression_sinus.png")
 
-x_perm = sortperm(X_eval[:,1])
-plot(X_eval, Y_eval, ms = 1, mcolor = "gray", mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
-plot!(X_eval[:,1][x_perm], pred_eval_linear[x_perm], color = "navy", linewidth = 1.5, label = "Linear")
-plot!(X_eval[:,1][x_perm], pred_eval_logistic[x_perm], color = "darkred", linewidth = 1.5, label = "Logistic")
-plot!(X_eval[:,1][x_perm], pred_eval_poisson[x_perm], color = "green", linewidth = 1.5, label = "Poisson")
+###############################
+## Quantiles
+###############################
+# q50
+params1 = EvoTreeRegressor(
+    loss=:quantile, α=0.5,
+    nrounds=200,
+    λ = 0.1, γ=0.0, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
+
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:quantile)
+# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 10, metric=:mae)
+@time pred_train_q50 = predict(model, X_train)
+
+# q20
+params1 = EvoTreeRegressor(
+    loss=:quantile, α=0.2,
+    nrounds=200,
+    λ = 0.1, γ=0.0, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :quantile)
+@time pred_train_q20 = predict(model, X_train)
+
+# q80
+params1 = EvoTreeRegressor(
+    loss=:quantile, α=0.8,
+    nrounds=200,
+    λ = 0.1, γ=0.0, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :quantile)
+@time pred_train_q80 = predict(model, X_train)
+
+x_perm = sortperm(X_train[:,1])
+plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot!(X_train[:,1][x_perm], pred_train_q50[x_perm], color = "navy", linewidth = 1.5, label = "Median")
+plot!(X_train[:,1][x_perm], pred_train_q20[x_perm], color = "darkred", linewidth = 1.5, label = "Q20")
+plot!(X_train[:,1][x_perm], pred_train_q80[x_perm], color = "green", linewidth = 1.5, label = "Q80")
+savefig("quantiles_sinus.png")

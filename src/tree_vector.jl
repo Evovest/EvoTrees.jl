@@ -17,7 +17,7 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
             node = train_nodes[id]
 
             if tree_depth == params.max_depth || node.∑𝑤 <= params.min_weight
-                push!(tree.nodes, TreeNode(- params.η * node.∑δ / (node.∑δ² + params.λ * node.∑𝑤)))
+                push!(tree.nodes, TreeNode(pred_leaf(params.loss, node.∑δ, node.∑δ², node.∑𝑤, params)))
             else
                 node_size = size(node.𝑖, 1)
                 @threads for feat in node.𝑗
@@ -42,10 +42,9 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
                     push!(next_active_id, leaf_count + 2)
                     leaf_count += 2
                 else
-                    push!(tree.nodes, TreeNode(- params.η * node.∑δ / (node.∑δ² + params.λ * node.∑𝑤)))
+                    push!(tree.nodes, TreeNode(pred_leaf(params.loss, node.∑δ, node.∑δ², node.∑𝑤, params)))
                 end # end of single node split search
             end
-            # node.𝑖 = [0]
         end # end of loop over active ids for a given depth
         active_id = next_active_id
         tree_depth += 1
@@ -90,9 +89,9 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
     X_bin = binarize(X, X_edges)
 
     μ = mean(Y)
-    if params.loss == :logistic
+    if typeof(params.loss) == Logistic
         μ = logit(μ)
-    elseif params.loss == :poisson
+    elseif params.loss == Poisson
         μ = log(μ)
     end
     pred = ones(size(Y, 1)) .* μ
@@ -100,7 +99,6 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
     # initialize gradients and weights
     δ, δ² = zeros(Float64, size(Y, 1)), zeros(Float64, size(Y, 1))
     𝑤 = ones(Float64, size(Y, 1))
-    update_grads!(Val{params.loss}(), pred, Y, δ, δ², 𝑤)
 
     # eval init
     if size(Y_eval, 1) > 0
@@ -137,9 +135,9 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
         𝑗 = 𝑗_[sample(𝑗_, ceil(Int, params.colsample * X_size[2]), replace = false)]
 
         # get gradients
-        update_grads!(Val{params.loss}(), pred, Y, δ, δ², 𝑤)
+        update_grads!(params.loss, params.α, pred, Y, δ, δ², 𝑤)
         ∑δ, ∑δ², ∑𝑤 = sum(δ[𝑖]), sum(δ²[𝑖]), sum(𝑤[𝑖])
-        gain = get_gain(∑δ, ∑δ², ∑𝑤, params.λ)
+        gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
 
         # initializde node splits info and tracks - colsample size (𝑗)
         splits = Vector{SplitInfo{Float64, Int64}}(undef, X_size[2])
@@ -168,9 +166,9 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
         if metric != :none
 
             if size(Y_eval, 1) > 0
-                metric_track.metric .= eval_metric(Val{metric}(), pred_eval, Y_eval)
+                metric_track.metric .= eval_metric(Val{metric}(), pred_eval, Y_eval, params.α)
             else
-                metric_track.metric .= eval_metric(Val{metric}(), pred, Y)
+                metric_track.metric .= eval_metric(Val{metric}(), pred, Y, params.α)
             end
 
             if metric_track.metric < metric_best.metric
@@ -197,7 +195,7 @@ end
 # find best split
 function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, params::Params, info::SplitInfo, track::SplitTrack, x_edges) where T<:Real
 
-    info.gain = (∑δ ^ 2 / (∑δ² + params.λ * ∑𝑤)) / 2.0
+    info.gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
 
     track.∑δL = 0.0
     track.∑δ²L = 0.0
@@ -219,7 +217,7 @@ function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²
         @inbounds if x[i] < x[i+1] && track.∑𝑤L >= params.min_weight && track.∑𝑤R >= params.min_weight # check gain only if there's a change in value
         # @inbounds if x[i] < x[i+1] # check gain only if there's a change in value
 
-            update_track!(track, params.λ)
+            update_track!(params.loss, track, params.λ)
             if track.gain > info.gain
                 info.gain = track.gain
                 info.gainL = track.gainL
