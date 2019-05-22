@@ -98,26 +98,8 @@ function EvoTreeRegressor(;
     return model
 end
 
-function EvoTreeRegressor(;
-    loss=:linear,
-    nrounds=10,
-    λ=0.0, #
-    γ=0.0, # gamma: min gain to split
-    η=0.1, # eta: learning rate
-    max_depth=5,
-    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
-    rowsample=1.0,
-    colsample=1.0,
-    nbins=64)
-
-    model = Params(loss, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins)
-    # message = MLJBase.clean!(model)
-    # isempty(message) || @warn message
-    return model
-end
-
 # single tree is made of a root node that containes nested nodes and leafs
-struct TrainNode{T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
+struct TrainNode{T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{Int, 1}, S<:Int}
     depth::S
     ∑δ::T
     ∑δ²::T
