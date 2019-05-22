@@ -28,10 +28,22 @@ function predict(model::GBTree, X::AbstractArray{T, 2}) where T<:Real
     for tree in model.trees
         predict!(pred, tree, X)
     end
-    if model.params.loss == :logistic
+    if typeof(model.params.loss) == Logistic
         @. pred = sigmoid(pred)
-    elseif model.params.loss == :poisson
+    elseif typeof(model.params.loss) == Poisson
         @. pred = exp(pred)
     end
+    return pred
+end
+
+# prediction in Leaf - GradientRegression
+function pred_leaf(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, params::Params) where {S<:GradientRegression, T<:AbstractFloat}
+    pred = - params.η * ∑δ / (∑δ² + params.λ * ∑𝑤)
+    return pred
+end
+
+# prediction in Leaf - QuantileRegression
+function pred_leaf(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, params::Params) where {S<:QuantileRegression, T<:AbstractFloat}
+    pred = params.η * ∑δ / (∑𝑤 * (1+params.λ))
     return pred
 end

@@ -12,12 +12,13 @@ function grow_tree(bags::Vector{Vector{BitSet}}, δ::AbstractArray{T, 1}, δ²::
         # grow nodes
         for id in active_id
             node = train_nodes[id]
-            if tree_depth == params.max_depth
-                push!(tree.nodes, TreeNode(- params.η * node.∑δ / (node.∑δ² + params.λ * node.∑𝑤)))
+            if tree_depth == params.max_depth || node.∑𝑤 <= params.min_weight
+                push!(tree.nodes, TreeNode(pred_leaf(params.loss, node.∑δ, node.∑δ², node.∑𝑤, params)))
             else
                 # node_size = length(node.𝑖)
                 @threads for feat in node.𝑗
-                    find_histogram(bags[feat], δ, δ², 𝑤, node.∑δ::T, node.∑δ²::T, node.∑𝑤::T, params.λ::T, splits[feat], tracks[feat], edges[feat], node.𝑖)
+                    sortperm!(view(perm_ini, 1:node_size, feat), view(X, node.𝑖, feat), alg = QuickSort, initialized = false)
+                    find_split!(view(X, view(node.𝑖, view(perm_ini, 1:node_size, feat)), feat), view(δ, view(node.𝑖, view(perm_ini, 1:node_size, feat))) , view(δ², view(node.𝑖, view(perm_ini, 1:node_size, feat))), view(𝑤, view(node.𝑖, view(perm_ini, 1:node_size, feat))), node.∑δ, node.∑δ², node.∑𝑤, params, splits[feat], tracks[feat], X_edges[feat])
                 end
                 # assign best split
                 best = get_max_gain(splits)
@@ -32,7 +33,7 @@ function grow_tree(bags::Vector{Vector{BitSet}}, δ::AbstractArray{T, 1}, δ²::
                     push!(next_active_id, leaf_count + 2)
                     leaf_count += 2
                 else
-                    push!(tree.nodes, TreeNode(- params.η * node.∑δ / (node.∑δ² + params.λ * node.∑𝑤)))
+                    push!(tree.nodes, TreeNode(pred_leaf(params.loss, node.∑δ, node.∑δ², node.∑𝑤, params)))
                 end # end of single node split search
 
             end
@@ -77,9 +78,9 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
     metric::Symbol = :none, early_stopping_rounds = Int(1e5), print_every_n = 100) where {R<:Real, T<:AbstractFloat}
 
     μ = mean(Y)
-    if params.loss == :logistic
+    if typeof(params.loss) == Logistic
         μ = logit(μ)
-    elseif params.loss == :poisson
+    elseif params.loss == Poisson
         μ = log(μ)
     end
     pred = ones(size(Y, 1)) .* μ
@@ -87,7 +88,6 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
     # initialize gradients and weights
     δ, δ² = zeros(Float64, size(Y, 1)), zeros(Float64, size(Y, 1))
     𝑤 = ones(Float64, size(Y, 1))
-    update_grads!(Val{params.loss}(), pred, Y, δ, δ², 𝑤)
 
     # eval init
     if size(Y_eval, 1) > 0
@@ -128,9 +128,9 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
         𝑗 = 𝑗_[sample(𝑗_, ceil(Int, params.colsample * X_size[2]), replace = false)]
 
         # get gradients
-        update_grads!(Val{params.loss}(), pred, Y, δ, δ², 𝑤)
+        update_grads!(params.loss, params.α, pred, Y, δ, δ², 𝑤)
         ∑δ, ∑δ², ∑𝑤 = sum(δ[𝑖]), sum(δ²[𝑖]), sum(𝑤[𝑖])
-        gain = get_gain(∑δ, ∑δ², ∑𝑤, params.λ)
+        gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
 
         # initializde node splits info and tracks - colsample size (𝑗)
         splits = Vector{SplitInfo{Float64, Int64}}(undef, X_size[2])
@@ -159,9 +159,9 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
         if metric != :none
 
             if size(Y_eval, 1) > 0
-                metric_track.metric .= eval_metric(Val{metric}(), pred_eval, Y_eval)
+                metric_track.metric .= eval_metric(Val{metric}(), pred_eval, Y_eval, params.α)
             else
-                metric_track.metric .= eval_metric(Val{metric}(), pred, Y)
+                metric_track.metric .= eval_metric(Val{metric}(), pred, Y, params.α)
             end
 
             if metric_track.metric < metric_best.metric
@@ -183,4 +183,47 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
         gbtree.metric.metric .= metric_best.metric
     end
     return gbtree
+end
+
+# find best split
+function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, params::Params, info::SplitInfo, track::SplitTrack, x_edges) where T<:Real
+
+    info.gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
+
+    track.∑δL = 0.0
+    track.∑δ²L = 0.0
+    track.∑𝑤L = 0.0
+    track.∑δR = ∑δ
+    track.∑δ²R = ∑δ²
+    track.∑𝑤R = ∑𝑤
+
+    @inbounds for i in 1:(size(x, 1) - 1)
+    # @fastmath @inbounds for i in eachindex(x)
+
+        track.∑δL += δ[i]
+        track.∑δ²L += δ²[i]
+        track.∑𝑤L += 𝑤[i]
+        track.∑δR -= δ[i]
+        track.∑δ²R -= δ²[i]
+        track.∑𝑤R -= 𝑤[i]
+
+        @inbounds if x[i] < x[i+1] && track.∑𝑤L >= params.min_weight && track.∑𝑤R >= params.min_weight # check gain only if there's a change in value
+        # @inbounds if x[i] < x[i+1] # check gain only if there's a change in value
+
+            update_track!(params.loss, track, params.λ)
+            if track.gain > info.gain
+                info.gain = track.gain
+                info.gainL = track.gainL
+                info.gainR = track.gainR
+                info.∑δL = track.∑δL
+                info.∑δ²L = track.∑δ²L
+                info.∑𝑤L = track.∑𝑤L
+                info.∑δR = track.∑δR
+                info.∑δ²R = track.∑δ²R
+                info.∑𝑤R = track.∑𝑤R
+                info.cond = x_edges[x[i]]
+                info.𝑖 = i
+            end
+        end
+    end
 end
