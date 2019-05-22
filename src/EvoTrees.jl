@@ -13,5 +13,6 @@ include("loss.jl")
 include("eval.jl")
 include("predict.jl")
 include("tree_vector.jl")
+include("histogram.jl")
 
 end # module
