@@ -98,6 +98,32 @@ function EvoTreeRegressor(;
     return model
 end
 
+# For R support
+function EvoTreeRegressorR(
+    loss,
+    nrounds,
+    λ,
+    γ,
+    η,
+    max_depth,
+    min_weight,
+    rowsample,
+    colsample,
+    nbins,
+    α)
+
+    if loss == :linear model_type = Linear()
+    elseif loss == :logistic model_type = Logistic()
+    elseif loss == :poisson model_type = Poisson()
+    elseif loss == :quantile model_type = Quantile()
+    end
+
+    model = Params(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α)
+    # message = MLJBase.clean!(model)
+    # isempty(message) || @warn message
+    return model
+end
+
 # single tree is made of a root node that containes nested nodes and leafs
 struct TrainNode{T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{Int, 1}, S<:Int}
     depth::S
