@@ -59,7 +59,7 @@ end
 TreeNode(left::S, right::S, feat::S, cond::T) where {T<:AbstractFloat, S<:Int} = TreeNode{T,S,Bool}(left, right, feat, cond, 0.0, true)
 TreeNode(pred::T) where {T<:AbstractFloat} = TreeNode{T,Int,Bool}(0, 0, 0, 0.0, pred, false)
 
-mutable struct Params{T<:AbstractFloat, U<:ModelType, S<:Int}
+mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBase.Deterministic
     loss::U
     nrounds::S
     λ::T
@@ -71,6 +71,7 @@ mutable struct Params{T<:AbstractFloat, U<:ModelType, S<:Int}
     colsample::T
     nbins::S
     α::T
+    metric::Symbol
 end
 
 function EvoTreeRegressor(;
@@ -84,7 +85,8 @@ function EvoTreeRegressor(;
     rowsample=1.0,
     colsample=1.0,
     nbins=64,
-    α=0.0)
+    α=0.0,
+    metric=:mse)
 
     if loss == :linear model_type = Linear()
     elseif loss == :logistic model_type = Logistic()
@@ -92,13 +94,13 @@ function EvoTreeRegressor(;
     elseif loss == :quantile model_type = Quantile()
     end
 
-    model = Params(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α)
+    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric)
     # message = MLJBase.clean!(model)
     # isempty(message) || @warn message
     return model
 end
 
-# For R support
+# For R-package
 function EvoTreeRegressorR(
     loss,
     nrounds,
@@ -110,7 +112,8 @@ function EvoTreeRegressorR(
     rowsample,
     colsample,
     nbins,
-    α)
+    α,
+    metric)
 
     if loss == :linear model_type = Linear()
     elseif loss == :logistic model_type = Logistic()
@@ -118,7 +121,7 @@ function EvoTreeRegressorR(
     elseif loss == :quantile model_type = Quantile()
     end
 
-    model = Params(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α)
+    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric)
     # message = MLJBase.clean!(model)
     # isempty(message) || @warn message
     return model
@@ -150,6 +153,6 @@ Metric() = Metric([0], [Inf])
 # gradient-boosted tree is formed by a vector of trees
 struct GBTree{T<:AbstractFloat, S<:Int}
     trees::Vector{Tree{T,S}}
-    params::Params
+    params::EvoTreeRegressor
     metric::Metric
 end

@@ -1,5 +1,5 @@
 # initialize train_nodes
-function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, 𝑤::AbstractArray{T, 1}, params::Params, perm_ini::AbstractArray{Int}, train_nodes::Vector{TrainNode{T, I, J, S}}, splits::Vector{SplitInfo{Float64, Int}}, tracks::Vector{SplitTrack{Float64}}, X_edges) where {R<:Real, T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{Int, 1}, S<:Int}
+function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, 𝑤::AbstractArray{T, 1}, params::EvoTreeRegressor, perm_ini::AbstractArray{Int}, train_nodes::Vector{TrainNode{T, I, J, S}}, splits::Vector{SplitInfo{Float64, Int}}, tracks::Vector{SplitTrack{Float64}}, X_edges) where {R<:Real, T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{Int, 1}, S<:Int}
 
     active_id = ones(Int, 1)
     leaf_count = 1::Int
@@ -81,9 +81,9 @@ function binarize(X, edges)
 end
 
 # grow_gbtree
-function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Params;
+function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::EvoTreeRegressor;
     X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractArray{T, 1} = Array{Float64, 1}(undef, 0),
-    metric::Symbol = :none, early_stopping_rounds = Int(1e5), print_every_n = 100) where {R<:Real, T<:AbstractFloat}
+    metric::Symbol = :none, early_stopping_rounds=Int(1e5), print_every_n=100, verbosity=1) where {R<:Real, T<:AbstractFloat}
 
     X_edges = get_edges(X, params.nbins)
     X_bin = binarize(X, X_edges)
@@ -178,7 +178,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
                 iter_since_best += 1
             end
 
-            if mod(i, print_every_n) == 0
+            if mod(i, print_every_n) == 0 && verbosity > 0
                 display(string("iter:", i, ", eval: ", metric_track.metric))
             end
             iter_since_best >= early_stopping_rounds ? break : nothing
@@ -193,7 +193,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Par
 end
 
 # find best split
-function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, params::Params, info::SplitInfo, track::SplitTrack, x_edges) where T<:Real
+function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, params::EvoTreeRegressor, info::SplitInfo, track::SplitTrack, x_edges) where T<:Real
 
     info.gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
 
