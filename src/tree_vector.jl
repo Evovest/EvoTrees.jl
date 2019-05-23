@@ -156,10 +156,10 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Evo
         push!(gbtree.trees, tree)
 
         # get update predictions
-        pred!(pred, tree, X)
+        predict!(pred, tree, X)
         # eval predictions
         if size(Y_eval, 1) > 0
-            pred!(pred_eval, tree, X_eval)
+            predict!(pred_eval, tree, X_eval)
         end
 
         # callback function

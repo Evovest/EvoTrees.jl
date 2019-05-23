@@ -1,5 +1,5 @@
 # prediction from single tree - assign each observation to its final leaf
-function pred!(pred, tree::Tree, X::AbstractArray{T, 2}) where T<:Real
+function predict!(pred, tree::Tree, X::AbstractArray{T, 2}) where T<:Real
     @threads for i in 1:size(X, 1)
         id = 1
         x = view(X, i, :)
@@ -16,17 +16,17 @@ function pred!(pred, tree::Tree, X::AbstractArray{T, 2}) where T<:Real
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function pred(tree::Tree, X::AbstractArray{T, 2}) where T<:Real
+function predict(tree::Tree, X::AbstractArray{T, 2}) where T<:Real
     pred = zeros(size(X, 1))
-    pred!(pred, tree, X)
+    predict!(pred, tree, X)
     return pred
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function pred(model::GBTree, X::AbstractArray{T, 2}) where T<:Real
+function predict(model::GBTree, X::AbstractArray{T, 2}) where T<:Real
     pred = zeros(size(X, 1))
     for tree in model.trees
-        pred!(pred, tree, X)
+        predict!(pred, tree, X)
     end
     if typeof(model.params.loss) == Logistic
         @. pred = sigmoid(pred)

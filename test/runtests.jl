@@ -30,7 +30,7 @@ params1 = EvoTreeRegressor(
     λ = 0.1, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:mae)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric=:mae)
 @time pred_train_linear = predict(model, X_train)
 sqrt(mean((pred_train_linear .- Y_train) .^ 2))
 
@@ -41,7 +41,7 @@ params1 = EvoTreeRegressor(
     λ = 0.1, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :logloss)
 @time pred_train_logistic = predict(model, X_train)
 sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
 
@@ -52,7 +52,7 @@ params1 = EvoTreeRegressor(
     λ = 0.1, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :logloss)
 @time pred_train_poisson = predict(model, X_train)
 sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
 
@@ -63,6 +63,6 @@ params1 = EvoTreeRegressor(
     λ = 0.1, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :quantile)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :quantile)
 @time pred_train_poisson = predict(model, X_train)
 sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
