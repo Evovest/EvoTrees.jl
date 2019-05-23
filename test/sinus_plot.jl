@@ -48,8 +48,9 @@ params1 = EvoTreeRegressor(
 
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:mae)
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 10, metric=:mae)
-@time pred_train_linear = predict(model, X_train)
-@time pred_eval_linear = predict(model, X_eval)
+@time pred_train_linear = pred(model, X_train)
+@time pred_eval_linear = pred(model, X_eval)
+mean(abs.(pred_train_linear .- Y_train))
 sqrt(mean((pred_train_linear .- Y_train) .^ 2))
 
 # logistic / cross-entropy

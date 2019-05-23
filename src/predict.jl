@@ -1,5 +1,5 @@
 # prediction from single tree - assign each observation to its final leaf
-function predict!(pred, tree::Tree, X::AbstractArray{T, 2}) where T<:Real
+function pred!(pred, tree::Tree, X::AbstractArray{T, 2}) where T<:Real
     @threads for i in 1:size(X, 1)
         id = 1
         x = view(X, i, :)
@@ -16,17 +16,17 @@ function predict!(pred, tree::Tree, X::AbstractArray{T, 2}) where T<:Real
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict(tree::Tree, X::AbstractArray{T, 2}) where T<:Real
+function pred(tree::Tree, X::AbstractArray{T, 2}) where T<:Real
     pred = zeros(size(X, 1))
-    predict!(pred, tree, X)
+    pred!(pred, tree, X)
     return pred
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict(model::GBTree, X::AbstractArray{T, 2}) where T<:Real
+function pred(model::GBTree, X::AbstractArray{T, 2}) where T<:Real
     pred = zeros(size(X, 1))
     for tree in model.trees
-        predict!(pred, tree, X)
+        pred!(pred, tree, X)
     end
     if typeof(model.params.loss) == Logistic
         @. pred = sigmoid(pred)
@@ -37,13 +37,13 @@ function predict(model::GBTree, X::AbstractArray{T, 2}) where T<:Real
 end
 
 # prediction in Leaf - GradientRegression
-function pred_leaf(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, params::Params) where {S<:GradientRegression, T<:AbstractFloat}
+function pred_leaf(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, params::EvoTreeRegressor) where {S<:GradientRegression, T<:AbstractFloat}
     pred = - params.η * ∑δ / (∑δ² + params.λ * ∑𝑤)
     return pred
 end
 
 # prediction in Leaf - QuantileRegression
-function pred_leaf(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, params::Params) where {S<:QuantileRegression, T<:AbstractFloat}
+function pred_leaf(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, params::EvoTreeRegressor) where {S<:QuantileRegression, T<:AbstractFloat}
     pred = params.η * ∑δ / (∑𝑤 * (1+params.λ))
     return pred
 end
