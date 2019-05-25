@@ -146,7 +146,6 @@ train_size = 0.8
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
-
 # q50
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.5,
@@ -156,8 +155,8 @@ params1 = EvoTreeRegressor(
     rowsample=0.5, colsample=1.0)
 
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:quantile)
-# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 10, metric=:mae)
 @time pred_train_q50 = predict(model, X_train)
+sum(pred_train_q50 .< Y_train) / length(Y_train)
 
 # q20
 params1 = EvoTreeRegressor(
@@ -168,6 +167,7 @@ params1 = EvoTreeRegressor(
     rowsample=0.5, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :quantile)
 @time pred_train_q20 = predict(model, X_train)
+sum(pred_train_q20 .< Y_train) / length(Y_train)
 
 # q80
 params1 = EvoTreeRegressor(
