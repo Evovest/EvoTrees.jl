@@ -35,9 +35,9 @@ version = "0.5.2"
 
 [[CSV]]
 deps = ["CategoricalArrays", "DataFrames", "Dates", "Mmap", "Parsers", "PooledArrays", "Profile", "Tables", "Unicode", "WeakRefStrings"]
-git-tree-sha1 = "557a6b534b1ffc40abf7ddf1c4dec3b37ef05959"
+git-tree-sha1 = "239240112fc5f18fb934942a5b6f207a8f9e45d2"
 uuid = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
-version = "0.5.4"
+version = "0.5.5"
 
 [[Cassette]]
 deps = ["InteractiveUtils", "LinearAlgebra", "Test"]
@@ -135,9 +135,9 @@ version = "0.20.0"
 
 [[JuliaInterpreter]]
 deps = ["CodeTracking", "InteractiveUtils", "Random", "UUIDs"]
-git-tree-sha1 = "553281260578bb50d6d550977f438754e7e93397"
+git-tree-sha1 = "599cc7c6683e54cd0b3786ee37800db037e22df4"
 uuid = "aa1ae85d-cabe-5617-a682-6adf51b2e16a"
-version = "0.5.1"
+version = "0.5.2"
 
 [[LibGit2]]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
@@ -289,9 +289,9 @@ version = "0.5.2"
 
 [[Revise]]
 deps = ["CodeTracking", "Distributed", "FileWatching", "JuliaInterpreter", "LibGit2", "LoweredCodeUtils", "OrderedCollections", "Pkg", "REPL", "UUIDs", "Unicode"]
-git-tree-sha1 = "f4cd86477685d5095f8cbce2a47f69ae9cf5c963"
+git-tree-sha1 = "0148fc4b3392778e09eb75c4971ce75424acd1d1"
 uuid = "295af30f-e4ad-537b-8983-00126c2a3abe"
-version = "2.1.4"
+version = "2.1.5"
 
 [[Rmath]]
 deps = ["BinaryProvider", "Libdl", "Random", "Statistics", "Test"]

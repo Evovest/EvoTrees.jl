@@ -47,7 +47,7 @@ function MLJ.clean!(model::EvoTreeRegressor)
     return warning
 end
 
-function MLJBase.fit(model::EvoTreeRegressor, verbosity::Integer, X, y)
+function MLJBase.fit(model::EvoTreeRegressor, verbosity::Int, X, y)
     Xmatrix = MLJBase.matrix(X)
     fitresult = grow_gbtree(Xmatrix, y, model, verbosity = verbosity)
     cache = nothing
@@ -57,7 +57,7 @@ end
 
 function MLJBase.predict(model::EvoTreeRegressor, fitresult, Xnew)
     Xmatrix = MLJBase.matrix(Xnew)
-    pred = pred(fitresult, Xmatrix)
+    pred = predict(fitresult, Xmatrix)
     return pred
 end
 

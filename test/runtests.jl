@@ -31,8 +31,7 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric=:mae)
-@time pred_train_linear = predict(model, X_train)
-sqrt(mean((pred_train_linear .- Y_train) .^ 2))
+@time pred_train_linear = EvoTrees.predict(model, X_train)
 
 # logistic / cross-entropy
 params1 = EvoTreeRegressor(
@@ -42,8 +41,7 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :logloss)
-@time pred_train_logistic = predict(model, X_train)
-sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
+@time pred_train_logistic = EvoTrees.predict(model, X_train)
 
 # Poisson
 params1 = EvoTreeRegressor(
@@ -53,8 +51,7 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :logloss)
-@time pred_train_poisson = predict(model, X_train)
-sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
+@time pred_train_poisson = EvoTrees.predict(model, X_train)
 
 # Quantiles
 params1 = EvoTreeRegressor(
@@ -64,5 +61,4 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :quantile)
-@time pred_train_poisson = predict(model, X_train)
-sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
+@time pred_train_poisson = EvoTrees.predict(model, X_train)
