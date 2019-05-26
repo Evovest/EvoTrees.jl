@@ -77,7 +77,7 @@ end
 # grow_gbtree
 function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::EvoTreeRegressor;
     X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractArray{T, 1} = Array{Float64, 1}(undef, 0),
-    metric::Symbol = :none, early_stopping_rounds=Int(1e5), print_every_n=100, verbosity=1) where {R<:Real, T<:AbstractFloat}
+    early_stopping_rounds=Int(1e5), print_every_n=100, verbosity=1) where {R<:Real, T<:AbstractFloat}
 
     X_edges = get_edges(X, params.nbins)
     X_bin = binarize(X, X_edges)
@@ -116,7 +116,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Evo
     end
 
     # initialize metric
-    if metric != :none
+    if params.metric != :none
         metric_track = Metric()
         metric_best = Metric()
         iter_since_best = 0
@@ -157,12 +157,12 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Evo
         end
 
         # callback function
-        if metric != :none
+        if params.metric != :none
 
             if size(Y_eval, 1) > 0
-                metric_track.metric .= eval_metric(Val{metric}(), pred_eval, Y_eval, params.α)
+                metric_track.metric .= eval_metric(Val{params.metric}(), pred_eval, Y_eval, params.α)
             else
-                metric_track.metric .= eval_metric(Val{metric}(), pred, Y, params.α)
+                metric_track.metric .= eval_metric(Val{params.metric}(), pred, Y, params.α)
             end
 
             if metric_track.metric < metric_best.metric
@@ -179,7 +179,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Evo
         end
     end #end of nrounds
 
-    if metric != :none
+    if params.metric != :none
         gbtree.metric.iter .= metric_best.iter
         gbtree.metric.metric .= metric_best.metric
     end

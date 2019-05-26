@@ -28,18 +28,14 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # linear
 params1 = EvoTreeRegressor(
-    loss=:linear,
+    loss=:linear, metric=:mae,
     nrounds=100, nbins = 100,
     λ = 0.5, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric=:mae)
-<<<<<<< HEAD
-@btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
-=======
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
->>>>>>> 24534ba51e4ef208026be0cd362fe2de26a8bd59
 @time pred_train_linear = predict(model, X_train)
 @time pred_eval_linear = predict(model, X_eval)
 mean(abs.(pred_train_linear .- Y_train))
@@ -47,36 +43,36 @@ sqrt(mean((pred_train_linear .- Y_train) .^ 2))
 
 # logistic / cross-entropy
 params1 = EvoTreeRegressor(
-    loss=:logistic,
+    loss=:logistic, metric = :logloss,
     nrounds=100, nbins = 100,
     λ = 0.5, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_logistic = predict(model, X_train)
 @time pred_eval_logistic = predict(model, X_eval)
 sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
 
 # Poisson
 params1 = EvoTreeRegressor(
-    loss=:poisson,
+    loss=:poisson, metric = :logloss,
     nrounds=100, nbins = 100,
     λ = 0.5, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_poisson = predict(model, X_train)
 @time pred_eval_poisson = predict(model, X_eval)
 sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
 
 # L1
 params1 = EvoTreeRegressor(
-    loss=:L1, α=0.5,
+    loss=:L1, α=0.5, metric = :mae,
     nrounds=100, nbins=100,
     λ = 0.5, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :mae)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_L1 = predict(model, X_train)
 @time pred_eval_L1 = predict(model, X_eval)
 
@@ -93,36 +89,36 @@ savefig("regression_sinus.png")
 ###############################
 # q50
 params1 = EvoTreeRegressor(
-    loss=:quantile, α=0.5,
+    loss=:quantile, α=0.5, metric=:quantile,
     nrounds=200, nbins = 100,
     λ = 0.1, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric=:quantile)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:quantile)
 @time pred_train_q50 = predict(model, X_train)
 sum(pred_train_q50 .< Y_train) / length(Y_train)
 
 # q20
 params1 = EvoTreeRegressor(
-    loss=:quantile, α=0.2,
+    loss=:quantile, α=0.2, metric=:quantile,
     nrounds=200, nbins = 100,
     λ = 0.1, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :quantile)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_q20 = predict(model, X_train)
 sum(pred_train_q20 .< Y_train) / length(Y_train)
 
 # q80
 params1 = EvoTreeRegressor(
-    loss=:quantile, α=0.8,
+    loss=:quantile, α=0.8, metric=:quantile,
     nrounds=200, nbins = 100,
     λ = 0.1, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :quantile)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_q80 = predict(model, X_train)
 sum(pred_train_q80 .< Y_train) / length(Y_train)
 
