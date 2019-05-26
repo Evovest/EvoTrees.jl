@@ -46,8 +46,8 @@ params1 = EvoTreeRegressor(
     max_depth = 5, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:mae)
-# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 10, metric=:mae)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric=:mae)
+@btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
 @time pred_train_linear = predict(model, X_train)
 @time pred_eval_linear = predict(model, X_eval)
 mean(abs.(pred_train_linear .- Y_train))
