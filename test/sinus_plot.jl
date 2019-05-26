@@ -65,7 +65,7 @@ params1 = EvoTreeRegressor(
 @time pred_eval_poisson = predict(model, X_eval)
 sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
 
-# Poisson
+# L1
 params1 = EvoTreeRegressor(
     loss=:L1, α=0.5,
     nrounds=100, nbins=100,
