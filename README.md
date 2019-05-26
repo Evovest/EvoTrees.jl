@@ -4,6 +4,8 @@
 
 A Julia implementation of boosted trees.  
 
+Currently supports linear, logistic, Poisson, Quantile and robust (L1) regression.
+
 ### Installation
 
 ```
@@ -12,7 +14,7 @@ julia> Pkg.add("https://github.com/Evovest/EvoTrees.jl")
 
 ### Parameters
 
-  - loss: {“linear”, “logistic”, “poisson”}
+  - loss: {:linear, :logistic, :poisson, :L1, :quantile}
   - nrounds: 10L
   - λ: 0.0
   - γ: 0.0
@@ -21,6 +23,9 @@ julia> Pkg.add("https://github.com/Evovest/EvoTrees.jl")
   - min\_weight: float \>= 0 default=1.0,
   - rowsample: float \[0,1\] default=1.0
   - colsample: float \[0,1\] default=1.0
+  - nbins: Int, number of bins into which features will be quantilized default=64
+  - α: float \[0,1\], set the quantile or bias in L1 default=0.5
+  - metric: {:mse, :rmse, :mae, :logloss, :quantile},  default=:mse
 
 ### Getting started
 
@@ -49,32 +54,78 @@ train_size = 0.8
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
-# set parameters
-loss = :linear
-nrounds = 200
-λ = 0.5
-γ = 0.5
-η = 0.05
-max_depth = 5
-min_weight = 1.0
-rowsample = 0.5
-colsample = 1.0
-
-# linear
-params1 = Params(:linear, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:mae)
-@time pred_train_linear = predict(model, X_train)
-sqrt(mean((pred_train_linear .- Y_train) .^ 2))
+params1 = EvoTreeRegressor(
+    loss=:linear,
+    nrounds=100, nbins = 100,
+    λ = 0.5, γ=0.1, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
+model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric=:mae)
+pred_eval_linear = predict(model, X_eval)
 
 # logistic / cross-entropy
-params1 = Params(:logistic, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
-@time pred_train_logistic = predict(model, X_train)
-sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
+params1 = EvoTreeRegressor(
+    loss=:logistic,
+    nrounds=100, nbins = 100,
+    λ = 0.5, γ=0.1, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
+model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :logloss)
+pred_eval_logistic = predict(model, X_eval)
 
 # Poisson
-params1 = Params(:poisson, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :logloss)
-@time pred_train_poisson = predict(model, X_train)
-sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
+params1 = EvoTreeRegressor(
+    loss=:poisson,
+    nrounds=100, nbins = 100,
+    λ = 0.5, γ=0.1, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
+model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :logloss)
+@time pred_eval_poisson = predict(model, X_eval)
+
+# L1
+params1 = EvoTreeRegressor(
+    loss=:L1, α=0.5,
+    nrounds=100, nbins=100,
+    λ = 0.5, γ=0.0, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
+model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :mae)
+pred_eval_L1 = predict(model, X_eval)
+```
+
+![](quantiles_sinus.png)
+
+
+```
+# q50
+params1 = EvoTreeRegressor(
+    loss=:quantile, α=0.5,
+    nrounds=200, nbins = 100,
+    λ = 0.1, γ=0.0, η=0.05,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
+
+model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric=:quantile)
+pred_train_q50 = predict(model, X_train)
+
+# q20
+params1 = EvoTreeRegressor(
+    loss=:quantile, α=0.2,
+    nrounds=200, nbins = 100,
+    λ = 0.1, γ=0.0, η=0.05,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
+model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :quantile)
+pred_train_q20 = predict(model, X_train)
+
+# q80
+params1 = EvoTreeRegressor(
+    loss=:quantile, α=0.8,
+    nrounds=200, nbins = 100,
+    λ = 0.1, γ=0.0, η=0.05,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
+model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :quantile)
+pred_train_q80 = predict(model, X_train)
 ```

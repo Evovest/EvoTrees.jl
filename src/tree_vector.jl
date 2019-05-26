@@ -10,14 +10,11 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
     # grow while there are remaining active nodes
     while size(active_id, 1) > 0 && tree_depth <= params.max_depth
         next_active_id = ones(Int, 0)
-
         # grow nodes
         for id in active_id
-
             node = train_nodes[id]
-
             if tree_depth == params.max_depth || node.∑𝑤 <= params.min_weight
-                push!(tree.nodes, TreeNode(pred_leaf(params.loss, node.∑δ, node.∑δ², node.∑𝑤, params)))
+                push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, view(δ², node.𝑖))))
             else
                 node_size = size(node.𝑖, 1)
                 @threads for feat in node.𝑗
@@ -27,22 +24,19 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
 
                 # assign best split
                 best = get_max_gain(splits)
-
                 # grow node if best split improve gain
                 if best.gain > node.gain + params.γ
                     # Node: depth, ∑δ, ∑δ², gain, 𝑖, 𝑗
-
                     train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, node.𝑖[perm_ini[1:best.𝑖, best.feat]], node.𝑗)
                     # println("size: ", node_size, " sizei:", size(node.𝑖), " besti:", best.𝑖, " feat:", best.feat, " cond:", best.cond)
                     train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, node.𝑖[perm_ini[best.𝑖+1:node_size, best.feat]], node.𝑗)
-
                     # push split Node
                     push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond))
                     push!(next_active_id, leaf_count + 1)
                     push!(next_active_id, leaf_count + 2)
                     leaf_count += 2
                 else
-                    push!(tree.nodes, TreeNode(pred_leaf(params.loss, node.∑δ, node.∑δ², node.∑𝑤, params)))
+                    push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, view(δ², node.𝑖))))
                 end # end of single node split search
             end
         end # end of loop over active ids for a given depth
