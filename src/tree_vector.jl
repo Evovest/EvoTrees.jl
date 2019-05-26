@@ -18,7 +18,8 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
 
             if tree_depth == params.max_depth || node.∑𝑤 <= params.min_weight
                 # push!(tree.nodes, TreeNode(pred_leaf(params.loss, node.∑δ, node.∑δ², node.∑𝑤, params)))
-                push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, view(δ², node.𝑖))))
+                # push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, view(δ², node.𝑖))))
+                push!(tree.nodes, TreeNode(- params.η * node.∑δ / (node.∑δ² + params.λ * node.∑𝑤)))
             else
                 node_size = size(node.𝑖, 1)
                 @threads for feat in node.𝑗
@@ -46,7 +47,8 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
                     leaf_count += 2
                 else
                     # push!(tree.nodes, TreeNode(pred_leaf(params.loss, node.∑δ, node.∑δ², node.∑𝑤, params)))
-                    push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, view(δ², node.𝑖))))
+                    # push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, view(δ², node.𝑖))))
+                    push!(tree.nodes, TreeNode(- params.η * node.∑δ / (node.∑δ² + params.λ * node.∑𝑤)))
                 end # end of single node split search
             end
         end # end of loop over active ids for a given depth
