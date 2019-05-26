@@ -37,13 +37,19 @@ function predict(model::GBTree, X::AbstractArray{T, 2}) where T<:Real
 end
 
 # prediction in Leaf - GradientRegression
-function pred_leaf(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, params::EvoTreeRegressor) where {S<:GradientRegression, T<:AbstractFloat}
-    pred = - params.η * ∑δ / (∑δ² + params.λ * ∑𝑤)
+function pred_leaf(loss::S, node::TrainNode, params::EvoTreeRegressor, δ²) where {S<:GradientRegression, T<:AbstractFloat}
+    pred = - params.η * node.∑δ / (node.∑δ² + params.λ * node.∑𝑤)
+    return pred
+end
+
+# prediction in Leaf - L1Regression
+function pred_leaf(loss::S, node::TrainNode, params::EvoTreeRegressor, δ²) where {S<:L1Regression, T<:AbstractFloat}
+    pred = params.η * node.∑δ / (node.∑𝑤 * (1+params.λ))
     return pred
 end
 
 # prediction in Leaf - QuantileRegression
-function pred_leaf(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, params::EvoTreeRegressor) where {S<:QuantileRegression, T<:AbstractFloat}
-    pred = params.η * ∑δ / (∑𝑤 * (1+params.λ))
+function pred_leaf(loss::S, node::TrainNode, params::EvoTreeRegressor, δ²) where {S<:QuantileRegression, T<:AbstractFloat}
+    pred = params.η * quantile(δ², params.α) / (1 + params.λ)
     return pred
 end

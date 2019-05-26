@@ -6,7 +6,7 @@ using DataFrames
 using Statistics
 using CSV
 using Base.Threads: @threads
-using StatsBase: sample
+using StatsBase: sample, quantile
 import MLJ
 import MLJBase
 

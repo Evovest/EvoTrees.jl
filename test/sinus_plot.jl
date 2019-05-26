@@ -2,7 +2,7 @@ using BenchmarkTools
 using DataFrames
 using CSV
 using Statistics
-using StatsBase: sample
+using StatsBase: sample, quantile
 using Plots
 
 using Revise
@@ -42,12 +42,12 @@ nbins = 100
 params1 = EvoTreeRegressor(
     loss=:linear,
     nrounds=200, nbins = 100,
-    λ = 0.5, γ=0.5, η=0.1,
+    λ = 0.5, γ=0.5, η=0.05,
     max_depth = 5, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:mae)
-# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 10, metric=:mae)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric=:mae)
+@btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
 @time pred_train_linear = predict(model, X_train)
 @time pred_eval_linear = predict(model, X_eval)
 mean(abs.(pred_train_linear .- Y_train))
@@ -91,33 +91,36 @@ savefig("regression_sinus.png")
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.5,
     nrounds=200, nbins = 100,
-    λ = 0.5, γ=0.1, η=0.1,
-    max_depth = 6, min_weight = 1.0,
+    λ = 0.1, γ=0.0, η=0.05,
+    max_depth = 5, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric=:quantile)
-# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 10, metric=:mae)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric=:quantile)
+# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:quantile)
 @time pred_train_q50 = predict(model, X_train)
+sum(pred_train_q50 .< Y_train) / length(Y_train)
 
 # q20
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.2,
     nrounds=200, nbins = 100,
-    λ = 0.5, γ=0.1, η=0.1,
-    max_depth = 6, min_weight = 1.0,
+    λ = 0.1, γ=0.0, η=0.05,
+    max_depth = 5, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :quantile)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :quantile)
 @time pred_train_q20 = predict(model, X_train)
+sum(pred_train_q20 .< Y_train) / length(Y_train)
 
 # q80
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.8,
     nrounds=200, nbins = 100,
-    λ = 0.5, γ=0.1, η=0.1,
-    max_depth = 6, min_weight = 1.0,
+    λ = 0.1, γ=0.0, η=0.05,
+    max_depth = 5, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :quantile)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25, metric = :quantile)
 @time pred_train_q80 = predict(model, X_train)
+sum(pred_train_q80 .< Y_train) / length(Y_train)
 
 x_perm = sortperm(X_train[:,1])
 plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
@@ -132,9 +135,9 @@ savefig("quantiles_sinus.png")
 ###############################
 
 # prepare a dataset
-features = rand(1_000) .* 5
+features = rand(10_000) .* 5
 X = reshape(features, (size(features)[1], 1))
-Y = rand(1_000) .* 1
+Y = rand(10_000) .* 1
 𝑖 = collect(1:size(X,1))
 
 # train-eval split
@@ -150,7 +153,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.5,
     nrounds=1, nbins = 100,
-    λ = 0.5, γ=0.1, η=1.0,
+    λ = 0.0, γ=0.0, η=1.0,
     max_depth = 1, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
@@ -162,22 +165,26 @@ sum(pred_train_q50 .< Y_train) / length(Y_train)
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.2,
     nrounds=1, nbins = 100,
-    λ = 0.5, γ=0.1, η=1.0,
+    λ = 0.0, γ=0.0, η=1.0,
     max_depth = 1, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0)
+    rowsample=1.0, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :quantile)
 @time pred_train_q20 = predict(model, X_train)
 sum(pred_train_q20 .< Y_train) / length(Y_train)
 
 # q80
 params1 = EvoTreeRegressor(
-    loss=:quantile, α=0.75,
+    loss=:quantile, α=0.80,
     nrounds=1, nbins = 100,
-    λ = 0.5, γ=0.1, η=1.0,
+    λ = 0.0, γ=0.0, η=1.0,
     max_depth = 1, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0)
+    rowsample=1.0, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10, metric = :quantile)
 @time pred_train_q80 = predict(model, X_train)
+sum(pred_train_q80 .< Y_train) / length(Y_train)
+
+Y_train
+quantile(Y_train .- 0.5, 0.8)
 
 x_perm = sortperm(X_train[:,1])
 plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
