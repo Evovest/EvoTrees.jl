@@ -87,7 +87,7 @@ function EvoTreeRegressor(;
     rowsample=1.0,
     colsample=1.0,
     nbins=64,
-    α=0.0,
+    α=0.5,
     metric=:mse)
 
     if loss == :linear model_type = Linear()
