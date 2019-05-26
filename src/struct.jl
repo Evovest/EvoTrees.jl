@@ -3,10 +3,12 @@ abstract type Node{T<:AbstractFloat} end
 
 abstract type ModelType end
 abstract type GradientRegression <: ModelType end
+abstract type L1Regression <: ModelType end
 abstract type QuantileRegression <: ModelType end
 struct Linear <: GradientRegression end
 struct Poisson <: GradientRegression end
 struct Logistic <: GradientRegression end
+struct L1 <: L1Regression end
 struct Quantile <: QuantileRegression end
 
 # compact alternative to ModeLData - not used for now
@@ -85,12 +87,13 @@ function EvoTreeRegressor(;
     rowsample=1.0,
     colsample=1.0,
     nbins=64,
-    α=0.0,
+    α=0.5,
     metric=:mse)
 
     if loss == :linear model_type = Linear()
     elseif loss == :logistic model_type = Logistic()
     elseif loss == :poisson model_type = Poisson()
+    elseif loss == :L1 model_type = L1()
     elseif loss == :quantile model_type = Quantile()
     end
 
@@ -118,6 +121,7 @@ function EvoTreeRegressorR(
     if loss == :linear model_type = Linear()
     elseif loss == :logistic model_type = Logistic()
     elseif loss == :poisson model_type = Poisson()
+    elseif loss == :L1 model_type = L1()
     elseif loss == :quantile model_type = Quantile()
     end
 
