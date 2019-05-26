@@ -34,10 +34,8 @@ function quantile_grads(pred, target, α)
     end
 end
 function update_grads!(loss::Quantile, α::T, pred::AbstractArray{T, 1}, target::AbstractArray{T, 1}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, 𝑤::AbstractArray{T, 1}) where T <: AbstractFloat
-    @. δ =  (α * max(target - pred, 0) - (1-α) * max(pred - target, 0)) * 𝑤
-    # @. δ =  quantile_grads(pred, target, α) * 𝑤
-    # No weighting on δ² as it would be applied on the quantile calculation
-    @. δ² =  (target - pred)
+    @. δ =  quantile_grads(pred, target, α) * 𝑤
+    @. δ² =  (target - pred) # No weighting on δ² as it would be applied on the quantile calculation
 end
 
 
