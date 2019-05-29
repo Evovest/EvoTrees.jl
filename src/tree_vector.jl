@@ -4,7 +4,6 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
     active_id = ones(Int, 1)
     leaf_count = 1::Int
     tree_depth = 1::Int
-
     tree = Tree(Vector{TreeNode{Float64, Int, Bool}}())
 
     # grow while there are remaining active nodes
@@ -21,16 +20,12 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
                     sortperm!(view(perm_ini, 1:node_size, feat), view(X, node.𝑖, feat), alg = QuickSort, initialized = false)
                     find_split!(view(X, view(node.𝑖, view(perm_ini, 1:node_size, feat)), feat), view(δ, view(node.𝑖, view(perm_ini, 1:node_size, feat))) , view(δ², view(node.𝑖, view(perm_ini, 1:node_size, feat))), view(𝑤, view(node.𝑖, view(perm_ini, 1:node_size, feat))), node.∑δ, node.∑δ², node.∑𝑤, params, splits[feat], tracks[feat], X_edges[feat])
                 end
-
                 # assign best split
                 best = get_max_gain(splits)
                 # grow node if best split improve gain
                 if best.gain > node.gain + params.γ
-                    # Node: depth, ∑δ, ∑δ², gain, 𝑖, 𝑗
                     train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, node.𝑖[perm_ini[1:best.𝑖, best.feat]], node.𝑗)
-                    # println("size: ", node_size, " sizei:", size(node.𝑖), " besti:", best.𝑖, " feat:", best.feat, " cond:", best.cond)
                     train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, node.𝑖[perm_ini[best.𝑖+1:node_size, best.feat]], node.𝑗)
-                    # push split Node
                     push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond))
                     push!(next_active_id, leaf_count + 1)
                     push!(next_active_id, leaf_count + 2)

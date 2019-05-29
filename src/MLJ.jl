@@ -55,6 +55,14 @@ function MLJBase.fit(model::EvoTreeRegressor, verbosity::Int, X, y)
     return fitresult, cache, report
 end
 
+function MLJBase.update(model::EvoTreeRegressor, old_fitresult, old_cache, verbosity::Int, X, y)
+    Xmatrix = MLJBase.matrix(X)
+    fitresult = grow_gbtree!(Xmatrix, y, old_fitresult, verbosity = verbosity)
+    cache = nothing
+    report = nothing
+    return fitresult, cache, report
+end
+
 function MLJBase.predict(model::EvoTreeRegressor, fitresult, Xnew)
     Xmatrix = MLJBase.matrix(Xnew)
     pred = predict(fitresult, Xmatrix)
