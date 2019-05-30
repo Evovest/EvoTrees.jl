@@ -12,7 +12,7 @@ y = Y
 X = Tables.table(X)
 
 @load EvoTreeRegressor
-tree_model = EvoTreeRegressor(max_depth=5, η=0.01)
+tree_model = EvoTreeRegressor(max_depth=5, η=0.01, nrounds=200)
 tree = machine(tree_model, X, y)
 train, test = partition(eachindex(y), 0.7, shuffle=true); # 70:30 split
 fit!(tree, rows=train)
