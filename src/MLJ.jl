@@ -57,7 +57,7 @@ end
 
 function MLJBase.update(model::EvoTreeRegressor, old_fitresult, old_cache, verbosity::Int, X, y)
     Xmatrix = MLJBase.matrix(X)
-    fitresult = grow_gbtree!(Xmatrix, y, old_fitresult, verbosity = verbosity)
+    fitresult = grow_gbtree!(model, Xmatrix, y, old_fitresult, verbosity = verbosity)
     cache = nothing
     report = nothing
     return fitresult, cache, report
