@@ -1,5 +1,5 @@
 function MLJ.clean!(model::EvoTreeRegressor)
-    warning = "All Good!"
+    warning = ""
     if model.nrounds < 1
         warning *= "Need nrounds ≥ 1. Resetting nrounds=1. "
         model.nrounds = 1
