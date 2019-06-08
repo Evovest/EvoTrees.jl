@@ -8,7 +8,7 @@ Currently supports linear, logistic, Poisson, Quantile and robust (L1) regressio
 
 ### Installation
 
-```
+```julia-repl
 julia> Pkg.add("https://github.com/Evovest/EvoTrees.jl")
 ```
 
@@ -33,7 +33,7 @@ Minimal example to fit a noisy sinus wave.
 
 ![](regression_sinus.png)
 
-```
+```julia
 using EvoTrees
 using EvoTrees: sigmoid, logit
 
@@ -97,7 +97,7 @@ pred_eval_L1 = predict(model, X_eval)
 ![](quantiles_sinus.png)
 
 
-```
+```julia
 # q50
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.5, metric = :quantile,
