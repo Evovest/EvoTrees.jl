@@ -1,49 +1,44 @@
 #############################################
-# Quantiles with Sets
+# Get the braking points
 #############################################
-function find_bags(x::AbstractArray{T, 1}) where T<:Real
-    vals = sort(unique(x))
-    bags = Vector{BitSet}(undef, length(vals))
-    for i in 1:length(vals)
-        bags[i] = BitSet(findall(x .== vals[i]))
+function get_edges(X, nbins=250)
+    edges = Vector{Vector}(undef, size(X,2))
+    @threads for i in 1:size(X, 2)
+        edges[i] = unique(quantile(view(X, :,i), (0:nbins)/nbins))[2:(end-1)]
+        if length(edges[i]) == 0
+            edges[i] = [minimum(view(X, :,i))]
+        end
     end
-    return bags
+    return edges
 end
 
-function find_bags_direct(x::Vector{T}, edges::Vector{T}) where T<:Real
+####################################################
+# Transform X matrix into a UInt8 binarized matrix
+####################################################
+function binarize(X, edges)
+    X_bin = zeros(UInt8, size(X))
+    @threads for i in 1:size(X, 2)
+        X_bin[:,i] = searchsortedlast.(Ref(edges[i]), view(X,:,i)) .+ 1
+    end
+    X_bin
+end
+
+function find_bags(x::Vector{T}, edges::Vector{T}) where T<:Real
     idx = BitSet(1:length(x) |> collect)
-     bags = [BitSet() for _ in 1:length(edges)]
-     for i in idx
-         bin = 1
-         while x[i] > edges[bin]
-             bin +=1
-         end
-         union!(bags[bin], i)
-     end
-     return bags
+    bags = [BitSet() for _ in 1:length(edges)]
+    for i in idx
+        bin = 1
+        while x[i] > edges[bin]
+            bin +=1
+        end
+        union!(bags[bin], i)
+    end
+    return bags
 end
 
 function update_bags!(bins, set)
     for bin in bins
         intersect!(bin, set)
-    end
-end
-
-function update_bags_intersect(new_bags, bags, set)
-    # new_bags = deepcopy(bags)
-    for feat in 1:length(bags)
-        for bin in 1:length(bags[feat])
-            new_bags[feat][bin] = intersect(set, bags[feat][bin])
-            # intersect!(new_bags[feat][bin], set, bags[feat][bin])
-        end
-    end
-end
-
-function update_bags_setdiff(new_bags, bags, set)
-    for feat in 1:length(bags)
-        for bin in 1:length(bags[feat])
-            new_bags[feat][bin] = setdiff(bags[feat][bin], set)
-        end
     end
 end
 

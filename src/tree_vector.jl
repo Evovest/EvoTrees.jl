@@ -50,25 +50,6 @@ function get_max_gain(splits::Vector{SplitInfo{Float64,Int}})
     return best
 end
 
-function get_edges(X, nbins=250)
-    edges = Vector{Vector}(undef, size(X,2))
-    @threads for i in 1:size(X, 2)
-        edges[i] = unique(quantile(view(X, :,i), (0:nbins)/nbins))[2:(end-1)]
-        if length(edges[i]) == 0
-            edges[i] = [minimum(view(X, :,i))]
-        end
-    end
-    return edges
-end
-
-function binarize(X, edges)
-    X_bin = zeros(UInt8, size(X))
-    @threads for i in 1:size(X, 2)
-        X_bin[:,i] = searchsortedlast.(Ref(edges[i]), view(X,:,i)) .+ 1
-    end
-    X_bin
-end
-
 # grow_gbtree
 function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::EvoTreeRegressor;
     X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractArray{T, 1} = Array{Float64, 1}(undef, 0),
