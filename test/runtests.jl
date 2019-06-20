@@ -27,11 +27,19 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:mse,
     nrounds=100, nbins=100,
-    λ = 0.5, γ=0.1, η=0.1,
+    λ = 0.5, γ=0.1, η=0.01,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_linear = EvoTrees.predict(model, X_train)
+
+@time p1 = EvoTrees.predict(model, X_eval)
+mean(abs.(p1 - Y_eval))
+
+# continue training
+@time model2 = grow_gbtree!(model, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+@time pred_train_linear2 = EvoTrees.predict(model2, X_train)
+
 
 # logistic / cross-entropy
 params1 = EvoTreeRegressor(

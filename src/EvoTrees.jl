@@ -1,6 +1,6 @@
 module EvoTrees
 
-export grow_tree!, grow_gbtree, Tree, Node, Params, predict, EvoTreeRegressor, EvoTreeRegressorR
+export grow_tree!, grow_gbtree, grow_gbtree!, Tree, Node, Params, predict, EvoTreeRegressor, EvoTreeRegressorR
 
 using DataFrames
 using Statistics

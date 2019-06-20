@@ -181,6 +181,110 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Evo
     return gbtree
 end
 
+# grow_gbtree
+function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractArray{T, 1};
+    X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractArray{T, 1} = Array{Float64, 1}(undef, 0),
+    early_stopping_rounds=Int(1e5), print_every_n=100, verbosity=1) where {R<:Real, T<:AbstractFloat}
+
+    params = model.params
+
+    X_edges = get_edges(X, params.nbins)
+    X_bin = binarize(X, X_edges)
+
+    # initialize gradients and weights
+    δ, δ² = zeros(Float64, size(Y, 1)), zeros(Float64, size(Y, 1))
+    𝑤 = ones(Float64, size(Y, 1))
+
+    pred = predict(model, X)
+    # eval init
+    if size(Y_eval, 1) > 0
+        pred_eval = predict(model, X_eval)
+    end
+
+    # sort perm id placeholder
+    perm_ini = zeros(Int, size(X_bin))
+
+    X_size = size(X)
+    𝑖_ = collect(1:X_size[1])
+    𝑗_ = collect(1:X_size[2])
+
+    # initialize train nodes
+    train_nodes = Vector{TrainNode{Float64, Array{Int64,1}, Array{Int64, 1}, Int64}}(undef, 2^params.max_depth-1)
+    for feat in 1:2^params.max_depth-1
+        train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, [0], [0])
+    end
+
+    # initialize metric
+    if params.metric != :none
+        metric_track = model.metric
+        metric_best = model.metric
+        iter_since_best = 0
+    end
+
+    # loop over nrounds
+    for i in 1:params.nrounds
+        # select random rows and cols
+        𝑖 = 𝑖_[sample(𝑖_, ceil(Int, params.rowsample * X_size[1]), replace = false)]
+        𝑗 = 𝑗_[sample(𝑗_, ceil(Int, params.colsample * X_size[2]), replace = false)]
+
+        # get gradients
+        update_grads!(params.loss, params.α, pred, Y, δ, δ², 𝑤)
+        ∑δ, ∑δ², ∑𝑤 = sum(δ[𝑖]), sum(δ²[𝑖]), sum(𝑤[𝑖])
+        gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
+
+        # initializde node splits info and tracks - colsample size (𝑗)
+        splits = Vector{SplitInfo{Float64, Int64}}(undef, X_size[2])
+        for feat in 𝑗_
+            splits[feat] = SplitInfo{Float64, Int64}(-Inf, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, feat, 0.0)
+        end
+        tracks = Vector{SplitTrack{Float64}}(undef, X_size[2])
+        for feat in 𝑗_
+            tracks[feat] = SplitTrack{Float64}(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, -Inf)
+        end
+
+        # assign a root and grow tree
+        train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
+        tree = grow_tree(X_bin, δ, δ², 𝑤, params, perm_ini, train_nodes, splits, tracks, X_edges)
+        # update push tree to model
+        push!(model.trees, tree)
+
+        # get update predictions
+        predict!(pred, tree, X)
+        # eval predictions
+        if size(Y_eval, 1) > 0
+            predict!(pred_eval, tree, X_eval)
+        end
+
+        # callback function
+        if params.metric != :none
+
+            if size(Y_eval, 1) > 0
+                metric_track.metric .= eval_metric(Val{params.metric}(), pred_eval, Y_eval, params.α)
+            else
+                metric_track.metric .= eval_metric(Val{params.metric}(), pred, Y, params.α)
+            end
+
+            if metric_track.metric < metric_best.metric
+                metric_best.metric .=  metric_track.metric
+                metric_best.iter .=  i
+            else
+                iter_since_best += 1
+            end
+
+            if mod(i, print_every_n) == 0 && verbosity > 0
+                display(string("iter:", i, ", eval: ", metric_track.metric))
+            end
+            iter_since_best >= early_stopping_rounds ? break : nothing
+        end
+    end #end of nrounds
+
+    if params.metric != :none
+        model.metric.iter .= metric_best.iter
+        model.metric.metric .= metric_best.metric
+    end
+    return model
+end
+
 # find best split
 function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, params::EvoTreeRegressor, info::SplitInfo, track::SplitTrack, x_edges) where T<:Real
 
