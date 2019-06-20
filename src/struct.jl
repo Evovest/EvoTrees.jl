@@ -132,7 +132,7 @@ function EvoTreeRegressorR(
 end
 
 # single tree is made of a root node that containes nested nodes and leafs
-struct TrainNode{T<:AbstractFloat, I<:AbstractArray{Int, 1}, J<:AbstractArray{Int, 1}, S<:Int}
+struct TrainNode{T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
     depth::S
     ∑δ::T
     ∑δ²::T

@@ -15,7 +15,7 @@ include("loss.jl")
 include("eval.jl")
 include("predict.jl")
 include("tree_vector.jl")
-include("histogram.jl")
+include("find_split.jl")
 include("MLJ.jl")
 
 end # module
