@@ -42,7 +42,7 @@ function update_bags!(bins, set)
     end
 end
 
-function find_histogram(bins::Vector{BitSet}, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, params::EvoTreeRegressor, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}
+function find_split_bitset!(bins::Vector{BitSet}, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, params::EvoTreeRegressor, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}
 
     info.gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
 
