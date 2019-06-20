@@ -18,7 +18,7 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
                 node_size = size(node.𝑖, 1)
                 @threads for feat in node.𝑗
                     sortperm!(view(perm_ini, 1:node_size, feat), view(X, node.𝑖, feat), alg = QuickSort, initialized = false)
-                    find_split!(view(X, view(node.𝑖, view(perm_ini, 1:node_size, feat)), feat), view(δ, view(node.𝑖, view(perm_ini, 1:node_size, feat))) , view(δ², view(node.𝑖, view(perm_ini, 1:node_size, feat))), view(𝑤, view(node.𝑖, view(perm_ini, 1:node_size, feat))), node.∑δ, node.∑δ², node.∑𝑤, params, splits[feat], tracks[feat], X_edges[feat])
+                    find_split_bitset!(view(X, view(node.𝑖, view(perm_ini, 1:node_size, feat)), feat), view(δ, view(node.𝑖, view(perm_ini, 1:node_size, feat))) , view(δ², view(node.𝑖, view(perm_ini, 1:node_size, feat))), view(𝑤, view(node.𝑖, view(perm_ini, 1:node_size, feat))), node.∑δ, node.∑δ², node.∑𝑤, params, splits[feat], tracks[feat], X_edges[feat])
                 end
                 # assign best split
                 best = get_max_gain(splits)
@@ -283,47 +283,4 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractArray{T,
         model.metric.metric .= metric_best.metric
     end
     return model
-end
-
-# find best split
-function find_split!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, params::EvoTreeRegressor, info::SplitInfo, track::SplitTrack, x_edges) where T<:Real
-
-    info.gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
-
-    track.∑δL = 0.0
-    track.∑δ²L = 0.0
-    track.∑𝑤L = 0.0
-    track.∑δR = ∑δ
-    track.∑δ²R = ∑δ²
-    track.∑𝑤R = ∑𝑤
-
-    @inbounds for i in 1:(size(x, 1) - 1)
-    # @fastmath @inbounds for i in eachindex(x)
-
-        track.∑δL += δ[i]
-        track.∑δ²L += δ²[i]
-        track.∑𝑤L += 𝑤[i]
-        track.∑δR -= δ[i]
-        track.∑δ²R -= δ²[i]
-        track.∑𝑤R -= 𝑤[i]
-
-        @inbounds if x[i] < x[i+1] && track.∑𝑤L >= params.min_weight && track.∑𝑤R >= params.min_weight # check gain only if there's a change in value
-        # @inbounds if x[i] < x[i+1] # check gain only if there's a change in value
-
-            update_track!(params.loss, track, params.λ)
-            if track.gain > info.gain
-                info.gain = track.gain
-                info.gainL = track.gainL
-                info.gainR = track.gainR
-                info.∑δL = track.∑δL
-                info.∑δ²L = track.∑δ²L
-                info.∑𝑤L = track.∑𝑤L
-                info.∑δR = track.∑δR
-                info.∑δ²R = track.∑δ²R
-                info.∑𝑤R = track.∑𝑤R
-                info.cond = x_edges[x[i]]
-                info.𝑖 = i
-            end
-        end
-    end
 end

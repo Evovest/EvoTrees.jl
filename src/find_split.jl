@@ -47,7 +47,7 @@ function update_bags_setdiff(new_bags, bags, set)
     end
 end
 
-function find_histogram(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, λ::S, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}
+function find_split_bitset!(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, λ::S, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}
 
     info.gain = get_gain(∑δ, ∑δ², ∑𝑤, λ)
 
@@ -58,23 +58,9 @@ function find_histogram(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, �
     track.∑δ²R = ∑δ²
     track.∑𝑤R = ∑𝑤
 
-    # ∑δL = zero(S)
-    # ∑δ²L = zero(S)
-    # ∑𝑤L = zero(S)
-    # ∑δR = ∑δ
-    # ∑δ²R = ∑δ²
-    # ∑𝑤R = ∑𝑤
-
     @inbounds for bin in 1:(length(bins)-1)
         @inbounds for i in bins[bin]
             if i in set
-                # ∑δL += δ[i]
-                # ∑δ²L += δ²[i]
-                # ∑𝑤L += 𝑤[i]
-                # ∑δR -= δ[i]
-                # ∑δ²R -= δ²[i]
-                # ∑𝑤R -= 𝑤[i]
-
                 track.∑δL += δ[i]
                 track.∑δ²L += δ²[i]
                 track.∑𝑤L += 𝑤[i]
@@ -98,19 +84,46 @@ function find_histogram(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, �
             info.∑𝑤R = track.∑𝑤R
             info.cond = edges[bin]
             info.𝑖 = bin
-
-            # info.gain = gain
-            # info.gainL = gainL
-            # info.gainR = gainR
-            # info.∑δL = ∑δL
-            # info.∑δ²L = ∑δ²L
-            # info.∑𝑤L = ∑𝑤L
-            # info.∑δR = ∑δR
-            # info.∑δ²R = ∑δ²R
-            # info.∑𝑤R = ∑𝑤R
-            # info.cond = edges[bin]
-            # info.𝑖 = bin
         end
     end
     return
+end
+
+# find best split on binarized data
+function find_split_bin!(x::AbstractArray{T, 1}, δ::AbstractArray{Float64, 1}, δ²::AbstractArray{Float64, 1}, 𝑤::AbstractArray{Float64, 1}, ∑δ, ∑δ², ∑𝑤, params::EvoTreeRegressor, info::SplitInfo, track::SplitTrack, x_edges) where T<:Real
+
+    info.gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
+
+    track.∑δL = 0.0
+    track.∑δ²L = 0.0
+    track.∑𝑤L = 0.0
+    track.∑δR = ∑δ
+    track.∑δ²R = ∑δ²
+    track.∑𝑤R = ∑𝑤
+
+    @inbounds for i in 1:(size(x, 1) - 1)
+        track.∑δL += δ[i]
+        track.∑δ²L += δ²[i]
+        track.∑𝑤L += 𝑤[i]
+        track.∑δR -= δ[i]
+        track.∑δ²R -= δ²[i]
+        track.∑𝑤R -= 𝑤[i]
+
+        @inbounds if x[i] < x[i+1] && track.∑𝑤L >= params.min_weight && track.∑𝑤R >= params.min_weight # check gain only if there's a change in value
+            update_track!(params.loss, track, params.λ)
+            if track.gain > info.gain
+                info.gain = track.gain
+                info.gainL = track.gainL
+                info.gainR = track.gainR
+                info.∑δL = track.∑δL
+                info.∑δ²L = track.∑δ²L
+                info.∑𝑤L = track.∑𝑤L
+                info.∑δR = track.∑δR
+                info.∑δ²R = track.∑δ²R
+                info.∑𝑤R = track.∑𝑤R
+                info.cond = x_edges[x[i]]
+                info.𝑖 = i
+            end
+        end
+    end
 end
