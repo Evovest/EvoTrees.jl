@@ -42,9 +42,9 @@ function update_bags!(bins, set)
     end
 end
 
-function find_split_bitset!(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, λ::S, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}
+function find_histogram(bins::Vector{BitSet}, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, params::EvoTreeRegressor, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}
 
-    info.gain = get_gain(∑δ, ∑δ², ∑𝑤, λ)
+    info.gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
 
     track.∑δL = zero(S)
     track.∑δ²L = zero(S)
@@ -53,21 +53,34 @@ function find_split_bitset!(bins, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S
     track.∑δ²R = ∑δ²
     track.∑𝑤R = ∑𝑤
 
-    @inbounds for bin in 1:(length(bins)-1)
-        @inbounds for i in bins[bin]
-            if i in set
-                track.∑δL += δ[i]
-                track.∑δ²L += δ²[i]
-                track.∑𝑤L += 𝑤[i]
-                track.∑δR -= δ[i]
-                track.∑δ²R -= δ²[i]
-                track.∑𝑤R -= 𝑤[i]
-            end
+    hist_δ = zeros(Float64, length(bins))
+    hist_δ² = zeros(Float64, length(bins))
+    hist_𝑤 = zeros(Float64, length(bins))
+
+    bin = 1
+    # build histogram
+    @inbounds for i in set
+        bin = 1
+        @inbounds while !(i in bins[bin])
+            bin += 1
         end
-        update_track!(track, λ)
+
+        hist_δ[bin] += δ[i]
+        hist_δ²[bin] += δ²[i]
+        hist_𝑤[bin] += 𝑤[i]
+    end
+
+    @inbounds for bin in 1:(length(bins)-1)
+        track.∑δL += hist_δ[bin]
+        track.∑δ²L += hist_δ²[bin]
+        track.∑𝑤L += hist_𝑤[bin]
+        track.∑δR -= hist_δ[bin]
+        track.∑δ²R -= hist_δ²[bin]
+        track.∑𝑤R -= hist_𝑤[bin]
+        update_track!(params.loss, track, params.λ)
+
         # if gain > info.gain && ∑𝑤R > zero(S)
-        if track.gain > info.gain && track.∑𝑤R > zero(S)
-        # if track.gain > info.gain
+        if track.gain > info.gain && track.∑𝑤L >= params.min_weight && track.∑𝑤R >= params.min_weight
             info.gain = track.gain
             info.gainL = track.gainL
             info.gainR = track.gainR
