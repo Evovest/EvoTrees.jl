@@ -15,23 +15,23 @@ function grow_tree(X::AbstractArray{R, 2}, δ::AbstractArray{T, 1}, δ²::Abstra
             if tree_depth == params.max_depth || node.∑𝑤 <= params.min_weight
                 push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, view(δ², node.𝑖))))
             else
-                node_size = size(node.𝑖, 1)
                 @threads for feat in node.𝑗
-                    sortperm!(view(perm_ini, 1:node_size, feat), view(X, node.𝑖, feat), alg = QuickSort, initialized = false)
-                    find_split_bitset!(view(X, view(node.𝑖, view(perm_ini, 1:node_size, feat)), feat), view(δ, view(node.𝑖, view(perm_ini, 1:node_size, feat))) , view(δ², view(node.𝑖, view(perm_ini, 1:node_size, feat))), view(𝑤, view(node.𝑖, view(perm_ini, 1:node_size, feat))), node.∑δ, node.∑δ², node.∑𝑤, params, splits[feat], tracks[feat], X_edges[feat])
+                    find_split_bitset!(bags[feat], δ, δ², 𝑤, node.∑δ::T, node.∑δ²::T, node.∑𝑤::T, params, splits[feat], tracks[feat], edges[feat], node.𝑖)
                 end
                 # assign best split
                 best = get_max_gain(splits)
                 # grow node if best split improve gain
                 if best.gain > node.gain + params.γ
-                    train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, node.𝑖[perm_ini[1:best.𝑖, best.feat]], node.𝑗)
-                    train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, node.𝑖[perm_ini[best.𝑖+1:node_size, best.feat]], node.𝑗)
+                    # Node: depth, ∑δ, ∑δ², gain, 𝑖, 𝑗
+                    train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, intersect(node.𝑖, union(bags[best.feat][1:best.𝑖]...)), node.𝑗)
+                    train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, intersect(node.𝑖, union(bags[best.feat][(best.𝑖+1):end]...)), node.𝑗)
+                    # push split Node
                     push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond))
                     push!(next_active_id, leaf_count + 1)
                     push!(next_active_id, leaf_count + 2)
                     leaf_count += 2
                 else
-                    push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, view(δ², node.𝑖))))
+                    push!(tree.nodes, TreeNode(- params.η * node.∑δ / (node.∑δ² + params.λ * node.∑𝑤)))
                 end # end of single node split search
             end
         end # end of loop over active ids for a given depth
@@ -181,7 +181,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Evo
     return gbtree
 end
 
-# grow_gbtree
+# grow_gbtree - continue training
 function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractArray{T, 1};
     X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractArray{T, 1} = Array{Float64, 1}(undef, 0),
     early_stopping_rounds=Int(1e5), print_every_n=100, verbosity=1) where {R<:Real, T<:AbstractFloat}
