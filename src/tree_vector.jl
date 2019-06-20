@@ -13,7 +13,7 @@ function grow_tree(bags::Vector{Vector{BitSet}}, δ::AbstractArray{T, 1}, δ²::
         for id in active_id
             node = train_nodes[id]
             if tree_depth == params.max_depth || node.∑𝑤 <= params.min_weight
-                push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, view(δ², node.𝑖))))
+                push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, δ²)))
             else
                 @threads for feat in node.𝑗
                     find_split_bitset!(bags[feat], δ, δ², 𝑤, node.∑δ::T, node.∑δ²::T, node.∑𝑤::T, params, splits[feat], tracks[feat], edges[feat], node.𝑖)
@@ -31,7 +31,7 @@ function grow_tree(bags::Vector{Vector{BitSet}}, δ::AbstractArray{T, 1}, δ²::
                     push!(next_active_id, leaf_count + 2)
                     leaf_count += 2
                 else
-                    push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, view(δ², node.𝑖))))
+                    push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, δ²)))
                 end # end of single node split search
             end
         end # end of loop over active ids for a given depth

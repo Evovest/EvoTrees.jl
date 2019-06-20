@@ -50,6 +50,6 @@ end
 
 # prediction in Leaf - QuantileRegression
 function pred_leaf(loss::S, node::TrainNode, params::EvoTreeRegressor, δ²) where {S<:QuantileRegression, T<:AbstractFloat}
-    pred = params.η * quantile(δ², params.α) / (1 + params.λ)
+    pred = params.η * quantile(δ²[collect(node.𝑖)], params.α) / (1 + params.λ)
     return pred
 end
