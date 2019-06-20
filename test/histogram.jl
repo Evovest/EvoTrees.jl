@@ -31,7 +31,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 # set parameters
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:mse,
-    nrounds=10, nbins=100,
+    nrounds=10, nbins=20,
     λ = 0.5, γ=0.1, η=0.01,
     max_depth = 5, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
@@ -43,7 +43,7 @@ pred = zeros(size(Y, 1))
 # @time update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
 update_grads!(params1.loss, params1.α, pred, Y, δ, δ², 𝑤)
 ∑δ, ∑δ², ∑𝑤 = sum(δ), sum(δ²), sum(𝑤)
-gain = get_gain(∑δ, ∑δ², ∑𝑤, params1.λ)
+gain = get_gain(params1.loss, ∑δ, ∑δ², ∑𝑤, params1.λ)
 
 # initialize train_nodes
 train_nodes = Vector{TrainNode{Float64, BitSet, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
@@ -65,32 +65,16 @@ end
 @time edges = get_edges(X, params1.nbins)
 @time X_bin = binarize(X, edges)
 
-bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1))
-for feat in 1:size(𝑗, 1)
-    bags[feat] = find_bags(X_bin[:,feat])
-end
-
-function prep1(X, params)
-    edges = get_edges(X, params.nbins)
-    X_bin = binarize(X, edges)
-    bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1))
-    for feat in 1:size(𝑗, 1)
-        bags[feat] = find_bags(X_bin[:,feat])
-    end
-    return bags
-end
-
 function prep2(X, params)
     edges = get_edges(X, params.nbins)
     bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1))
     for feat in 1:size(𝑗, 1)
-        bags[feat] = find_bags_direct(X[:,feat], edges[feat])
+        bags[feat] = find_bags(X[:,feat], edges[feat])
     end
     return bags
 end
 
-@time bags = prep1(X_train, params1);
-@time bags = prep2(X_train, params1);
+@time bags = prep2(X, params1);
 
 @time train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
 @time tree = grow_tree(bags, δ, δ², 𝑤, params1, train_nodes, splits, tracks, edges)
@@ -117,9 +101,9 @@ sqrt(mean((pred_train .- Y_train) .^ 2))
 feat = 1
 typeof(bags[feat][1])
 train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-find_histogram(bags[feat], δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
-@time find_histogram(bags[1], δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[1], tracks[1], edges[1], train_nodes[1].𝑖)
-@btime find_histogram($bags[1], $δ, $δ², $𝑤, $∑δ, $∑δ², $∑𝑤, $params1, $splits[1], $tracks[1], $edges[1], $train_nodes[1].𝑖)
+find_split_bitset!(bags[feat], δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
+@time find_split_bitset!(bags[1], δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[1], tracks[1], edges[1], train_nodes[1].𝑖)
+@btime find_split_bitset!($bags[1], $δ, $δ², $𝑤, $∑δ, $∑δ², $∑𝑤, $params1, $splits[1], $tracks[1], $edges[1], $train_nodes[1].𝑖)
 
 splits[feat]
 

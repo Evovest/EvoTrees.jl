@@ -4,7 +4,7 @@
 function get_edges(X, nbins=250)
     edges = Vector{Vector}(undef, size(X,2))
     @threads for i in 1:size(X, 2)
-        edges[i] = unique(quantile(view(X, :,i), (0:nbins)/nbins))[2:(end-1)]
+        edges[i] = unique(quantile(view(X, :,i), (0:nbins)/nbins))[2:end]
         if length(edges[i]) == 0
             edges[i] = [minimum(view(X, :,i))]
         end
@@ -61,10 +61,10 @@ function find_split_bitset!(bins::Vector{BitSet}, δ::Vector{S}, δ²::Vector{S}
     # build histogram
     @inbounds for i in set
         bin = 1
+        # println("i: ", i, "bins[bin]", bins[bin])
         @inbounds while !(i in bins[bin])
             bin += 1
         end
-
         hist_δ[bin] += δ[i]
         hist_δ²[bin] += δ²[i]
         hist_𝑤[bin] += 𝑤[i]
@@ -79,7 +79,6 @@ function find_split_bitset!(bins::Vector{BitSet}, δ::Vector{S}, δ²::Vector{S}
         track.∑𝑤R -= hist_𝑤[bin]
         update_track!(params.loss, track, params.λ)
 
-        # if gain > info.gain && ∑𝑤R > zero(S)
         if track.gain > info.gain && track.∑𝑤L >= params.min_weight && track.∑𝑤R >= params.min_weight
             info.gain = track.gain
             info.gainL = track.gainL
