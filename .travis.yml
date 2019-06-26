@@ -8,5 +8,4 @@ julia:
 matrix:
   fast_finish: true
   allow_failures:
-    - julia:
-      - nightly
+    - julia: nightly
