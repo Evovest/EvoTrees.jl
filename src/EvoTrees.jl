@@ -7,6 +7,7 @@ using Statistics
 using CSV
 using Base.Threads: @threads
 using StatsBase: sample, quantile
+using Random: seed!
 import MLJ
 import MLJBase
 

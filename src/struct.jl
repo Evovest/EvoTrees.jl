@@ -74,6 +74,7 @@ mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBa
     nbins::S
     α::T
     metric::Symbol
+    seed::S
 end
 
 function EvoTreeRegressor(;
@@ -88,7 +89,8 @@ function EvoTreeRegressor(;
     colsample=1.0,
     nbins=64,
     α=0.5,
-    metric=:mse)
+    metric=:mse,
+    seed=444)
 
     if loss == :linear model_type = Linear()
     elseif loss == :logistic model_type = Logistic()
@@ -97,7 +99,7 @@ function EvoTreeRegressor(;
     elseif loss == :quantile model_type = Quantile()
     end
 
-    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric)
+    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
     # message = MLJBase.clean!(model)
     # isempty(message) || @warn message
     return model
@@ -116,7 +118,8 @@ function EvoTreeRegressorR(
     colsample,
     nbins,
     α,
-    metric)
+    metric,
+    seed)
 
     if loss == :linear model_type = Linear()
     elseif loss == :logistic model_type = Logistic()
@@ -125,7 +128,7 @@ function EvoTreeRegressorR(
     elseif loss == :quantile model_type = Quantile()
     end
 
-    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric)
+    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
     # message = MLJBase.clean!(model)
     # isempty(message) || @warn message
     return model
