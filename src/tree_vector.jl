@@ -55,6 +55,8 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Evo
     X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractArray{T, 1} = Array{Float64, 1}(undef, 0),
     early_stopping_rounds=Int(1e5), print_every_n=100, verbosity=1) where {R<:Real, T<:AbstractFloat}
 
+    seed!(params.seed)
+
     μ = mean(Y)
     if typeof(params.loss) == Logistic
         μ = logit(μ)
@@ -168,6 +170,7 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractArray{T,
     early_stopping_rounds=Int(1e5), print_every_n=100, verbosity=1) where {R<:Real, T<:AbstractFloat}
 
     params = model.params
+    seed!(params.seed)
 
     # initialize gradients and weights
     δ, δ² = zeros(Float64, size(Y, 1)), zeros(Float64, size(Y, 1))

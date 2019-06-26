@@ -1,4 +1,11 @@
 language: julia
 julia:
   - nightly
+  - 1.0
   - 1.1
+  - 1.2
+
+matrix:
+  fast_finish: true
+  allow_failures:
+    - julia: nightly

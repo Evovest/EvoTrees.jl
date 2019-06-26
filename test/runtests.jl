@@ -3,6 +3,7 @@ using CSV
 using Statistics
 using StatsBase: sample
 using Test
+using Revise
 using EvoTrees
 using EvoTrees: sigmoid, logit
 
