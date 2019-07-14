@@ -13,6 +13,8 @@ using EvoTrees: find_bags, find_split_bitset!, find_split_turbo!, update_bags!
 # prepare a dataset
 # features = rand(100_000, 100)
 features = rand(100, 10)
+x = cat(ones(20), ones(80)*2, dims=1)
+features =  hcat(x, features)
 
 X = features
 Y = rand(size(X, 1))

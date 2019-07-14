@@ -18,7 +18,7 @@ end
 function binarize(X, edges)
     X_bin = zeros(UInt8, size(X))
     @threads for i in 1:size(X, 2)
-        X_bin[:,i] = searchsortedlast.(Ref(edges[i]), view(X,:,i)) .+ 1
+        X_bin[:,i] = searchsortedlast.(Ref(edges[i][1:end-1]), view(X,:,i)) .+ 1
     end
     X_bin
 end
