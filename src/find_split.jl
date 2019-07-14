@@ -32,19 +32,6 @@ function find_bags(x_bin::Vector{T}) where T <: Real
     return bags
 end
 
-function find_bags_1(x::Vector{T}, edges::Vector{T}) where T<:Real
-    idx = BitSet(1:length(x) |> collect)
-    bags = [BitSet() for _ in 1:length(edges)]
-    for i in idx
-        bin = 1
-        while x[i] >= edges[bin]
-            bin +=1
-        end
-        union!(bags[bin], i)
-    end
-    return bags
-end
-
 function update_bags!(bins, set)
     for bin in bins
         intersect!(bin, set)
