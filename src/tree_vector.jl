@@ -23,7 +23,7 @@ function grow_tree(bags::Vector{Vector{BitSet}},
                 push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, δ²)))
             else
                 @threads for feat in node.𝑗
-                    find_split_bitset!(bags[feat], δ, δ², 𝑤, node.∑δ::T, node.∑δ²::T, node.∑𝑤::T, params, splits[feat], tracks[feat], edges[feat], node.𝑖)
+                    find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, node.∑δ::T, node.∑δ²::T, node.∑𝑤::T, params, splits[feat], tracks[feat], edges[feat], node.𝑖)
                 end
                 # assign best split
                 best = get_max_gain(splits)
