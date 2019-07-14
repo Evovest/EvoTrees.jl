@@ -14,7 +14,7 @@ Y = sin.(features) .* 0.5 .+ 0.5
 Y = logit(Y) + randn(size(Y))
 Y = sigmoid(Y)
 𝑖 = collect(1:size(X,1))
-
+seed = 127
 # train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
 train_size = 0.8
@@ -30,7 +30,7 @@ params1 = EvoTreeRegressor(
     nrounds=100, nbins=100,
     λ = 0.5, γ=0.1, η=0.01,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0)
+    rowsample=0.5, colsample=1.0, seed = seed)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_linear = EvoTrees.predict(model, X_train)
 
@@ -48,7 +48,7 @@ params1 = EvoTreeRegressor(
     nrounds=100,
     λ = 0.5, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0)
+    rowsample=0.5, colsample=1.0, seed = seed)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_logistic = EvoTrees.predict(model, X_train)
 
@@ -58,7 +58,7 @@ params1 = EvoTreeRegressor(
     nrounds=100,
     λ = 0.5, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0)
+    rowsample=0.5, colsample=1.0, seed = seed)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_poisson = EvoTrees.predict(model, X_train)
 
@@ -67,7 +67,7 @@ params1 = EvoTreeRegressor(
     nrounds=100, nbins=100,
     λ = 0.5, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0)
+    rowsample=0.5, colsample=1.0, seed = seed)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_L1 = predict(model, X_train)
 
@@ -77,6 +77,6 @@ params1 = EvoTreeRegressor(
     nrounds=100,
     λ = 0.5, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0)
+    rowsample=0.5, colsample=1.0, seed = seed)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_poisson = EvoTrees.predict(model, X_train)
