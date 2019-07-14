@@ -32,10 +32,10 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 params1 = EvoTreeRegressor(
     loss=:logistic, metric=:logloss,
-    nrounds=100, nbins=16,
+    nrounds=100, nbins=64,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=0.5, seed = 127)
+    rowsample=0.5, colsample=0.5, seed = 444)
 
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10)
 @time model = grow_gbtree(X_train, Y_train, params1, print_every_n = 1)

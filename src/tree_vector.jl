@@ -6,7 +6,7 @@ function grow_tree(bags::Vector{Vector{BitSet}},
     train_nodes::Vector{TrainNode{T, I, J, S}},
     splits::Vector{SplitInfo{T, Int}},
     tracks::Vector{SplitTrack{T}},
-    edges) where {R<:Real, T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
+    edges, X_bin) where {R<:Real, T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
 
     active_id = ones(Int, 1)
     leaf_count = 1::Int
@@ -89,6 +89,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Evo
     𝑗_ = collect(1:X_size[2])
 
     edges = get_edges(X, params.nbins)
+    X_bin = binarize(X, edges)
     bags = Vector{Vector{BitSet}}(undef, size(𝑗_, 1))
     @threads for feat in 1:size(𝑗_, 1)
         bags[feat] = find_bags(X_bin[:,feat])
@@ -130,7 +131,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Evo
 
         # assign a root and grow tree
         train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-        tree = grow_tree(bags, δ, δ², 𝑤, params, train_nodes, splits, tracks, edges)
+        tree = grow_tree(bags, δ, δ², 𝑤, params, train_nodes, splits, tracks, edges, X_bin)
         # update push tree to model
         push!(gbtree.trees, tree)
 
@@ -194,6 +195,7 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractArray{T,
     𝑗_ = collect(1:X_size[2])
 
     edges = get_edges(X, params.nbins)
+    X_bin = binarize(X, edges)
     bags = Vector{Vector{BitSet}}(undef, size(𝑗_, 1))
     @threads for feat in 1:size(𝑗_, 1)
         bags[feat] = find_bags(X_bin[:,feat])
@@ -235,7 +237,7 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractArray{T,
 
         # assign a root and grow tree
         train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-        tree = grow_tree(bags, δ, δ², 𝑤, params, train_nodes, splits, tracks, edges)
+        tree = grow_tree(bags, δ, δ², 𝑤, params, train_nodes, splits, tracks, edges, X_bin)
         # update push tree to model
         push!(model.trees, tree)
 
