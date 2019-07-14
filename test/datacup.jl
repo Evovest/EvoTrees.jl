@@ -15,7 +15,7 @@ names(data)
 
 features = data[1:53]
 X = convert(Array, features)
-X = X + randn(size(X)) * 0.0001
+# X = X + randn(size(X)) * 0.0001
 Y = data[54]
 Y = convert(Array{Float64}, Y)
 𝑖 = collect(1:size(X,1))
@@ -32,12 +32,12 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 params1 = EvoTreeRegressor(
     loss=:logistic, metric=:logloss,
-    nrounds=10, nbins=16,
+    nrounds=100, nbins=16,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=0.5)
+    rowsample=0.5, colsample=0.5, seed = 127)
 
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 1)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10)
 @time model = grow_gbtree(X_train, Y_train, params1, print_every_n = 1)
 @time pred_train_linear = EvoTrees.predict(model, X_train)
 
@@ -70,11 +70,18 @@ end
 @time edges = get_edges(X, params1.nbins)
 @time X_bin = binarize(X, edges)
 
+# manual check
+x1 = edges[2]
+x2 = [0, x1[1], 0.1, x1[2], 0.5, x1[3], 0.95, x1[4]]
+x2_bin = searchsortedlast.(Ref(edges[2][1:end-1]), x2) .+ 1
+x2_bag = find_bags(x2_bin)
+
 function prep(X, params)
     edges = get_edges(X, params.nbins)
+    X_bin = binarize(X, edges)
     bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1))
     for feat in 1:size(𝑗, 1)
-        bags[feat] = find_bags(X[:,feat], edges[feat])
+        bags[feat] = find_bags(X_bin[:,feat])
     end
     return bags
 end

@@ -91,7 +91,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Evo
     edges = get_edges(X, params.nbins)
     bags = Vector{Vector{BitSet}}(undef, size(𝑗_, 1))
     @threads for feat in 1:size(𝑗_, 1)
-        bags[feat] = find_bags(X[:,feat], edges[feat])
+        bags[feat] = find_bags(X_bin[:,feat])
     end
 
     # initialize train nodes
@@ -196,7 +196,7 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractArray{T,
     edges = get_edges(X, params.nbins)
     bags = Vector{Vector{BitSet}}(undef, size(𝑗_, 1))
     @threads for feat in 1:size(𝑗_, 1)
-        bags[feat] = find_bags(X[:,feat], edges[feat])
+        bags[feat] = find_bags(X_bin[:,feat])
     end
 
     # initialize train nodes

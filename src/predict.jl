@@ -4,7 +4,7 @@ function predict!(pred, tree::Tree, X::AbstractArray{T, 2}) where T<:Real
         id = 1
         x = view(X, i, :)
         while tree.nodes[id].split
-            if x[tree.nodes[id].feat] <= tree.nodes[id].cond
+            if x[tree.nodes[id].feat] < tree.nodes[id].cond
                 id = tree.nodes[id].left
             else
                 id = tree.nodes[id].right
