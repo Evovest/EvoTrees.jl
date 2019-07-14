@@ -8,7 +8,7 @@ using Revise
 using BenchmarkTools
 using EvoTrees
 using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, SplitTrack, Tree, TrainNode, TreeNode, EvoTreeRegressor, predict, predict!, sigmoid
-using EvoTrees: find_bags, find_split_bitset!, update_bags!
+using EvoTrees: find_bags, find_split_bitset!, find_split_turbo!, update_bags!
 
 # prepare a dataset
 # features = rand(100_000, 100)
@@ -92,7 +92,7 @@ params1 = Params(:linear, 10, λ, γ, 0.1, 5, min_weight, rowsample, colsample, 
 sqrt(mean((pred_train .- Y_train) .^ 2))
 
 #############################################
-# Quantiles with Sets
+# Quantiles with BitSets
 #############################################
 
 𝑖_set = BitSet(𝑖);
@@ -114,6 +114,23 @@ for i in 1:length(new_bags)
         new_bags[i][j] = BitSet()
     end
 end
+
+#############################################
+# Quantiles with turbo
+#############################################
+
+𝑖_set = BitSet(𝑖);
+@time bags = prep2(X, params1);
+
+feat = 1
+typeof(bags[feat][1])
+train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
+find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
+@time find_split_bitset!(bags[1], δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[1], tracks[1], edges[1], train_nodes[1].𝑖)
+@btime find_split_bitset!($bags[1], $δ, $δ², $𝑤, $∑δ, $∑δ², $∑𝑤, $params1, $splits[1], $tracks[1], $edges[1], $train_nodes[1].𝑖)
+
+splits[feat]
+
 
 length(union(train_nodes[1].bags[1][1:13]...))
 length(union(train_nodes[1].bags[1][1:13]...))

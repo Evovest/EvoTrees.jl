@@ -7,6 +7,7 @@ using EvoTrees
 
 # prepare a dataset
 features = rand(100_000, 100)
+# features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
 𝑖 = collect(1:size(X,1))

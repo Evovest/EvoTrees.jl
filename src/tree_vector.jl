@@ -1,5 +1,12 @@
 # initialize train_nodes
-function grow_tree(bags::Vector{Vector{BitSet}}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, 𝑤::AbstractArray{T, 1}, params::EvoTreeRegressor, train_nodes::Vector{TrainNode{T, I, J, S}}, splits::Vector{SplitInfo{T, Int}}, tracks::Vector{SplitTrack{T}}, edges) where {R<:Real, T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
+function grow_tree(bags::Vector{Vector{BitSet}},
+    δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1},
+    𝑤::AbstractArray{T, 1},
+    params::EvoTreeRegressor,
+    train_nodes::Vector{TrainNode{T, I, J, S}},
+    splits::Vector{SplitInfo{T, Int}},
+    tracks::Vector{SplitTrack{T}},
+    edges, X_bin) where {R<:Real, T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
 
     active_id = ones(Int, 1)
     leaf_count = 1::Int
@@ -16,7 +23,7 @@ function grow_tree(bags::Vector{Vector{BitSet}}, δ::AbstractArray{T, 1}, δ²::
                 push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, δ²)))
             else
                 @threads for feat in node.𝑗
-                    find_split_bitset!(bags[feat], δ, δ², 𝑤, node.∑δ::T, node.∑δ²::T, node.∑𝑤::T, params, splits[feat], tracks[feat], edges[feat], node.𝑖)
+                    find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, node.∑δ::T, node.∑δ²::T, node.∑𝑤::T, params, splits[feat], tracks[feat], edges[feat], node.𝑖)
                 end
                 # assign best split
                 best = get_max_gain(splits)
@@ -82,6 +89,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Evo
     𝑗_ = collect(1:X_size[2])
 
     edges = get_edges(X, params.nbins)
+    X_bin = binarize(X, edges)
     bags = Vector{Vector{BitSet}}(undef, size(𝑗_, 1))
     @threads for feat in 1:size(𝑗_, 1)
         bags[feat] = find_bags(X[:,feat], edges[feat])
@@ -123,7 +131,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractArray{T, 1}, params::Evo
 
         # assign a root and grow tree
         train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-        tree = grow_tree(bags, δ, δ², 𝑤, params, train_nodes, splits, tracks, edges)
+        tree = grow_tree(bags, δ, δ², 𝑤, params, train_nodes, splits, tracks, edges, X_bin)
         # update push tree to model
         push!(gbtree.trees, tree)
 
