@@ -27,18 +27,18 @@ params1 = EvoTreeRegressor(
     nrounds=10,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=1.0, colsample=1.0, nbins=20)
+    rowsample=1.0, colsample=1.0, nbins=16)
 
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 1)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 10)
 @time pred_train = predict(model, X_train)
 mean(abs.(pred_train .- Y_train))
 
 # train model
 params1 = EvoTreeRegressor(
-    loss=:logistic,
+    loss=:logistic, metric=:mae,
     nrounds=10,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=1.0, colsample=1.0, nbins=50)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=1, metric = :logloss)
+    rowsample=1.0, colsample=1.0, nbins=64)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=10)
 @time pred_train = predict(model, X_train)
