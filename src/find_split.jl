@@ -23,12 +23,21 @@ function binarize(X, edges)
     X_bin
 end
 
-function find_bags(x::Vector{T}, edges::Vector{T}) where T<:Real
+function find_bags(x_bin::Vector{T}) where T <: Real
+    𝑖 = 1:length(x_bin) |> collect
+    bags = [BitSet() for _ in 1:maximum(x_bin)]
+    for bag in 1:length(bags)
+        bags[bag] = BitSet(𝑖[x_bin .== bag])
+    end
+    return bags
+end
+
+function find_bags_1(x::Vector{T}, edges::Vector{T}) where T<:Real
     idx = BitSet(1:length(x) |> collect)
     bags = [BitSet() for _ in 1:length(edges)]
     for i in idx
         bin = 1
-        while x[i] > edges[bin]
+        while x[i] >= edges[bin]
             bin +=1
         end
         union!(bags[bin], i)
