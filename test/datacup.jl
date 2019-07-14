@@ -15,6 +15,7 @@ names(data)
 
 features = data[1:53]
 X = convert(Array, features)
+X = X + randn(size(X)) * 0.0001
 Y = data[54]
 Y = convert(Array{Float64}, Y)
 𝑖 = collect(1:size(X,1))
