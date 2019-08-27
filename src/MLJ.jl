@@ -59,7 +59,7 @@ function MLJBase.update(model::EvoTreeRegressor, verbosity,
                         old_fitresult, old_cache, X, y)
 
     Xmatrix, old_model = old_cache
-    δnrounds = model.nrounds - old_model.nrounds 
+    δnrounds = model.nrounds - old_model.nrounds
 
     # We only continue computation from where we left off if: (i) The
     # number of iterations has not decreased; and (ii) All other
@@ -111,9 +111,9 @@ end
 
 # shared metadata
 const EvoTypes = Union{EvoTreeRegressor}
-MLJBase.input_is_multivariate(::Type{<:EvoTreeRegressor}) = true
-MLJBase.input_scitype_union(::Type{<:EvoTreeRegressor}) = MLJBase.Continuous
-MLJBase.target_scitype_union(::Type{<:EvoTreeRegressor}) = MLJBase.Continuous
+# MLJBase.input_is_multivariate(::Type{<:EvoTreeRegressor}) = true
+MLJBase.input_scitype(::Type{<:EvoTreeRegressor}) = MLJBase.Continuous
+MLJBase.target_scitype(::Type{<:EvoTreeRegressor}) = MLJBase.Continuous
 
 MLJBase.package_name(::Type{<:EvoTypes}) = "EvoTrees"
 MLJBase.package_url(::Type{<:EvoTypes}) = "https://github.com/Evovest/EvoTrees.jl"

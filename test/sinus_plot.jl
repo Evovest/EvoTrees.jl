@@ -8,6 +8,8 @@ using Plots
 using Revise
 using EvoTrees
 using EvoTrees: sigmoid, logit
+using Profile
+using ProfileView
 
 # prepare a dataset
 features = rand(10_000) .* 5
@@ -35,6 +37,10 @@ params1 = EvoTreeRegressor(
     rowsample=0.5, colsample=1.0)
 
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+Profile.clear()  # in case we have any previous profiling data
+@profile grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+ProfileView.view()
+
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
 @time pred_train_linear = predict(model, X_train)
 @time pred_eval_linear = predict(model, X_eval)
