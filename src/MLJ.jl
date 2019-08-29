@@ -112,11 +112,11 @@ end
 # shared metadata
 const EvoTypes = Union{EvoTreeRegressor}
 # MLJBase.input_is_multivariate(::Type{<:EvoTreeRegressor}) = true
-MLJBase.input_scitype(::Type{<:EvoTreeRegressor}) = MLJBase.Continuous
-MLJBase.target_scitype(::Type{<:EvoTreeRegressor}) = MLJBase.Continuous
-
-MLJBase.package_name(::Type{<:EvoTypes}) = "EvoTrees"
-MLJBase.package_url(::Type{<:EvoTypes}) = "https://github.com/Evovest/EvoTrees.jl"
-MLJBase.is_pure_julia(::Type{<:EvoTypes}) = true
-
-MLJBase.load_path(::Type{<:EvoTreeRegressor}) = "EvoTrees.MLJ.EvoTreeRegressor"
+# MLJBase.input_scitype(::Type{<:EvoTreeRegressor}) = MLJBase.Continuous
+# MLJBase.target_scitype(::Type{<:EvoTreeRegressor}) = MLJBase.Continuous
+#
+# MLJBase.package_name(::Type{<:EvoTypes}) = "EvoTrees"
+# MLJBase.package_url(::Type{<:EvoTypes}) = "https://github.com/Evovest/EvoTrees.jl"
+# MLJBase.is_pure_julia(::Type{<:EvoTypes}) = true
+#
+# MLJBase.load_path(::Type{<:EvoTreeRegressor}) = "EvoTrees.MLJ.EvoTreeRegressor"
