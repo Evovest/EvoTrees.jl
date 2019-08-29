@@ -61,7 +61,7 @@ end
 TreeNode(left::S, right::S, feat::S, cond::T) where {T<:AbstractFloat, S<:Int} = TreeNode{T,S,Bool}(left, right, feat, cond, 0.0, true)
 TreeNode(pred::T) where {T<:AbstractFloat} = TreeNode{T,Int,Bool}(0, 0, 0, 0.0, pred, false)
 
-mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBase.Deterministic
+mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} #<: MLJBase.Deterministic
     loss::U
     nrounds::S
     λ::T
