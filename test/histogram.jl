@@ -79,6 +79,8 @@ end
 @time train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
 @time tree = grow_tree(bags, δ, δ², 𝑤, params1, train_nodes, splits, tracks, edges, X_bin)
 @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
+@time pred_train = predict(tree, X_train)
+@btime pred_train = predict($tree, $X_train)
 
 params1 = Params(:linear, 5, λ, γ, 1.0, 5, min_weight, rowsample, colsample, nbins)
 @btime model = grow_gbtree($X_train, $Y_train, $params1, print_every_n = 1, metric=:mae)
