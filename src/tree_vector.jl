@@ -31,7 +31,7 @@ function grow_tree(bags::Vector{Vector{BitSet}},
                 if best.gain > node.gain + params.γ
                     # Node: depth, ∑δ, ∑δ², gain, 𝑖, 𝑗
                     train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, intersect(node.𝑖, union(bags[best.feat][1:best.𝑖]...)), node.𝑗)
-                    train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, intersect(node.𝑖, union(bags[best.feat][(best.𝑖+1):end]...)), node.𝑗)
+                    train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, intersect!(node.𝑖, union(bags[best.feat][(best.𝑖+1):end]...)), node.𝑗)
                     # push split Node
                     push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond))
                     push!(next_active_id, leaf_count + 1)
