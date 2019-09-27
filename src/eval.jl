@@ -18,6 +18,17 @@ function eval_metric(::Val{:logloss}, pred::AbstractArray{T, 1}, Y::AbstractArra
     return eval
 end
 
+function eval_metric(::Val{:mlogloss}, pred::AbstractMatrix{T}, Y::AbstractVector{S}, α=0.0) where {T <: AbstractFloat, S <: Int}
+    eval = 0.0
+    for i in 1:length(Y)
+        # soft_pred = exp.(pred[i,:]) ./ sum(exp.(pred))
+        soft_pred = softmax(pred[i,:])
+        eval -= log(soft_pred[Y[i]])
+    end
+    eval /= length(Y)
+    return eval
+end
+
 function eval_metric(::Val{:quantile}, pred::AbstractArray{T, 1}, Y::AbstractArray{T, 1}, α=0.0) where T <: AbstractFloat
     eval = mean(α .* max.(Y .- pred, 0) .+ (1-α) * max.(pred .- Y, 0))
     return eval

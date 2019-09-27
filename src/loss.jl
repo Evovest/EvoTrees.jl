@@ -27,6 +27,26 @@ function update_grads!(loss::L1, α::T, pred::AbstractArray{T, 1}, target::Abstr
 end
 
 # compute the gradient and hessian given target and predict
+# poisson
+# Reference: https://isaacchanghau.github.io/post/loss_functions/
+function update_grads!(loss::Softmax, α::T, pred::AbstractVecOrMat{T}, target::AbstractVecOrMat{Int}, δ::AbstractVecOrMat{T}, δ²::AbstractVecOrMat{T}, 𝑤::AbstractVector{T}) where T <: AbstractFloat
+    # max = maximum(pred, dims=2)
+    pred = pred .- maximum(pred, dims=2)
+    sums = sum(exp.(pred), dims=2)
+    for i in 1:size(pred,1)
+        for j in 1:size(pred,2)
+            if target[i] == j
+                δ[i,j] = (exp(pred[i,j]) / sums[i] - 1) * 𝑤[i]
+                δ²[i,j] =  1 / sums[i] * (1 - exp(pred[i,j]) / sums[i]) * 𝑤[i]
+            else
+                δ[i,j] = exp(pred[i,j]) / sums[i] * 𝑤[i]
+                δ²[i,j] =  1 / sums[i] * (1 - exp(pred[i,j]) / sums[i]) * 𝑤[i]
+            end
+        end
+    end
+end
+
+# compute the gradient and hessian given target and predict
 # Quantile
 function quantile_grads(pred, target, α)
     if target > pred; α
@@ -37,7 +57,6 @@ function update_grads!(loss::Quantile, α::T, pred::AbstractArray{T, 1}, target:
     @. δ =  quantile_grads(pred, target, α) * 𝑤
     @. δ² =  (target - pred) # No weighting on δ² as it would be applied on the quantile calculation
 end
-
 
 function logit(x::AbstractArray{T, 1}) where T <: AbstractFloat
     @. x = log(x / (1 - x))
@@ -59,10 +78,23 @@ function sigmoid(x::T) where T <: AbstractFloat
     return x
 end
 
+function softmax(x::AbstractVector{T}) where T <: AbstractFloat
+    x .-= maximum(x)
+    x = exp.(x) ./ sum(exp.(x))
+    return x
+end
+
 # update the performance tracker - GradientRegression
 function update_track!(loss::S, track::SplitTrack{T}, λ::T) where {S <: GradientRegression, T <: AbstractFloat}
     track.gainL = (track.∑δL ^ 2 / (track.∑δ²L + λ .* track.∑𝑤L)) / 2
     track.gainR = (track.∑δR ^ 2 / (track.∑δ²R + λ .* track.∑𝑤R)) / 2
+    track.gain = track.gainL + track.gainR
+end
+
+# update the performance tracker - 'MultiClassRegression'
+function update_track!(loss::S, track::SplitTrack{T}, λ::T) where {S <: MultiClassRegression, T <: AbstractFloat}
+    track.gainL = sum((track.∑δL .^ 2 ./ (track.∑δ²L .+ λ .* track.∑𝑤L)) ./ 2)
+    track.gainR = sum((track.∑δR .^ 2 ./ (track.∑δ²R .+ λ .* track.∑𝑤R)) ./ 2)
     track.gain = track.gainL + track.gainR
 end
 
@@ -83,6 +115,12 @@ end
 # Calculate the gain for a given split - GradientRegression
 function get_gain(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, λ::T) where {S <: GradientRegression, T <: AbstractFloat}
     gain = (∑δ ^ 2 / (∑δ² + λ * ∑𝑤)) / 2
+    return gain
+end
+
+# Calculate the gain for a given split - GradientRegression
+function get_gain(loss::S, ∑δ::Vector{T}, ∑δ²::Vector{T}, ∑𝑤::T, λ::T) where {S <: MultiClassRegression, T <: AbstractFloat}
+    gain = sum((∑δ .^ 2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
     return gain
 end
 

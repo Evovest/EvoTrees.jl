@@ -5,30 +5,22 @@ abstract type ModelType end
 abstract type GradientRegression <: ModelType end
 abstract type L1Regression <: ModelType end
 abstract type QuantileRegression <: ModelType end
+abstract type MultiClassRegression <: ModelType end
 struct Linear <: GradientRegression end
 struct Poisson <: GradientRegression end
 struct Logistic <: GradientRegression end
 struct L1 <: L1Regression end
 struct Quantile <: QuantileRegression end
+struct Softmax <: MultiClassRegression end
 
-# compact alternative to ModeLData - not used for now
-# To Do: how to exploit pre-sorting and binning
-struct TrainData{T<:AbstractFloat}
-    X::Matrix{T}
-    X_permsort::Matrix{T}
-    Y::Matrix{T}
-    δ::Vector{T}
-    δ²::Vector{T}
-    𝑤::Vector{T}
-end
-
+# store perf info of each variable
 mutable struct SplitInfo{T<:AbstractFloat, S<:Int}
     gain::T
-    ∑δL::T
-    ∑δ²L::T
+    ∑δL::Vector{T}
+    ∑δ²L::Vector{T}
     ∑𝑤L::T
-    ∑δR::T
-    ∑δ²R::T
+    ∑δR::Vector{T}
+    ∑δ²R::Vector{T}
     ∑𝑤R::T
     gainL::T
     gainR::T
@@ -37,12 +29,13 @@ mutable struct SplitInfo{T<:AbstractFloat, S<:Int}
     cond::T
 end
 
+# keep track of perf during scanning through variable
 mutable struct SplitTrack{T<:AbstractFloat}
-    ∑δL::T
-    ∑δ²L::T
+    ∑δL::Vector{T}
+    ∑δ²L::Vector{T}
     ∑𝑤L::T
-    ∑δR::T
-    ∑δ²R::T
+    ∑δR::Vector{T}
+    ∑δ²R::Vector{T}
     ∑𝑤R::T
     gainL::T
     gainR::T
@@ -54,12 +47,12 @@ struct TreeNode{T<:AbstractFloat, S<:Int, B<:Bool}
     right::S
     feat::S
     cond::T
-    pred::T
+    pred::Vector{T}
     split::B
 end
 
-TreeNode(left::S, right::S, feat::S, cond::T) where {T<:AbstractFloat, S<:Int} = TreeNode{T,S,Bool}(left, right, feat, cond, 0.0, true)
-TreeNode(pred::T) where {T<:AbstractFloat} = TreeNode{T,Int,Bool}(0, 0, 0, 0.0, pred, false)
+TreeNode(left::S, right::S, feat::S, cond::T) where {T<:AbstractFloat, S<:Int} = TreeNode{T,S,Bool}(left, right, feat, cond, [0.0], true)
+TreeNode(pred::Vector{T}) where {T<:AbstractFloat} = TreeNode{T,Int,Bool}(0, 0, 0, 0.0, pred, false)
 
 mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} #<: MLJBase.Deterministic
     loss::U
@@ -75,6 +68,7 @@ mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} #<: MLJB
     α::T
     metric::Symbol
     seed::S
+    K::S # length of predictions: 1 by default, > 1 for multiclassif or maxloglikelihood
 end
 
 function EvoTreeRegressor(;
@@ -90,16 +84,18 @@ function EvoTreeRegressor(;
     nbins=64,
     α=0.5,
     metric=:mse,
-    seed=444)
+    seed=444,
+    K=1)
 
     if loss == :linear model_type = Linear()
     elseif loss == :logistic model_type = Logistic()
     elseif loss == :poisson model_type = Poisson()
     elseif loss == :L1 model_type = L1()
     elseif loss == :quantile model_type = Quantile()
+    elseif loss == :softmax model_type = Softmax()
     end
 
-    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed, K)
     # message = MLJBase.clean!(model)
     # isempty(message) || @warn message
     return model
@@ -119,16 +115,18 @@ function EvoTreeRegressorR(
     nbins,
     α,
     metric,
-    seed)
+    seed,
+    K)
 
     if loss == :linear model_type = Linear()
     elseif loss == :logistic model_type = Logistic()
     elseif loss == :poisson model_type = Poisson()
     elseif loss == :L1 model_type = L1()
     elseif loss == :quantile model_type = Quantile()
+    elseif loss == :softmax model_type = Softmax()
     end
 
-    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed, K)
     # message = MLJBase.clean!(model)
     # isempty(message) || @warn message
     return model
@@ -137,8 +135,8 @@ end
 # single tree is made of a root node that containes nested nodes and leafs
 struct TrainNode{T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
     depth::S
-    ∑δ::T
-    ∑δ²::T
+    ∑δ::Vector{T}
+    ∑δ²::Vector{T}
     ∑𝑤::T
     gain::T
     𝑖::I

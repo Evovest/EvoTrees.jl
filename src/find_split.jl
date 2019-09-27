@@ -39,34 +39,34 @@ function update_bags!(bins, set)
 end
 
 
-function find_split_turbo!(bins::Vector{BitSet}, X_bin, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, params::EvoTreeRegressor, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}
+function find_split_turbo!(bins::Vector{BitSet}, X_bin, δ::AbstractVecOrMat{S}, δ²::AbstractVecOrMat{S}, 𝑤::Vector{S}, ∑δ::Vector{S}, ∑δ²::Vector{S}, ∑𝑤::S, params::EvoTreeRegressor, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}
 
     info.gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
 
-    track.∑δL = zero(S)
-    track.∑δ²L = zero(S)
+    track.∑δL .*= 0.0
+    track.∑δ²L .*= 0.0
     track.∑𝑤L = zero(S)
     track.∑δR = ∑δ
     track.∑δ²R = ∑δ²
     track.∑𝑤R = ∑𝑤
 
-    hist_δ = zeros(Float64, length(bins))
-    hist_δ² = zeros(Float64, length(bins))
+    hist_δ = zeros(Float64, length(bins), size(δ,2))
+    hist_δ² = zeros(Float64, length(bins), size(δ,2))
     hist_𝑤 = zeros(Float64, length(bins))
 
     # build histogram
     @inbounds for i in set
-        hist_δ[X_bin[i]] += δ[i]
-        hist_δ²[X_bin[i]] += δ²[i]
+        hist_δ[X_bin[i],:] .+= δ[i,:]
+        hist_δ²[X_bin[i],:] .+= δ²[i,:]
         hist_𝑤[X_bin[i]] += 𝑤[i]
     end
 
     @inbounds for bin in 1:(length(bins)-1)
-        track.∑δL += hist_δ[bin]
-        track.∑δ²L += hist_δ²[bin]
+        track.∑δL .+= hist_δ[bin,:]
+        track.∑δ²L .+= hist_δ²[bin,:]
         track.∑𝑤L += hist_𝑤[bin]
-        track.∑δR -= hist_δ[bin]
-        track.∑δ²R -= hist_δ²[bin]
+        track.∑δR .-= hist_δ[bin,:]
+        track.∑δ²R .-= hist_δ²[bin,:]
         track.∑𝑤R -= hist_𝑤[bin]
         update_track!(params.loss, track, params.λ)
 
