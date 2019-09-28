@@ -1,13 +1,13 @@
 # compute the gradient and hessian given target and predict
 # linear
-function update_grads!(loss::Linear, α::T, pred::AbstractArray{T, 1}, target::AbstractArray{T, 1}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, 𝑤::AbstractArray{T, 1}) where T <: AbstractFloat
+function update_grads!(loss::Linear, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::AbstractMatrix{T}, δ²::AbstractMatrix{T}, 𝑤::AbstractVector{T}) where T <: AbstractFloat
     @. δ = 2 * (pred - target) * 𝑤
     @. δ² = 2 * 𝑤
 end
 
 # compute the gradient and hessian given target and predict
 # logistic - on linear predictor
-function update_grads!(loss::Logistic, α::T, pred::AbstractArray{T, 1}, target::AbstractArray{T, 1}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, 𝑤::AbstractArray{T, 1}) where T <: AbstractFloat
+function update_grads!(loss::Logistic, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::AbstractMatrix{T}, δ²::AbstractMatrix{T}, 𝑤::AbstractVector{T}) where T <: AbstractFloat
     @. δ = (sigmoid(pred) * (1 - target) - (1 - sigmoid(pred)) * target) * 𝑤
     @. δ² = sigmoid(pred) * (1 - sigmoid(pred)) * 𝑤
 end
@@ -15,21 +15,21 @@ end
 # compute the gradient and hessian given target and predict
 # poisson
 # Reference: https://isaacchanghau.github.io/post/loss_functions/
-function update_grads!(loss::Poisson, α::T, pred::AbstractArray{T, 1}, target::AbstractArray{T, 1}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, 𝑤::AbstractArray{T, 1}) where T <: AbstractFloat
+function update_grads!(loss::Poisson, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::AbstractMatrix{T}, δ²::AbstractMatrix{T}, 𝑤::AbstractVector{T}) where T <: AbstractFloat
     @. δ = (exp(pred) - target) * 𝑤
     @. δ² = exp(pred) * 𝑤
 end
 
 # compute the gradient and hessian given target and predict
 # L1
-function update_grads!(loss::L1, α::T, pred::AbstractArray{T, 1}, target::AbstractArray{T, 1}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, 𝑤::AbstractArray{T, 1}) where T <: AbstractFloat
+function update_grads!(loss::L1, α::T, pred::AbstractMatrix{T}, target::AbstractArray{T, 1}, δ::AbstractMatrix{T}, δ²::AbstractMatrix{T}, 𝑤::AbstractVector{T}) where T <: AbstractFloat
     @. δ =  (α * max(target - pred, 0) - (1-α) * max(pred - target, 0)) * 𝑤
 end
 
 # compute the gradient and hessian given target and predict
 # poisson
 # Reference: https://isaacchanghau.github.io/post/loss_functions/
-function update_grads!(loss::Softmax, α::T, pred::AbstractVecOrMat{T}, target::AbstractVecOrMat{Int}, δ::AbstractVecOrMat{T}, δ²::AbstractVecOrMat{T}, 𝑤::AbstractVector{T}) where T <: AbstractFloat
+function update_grads!(loss::Softmax, α::T, pred::AbstractMatrix{T}, target::AbstractVector{Int}, δ::AbstractMatrix{T}, δ²::AbstractMatrix{T}, 𝑤::AbstractVector{T}) where T <: AbstractFloat
     # max = maximum(pred, dims=2)
     pred = pred .- maximum(pred, dims=2)
     sums = sum(exp.(pred), dims=2)
@@ -53,7 +53,7 @@ function quantile_grads(pred, target, α)
     elseif target < pred; α - 1
     end
 end
-function update_grads!(loss::Quantile, α::T, pred::AbstractArray{T, 1}, target::AbstractArray{T, 1}, δ::AbstractArray{T, 1}, δ²::AbstractArray{T, 1}, 𝑤::AbstractArray{T, 1}) where T <: AbstractFloat
+function update_grads!(loss::Quantile, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::AbstractMatrix{T}, δ²::AbstractMatrix{T}, 𝑤::AbstractVector{T}) where T <: AbstractFloat
     @. δ =  quantile_grads(pred, target, α) * 𝑤
     @. δ² =  (target - pred) # No weighting on δ² as it would be applied on the quantile calculation
 end
@@ -85,9 +85,16 @@ function softmax(x::AbstractVector{T}) where T <: AbstractFloat
 end
 
 # update the performance tracker - GradientRegression
+# function update_track!(loss::S, track::SplitTrack{T}, λ::T) where {S <: GradientRegression, T <: AbstractFloat}
+#     track.gainL = (track.∑δL ^ 2 / (track.∑δ²L + λ * track.∑𝑤L)) / 2
+#     track.gainR = (track.∑δR ^ 2 / (track.∑δ²R + λ * track.∑𝑤R)) / 2
+#     track.gain = track.gainL + track.gainR
+# end
+
+# update the performance tracker - 'MultiClassRegression'
 function update_track!(loss::S, track::SplitTrack{T}, λ::T) where {S <: GradientRegression, T <: AbstractFloat}
-    track.gainL = (track.∑δL ^ 2 / (track.∑δ²L + λ .* track.∑𝑤L)) / 2
-    track.gainR = (track.∑δR ^ 2 / (track.∑δ²R + λ .* track.∑𝑤R)) / 2
+    track.gainL = sum((track.∑δL .^ 2 ./ (track.∑δ²L .+ λ .* track.∑𝑤L)) ./ 2)
+    track.gainR = sum((track.∑δR .^ 2 ./ (track.∑δ²R .+ λ .* track.∑𝑤R)) ./ 2)
     track.gain = track.gainL + track.gainR
 end
 
@@ -113,12 +120,18 @@ function update_track!(loss::S, track::SplitTrack{T}, λ::T) where {S <: Quantil
 end
 
 # Calculate the gain for a given split - GradientRegression
-function get_gain(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, λ::T) where {S <: GradientRegression, T <: AbstractFloat}
-    gain = (∑δ ^ 2 / (∑δ² + λ * ∑𝑤)) / 2
+# function get_gain(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, λ::T) where {S <: GradientRegression, T <: AbstractFloat}
+#     gain = (∑δ ^ 2 / (∑δ² + λ * ∑𝑤)) / 2
+#     return gain
+# end
+
+# Calculate the gain for a given split - GradientRegression
+function get_gain(loss::S, ∑δ::Vector{T}, ∑δ²::Vector{T}, ∑𝑤::T, λ::T) where {S <: GradientRegression, T <: AbstractFloat}
+    gain = sum((∑δ .^ 2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
     return gain
 end
 
-# Calculate the gain for a given split - GradientRegression
+# Calculate the gain for a given split - MultiClassRegression
 function get_gain(loss::S, ∑δ::Vector{T}, ∑δ²::Vector{T}, ∑𝑤::T, λ::T) where {S <: MultiClassRegression, T <: AbstractFloat}
     gain = sum((∑δ .^ 2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
     return gain

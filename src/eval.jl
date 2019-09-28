@@ -1,19 +1,19 @@
-function eval_metric(::Val{:mse}, pred::AbstractArray{T, 1}, Y::AbstractArray{T, 1}, α=0.0) where T <: AbstractFloat
+function eval_metric(::Val{:mse}, pred::AbstractMatrix{T}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
     eval = mean((pred .- Y) .^ 2)
     return eval
 end
 
-function eval_metric(::Val{:rmse}, pred::AbstractArray{T, 1}, Y::AbstractArray{T, 1}, α=0.0) where T <: AbstractFloat
+function eval_metric(::Val{:rmse}, pred::AbstractMatrix{T}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
     eval = sqrt(mean((pred .- Y) .^ 2))
     return eval
 end
 
-function eval_metric(::Val{:mae}, pred::AbstractArray{T, 1}, Y::AbstractArray{T, 1}, α=0.0) where T <: AbstractFloat
+function eval_metric(::Val{:mae}, pred::AbstractMatrix{T}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
     eval = mean(abs.(pred .- Y))
     return eval
 end
 
-function eval_metric(::Val{:logloss}, pred::AbstractArray{T, 1}, Y::AbstractArray{T, 1}, α=0.0) where T <: AbstractFloat
+function eval_metric(::Val{:logloss}, pred::AbstractMatrix{T}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
     eval = -mean(Y .* log.(max.(1e-8, sigmoid.(pred))) .+ (1 .- Y) .* log.(max.(1e-8, 1 .- sigmoid.(pred))))
     return eval
 end
@@ -21,7 +21,6 @@ end
 function eval_metric(::Val{:mlogloss}, pred::AbstractMatrix{T}, Y::AbstractVector{S}, α=0.0) where {T <: AbstractFloat, S <: Int}
     eval = 0.0
     for i in 1:length(Y)
-        # soft_pred = exp.(pred[i,:]) ./ sum(exp.(pred))
         soft_pred = softmax(pred[i,:])
         eval -= log(soft_pred[Y[i]])
     end

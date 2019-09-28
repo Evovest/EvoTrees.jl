@@ -23,10 +23,11 @@ function grow_tree(bags::Vector{Vector{BitSet}},
                 push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, δ²)))
             else
                 @threads for feat in node.𝑗
-                    find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, node.∑δ, node.∑δ², node.∑𝑤, params, splits[feat], tracks[feat], edges[feat], node.𝑖)
+                    splits[feat] = SplitInfo{Float64, Int}(node.gain, zeros(params.K), zeros(params.K), 0.0, zeros(params.K), zeros(params.K), 0.0, -Inf, -Inf, 0, feat, 0.0)
+                    tracks[feat] = SplitTrack{Float64}(zeros(params.K), zeros(params.K), 0.0, copy(node.∑δ), copy(node.∑δ²), node.∑𝑤, -Inf, -Inf, -Inf)
+                    find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, params, splits[feat], tracks[feat], edges[feat], node.𝑖)
                 end
                 # assign best split
-                # println("split: ", splits[1])
                 best = get_max_gain(splits)
                 # grow node if best split improve gain
                 if best.gain > node.gain + params.γ
@@ -105,6 +106,14 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
         train_nodes[feat] = TrainNode(0, fill(-Inf,params.K), fill(-Inf,params.K), -Inf, -Inf, BitSet([0]), [0])
     end
 
+    # initializde node splits info and tracks - colsample size (𝑗)
+    splits = Vector{SplitInfo{Float64, Int64}}(undef, X_size[2])
+    tracks = Vector{SplitTrack{Float64}}(undef, X_size[2])
+    for feat in 𝑗_
+        splits[feat] = SplitInfo{Float64, Int}(0.0, zeros(params.K), zeros(params.K), 0.0, zeros(params.K), zeros(params.K), 0.0, -Inf, -Inf, 0, feat, 0.0)
+        tracks[feat] = SplitTrack{Float64}(zeros(params.K), zeros(params.K), 0.0, zeros(params.K), zeros(params.K), 0.0, -Inf, -Inf, -Inf)
+    end
+
     # initialize metric
     if params.metric != :none
         metric_track = Metric()
@@ -122,24 +131,12 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
         update_grads!(params.loss, params.α, pred, Y, δ, δ², 𝑤)
         ∑δ, ∑δ², ∑𝑤 = vec(sum(δ[𝑖,:], dims=1)), vec(sum(δ²[𝑖,:], dims=1)), sum(𝑤[𝑖])
         gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
-
-        # initializde node splits info and tracks - colsample size (𝑗)
-        splits = Vector{SplitInfo{Float64, Int64}}(undef, X_size[2])
-        for feat in 𝑗_
-            splits[feat] = SplitInfo{Float64, Int}(0.0, zeros(params.K), zeros(params.K), 0.0, zeros(params.K), zeros(params.K), 0.0, -Inf, -Inf, 0, feat, 0.0)
-        end
-        tracks = Vector{SplitTrack{Float64}}(undef, X_size[2])
-        for feat in 𝑗_
-            tracks[feat] = SplitTrack{Float64}(zeros(params.K), zeros(params.K), 0.0, zeros(params.K), zeros(params.K), 0.0, -Inf, -Inf, -Inf)
-        end
-
         # assign a root and grow tree
         train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
         tree = grow_tree(bags, δ, δ², 𝑤, params, train_nodes, splits, tracks, edges, X_bin)
-        # update push tree to model
+        # push new tree to model
         push!(gbtree.trees, tree)
-
-        # get update predictions
+        # update predictions
         predict!(pred, tree, X)
         # eval predictions
         if size(Y_eval, 1) > 0
@@ -148,7 +145,6 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
 
         # callback function
         if params.metric != :none
-
             if size(Y_eval, 1) > 0
                 metric_track.metric .= eval_metric(Val{params.metric}(), pred_eval, Y_eval, params.α)
             else
@@ -166,7 +162,8 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
                 display(string("iter:", i, ", eval: ", metric_track.metric))
             end
             iter_since_best >= early_stopping_rounds ? break : nothing
-        end
+        end # end of callback
+
     end #end of nrounds
 
     if params.metric != :none

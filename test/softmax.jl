@@ -43,11 +43,11 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 # set parameters
 params1 = EvoTreeRegressor(
     loss=:softmax, metric=:mlogloss,
-    nrounds=5, nbins=8,
-    λ = 0.0, γ=0.0, η=0.1,
-    max_depth = 5, min_weight = 1.0,
+    nrounds=1, nbins=32,
+    λ = 0.0, γ=0.0, η=0.3,
+    max_depth = 3, min_weight = 1.0,
     rowsample=1.0, colsample=1.0,
-    K = 3)
+    K = 3, seed=44)
 
 # initial info
 K = maximum(Y_train)
@@ -96,25 +96,30 @@ end
 @time train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
 @time tree = grow_tree(bags, δ, δ², 𝑤, params1, train_nodes, splits, tracks, edges, X_bin)
 
-Y_train
 pred = predict(tree, X_train, params1.K)
 for row in eachrow(pred)
     row .= softmax(row)
 end
+pred_int = zeros(Int, length(Y_train))
+for i in 1:size(pred, 1)
+    pred_int[i] = findmax(pred[i,:])[2]
+end
+sum(pred_int .== Y_train)
+
 sum(pred[:,1]), sum(pred[:,2]), sum(pred[:,3])
 sum(Y_train .== 1), sum(Y_train .== 2), sum(Y_train .== 3)
 minimum(pred)
 
 params1 = EvoTreeRegressor(
     loss=:softmax, metric=:mlogloss,
-    nrounds=20, nbins=128,
-    λ = 0.0, γ=0.0, η=0.25,
-    max_depth = 5, min_weight = 1.0,
+    nrounds=20, nbins=32,
+    λ = 0.0, γ=1e-5, η=0.3,
+    max_depth = 3, min_weight = 1.0,
     rowsample=1.0, colsample=1.0,
-    K = 3)
+    K = 3, seed=44)
 
 @time model = grow_gbtree(X_train, Y_train, params1, print_every_n = 5)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 1)
+# @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 1)
 
 sum(Y_train.==3)/length(Y_train)
 @time pred_train = predict(model, X_train)
@@ -127,13 +132,12 @@ pred_train_int = zeros(Int, length(Y_train))
 for i in 1:size(pred_train, 1)
     pred_train_int[i] = findmax(pred_train[i,:])[2]
 end
-sum(pred_train_int .== Y_train)
 
 pred_eval_int = zeros(Int, length(Y_eval))
 for i in 1:size(pred_eval, 1)
     pred_eval_int[i] = findmax(pred_eval[i,:])[2]
 end
-sum(pred_eval_int .== Y_eval)
+sum(pred_train_int .== Y_train), sum(pred_eval_int .== Y_eval)
 
 mean(abs.(pred_train_linear .- Y_train))
 sqrt(mean((pred_train_linear .- Y_train) .^ 2))

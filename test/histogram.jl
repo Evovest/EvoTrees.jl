@@ -12,7 +12,7 @@ using EvoTrees: find_bags, find_split_turbo!, update_bags!
 
 # prepare a dataset
 # features = rand(100_000, 100)
-features = rand(100_000, 100)
+features = rand(1_000, 10)
 # x = cat(ones(20), ones(80)*2, dims=1)
 # features =  hcat(x, features)
 
@@ -39,33 +39,33 @@ params1 = EvoTreeRegressor(
     rowsample=1.0, colsample=1.0)
 
 # initial info
-δ, δ² = zeros(size(X, 1)), zeros(size(X, 1))
+δ, δ² = zeros(size(X, 1), params1.K), zeros(size(X, 1), params1.K)
 𝑤 = ones(size(X, 1))
-pred = zeros(size(Y, 1))
+pred = zeros(size(Y, 1), params1.K)
 # @time update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
 update_grads!(params1.loss, params1.α, pred, Y, δ, δ², 𝑤)
-∑δ, ∑δ², ∑𝑤 = sum(δ), sum(δ²), sum(𝑤)
+∑δ, ∑δ², ∑𝑤 = vec(sum(δ, dims=1)), vec(sum(δ², dims=1)), sum(𝑤)
 gain = get_gain(params1.loss, ∑δ, ∑δ², ∑𝑤, params1.λ)
 
 # initialize train_nodes
 train_nodes = Vector{TrainNode{Float64, BitSet, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
 for feat in 1:2^params1.max_depth-1
-    train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, BitSet([0]), [0])
+    train_nodes[feat] = TrainNode(0, fill(-Inf, params1.K), fill(-Inf, params1.K), -Inf, -Inf, BitSet([0]), [0])
     # train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, Set([0]), [0], bags)
 end
 
 # initializde node splits info and tracks - colsample size (𝑗)
 splits = Vector{SplitInfo{Float64, Int}}(undef, size(𝑗, 1))
 for feat in 1:size(𝑗, 1)
-    splits[feat] = SplitInfo{Float64, Int}(-Inf, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, feat, 0.0)
+    splits[feat] = SplitInfo{Float64, Int}(-Inf, zeros(params1.K), zeros(params1.K), 0.0, zeros(params1.K), zeros(params1.K), 0.0, -Inf, -Inf, 0, feat, 0.0)
 end
 tracks = Vector{SplitTrack{Float64}}(undef, size(𝑗, 1))
 for feat in 1:size(𝑗, 1)
-    tracks[feat] = SplitTrack{Float64}(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, -Inf)
+    tracks[feat] = SplitTrack{Float64}(zeros(params1.K), zeros(params1.K), 0.0, zeros(params1.K), zeros(params1.K), 0.0, -Inf, -Inf, -Inf)
 end
 
-@time edges = get_edges(X, params1.nbins)
-@time X_bin = binarize(X, edges)
+@time edges = get_edges(X_train, params1.nbins)
+@time X_bin = binarize(X_train, edges)
 @time bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1))
 function prep(X_bin, bags)
     @threads for feat in 1:size(𝑗, 1)
@@ -74,8 +74,7 @@ function prep(X_bin, bags)
     return bags
 end
 
-@time prep(X_bin, bags)
-
+@time bags = prep(X_bin, bags)
 @time train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
 @time tree = grow_tree(bags, δ, δ², 𝑤, params1, train_nodes, splits, tracks, edges, X_bin)
 @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
@@ -94,45 +93,16 @@ params1 = Params(:linear, 10, λ, γ, 0.1, 5, min_weight, rowsample, colsample, 
 sqrt(mean((pred_train .- Y_train) .^ 2))
 
 #############################################
-# Quantiles with BitSets
-#############################################
-
-𝑖_set = BitSet(𝑖);
-@time bags = prep2(X, params1);
-
-feat = 1
-typeof(bags[feat][1])
-train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-find_split_bitset!(bags[feat], δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
-@time find_split_bitset!(bags[1], δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[1], tracks[1], edges[1], train_nodes[1].𝑖)
-@btime find_split_bitset!($bags[1], $δ, $δ², $𝑤, $∑δ, $∑δ², $∑𝑤, $params1, $splits[1], $tracks[1], $edges[1], $train_nodes[1].𝑖)
-
-splits[feat]
-
-new_bags = Vector{Vector{BitSet}}(undef, length(bags))
-for i in 1:length(new_bags)
-    new_bags[i] = Vector{BitSet}(undef, length(bags[i]))
-    for j in 1:length(bags[i])
-        new_bags[i][j] = BitSet()
-    end
-end
-
-#############################################
 # Quantiles with turbo
 #############################################
 
 𝑖_set = BitSet(𝑖);
-@time bags = prep2(X, params1);
+@time bags = prep(X_bin, bags);
 
 feat = 1
 typeof(bags[feat][1])
 train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
-@time find_split_bitset!(bags[1], δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[1], tracks[1], edges[1], train_nodes[1].𝑖)
-@btime find_split_bitset!($bags[1], $δ, $δ², $𝑤, $∑δ, $∑δ², $∑𝑤, $params1, $splits[1], $tracks[1], $edges[1], $train_nodes[1].𝑖)
-
-splits[feat]
-
+find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
 
 length(union(train_nodes[1].bags[1][1:13]...))
 length(union(train_nodes[1].bags[1][1:13]...))
