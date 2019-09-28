@@ -122,16 +122,12 @@ end
 #############################################
 
 𝑖_set = BitSet(𝑖);
-@time bags = prep2(X, params1);
+@time bags = prep(X_bin, bags);
 
 feat = 1
 typeof(bags[feat][1])
 train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
-@time find_split_bitset!(bags[1], δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[1], tracks[1], edges[1], train_nodes[1].𝑖)
-@btime find_split_bitset!($bags[1], $δ, $δ², $𝑤, $∑δ, $∑δ², $∑𝑤, $params1, $splits[1], $tracks[1], $edges[1], $train_nodes[1].𝑖)
-
-splits[feat]
+@time find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
 
 
 length(union(train_nodes[1].bags[1][1:13]...))
