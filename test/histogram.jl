@@ -29,6 +29,7 @@ train_size = 0.8
 
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
+𝑖 = collect(1:size(X_train,1))
 
 # set parameters
 params1 = EvoTreeRegressor(
@@ -39,11 +40,11 @@ params1 = EvoTreeRegressor(
     rowsample=1.0, colsample=1.0)
 
 # initial info
-δ, δ² = zeros(size(X, 1)), zeros(size(X, 1))
-𝑤 = ones(size(X, 1))
-pred = zeros(size(Y, 1))
+δ, δ² = zeros(size(X_train, 1)), zeros(size(X_train, 1))
+𝑤 = ones(size(X_train, 1))
+pred = zeros(size(Y_train, 1))
 # @time update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
-update_grads!(params1.loss, params1.α, pred, Y, δ, δ², 𝑤)
+update_grads!(params1.loss, params1.α, pred, Y_train, δ, δ², 𝑤)
 ∑δ, ∑δ², ∑𝑤 = sum(δ), sum(δ²), sum(𝑤)
 gain = get_gain(params1.loss, ∑δ, ∑δ², ∑𝑤, params1.λ)
 
@@ -128,7 +129,6 @@ feat = 1
 typeof(bags[feat][1])
 train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
 @time find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
-
 
 length(union(train_nodes[1].bags[1][1:13]...))
 length(union(train_nodes[1].bags[1][1:13]...))
