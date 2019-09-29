@@ -9,7 +9,7 @@ using BenchmarkTools
 using EvoTrees
 using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, SplitTrack, Tree, TrainNode, TreeNode, EvoTreeRegressor, predict, predict!, sigmoid
 using EvoTrees: find_bags, find_split_turbo!, update_bags!
-using EvoTrees: update_grads2!, find_split_static!, pred_leaf
+using EvoTrees: find_split_static!, pred_leaf
 
 # prepare a dataset
 features = rand(100_000, 100)
@@ -44,7 +44,7 @@ params1 = EvoTreeRegressor(
 δ, δ² = zeros(SVector{params1.K, Float64}, size(X_train, 1)), zeros(SVector{params1.K, Float64}, size(X_train, 1))
 𝑤 = zeros(SVector{1, Float64}, size(X_train, 1)) .+ 1
 pred = zeros(size(Y_train, 1), params1.K)
-@time update_grads2!(params1.loss, params1.α, pred, Y_train, δ, δ², 𝑤)
+@time update_grads!(params1.loss, params1.α, pred, Y_train, δ, δ², 𝑤)
 ∑δ, ∑δ², ∑𝑤 = sum(δ), sum(δ²), sum(𝑤)
 gain = get_gain(params1.loss, ∑δ, ∑δ², ∑𝑤, params1.λ)
 

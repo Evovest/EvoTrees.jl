@@ -23,7 +23,18 @@ function grow_tree(bags::Vector{Vector{BitSet}},
                 push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, δ²)))
             else
                 @threads for feat in node.𝑗
-                    splits[feat] = SplitInfo{Float64, Int}(node.gain, SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
+                    # splits[feat] = SplitInfo{Float64, Int}(node.gain, SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
+                    splits[feat].gain = node.gain
+                    # splits[feat].gainL = -Inf
+                    # splits[feat].gainR = -Inf
+                    # splits[feat].∑δL *= 0.0
+                    # splits[feat].∑δ²L *= 0.0
+                    # splits[feat].∑𝑤L *= 0.0
+                    # splits[feat].∑δR *= 0.0
+                    # splits[feat].∑δ²R *= 0.0
+                    # splits[feat].∑𝑤R *= 0.0
+                    # splits[feat].𝑖 = 0
+                    # splits[feat].cond = 0.0
                     tracks[feat] = SplitTrack{Float64}(SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), node.∑δ, node.∑δ², node.∑𝑤, -Inf, -Inf, -Inf)
                     find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, params, splits[feat], tracks[feat], edges[feat], node.𝑖)
                 end
