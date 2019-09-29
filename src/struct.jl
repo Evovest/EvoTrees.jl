@@ -16,12 +16,12 @@ struct Softmax <: MultiClassRegression end
 # store perf info of each variable
 mutable struct SplitInfo{T<:AbstractFloat, S<:Int}
     gain::T
-    ∑δL::Vector{T}
-    ∑δ²L::Vector{T}
-    ∑𝑤L::T
-    ∑δR::Vector{T}
-    ∑δ²R::Vector{T}
-    ∑𝑤R::T
+    ∑δL::SVector
+    ∑δ²L::SVector
+    ∑𝑤L::SVector
+    ∑δR::SVector
+    ∑δ²R::SVector
+    ∑𝑤R::SVector
     gainL::T
     gainR::T
     𝑖::S
@@ -31,12 +31,12 @@ end
 
 # keep track of perf during scanning through variable
 mutable struct SplitTrack{T<:AbstractFloat}
-    ∑δL::Vector{T}
-    ∑δ²L::Vector{T}
-    ∑𝑤L::T
-    ∑δR::Vector{T}
-    ∑δ²R::Vector{T}
-    ∑𝑤R::T
+    ∑δL::SVector
+    ∑δ²L::SVector
+    ∑𝑤L::SVector
+    ∑δR::SVector
+    ∑δ²R::SVector
+    ∑𝑤R::SVector
     gainL::T
     gainR::T
     gain::T
@@ -47,12 +47,12 @@ struct TreeNode{T<:AbstractFloat, S<:Int, B<:Bool}
     right::S
     feat::S
     cond::T
-    pred::Vector{T}
+    pred::SVector
     split::B
 end
 
-TreeNode(left::S, right::S, feat::S, cond::T) where {T<:AbstractFloat, S<:Int} = TreeNode{T,S,Bool}(left, right, feat, cond, [0.0], true)
-TreeNode(pred::Vector{T}) where {T<:AbstractFloat} = TreeNode{T,Int,Bool}(0, 0, 0, 0.0, pred, false)
+TreeNode(left::S, right::S, feat::S, cond::T) where {T<:AbstractFloat, S<:Int} = TreeNode{T,S,Bool}(left, right, feat, cond, SVector{1}(0.0), true)
+TreeNode(pred::SVector) = TreeNode(0, 0, 0, 0.0, pred, false)
 
 mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} #<: MLJBase.Deterministic
     loss::U
@@ -135,9 +135,9 @@ end
 # single tree is made of a root node that containes nested nodes and leafs
 struct TrainNode{T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
     depth::S
-    ∑δ::Vector{T}
-    ∑δ²::Vector{T}
-    ∑𝑤::T
+    ∑δ::SVector
+    ∑δ²::SVector
+    ∑𝑤::SVector
     gain::T
     𝑖::I
     𝑗::J

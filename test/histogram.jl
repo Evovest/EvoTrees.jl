@@ -9,10 +9,11 @@ using BenchmarkTools
 using EvoTrees
 using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, SplitTrack, Tree, TrainNode, TreeNode, EvoTreeRegressor, predict, predict!, sigmoid
 using EvoTrees: find_bags, find_split_turbo!, update_bags!
+using EvoTrees: update_grads2!, find_split_static!, pred_leaf
 
 # prepare a dataset
-# features = rand(100_000, 100)
-features = rand(1_000, 10)
+features = rand(100_000, 100)
+# features = rand(1_000 10)
 # x = cat(ones(20), ones(80)*2, dims=1)
 # features =  hcat(x, features)
 
@@ -29,6 +30,7 @@ train_size = 0.8
 
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
+𝑖 = collect(1:size(X_train,1))
 
 # set parameters
 params1 = EvoTreeRegressor(
@@ -39,31 +41,31 @@ params1 = EvoTreeRegressor(
     rowsample=1.0, colsample=1.0)
 
 # initial info
-δ, δ² = zeros(size(X, 1), params1.K), zeros(size(X, 1), params1.K)
-𝑤 = ones(size(X, 1))
-pred = zeros(size(Y, 1), params1.K)
-# @time update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
-update_grads!(params1.loss, params1.α, pred, Y, δ, δ², 𝑤)
-∑δ, ∑δ², ∑𝑤 = vec(sum(δ, dims=1)), vec(sum(δ², dims=1)), sum(𝑤)
+δ, δ² = zeros(SVector{params1.K, Float64}, size(X_train, 1)), zeros(SVector{params1.K, Float64}, size(X_train, 1))
+𝑤 = zeros(SVector{1, Float64}, size(X_train, 1)) .+ 1
+pred = zeros(size(Y_train, 1), params1.K)
+@time update_grads2!(params1.loss, params1.α, pred, Y_train, δ, δ², 𝑤)
+∑δ, ∑δ², ∑𝑤 = sum(δ), sum(δ²), sum(𝑤)
 gain = get_gain(params1.loss, ∑δ, ∑δ², ∑𝑤, params1.λ)
 
 # initialize train_nodes
 train_nodes = Vector{TrainNode{Float64, BitSet, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
-for feat in 1:2^params1.max_depth-1
-    train_nodes[feat] = TrainNode(0, fill(-Inf, params1.K), fill(-Inf, params1.K), -Inf, -Inf, BitSet([0]), [0])
-    # train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, Set([0]), [0], bags)
+for node in 1:2^params1.max_depth-1
+    train_nodes[node] = TrainNode(0, SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, BitSet([0]), [0])
+    # train_nodes[feat] = TrainNode(0, fill(-Inf, params1.K), fill(-Inf, params1.K), -Inf, -Inf, BitSet([0]), [0])
 end
 
 # initializde node splits info and tracks - colsample size (𝑗)
 splits = Vector{SplitInfo{Float64, Int}}(undef, size(𝑗, 1))
 for feat in 1:size(𝑗, 1)
-    splits[feat] = SplitInfo{Float64, Int}(-Inf, zeros(params1.K), zeros(params1.K), 0.0, zeros(params1.K), zeros(params1.K), 0.0, -Inf, -Inf, 0, feat, 0.0)
+    splits[feat] = SplitInfo{Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
 end
 tracks = Vector{SplitTrack{Float64}}(undef, size(𝑗, 1))
 for feat in 1:size(𝑗, 1)
-    tracks[feat] = SplitTrack{Float64}(zeros(params1.K), zeros(params1.K), 0.0, zeros(params1.K), zeros(params1.K), 0.0, -Inf, -Inf, -Inf)
+    tracks[feat] = SplitTrack{Float64}(SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, -Inf)
 end
 
+# binarize data and create bags
 @time edges = get_edges(X_train, params1.nbins)
 @time X_bin = binarize(X_train, edges)
 @time bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1))
@@ -73,16 +75,28 @@ function prep(X_bin, bags)
     end
     return bags
 end
-
 @time bags = prep(X_bin, bags)
+
+# initialize histograms
+feat=1
+hist_δ = Vector{Vector{SVector{params1.K, Float64}}}(undef, size(𝑗, 1))
+hist_δ² = Vector{Vector{SVector{params1.K, Float64}}}(undef, size(𝑗, 1))
+hist_𝑤 = Vector{Vector{SVector{params1.K, Float64}}}(undef, size(𝑗, 1))
+for feat in 1:size(𝑗, 1)
+    hist_δ[feat] = zeros(SVector{params1.K, Float64}, length(bags[feat]))
+    hist_δ²[feat] = zeros(SVector{params1.K, Float64}, length(bags[feat]))
+    hist_𝑤[feat] = zeros(SVector{1, Float64}, length(bags[feat]))
+end
+
+# grow single tree
 @time train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-@time tree = grow_tree(bags, δ, δ², 𝑤, params1, train_nodes, splits, tracks, edges, X_bin)
+@time tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params1, train_nodes, splits, tracks, edges, X_bin)
 @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
 @time pred_train = predict(tree, X_train)
 @btime pred_train = predict($tree, $X_train)
 
-params1 = Params(:linear, 5, λ, γ, 1.0, 5, min_weight, rowsample, colsample, nbins)
-@btime model = grow_gbtree($X_train, $Y_train, $params1, print_every_n = 1, metric=:mae)
+@time model = grow_gbtree(X_train, Y_train, params1, print_every_n = 1)
+@btime model = grow_gbtree($X_train, $Y_train, $params1, print_every_n = 1)
 @time pred_train = predict(model, X_train)
 
 params1 = Params(:linear, 10, λ, γ, 0.1, 5, min_weight, rowsample, colsample, nbins)
@@ -98,11 +112,27 @@ sqrt(mean((pred_train .- Y_train) .^ 2))
 
 𝑖_set = BitSet(𝑖);
 @time bags = prep(X_bin, bags);
-
+# target: find_split_turbo! in 0.001 sec for 100_000 observations
 feat = 1
 typeof(bags[feat][1])
+# initialise node, info and tracks
 train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
+splits[feat] = SplitInfo{Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
+tracks[feat] = SplitTrack{Float64}(SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, -Inf)
+
+hist_δ = zeros(SVector{params1.K, Float64}, length(bags[feat]))
+hist_δ² = zeros(SVector{params1.K, Float64}, length(bags[feat]))
+hist_𝑤 = zeros(SVector{1, Float64}, length(bags[feat]))
+@time find_split_static!(hist_δ, hist_δ², hist_𝑤, bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
+
+feat = 2
+typeof(bags[feat][1])
+# initialise node, info and tracks
+train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
+splits[feat] = SplitInfo{Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
+tracks[feat] = SplitTrack{Float64}(SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, -Inf)
+@time find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
+
 
 length(union(train_nodes[1].bags[1][1:13]...))
 length(union(train_nodes[1].bags[1][1:13]...))

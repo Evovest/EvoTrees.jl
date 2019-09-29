@@ -1,8 +1,17 @@
 # compute the gradient and hessian given target and predict
 # linear
-function update_grads!(loss::Linear, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::AbstractMatrix{T}, δ²::AbstractMatrix{T}, 𝑤::AbstractVector{T}) where T <: AbstractFloat
-    @. δ = 2 * (pred - target) * 𝑤
-    @. δ² = 2 * 𝑤
+# function update_grads!(loss::Linear, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::AbstractMatrix{T}, δ²::AbstractMatrix{T}, 𝑤::AbstractVector{T}) where T <: AbstractFloat
+#     @. δ = 2 * (pred - target) * 𝑤
+#     @. δ² = 2 * 𝑤
+# end
+
+# compute the gradient and hessian given target and predict
+# linear
+function update_grads!(loss::Linear, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+    for i in eachindex(δ)
+        δ[i] = 2 * (pred[i] - target[i]) * 𝑤[i]
+        δ²[i] = 2 * 𝑤[i]
+    end
 end
 
 # compute the gradient and hessian given target and predict
@@ -126,7 +135,12 @@ end
 # end
 
 # Calculate the gain for a given split - GradientRegression
-function get_gain(loss::S, ∑δ::Vector{T}, ∑δ²::Vector{T}, ∑𝑤::T, λ::T) where {S <: GradientRegression, T <: AbstractFloat}
+# function get_gain(loss::S, ∑δ::Vector{T}, ∑δ²::Vector{T}, ∑𝑤::T, λ::T) where {S <: GradientRegression, T <: AbstractFloat}
+#     gain = sum((∑δ .^ 2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
+#     return gain
+# end
+
+function get_gain(loss::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{L,T}, λ::T) where {S <: GradientRegression, T <: AbstractFloat, L}
     gain = sum((∑δ .^ 2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
     return gain
 end
