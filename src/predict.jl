@@ -58,7 +58,7 @@ end
 
 # prediction in Leaf - L1Regression
 function pred_leaf(loss::S, node::TrainNode, params::EvoTreeRegressor, δ²) where {S<:L1Regression, T<:AbstractFloat}
-    pred = params.η * node.∑δ / (node.∑𝑤 * (1 + params.λ))
+    pred = params.η .* node.∑δ ./ (node.∑𝑤 .* (1 .+ params.λ))
     return pred
 end
 

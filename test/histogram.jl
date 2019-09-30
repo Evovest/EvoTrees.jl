@@ -8,7 +8,7 @@ using Revise
 using BenchmarkTools
 using EvoTrees
 using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, SplitTrack, Tree, TrainNode, TreeNode, EvoTreeRegressor, predict, predict!, sigmoid
-using EvoTrees: find_bags, find_split_turbo!, update_bags!
+using EvoTrees: find_bags, update_bags!
 using EvoTrees: find_split_static!, pred_leaf
 
 # prepare a dataset
@@ -128,9 +128,8 @@ feat = 2
 typeof(bags[feat][1])
 # initialise node, info and tracks
 train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-splits[feat] = SplitInfo{Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
-tracks[feat] = SplitTrack{Float64}(SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, -Inf)
-@time find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
+splits[feat] = SplitInfo{Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, 0, feat, 0.0)
+@time find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], train_nodes[1].𝑖)
 
 
 length(union(train_nodes[1].bags[1][1:13]...))
