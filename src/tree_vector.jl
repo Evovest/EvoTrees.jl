@@ -24,7 +24,6 @@ function grow_tree(bags::Vector{Vector{BitSet}},
             else
                 @threads for feat in node.𝑗
                     splits[feat].gain = node.gain
-                    # splits[feat] = SplitInfo{Float64, Int}(node.gain, SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
                     find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, node.∑δ, node.∑δ², node.∑𝑤, params, splits[feat], edges[feat], node.𝑖)
                 end
                 # assign best split
