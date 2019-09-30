@@ -81,6 +81,7 @@ params1 = EvoTreeRegressor(
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_L1 = predict(model, X_train)
 @time pred_eval_L1 = predict(model, X_eval)
+sqrt(mean((pred_train_L1 .- Y_train) .^ 2))
 
 x_perm = sortperm(X_train[:,1])
 plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")

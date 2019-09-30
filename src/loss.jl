@@ -92,72 +92,29 @@ function softmax(x::AbstractVector{T}) where T <: AbstractFloat
     return x
 end
 
-# update the performance tracker - GradientRegression
-# function update_track!(loss::S, track::SplitTrack{T}, λ::T) where {S <: GradientRegression, T <: AbstractFloat}
-#     track.gainL = (track.∑δL ^ 2 / (track.∑δ²L + λ * track.∑𝑤L)) / 2
-#     track.gainR = (track.∑δR ^ 2 / (track.∑δ²R + λ * track.∑𝑤R)) / 2
-#     track.gain = track.gainL + track.gainR
-# end
 
-# update the performance tracker - 'MultiClassRegression'
-function update_track!(loss::S, track::SplitTrack{T}, λ::T) where {S <: GradientRegression, T <: AbstractFloat}
-    track.gainL = sum((track.∑δL .^ 2 ./ (track.∑δ²L .+ λ .* track.∑𝑤L)) ./ 2)
-    track.gainR = sum((track.∑δR .^ 2 ./ (track.∑δ²R .+ λ .* track.∑𝑤R)) ./ 2)
-    track.gain = track.gainL + track.gainR
-end
-
-# update the performance tracker - 'MultiClassRegression'
-function update_track!(loss::S, track::SplitTrack{T}, λ::T) where {S <: MultiClassRegression, T <: AbstractFloat}
-    track.gainL = sum((track.∑δL .^ 2 ./ (track.∑δ²L .+ λ .* track.∑𝑤L)) ./ 2)
-    track.gainR = sum((track.∑δR .^ 2 ./ (track.∑δ²R .+ λ .* track.∑𝑤R)) ./ 2)
-    track.gain = track.gainL + track.gainR
-end
-
-# update the performance tracker - L1Regression
-function update_track!(loss::S, track::SplitTrack{T}, λ::T) where {S <: L1Regression, T <: AbstractFloat}
-    track.gainL = abs(track.∑δL)
-    track.gainR = abs(track.∑δR)
-    track.gain = track.gainL + track.gainR
-end
-
-# update the performance tracker - QuantileRegression
-function update_track!(loss::S, track::SplitTrack{T}, λ::T) where {S <: QuantileRegression, T <: AbstractFloat}
-    track.gainL = abs(track.∑δL) / (1 + λ)
-    track.gainR = abs(track.∑δR) / (1 + λ)
-    track.gain = track.gainL + track.gainR
-end
-
-# Calculate the gain for a given split - GradientRegression
-# function get_gain(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, λ::T) where {S <: GradientRegression, T <: AbstractFloat}
-#     gain = (∑δ ^ 2 / (∑δ² + λ * ∑𝑤)) / 2
-#     return gain
-# end
-
-# Calculate the gain for a given split - GradientRegression
-# function get_gain(loss::S, ∑δ::Vector{T}, ∑δ²::Vector{T}, ∑𝑤::T, λ::T) where {S <: GradientRegression, T <: AbstractFloat}
-#     gain = sum((∑δ .^ 2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
-#     return gain
-# end
-
-function get_gain(loss::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{L,T}, λ::T) where {S <: GradientRegression, T <: AbstractFloat, L}
+##############################
+# get the gain metric
+##############################
+function get_gain(loss::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: GradientRegression, T <: AbstractFloat, L}
     gain = sum((∑δ .^ 2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
     return gain
 end
 
 # Calculate the gain for a given split - MultiClassRegression
-function get_gain(loss::S, ∑δ::Vector{T}, ∑δ²::Vector{T}, ∑𝑤::T, λ::T) where {S <: MultiClassRegression, T <: AbstractFloat}
+function get_gain(loss::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: MultiClassRegression, T <: AbstractFloat, L}
     gain = sum((∑δ .^ 2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
     return gain
 end
 
 # Calculate the gain for a given split - L1Regression
-function get_gain(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, λ::T) where {S <: L1Regression, T <: AbstractFloat}
-    gain = abs(∑δ)
+function get_gain(loss::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: L1Regression, T <: AbstractFloat, L}
+    gain = sum(abs.(∑δ))
     return gain
 end
 
 # Calculate the gain for a given split - QuantileRegression
-function get_gain(loss::S, ∑δ::T, ∑δ²::T, ∑𝑤::T, λ::T) where {S <: QuantileRegression, T <: AbstractFloat}
+function get_gain(loss::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: QuantileRegression, T <: AbstractFloat, L}
     # gain = (∑δ ^ 2 / (λ * ∑𝑤)) / 2
     gain = abs(∑δ) / (1 + λ)
     return gain
