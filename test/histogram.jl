@@ -34,8 +34,8 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # set parameters
 params1 = EvoTreeRegressor(
-    loss=:linear, metric=:mse,
-    nrounds=10, nbins=32,
+    loss=:linear, metric=:mae,
+    nrounds=1, nbins=32,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=1.0, colsample=1.0)
@@ -45,7 +45,7 @@ params1 = EvoTreeRegressor(
 𝑤 = zeros(SVector{1, Float64}, size(X_train, 1)) .+ 1
 pred = zeros(size(Y_train, 1), params1.K)
 @time update_grads!(params1.loss, params1.α, pred, Y_train, δ, δ², 𝑤)
-∑δ, ∑δ², ∑𝑤 = sum(δ), sum(δ²), sum(𝑤)
+∑δ, ∑δ², ∑𝑤 = sum(δ[𝑖]), sum(δ²[𝑖]), sum(𝑤[𝑖])
 gain = get_gain(params1.loss, ∑δ, ∑δ², ∑𝑤, params1.λ)
 
 # initialize train_nodes
@@ -91,12 +91,12 @@ end
 # grow single tree
 @time train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
 @time tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params1, train_nodes, splits, tracks, edges, X_bin)
-@btime tree = grow_tree($bags, $δ, $δ², $𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
-@time pred_train = predict(tree, X_train)
-@btime pred_train = predict($tree, $X_train)
+# @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
+@time pred_train = predict(tree, X_train, params1.K)
+# @btime pred_train = predict($tree, $X_train, params1.K)
 
 @time model = grow_gbtree(X_train, Y_train, params1, print_every_n = 1)
-@btime model = grow_gbtree($X_train, $Y_train, $params1, print_every_n = 1)
+# @btime model = grow_gbtree($X_train, $Y_train, $params1, print_every_n = 1)
 @time pred_train = predict(model, X_train)
 
 params1 = Params(:linear, 10, λ, γ, 0.1, 5, min_weight, rowsample, colsample, nbins)
@@ -117,13 +117,12 @@ feat = 1
 typeof(bags[feat][1])
 # initialise node, info and tracks
 train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-splits[feat] = SplitInfo{Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
-tracks[feat] = SplitTrack{Float64}(SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, -Inf)
+splits[feat] = SplitInfo{Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, 0, feat, 0.0)
+# tracks[feat] = SplitTrack{Float64}(SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, -Inf)
 
-hist_δ = zeros(SVector{params1.K, Float64}, length(bags[feat]))
-hist_δ² = zeros(SVector{params1.K, Float64}, length(bags[feat]))
-hist_𝑤 = zeros(SVector{1, Float64}, length(bags[feat]))
-@time find_split_static!(hist_δ, hist_δ², hist_𝑤, bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
+splits[feat]
+# @time find_split_static!(hist_δ, hist_δ², hist_𝑤, bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
+@time find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], train_nodes[1].𝑖)
 
 feat = 2
 typeof(bags[feat][1])

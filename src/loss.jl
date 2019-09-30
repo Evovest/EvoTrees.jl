@@ -16,9 +16,19 @@ end
 
 # compute the gradient and hessian given target and predict
 # logistic - on linear predictor
-function update_grads!(loss::Logistic, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::AbstractMatrix{T}, δ²::AbstractMatrix{T}, 𝑤::AbstractVector{T}) where T <: AbstractFloat
-    @. δ = (sigmoid(pred) * (1 - target) - (1 - sigmoid(pred)) * target) * 𝑤
-    @. δ² = sigmoid(pred) * (1 - sigmoid(pred)) * 𝑤
+# function update_grads!(loss::Logistic, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::AbstractMatrix{T}, δ²::AbstractMatrix{T}, 𝑤::AbstractVector{T}) where T <: AbstractFloat
+#     @. δ = (sigmoid(pred) * (1 - target) - (1 - sigmoid(pred)) * target) * 𝑤
+#     @. δ² = sigmoid(pred) * (1 - sigmoid(pred)) * 𝑤
+# end
+
+# compute the gradient and hessian given target and predict
+# logistic - on linear predictor
+function update_grads!(loss::Logistic, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+    for i in eachindex(δ)
+        δ[i] = (sigmoid(pred[i]) * (1 - target[i]) - (1 - sigmoid(pred[i])) * target[i]) * 𝑤[i]
+        δ²[i] = sigmoid(pred[i]) * (1 - sigmoid(pred[i])) * 𝑤[i]
+    end
+
 end
 
 # compute the gradient and hessian given target and predict

@@ -39,53 +39,20 @@ function update_bags!(bins, set)
 end
 
 
-function find_split_turbo!(bins::Vector{BitSet}, X_bin, δ::AbstractVecOrMat{S}, δ²::AbstractVecOrMat{S}, 𝑤::Vector{S}, params::EvoTreeRegressor, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}
-
-    # initialize histogram
-    hist_δ = zeros(Float64, length(bins), size(δ,2))
-    hist_δ² = zeros(Float64, length(bins), size(δ,2))
-    hist_𝑤 = zeros(Float64, length(bins))
-
-    # build histogram
-    @inbounds for i in set
-        hist_δ[X_bin[i],:] .+= δ[i,:]
-        hist_δ²[X_bin[i],:] .+= δ²[i,:]
-        hist_𝑤[X_bin[i]] += 𝑤[i]
-    end
-
-    @inbounds for bin in 1:(length(bins)-1)
-        track.∑δL .+= hist_δ[bin,:]
-        track.∑δ²L .+= hist_δ²[bin,:]
-        track.∑𝑤L += hist_𝑤[bin]
-        track.∑δR .-= hist_δ[bin,:]
-        track.∑δ²R .-= hist_δ²[bin,:]
-        track.∑𝑤R -= hist_𝑤[bin]
-        update_track!(params.loss, track, params.λ)
-
-        if track.gain > info.gain && track.∑𝑤L >= params.min_weight && track.∑𝑤R >= params.min_weight
-            info.gain = track.gain
-            info.gainL = track.gainL
-            info.gainR = track.gainR
-            info.∑δL .= track.∑δL
-            info.∑δ²L .= track.∑δ²L
-            info.∑𝑤L = track.∑𝑤L
-            info.∑δR .= track.∑δR
-            info.∑δ²R .= track.∑δ²R
-            info.∑𝑤R = track.∑𝑤R
-            info.cond = edges[bin]
-            info.𝑖 = bin
-        end
-    end
-    return
-end
-
-
-function find_split_static!(hist_δ, hist_δ², hist_𝑤, bins::Vector{BitSet}, X_bin, δ, δ², 𝑤, params::EvoTreeRegressor, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}
+function find_split_static!(hist_δ, hist_δ², hist_𝑤, bins::Vector{BitSet}, X_bin, δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params::EvoTreeRegressor, info::SplitInfo{S, Int}, edges, set::BitSet) where {S<:AbstractFloat}
 
     # initialize histogram
     hist_δ .*= 0.0
     hist_δ² .*= 0.0
     hist_𝑤 .*= 0.0
+
+    # initialize tracking
+    ∑δL = SVector{1,Float64}(0.0)
+    ∑δ²L = SVector{1,Float64}(0.0)
+    ∑𝑤L = SVector{1,Float64}(0.0)
+    ∑δR = ∑δ
+    ∑δ²R = ∑δ²
+    ∑𝑤R = ∑𝑤
 
     # build histogram
     @inbounds for i in set
@@ -95,24 +62,26 @@ function find_split_static!(hist_δ, hist_δ², hist_𝑤, bins::Vector{BitSet},
     end
 
     @inbounds for bin in 1:(length(bins)-1)
-        track.∑δL += hist_δ[bin]
-        track.∑δ²L += hist_δ²[bin]
-        track.∑𝑤L += hist_𝑤[bin]
-        track.∑δR -= hist_δ[bin]
-        track.∑δ²R -= hist_δ²[bin]
-        track.∑𝑤R -= hist_𝑤[bin]
-        update_track!(params.loss, track, params.λ)
+        ∑δL += hist_δ[bin]
+        ∑δ²L += hist_δ²[bin]
+        ∑𝑤L += hist_𝑤[bin]
+        ∑δR -= hist_δ[bin]
+        ∑δ²R -= hist_δ²[bin]
+        ∑𝑤R -= hist_𝑤[bin]
 
-        if track.gain > info.gain && track.∑𝑤L[1] >= params.min_weight && track.∑𝑤R[1] >= params.min_weight
-            info.gain = track.gain
-            info.gainL = track.gainL
-            info.gainR = track.gainR
-            info.∑δL = track.∑δL
-            info.∑δ²L = track.∑δ²L
-            info.∑𝑤L = track.∑𝑤L
-            info.∑δR = track.∑δR
-            info.∑δ²R = track.∑δ²R
-            info.∑𝑤R = track.∑𝑤R
+        gainL, gainR = get_gain(params.loss, ∑δL, ∑δ²L, ∑𝑤L, params.λ), get_gain(params.loss, ∑δR, ∑δ²R, ∑𝑤R, params.λ)
+        gain = gainL + gainR
+
+        if gain > info.gain && ∑𝑤L[1] >= params.min_weight && ∑𝑤R[1] >= params.min_weight
+            info.gain = gain
+            info.gainL = gainL
+            info.gainR = gainR
+            info.∑δL = ∑δL
+            info.∑δ²L = ∑δ²L
+            info.∑𝑤L = ∑𝑤L
+            info.∑δR = ∑δR
+            info.∑δ²R = ∑δ²R
+            info.∑𝑤R = ∑𝑤R
             info.cond = edges[bin]
             info.𝑖 = bin
         end
