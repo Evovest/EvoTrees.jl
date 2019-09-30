@@ -5,7 +5,6 @@ function grow_tree(bags::Vector{Vector{BitSet}},
     params::EvoTreeRegressor,
     train_nodes::Vector{TrainNode{T, I, J, S}},
     splits::Vector{SplitInfo{T, Int}},
-    tracks::Vector{SplitTrack{T}},
     edges, X_bin) where {R<:Real, T<:AbstractFloat, I<:BitSet, J<:AbstractVector{Int}, S<:Int}
 
     active_id = ones(Int, 1)
@@ -80,7 +79,8 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
         pred_eval = ones(size(Y_eval, 1), params.K) .* μ'
     end
 
-    bias = Tree([TreeNode(SVector{1, Float64}(μ))])
+    # bias = Tree([TreeNode(SVector{1, Float64}(μ))])
+    bias = Tree([TreeNode(μ)])
     gbtree = GBTree([bias], params, Metric())
 
     X_size = size(X)
@@ -106,7 +106,6 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
 
     # initializde node splits info and tracks - colsample size (𝑗)
     splits = Vector{SplitInfo{Float64, Int64}}(undef, X_size[2])
-    tracks = Vector{SplitTrack{Float64}}(undef, X_size[2])
     hist_δ = Vector{Vector{SVector{params.K, Float64}}}(undef, X_size[2])
     hist_δ² = Vector{Vector{SVector{params.K, Float64}}}(undef, X_size[2])
     hist_𝑤 = Vector{Vector{SVector{params.K, Float64}}}(undef, X_size[2])
@@ -144,7 +143,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
 
         # assign a root and grow tree
         train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-        tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params, train_nodes, splits, tracks, edges, X_bin)
+        tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params, train_nodes, splits, edges, X_bin)
         # push new tree to model
         push!(gbtree.trees, tree)
         # update predictions

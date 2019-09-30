@@ -86,15 +86,18 @@ end
 
 # grow single tree
 @time train_nodes[1] = TrainNode(1, SVector(∑δ), SVector(∑δ²), SVector(∑𝑤), gain, BitSet(𝑖), 𝑗)
-@time tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params1, train_nodes, splits, tracks, edges, X_bin)
+@time tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params1, train_nodes, splits, edges, X_bin)
 # @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $hist_δ, $hist_δ², $hist_𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
 @time pred_train = predict(tree, X_train, params1.K)
+@btime pred_train = predict($tree, $X_train, $params1.K)
+@time pred_leaf_ = pred_leaf(params1.loss, train_nodes[1], params1, δ²)
 @btime pred_leaf_ = pred_leaf($params1.loss, $train_nodes[1], $params1, $δ²)
 # @btime pred_train = predict($tree, $X_train, params1.K)
 
 @time model = grow_gbtree(X_train, Y_train, params1, print_every_n = 1)
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, print_every_n = 1)
 @time pred_train = predict(model, X_train)
+@btime pred_train = predict($model, $X_train)
 
 params1 = Params(:linear, 10, λ, γ, 0.1, 5, min_weight, rowsample, colsample, nbins)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 1, metric=:mae)

@@ -47,12 +47,12 @@ struct TreeNode{T<:AbstractFloat, S<:Int, B<:Bool}
     right::S
     feat::S
     cond::T
-    pred::SVector
+    pred::Vector
     split::B
 end
 
-TreeNode(left::S, right::S, feat::S, cond::T) where {T<:AbstractFloat, S<:Int} = TreeNode{T,S,Bool}(left, right, feat, cond, SVector{1}(0.0), true)
-TreeNode(pred::SVector) = TreeNode(0, 0, 0, 0.0, pred, false)
+TreeNode(left::S, right::S, feat::S, cond::T) where {T<:AbstractFloat, S<:Int} = TreeNode{T,S,Bool}(left, right, feat, cond, [0.0], true)
+TreeNode(pred::Vector) = TreeNode(0, 0, 0, 0.0, pred, false)
 
 mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} #<: MLJBase.Deterministic
     loss::U
