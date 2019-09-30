@@ -8,7 +8,7 @@ using Revise
 using BenchmarkTools
 using EvoTrees
 using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, SplitTrack, Tree, TrainNode, TreeNode, EvoTreeRegressor, predict, predict!, sigmoid
-using EvoTrees: find_bags, find_split_turbo!, update_bags!
+using EvoTrees: find_bags, find_split_turbo!, update_bags!, pred_leaf
 
 # prepare a dataset
 # features = rand(100_000, 100)
@@ -80,6 +80,7 @@ end
 @time train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
 @time tree = grow_tree(bags, δ, δ², 𝑤, params1, train_nodes, splits, tracks, edges, X_bin)
 @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
+@btime pred_leaf_ = pred_leaf($params1.loss, $train_nodes[1], $params1, $δ²)
 @time pred_train = predict(tree, X_train)
 @btime pred_train = predict($tree, $X_train)
 
