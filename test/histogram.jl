@@ -130,6 +130,7 @@ feat = 1
 typeof(bags[feat][1])
 train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
 @time find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
+# 482.100 μs (5 allocations: 1.05 KiB)
 @btime find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
 
 length(union(train_nodes[1].bags[1][1:13]...))
