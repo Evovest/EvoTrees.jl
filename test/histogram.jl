@@ -46,7 +46,7 @@ params1 = EvoTreeRegressor(
 pred = zeros(size(Y_train, 1), params1.K)
 @time update_grads!(params1.loss, params1.α, pred, Y_train, δ, δ², 𝑤)
 ∑δ, ∑δ², ∑𝑤 = sum(δ[𝑖]), sum(δ²[𝑖]), sum(𝑤[𝑖])
-gain = get_gain(params1.loss, SVector(∑δ), SVector(∑δ²), SVector(∑𝑤), params1.λ)
+gain = get_gain(params1.loss, ∑δ, ∑δ², ∑𝑤, params1.λ)
 
 # initialize train_nodes
 train_nodes = Vector{TrainNode{Float64, BitSet, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
@@ -89,8 +89,10 @@ end
 @time tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params1, train_nodes, splits, edges, X_bin)
 # @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $hist_δ, $hist_δ², $hist_𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
 @time pred_train = predict(tree, X_train, params1.K)
+# 8.422 ms (138845 allocations: 7.66 MiB)
 @btime pred_train = predict($tree, $X_train, $params1.K)
 @time pred_leaf_ = pred_leaf(params1.loss, train_nodes[1], params1, δ²)
+# 352.133 ns (15 allocations: 352 bytes)
 @btime pred_leaf_ = pred_leaf($params1.loss, $train_nodes[1], $params1, $δ²)
 # @btime pred_train = predict($tree, $X_train, params1.K)
 
