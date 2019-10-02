@@ -40,20 +40,14 @@ function update_grads!(loss::Softmax, α::T, pred::AbstractMatrix{T}, target::Ab
 end
 
 # Quantile
-function quantile_grads(pred, target, α)
-    if target > pred; α
-    elseif target < pred; α - 1
-    end
-end
- # target > pred ? α : α -1
 function update_grads!(loss::Quantile, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
     for i in eachindex(δ)
         δ[i] = target[i] .> pred[i] ? α .* 𝑤[i] : (α .- 1) .* 𝑤[i]
-        # δ[i] = quantile_grads(pred[i], target[i], α) .* 𝑤[i]
         δ²[i] = [target[i] - pred[i]] # δ² serves to calculate the quantile value - hence no weighting on δ²
     end
 end
 
+# utility functions
 function logit(x::AbstractArray{T, 1}) where T <: AbstractFloat
     @. x = log(x / (1 - x))
     return x
@@ -84,24 +78,25 @@ end
 ##############################
 # get the gain metric
 ##############################
+# GradientRegression
 function get_gain(loss::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: GradientRegression, T <: AbstractFloat, L}
     gain = sum((∑δ .^ 2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
     return gain
 end
 
-# Calculate the gain for a given split - MultiClassRegression
+# MultiClassRegression
 function get_gain(loss::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: MultiClassRegression, T <: AbstractFloat, L}
     gain = sum((∑δ .^ 2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
     return gain
 end
 
-# Calculate the gain for a given split - L1Regression
+# L1 Regression
 function get_gain(loss::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: L1Regression, T <: AbstractFloat, L}
     gain = sum(abs.(∑δ))
     return gain
 end
 
-# Calculate the gain for a given split - QuantileRegression
+# QuantileRegression
 function get_gain(loss::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: QuantileRegression, T <: AbstractFloat, L}
     gain = sum(abs.(∑δ) ./ (1 .+ λ))
     return gain
