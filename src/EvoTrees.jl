@@ -9,6 +9,7 @@ using Base.Threads: @threads
 using StatsBase: sample, quantile
 using Random: seed!
 using StaticArrays
+using Flux: onehot
 # import MLJ
 # import MLJBase
 

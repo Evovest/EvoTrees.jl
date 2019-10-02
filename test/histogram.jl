@@ -41,7 +41,7 @@ params1 = EvoTreeRegressor(
     rowsample=1.0, colsample=1.0)
 
 # initial info
-δ, δ² = zeros(SVector{params1.K, Float64}, size(X_train, 1)), zeros(SVector{params1.K, Float64}, size(X_train, 1))
+@time δ, δ² = zeros(SVector{params1.K, Float64}, size(X_train, 1)), zeros(SVector{params1.K, Float64}, size(X_train, 1))
 𝑤 = zeros(SVector{1, Float64}, size(X_train, 1)) .+ 1
 pred = zeros(size(Y_train, 1), params1.K)
 @time update_grads!(params1.loss, params1.α, pred, Y_train, δ, δ², 𝑤)
@@ -77,7 +77,7 @@ end
 feat=1
 hist_δ = Vector{Vector{SVector{params1.K, Float64}}}(undef, size(𝑗, 1))
 hist_δ² = Vector{Vector{SVector{params1.K, Float64}}}(undef, size(𝑗, 1))
-hist_𝑤 = Vector{Vector{SVector{params1.K, Float64}}}(undef, size(𝑗, 1))
+hist_𝑤 = Vector{Vector{SVector{1, Float64}}}(undef, size(𝑗, 1))
 for feat in 1:size(𝑗, 1)
     hist_δ[feat] = zeros(SVector{params1.K, Float64}, length(bags[feat]))
     hist_δ²[feat] = zeros(SVector{params1.K, Float64}, length(bags[feat]))

@@ -47,9 +47,10 @@ function find_split_static!(hist_δ, hist_δ², hist_𝑤, bins::Vector{BitSet},
     hist_𝑤 .*= 0.0
 
     # initialize tracking
-    ∑δL = SVector{params.K,Float64}(0.0)
-    ∑δ²L = SVector{params.K,Float64}(0.0)
-    ∑𝑤L = SVector{1,Float64}(0.0)
+
+    ∑δL = zeros(SVector{params.K,Float64})
+    ∑δ²L = zeros(SVector{params.K,Float64})
+    ∑𝑤L = zeros(SVector{1,Float64})
     ∑δR = ∑δ
     ∑δ²R = ∑δ²
     ∑𝑤R = ∑𝑤

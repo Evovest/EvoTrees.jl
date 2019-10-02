@@ -28,7 +28,7 @@ function eval_metric(::Val{:mlogloss}, pred::AbstractMatrix{T}, Y::AbstractVecto
     return eval
 end
 
-function eval_metric(::Val{:quantile}, pred::AbstractArray{T, 1}, Y::AbstractArray{T, 1}, α=0.0) where T <: AbstractFloat
+function eval_metric(::Val{:quantile}, pred::AbstractMatrix{T}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
     eval = mean(α .* max.(Y .- pred, 0) .+ (1-α) * max.(pred .- Y, 0))
     return eval
 end

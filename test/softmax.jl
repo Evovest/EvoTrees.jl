@@ -10,7 +10,9 @@ using Base.Threads: @threads
 using Revise
 using EvoTrees
 using EvoTrees: sigmoid, logit
+using EvoTrees: softmax
 using EvoTrees: update_grads!, get_gain, TrainNode, SplitInfo, SplitTrack, get_edges, binarize, find_bags, grow_tree, find_split_turbo!, pred_leaf, softmax
+using Flux: onehot
 
 # prepare a dataset
 iris = CSV.read("./data/iris.csv")
@@ -43,7 +45,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 # set parameters
 params1 = EvoTreeRegressor(
     loss=:softmax, metric=:mlogloss,
-    nrounds=1, nbins=32,
+    nrounds=1, nbins=16,
     λ = 0.0, γ=0.0, η=0.3,
     max_depth = 3, min_weight = 1.0,
     rowsample=1.0, colsample=1.0,
@@ -51,29 +53,25 @@ params1 = EvoTreeRegressor(
 
 # initial info
 K = maximum(Y_train)
-δ, δ² = zeros(size(X_train, 1), K), zeros(size(X_train, 1), K)
-𝑤 = ones(size(X_train, 1))
+@time δ, δ² = zeros(SVector{params1.K, Float64}, size(X_train, 1)), zeros(SVector{params1.K, Float64}, size(X_train, 1))
+𝑤 = zeros(SVector{1, Float64}, size(X_train, 1)) .+ 1
 pred = zeros(size(Y_train, 1), K)
 # @time update_grads!(Val{params1.loss}(), pred, Y, δ, δ²)
-update_grads!(params1.loss, params1.α, pred, Y_train, δ, δ², 𝑤)
-∑δ, ∑δ², ∑𝑤 = vec(sum(δ, dims=1)), vec(sum(δ², dims=1)), sum(𝑤)
+@time update_grads!(params1.loss, params1.α, pred, Y_train, δ, δ², 𝑤)
+∑δ, ∑δ², ∑𝑤 = sum(δ[𝑖]), sum(δ²[𝑖]), sum(𝑤[𝑖])
 gain = get_gain(params1.loss, ∑δ, ∑δ², ∑𝑤, params1.λ)
 
 # initialize train_nodes
 train_nodes = Vector{TrainNode{Float64, BitSet, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
-for feat in 1:2^params1.max_depth-1
-    train_nodes[feat] = TrainNode(0, fill(-Inf,K), fill(-Inf,K), -Inf, -Inf, BitSet([0]), [0])
-    # train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, Set([0]), [0], bags)
+for node in 1:2^params1.max_depth-1
+    train_nodes[node] = TrainNode(0, SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, BitSet([0]), [0])
+    # train_nodes[feat] = TrainNode(0, fill(-Inf, params1.K), fill(-Inf, params1.K), -Inf, -Inf, BitSet([0]), [0])
 end
 
 # initializde node splits info and tracks - colsample size (𝑗)
 splits = Vector{SplitInfo{Float64, Int}}(undef, size(𝑗, 1))
 for feat in 1:size(𝑗, 1)
-    splits[feat] = SplitInfo{Float64, Int}(0.0, zeros(K), zeros(K), 0.0, zeros(K), zeros(K), 0.0, -Inf, -Inf, 0, feat, 0.0)
-end
-tracks = Vector{SplitTrack{Float64}}(undef, size(𝑗, 1))
-for feat in 1:size(𝑗, 1)
-    tracks[feat] = SplitTrack{Float64}(zeros(K), zeros(K), 0.0, zeros(K), zeros(K), 0.0, -Inf, -Inf, -Inf)
+    splits[feat] = SplitInfo{Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
 end
 
 @time edges = get_edges(X_train, params1.nbins)
@@ -88,13 +86,27 @@ end
 
 @time bags = prep(X_bin, bags)
 
+# initialize histograms
+feat=1
+hist_δ = Vector{Vector{SVector{params1.K, Float64}}}(undef, size(𝑗, 1))
+hist_δ² = Vector{Vector{SVector{params1.K, Float64}}}(undef, size(𝑗, 1))
+hist_𝑤 = Vector{Vector{SVector{1, Float64}}}(undef, size(𝑗, 1))
+for feat in 1:size(𝑗, 1)
+    hist_δ[feat] = zeros(SVector{params1.K, Float64}, length(bags[feat]))
+    hist_δ²[feat] = zeros(SVector{params1.K, Float64}, length(bags[feat]))
+    hist_𝑤[feat] = zeros(SVector{1, Float64}, length(bags[feat]))
+end
+
+# grow single tree
+@time train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
+@time pred_leaf_ = pred_leaf(params1.loss, train_nodes[1], params1, δ²)
+@btime pred_leaf_ = pred_leaf(params1.loss, train_nodes[1], params1, δ²)
+@time tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params1, train_nodes, splits, edges, X_bin)
+
 # feat = 1
 # typeof(bags[feat][1])
 # train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
 # find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
-
-@time train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-@time tree = grow_tree(bags, δ, δ², 𝑤, params1, train_nodes, splits, tracks, edges, X_bin)
 
 pred = predict(tree, X_train, params1.K)
 for row in eachrow(pred)
@@ -112,13 +124,13 @@ minimum(pred)
 
 params1 = EvoTreeRegressor(
     loss=:softmax, metric=:mlogloss,
-    nrounds=20, nbins=32,
+    nrounds=20, nbins=16,
     λ = 0.0, γ=1e-5, η=0.3,
     max_depth = 3, min_weight = 1.0,
     rowsample=1.0, colsample=1.0,
     K = 3, seed=44)
 
-@time model = grow_gbtree(X_train, Y_train, params1, print_every_n = 5)
+@time model = grow_gbtree(X_train, Y_train, params1, print_every_n = Inf)
 # @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 1)
 
 sum(Y_train.==3)/length(Y_train)
@@ -138,6 +150,3 @@ for i in 1:size(pred_eval, 1)
     pred_eval_int[i] = findmax(pred_eval[i,:])[2]
 end
 sum(pred_train_int .== Y_train), sum(pred_eval_int .== Y_eval)
-
-mean(abs.(pred_train_linear .- Y_train))
-sqrt(mean((pred_train_linear .- Y_train) .^ 2))

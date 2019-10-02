@@ -108,7 +108,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     splits = Vector{SplitInfo{Float64, Int64}}(undef, X_size[2])
     hist_δ = Vector{Vector{SVector{params.K, Float64}}}(undef, X_size[2])
     hist_δ² = Vector{Vector{SVector{params.K, Float64}}}(undef, X_size[2])
-    hist_𝑤 = Vector{Vector{SVector{params.K, Float64}}}(undef, X_size[2])
+    hist_𝑤 = Vector{Vector{SVector{1, Float64}}}(undef, X_size[2])
     for feat in 𝑗_
         splits[feat] = SplitInfo{Float64, Int}(-Inf, SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
         # tracks[feat] = SplitTrack{Float64}(SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, -Inf)

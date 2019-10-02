@@ -84,7 +84,7 @@ params1 = EvoTreeRegressor(
 sqrt(mean((pred_train_L1 .- Y_train) .^ 2))
 
 x_perm = sortperm(X_train[:,1])
-plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "lightgray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
 plot!(X_train[:,1][x_perm], pred_train_linear[x_perm], color = "navy", linewidth = 1.5, label = "Linear")
 plot!(X_train[:,1][x_perm], pred_train_logistic[x_perm], color = "darkred", linewidth = 1.5, label = "Logistic")
 plot!(X_train[:,1][x_perm], pred_train_poisson[x_perm], color = "green", linewidth = 1.5, label = "Poisson")
@@ -98,7 +98,7 @@ savefig("regression_sinus.png")
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.5, metric=:quantile,
     nrounds=200, nbins = 100,
-    λ = 0.5, γ=0.0, η=0.05,
+    λ = 0.1, γ=1e-3, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
@@ -111,7 +111,7 @@ sum(pred_train_q50 .< Y_train) / length(Y_train)
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.2, metric=:quantile,
     nrounds=200, nbins = 100,
-    λ = 0.5, γ=0.0, η=0.05,
+    λ = 0.1, γ=1e-3, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
@@ -122,7 +122,7 @@ sum(pred_train_q20 .< Y_train) / length(Y_train)
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.8, metric=:quantile,
     nrounds=200, nbins = 100,
-    λ = 0.5, γ=0.0, η=0.05,
+    λ = 0.1, γ=1e-3, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
@@ -130,7 +130,7 @@ params1 = EvoTreeRegressor(
 sum(pred_train_q80 .< Y_train) / length(Y_train)
 
 x_perm = sortperm(X_train[:,1])
-plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "lightgray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
 plot!(X_train[:,1][x_perm], pred_train_q50[x_perm], color = "navy", linewidth = 1.5, label = "Median")
 plot!(X_train[:,1][x_perm], pred_train_q20[x_perm], color = "darkred", linewidth = 1.5, label = "Q20")
 plot!(X_train[:,1][x_perm], pred_train_q80[x_perm], color = "green", linewidth = 1.5, label = "Q80")
