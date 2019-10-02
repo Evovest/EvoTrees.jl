@@ -80,8 +80,10 @@ end
 @time train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
 @time tree = grow_tree(bags, δ, δ², 𝑤, params1, train_nodes, splits, tracks, edges, X_bin)
 @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
+# 21.765 ns (1 allocation: 16 bytes)
 @btime pred_leaf_ = pred_leaf($params1.loss, $train_nodes[1], $params1, $δ²)
 @time pred_train = predict(tree, X_train)
+# 860.199 μs (3 allocations: 625.13 KiB)
 @btime pred_train = predict($tree, $X_train)
 
 params1 = Params(:linear, 5, λ, γ, 1.0, 5, min_weight, rowsample, colsample, nbins)
