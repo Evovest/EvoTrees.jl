@@ -37,6 +37,7 @@ params1 = EvoTreeRegressor(
     rowsample=0.5, colsample=1.0)
 
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+# 52.214 ms (29486 allocations: 29.89 MiB)
 @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
 # Profile.clear()  # in case we have any previous profiling data
 # @profile grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
@@ -56,6 +57,7 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+# 201.325 ms (64846 allocations: 37.90 MiB)
 @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train_logistic = predict(model, X_train)
 @time pred_eval_logistic = predict(model, X_eval)
