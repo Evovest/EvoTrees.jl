@@ -24,13 +24,13 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # train model
 params1 = EvoTreeRegressor(
-    loss=:linear, metric=:mse,
+    loss=:linear, metric=:mae,
     nrounds=10,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=1.0, colsample=1.0, nbins=32)
 
-# 1.490 s (7704395 allocations: 641.95 MiB)
+# 1.532 s (7638530 allocations: 600.21 MiB)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 2)
 @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train = predict(model, X_train)
