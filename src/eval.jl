@@ -38,10 +38,11 @@ function eval_metric(::Val{:logloss}, pred::Vector{SVector{1,T}}, Y::AbstractVec
     return eval
 end
 
-function eval_metric(::Val{:mlogloss}, pred::Vector{SVector{1,T}}, Y::AbstractVector{S}, α=0.0) where {T <: AbstractFloat, S <: Int}
+function eval_metric(::Val{:mlogloss}, pred::Vector{SVector{L,T}}, Y::AbstractVector{S}, α=0.0) where {L, T <: AbstractFloat, S <: Int}
     eval = zero(T)
-    for i in 1:length(Y)
-        soft_pred = softmax(pred[i,:])
+    pred = pred - maximum.(pred)
+    for i in 1:length(pred)
+        soft_pred = exp.(pred[i]) / sum(exp.(pred[i]))
         eval -= log(soft_pred[Y[i]])
     end
     eval /= length(Y)

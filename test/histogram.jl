@@ -43,11 +43,11 @@ params1 = EvoTreeRegressor(
 # initial info
 @time δ, δ² = zeros(SVector{params1.K, Float64}, size(X_train, 1)), zeros(SVector{params1.K, Float64}, size(X_train, 1))
 𝑤 = zeros(SVector{1, Float64}, size(X_train, 1)) .+ 1
-# pred = zeros(size(Y_train, 1), params1.K)
 pred = zeros(SVector{params1.K,Float64}, size(X_train,1))
 @time update_grads!(params1.loss, params1.α, pred, Y_train, δ, δ², 𝑤)
 ∑δ, ∑δ², ∑𝑤 = sum(δ[𝑖]), sum(δ²[𝑖]), sum(𝑤[𝑖])
-gain = get_gain(params1.loss, ∑δ, ∑δ², ∑𝑤, params1.λ)
+@time gain = get_gain(params1.loss, ∑δ, ∑δ², ∑𝑤, params1.λ)
+# @btime gain = get_gain($params1.loss, $∑δ, $∑δ², $∑𝑤, $params1.λ)
 
 # initialize train_nodes
 train_nodes = Vector{TrainNode{params1.K, Float64, BitSet, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
@@ -124,8 +124,10 @@ train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
 splits[feat] = SplitInfo{params1.K, Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, 0, feat, 0.0)
 
 # 492.199 μs (343 allocations: 6.83 KiB)
+# 1.038 ms (343 allocations: 6.83 KiB) for 200_000
 splits[feat]
 @time find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], train_nodes[1].𝑖)
+# @code_warntype find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], train_nodes[1].𝑖)
 @btime find_split_static!($hist_δ[feat], $hist_δ²[feat], $hist_𝑤[feat], $bags[feat], $view(X_bin,:,feat), $δ, $δ², $𝑤, $∑δ, $∑δ², $∑𝑤, $params1, $splits[feat], $edges[feat], $train_nodes[1].𝑖)
 
 feat = 2

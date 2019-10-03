@@ -37,8 +37,8 @@ params1 = EvoTreeRegressor(
     rowsample=0.5, colsample=1.0)
 
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-# 84.067 ms (856612 allocations: 40.96 MiB)
-@btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
+# 67.159 ms (77252 allocations: 28.06 MiB)
+# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
 # Profile.clear()  # in case we have any previous profiling data
 # @profile grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 # ProfileView.view()
@@ -58,7 +58,7 @@ params1 = EvoTreeRegressor(
     rowsample=0.5, colsample=1.0)
 
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-# 255.050 ms (1986124 allocations: 64.56 MiB)
+# 218.040 ms (123372 allocations: 34.71 MiB)
 @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train_logistic = predict(model, X_train)
 @time pred_eval_logistic = predict(model, X_eval)
@@ -103,13 +103,14 @@ savefig("regression_sinus.png")
 # q50
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.5, metric=:quantile,
-    nrounds=200, nbins = 100,
+    nrounds=100, nbins = 100,
     λ = 0.1, γ=1e-3, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:quantile)
+# 116.822 ms (74496 allocations: 36.41 MiB) for 100 iterations
+# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train_q50 = predict(model, X_train)
 sum(pred_train_q50 .< Y_train) / length(Y_train)
 

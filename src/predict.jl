@@ -34,6 +34,7 @@ function predict(model::GBTree, X::AbstractArray{T, 2}) where T<:Real
     elseif typeof(model.params.loss) == Poisson
         @. pred = exp(pred)
     elseif typeof(model.params.loss) == Softmax
+        pred = transpose(reshape(pred, model.params.K, :))
         for row in eachrow(pred)
             row .= softmax(row)
         end
@@ -56,31 +57,20 @@ end
 
 # prediction in Leaf - MultiClassRegression
 function pred_leaf(loss::S, node::TrainNode{L,T}, params::EvoTreeRegressor, δ²) where {S<:MultiClassRegression,L,T}
-    pred = zeros(length(node.∑δ))
-    for  i in 1:length(node.∑δ)
-        pred[i] -= params.η * node.∑δ[i] / (node.∑δ²[i] + params.λ * node.∑𝑤[1])
-    end
-    return pred
+    # pred = zeros(length(node.∑δ))
+    # for  i in 1:length(node.∑δ)
+    #     pred[i] -= params.η * node.∑δ[i] / (node.∑δ²[i] + params.λ * node.∑𝑤[1])
+    # end
+    - params.η * node.∑δ ./ (node.∑δ² + params.λ * node.∑𝑤[1])
 end
-
 
 # prediction in Leaf - L1Regression
 function pred_leaf(loss::S, node::TrainNode{L,T}, params::EvoTreeRegressor, δ²) where {S<:L1Regression,L,T}
     params.η .* node.∑δ ./ (node.∑𝑤 .* (1 .+ params.λ))
 end
-# prediction in Leaf - L1Regression
-# function pred_leaf(loss::S, node::TrainNode, params::EvoTreeRegressor, δ²) where {S<:L1Regression, T<:AbstractFloat}
-#     pred = zeros(length(node.∑δ))
-#     for  i in 1:length(node.∑δ)
-#         pred[i] += params.η * node.∑δ[i] / (node.∑𝑤[1] * (1 + params.λ))
-#     end
-#     # pred = params.η * node.∑δ ./ (node.∑𝑤 * (1 + params.λ))
-#     return pred
-# end
 
 # prediction in Leaf - QuantileRegression
 function pred_leaf(loss::S, node::TrainNode{L,T}, params::EvoTreeRegressor, δ²) where {S<:QuantileRegression,L,T}
-    pred = [params.η * quantile(reinterpret(Float64, δ²[collect(node.𝑖)]), params.α) / (1 + params.λ)]
+    SVector{1,Float64}(params.η * quantile(reinterpret(Float64, δ²[collect(node.𝑖)]), params.α) / (1 + params.λ))
     # pred = params.η * quantile(δ²[collect(node.𝑖)], params.α) / (1 + params.λ)
-    return pred
 end

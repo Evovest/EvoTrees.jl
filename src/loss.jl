@@ -33,19 +33,20 @@ end
 
 # Softmax
 function update_grads!(loss::Softmax, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{Int}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
-    pred = pred .- maximum(pred, dims=2)
-    sums = sum(exp.(pred), dims=2)
+    pred = pred - maximum.(pred)
+    # sums = sum(exp.(pred), dims=2)
     @inbounds for i in 1:size(pred,1)
-        δ[i] = (exp.(pred[i,:]) ./ sums[i] .- (onehot(target[i], 1:size(pred,2)))) .* 𝑤[i]
-        δ²[i] =  1 ./ sums[i] .* (1 .- exp.(pred[i,:]) ./ sums[i]) .* 𝑤[i]
+        sums = sum(exp.(pred[i]))
+        δ[i] = (exp.(pred[i]) ./ sums - (onehot(target[i], 1:L))) * 𝑤[i][1]
+        δ²[i] =  1 / sums * (1 - exp.(pred[i]) ./ sums) * 𝑤[i][1]
     end
 end
 
 # Quantile
 function update_grads!(loss::Quantile, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
     @inbounds for i in eachindex(δ)
-        δ[i] = target[i] .> pred[i] ? α .* 𝑤[i] : (α .- 1) .* 𝑤[i]
-        δ²[i] = [target[i] - pred[i]] # δ² serves to calculate the quantile value - hence no weighting on δ²
+        δ[i] = target[i] > pred[i][1] ? α * 𝑤[i] : (α - 1) * 𝑤[i]
+        δ²[i] = target[i] - pred[i] # δ² serves to calculate the quantile value - hence no weighting on δ²
     end
 end
 

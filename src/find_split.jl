@@ -47,10 +47,9 @@ function find_split_static!(hist_δ::Vector{SVector{L,T}}, hist_δ²::Vector{SVe
     hist_𝑤 .*= 0.0
 
     # initialize tracking
-
-    ∑δL = zeros(SVector{params.K,Float64})
-    ∑δ²L = zeros(SVector{params.K,Float64})
-    ∑𝑤L = zeros(SVector{1,Float64})
+    ∑δL = ∑δ * 0
+    ∑δ²L = ∑δ² * 0
+    ∑𝑤L = ∑𝑤 * 0
     ∑δR = ∑δ
     ∑δ²R = ∑δ²
     ∑𝑤R = ∑𝑤
