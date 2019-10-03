@@ -40,13 +40,17 @@ function predict(model::GBTree, X::AbstractArray{T, 2}) where T<:Real
     return pred
 end
 
+
 # prediction in Leaf - GradientRegression
-function pred_leaf(loss::S, node::TrainNode, params::EvoTreeRegressor, δ²) where {S<:GradientRegression, T<:AbstractFloat}
-    pred = zeros(length(node.∑δ))
-    for  i in 1:length(node.∑δ)
-        pred[i] -= params.η * node.∑δ[i] / (node.∑δ²[i] + params.λ * node.∑𝑤[1])
-    end
-    return pred
+# function pred_leaf(loss::S, node::TrainNode, params::EvoTreeRegressor, δ²) where {S<:GradientRegression, T<:AbstractFloat}
+#     # pred = zeros(length(node.∑δ))
+#     # for  i in 1:length(node.∑δ)
+#     SVector(params.η) .* node.∑δ ./ (node.∑δ² .+ SVector(params.λ) .* node.∑𝑤)
+#     # end
+#     # return pred
+# end
+function pred_leaf(loss::A, node::TrainNode{L,T}, params::EvoTreeRegressor, δ²) where {A,L,T}
+    params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤)
 end
 
 # prediction in Leaf - MultiClassRegression

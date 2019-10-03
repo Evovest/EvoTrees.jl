@@ -7,7 +7,7 @@ using StaticArrays
 using Revise
 using BenchmarkTools
 using EvoTrees
-using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, SplitTrack, Tree, TrainNode, TreeNode, EvoTreeRegressor, predict, predict!, sigmoid
+using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, EvoTreeRegressor, predict, predict!, sigmoid
 using EvoTrees: find_bags, update_bags!
 using EvoTrees: find_split_static!, pred_leaf
 
@@ -49,16 +49,16 @@ pred = zeros(size(Y_train, 1), params1.K)
 gain = get_gain(params1.loss, ∑δ, ∑δ², ∑𝑤, params1.λ)
 
 # initialize train_nodes
-train_nodes = Vector{TrainNode{Float64, BitSet, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
+train_nodes = Vector{TrainNode{params1.K, Float64, BitSet, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
 for node in 1:2^params1.max_depth-1
     train_nodes[node] = TrainNode(0, SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, BitSet([0]), [0])
     # train_nodes[feat] = TrainNode(0, fill(-Inf, params1.K), fill(-Inf, params1.K), -Inf, -Inf, BitSet([0]), [0])
 end
 
 # initializde node splits info and tracks - colsample size (𝑗)
-splits = Vector{SplitInfo{Float64, Int}}(undef, size(𝑗, 1))
+splits = Vector{SplitInfo{params1.K, Float64, Int}}(undef, size(𝑗, 1))
 for feat in 1:size(𝑗, 1)
-    splits[feat] = SplitInfo{Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
+    splits[feat] = SplitInfo{params1.K, Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
 end
 
 # binarize data and create bags
@@ -89,10 +89,10 @@ end
 @time tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params1, train_nodes, splits, edges, X_bin)
 # @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $hist_δ, $hist_δ², $hist_𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
 @time pred_train = predict(tree, X_train, params1.K)
-# 8.422 ms (138845 allocations: 7.66 MiB)
+# 3.206 ms (43472 allocations: 4.30 MiB)
 @btime pred_train = predict($tree, $X_train, $params1.K)
 @time pred_leaf_ = pred_leaf(params1.loss, train_nodes[1], params1, δ²)
-# 352.133 ns (15 allocations: 352 bytes)
+# 1.899 ns (0 allocations: 0 bytes)
 @btime pred_leaf_ = pred_leaf($params1.loss, $train_nodes[1], $params1, $δ²)
 # @btime pred_train = predict($tree, $X_train, params1.K)
 

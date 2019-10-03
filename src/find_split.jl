@@ -39,7 +39,7 @@ function update_bags!(bins, set)
 end
 
 
-function find_split_static!(hist_δ, hist_δ², hist_𝑤, bins::Vector{BitSet}, X_bin, δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params::EvoTreeRegressor, info::SplitInfo{S, Int}, edges, set::BitSet) where {S<:AbstractFloat}
+function find_split_static!(hist_δ, hist_δ², hist_𝑤, bins::Vector{BitSet}, X_bin, δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params::EvoTreeRegressor, info::SplitInfo{L,T,S}, edges, set::BitSet) where {L,T,S}
 
     # initialize histogram
     hist_δ .*= 0.0

@@ -14,14 +14,14 @@ struct Quantile <: QuantileRegression end
 struct Softmax <: MultiClassRegression end
 
 # store perf info of each variable
-mutable struct SplitInfo{T<:AbstractFloat, S<:Int}
+mutable struct SplitInfo{L, T<:AbstractFloat, S<:Int}
     gain::T
-    ∑δL::SVector
-    ∑δ²L::SVector
-    ∑𝑤L::SVector
-    ∑δR::SVector
-    ∑δ²R::SVector
-    ∑𝑤R::SVector
+    ∑δL::SVector{L,T}
+    ∑δ²L::SVector{L,T}
+    ∑𝑤L::SVector{1,T}
+    ∑δR::SVector{L,T}
+    ∑δ²R::SVector{L,T}
+    ∑𝑤R::SVector{1,T}
     gainL::T
     gainR::T
     𝑖::S
@@ -29,30 +29,17 @@ mutable struct SplitInfo{T<:AbstractFloat, S<:Int}
     cond::T
 end
 
-# keep track of perf during scanning through variable
-mutable struct SplitTrack{T<:AbstractFloat}
-    ∑δL::SVector
-    ∑δ²L::SVector
-    ∑𝑤L::SVector
-    ∑δR::SVector
-    ∑δ²R::SVector
-    ∑𝑤R::SVector
-    gainL::T
-    gainR::T
-    gain::T
-end
-
-struct TreeNode{T<:AbstractFloat, S<:Int, B<:Bool}
+struct TreeNode{L, T<:AbstractFloat, S<:Int, B<:Bool}
     left::S
     right::S
     feat::S
     cond::T
-    pred::Vector
+    pred::SVector{L,T}
     split::B
 end
 
-TreeNode(left::S, right::S, feat::S, cond::T) where {T<:AbstractFloat, S<:Int} = TreeNode{T,S,Bool}(left, right, feat, cond, [0.0], true)
-TreeNode(pred::Vector) = TreeNode(0, 0, 0, 0.0, pred, false)
+TreeNode(left::S, right::S, feat::S, cond::T, L::S) where {T<:AbstractFloat, S<:Int} = TreeNode{L,T,S,Bool}(left, right, feat, cond, zeros(SVector{L,T}), true)
+TreeNode(pred::SVector{L,T}) where {L,T} = TreeNode(0, 0, 0, 0.0, pred, false)
 
 mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} #<: MLJBase.Deterministic
     loss::U
@@ -133,19 +120,19 @@ function EvoTreeRegressorR(
 end
 
 # single tree is made of a root node that containes nested nodes and leafs
-struct TrainNode{T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
+struct TrainNode{L, T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
     depth::S
-    ∑δ::SVector
-    ∑δ²::SVector
-    ∑𝑤::SVector
+    ∑δ::SVector{L,T}
+    ∑δ²::SVector{L,T}
+    ∑𝑤::SVector{1,T}
     gain::T
     𝑖::I
     𝑗::J
 end
 
 # single tree is made of a root node that containes nested nodes and leafs
-struct Tree{T<:AbstractFloat, S<:Int}
-    nodes::Vector{TreeNode{T,S,Bool}}
+struct Tree{L, T<:AbstractFloat, S<:Int}
+    nodes::Vector{TreeNode{L,T,S,Bool}}
 end
 
 # eval metric tracking
@@ -156,8 +143,8 @@ end
 Metric() = Metric([0], [Inf])
 
 # gradient-boosted tree is formed by a vector of trees
-struct GBTree{T<:AbstractFloat, S<:Int}
-    trees::Vector{Tree{T,S}}
+struct GBTree{L, T<:AbstractFloat, S<:Int}
+    trees::Vector{Tree{L,T,S}}
     params::EvoTreeRegressor
     metric::Metric
 end

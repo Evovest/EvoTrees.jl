@@ -3,14 +3,14 @@ function grow_tree(bags::Vector{Vector{BitSet}},
     δ, δ², 𝑤,
     hist_δ, hist_δ², hist_𝑤,
     params::EvoTreeRegressor,
-    train_nodes::Vector{TrainNode{T, I, J, S}},
-    splits::Vector{SplitInfo{T, Int}},
-    edges, X_bin) where {R<:Real, T<:AbstractFloat, I<:BitSet, J<:AbstractVector{Int}, S<:Int}
+    train_nodes::Vector{TrainNode{L,T,I,J,S}},
+    splits::Vector{SplitInfo{L,T,Int}},
+    edges, X_bin) where {R<:Real, T<:AbstractFloat, I<:BitSet, J<:AbstractVector{Int}, S<:Int, L}
 
     active_id = ones(Int, 1)
     leaf_count = 1::Int
     tree_depth = 1::Int
-    tree = Tree(Vector{TreeNode{Float64, Int, Bool}}())
+    tree = Tree(Vector{TreeNode{params.K, T, Int, Bool}}())
 
     # grow while there are remaining active nodes
     while size(active_id, 1) > 0 && tree_depth <= params.max_depth
@@ -33,7 +33,7 @@ function grow_tree(bags::Vector{Vector{BitSet}},
                     train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, intersect(node.𝑖, union(bags[best.feat][1:best.𝑖]...)), node.𝑗)
                     train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, intersect!(node.𝑖, union(bags[best.feat][(best.𝑖+1):end]...)), node.𝑗)
                     # push split Node
-                    push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond))
+                    push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond, params.K))
                     push!(next_active_id, leaf_count + 1)
                     push!(next_active_id, leaf_count + 2)
                     leaf_count += 2
@@ -49,7 +49,7 @@ function grow_tree(bags::Vector{Vector{BitSet}},
 end
 
 # extract the gain value from the vector of best splits and return the split info associated with best split
-function get_max_gain(splits::Vector{SplitInfo{Float64,Int}})
+function get_max_gain(splits::Vector{SplitInfo{L,T,S}}) where {L,T,S}
     gains = (x -> x.gain).(splits)
     feat = findmax(gains)[2]
     best = splits[feat]
@@ -80,7 +80,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     end
 
     # bias = Tree([TreeNode(SVector{1, Float64}(μ))])
-    bias = Tree([TreeNode(μ)])
+    bias = Tree([TreeNode(SVector{params.K}(μ))])
     gbtree = GBTree([bias], params, Metric())
 
     X_size = size(X)
@@ -99,19 +99,18 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     end
 
     # initialize train nodes
-    train_nodes = Vector{TrainNode{Float64, BitSet, Array{Int64, 1}, Int64}}(undef, 2^params.max_depth-1)
+    train_nodes = Vector{TrainNode{params.K, Float64, BitSet, Array{Int64, 1}, Int64}}(undef, 2^params.max_depth-1)
     for node in 1:2^params.max_depth-1
         train_nodes[node] = TrainNode(0, SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, BitSet([0]), [0])
     end
 
     # initializde node splits info and tracks - colsample size (𝑗)
-    splits = Vector{SplitInfo{Float64, Int64}}(undef, X_size[2])
+    splits = Vector{SplitInfo{params.K, Float64, Int64}}(undef, X_size[2])
     hist_δ = Vector{Vector{SVector{params.K, Float64}}}(undef, X_size[2])
     hist_δ² = Vector{Vector{SVector{params.K, Float64}}}(undef, X_size[2])
     hist_𝑤 = Vector{Vector{SVector{1, Float64}}}(undef, X_size[2])
     for feat in 𝑗_
-        splits[feat] = SplitInfo{Float64, Int}(-Inf, SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
-        # tracks[feat] = SplitTrack{Float64}(SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, -Inf)
+        splits[feat] = SplitInfo{params.K, Float64, Int}(-Inf, SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
         hist_δ[feat] = zeros(SVector{params.K, Float64}, length(bags[feat]))
         hist_δ²[feat] = zeros(SVector{params.K, Float64}, length(bags[feat]))
         hist_𝑤[feat] = zeros(SVector{1, Float64}, length(bags[feat]))
