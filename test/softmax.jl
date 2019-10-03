@@ -117,9 +117,6 @@ for i in eachindex(pred)
 end
 sum(pred_int .== Y_train)
 
-sum(pred[:,1]), sum(pred[:,2]), sum(pred[:,3])
-sum(Y_train .== 1), sum(Y_train .== 2), sum(Y_train .== 3)
-
 params1 = EvoTreeRegressor(
     loss=:softmax, metric=:mlogloss,
     nrounds=20, nbins=16,
