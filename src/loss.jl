@@ -1,47 +1,49 @@
 # linear
-function update_grads!(loss::Linear, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
-    for i in eachindex(δ)
+function update_grads!(loss::Linear, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+    @inbounds for i in eachindex(δ)
         δ[i] = 2 .* (pred[i] .- target[i]) .* 𝑤[i]
         δ²[i] = 2 .* 𝑤[i]
     end
 end
 
 # logistic - on linear predictor
-function update_grads!(loss::Logistic, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
-    for i in eachindex(δ)
-        δ[i] = (sigmoid.(pred[i]) .* (1 .- target[i]) .- (1 .- sigmoid.(pred[i])) .* target[i]) .* 𝑤[i]
-        δ²[i] = sigmoid.(pred[i]) .* (1 .- sigmoid.(pred[i])) .* 𝑤[i]
+function update_grads!(loss::Logistic, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+    @inbounds for i in eachindex(δ)
+        # δ[i] = (sigmoid.(pred[i]) .* (1 .- target[i]) .- (1 .- sigmoid.(pred[i])) .* target[i]) .* 𝑤[i]
+        # δ²[i] = sigmoid.(pred[i]) .* (1 .- sigmoid.(pred[i])) .* 𝑤[i]
+        δ[i] = (sigmoid(pred[i][1]) * (1 - target[i]) - (1 - sigmoid(pred[i][1])) * target[i][1]) * 𝑤[i]
+        δ²[i] = sigmoid(pred[i][1]) * (1 - sigmoid(pred[i][1])) * 𝑤[i]
     end
 end
 
 # Poisson: https://isaacchanghau.github.io/post/loss_functions/
-function update_grads!(loss::Poisson, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
-    for i in eachindex(δ)
+function update_grads!(loss::Poisson, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+    @inbounds for i in eachindex(δ)
         δ[i] = (exp.(pred[i]) .- target[i]) .* 𝑤[i]
         δ²[i] = exp.(pred[i]) .* 𝑤[i]
     end
 end
 
 # L1
-function update_grads!(loss::L1, α::T, pred::AbstractMatrix{T}, target::AbstractArray{T, 1}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
-    for i in eachindex(δ)
-        δ[i] =  (α * max(target[i] - pred[i], 0) - (1-α) * max(pred[i] - target[i], 0)) * 𝑤[i]
+function update_grads!(loss::L1, α::T, pred::Vector{SVector{L,T}}, target::AbstractArray{T, 1}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+    @inbounds for i in eachindex(δ)
+        δ[i] =  (α * max(target[i] - pred[i][1], 0) - (1-α) * max(pred[i][1] - target[i], 0)) * 𝑤[i]
     end
 end
 
 # Softmax
-function update_grads!(loss::Softmax, α::T, pred::AbstractMatrix{T}, target::AbstractVector{Int}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+function update_grads!(loss::Softmax, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{Int}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
     pred = pred .- maximum(pred, dims=2)
     sums = sum(exp.(pred), dims=2)
-    for i in 1:size(pred,1)
+    @inbounds for i in 1:size(pred,1)
         δ[i] = (exp.(pred[i,:]) ./ sums[i] .- (onehot(target[i], 1:size(pred,2)))) .* 𝑤[i]
         δ²[i] =  1 ./ sums[i] .* (1 .- exp.(pred[i,:]) ./ sums[i]) .* 𝑤[i]
     end
 end
 
 # Quantile
-function update_grads!(loss::Quantile, α::T, pred::AbstractMatrix{T}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
-    for i in eachindex(δ)
+function update_grads!(loss::Quantile, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+    @inbounds for i in eachindex(δ)
         δ[i] = target[i] .> pred[i] ? α .* 𝑤[i] : (α .- 1) .* 𝑤[i]
         δ²[i] = [target[i] - pred[i]] # δ² serves to calculate the quantile value - hence no weighting on δ²
     end

@@ -24,7 +24,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # train model
 params1 = EvoTreeRegressor(
-    loss=:linear, metric=:mae,
+    loss=:linear, metric=:mse,
     nrounds=10,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,

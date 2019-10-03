@@ -72,15 +72,23 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     elseif typeof(params.loss) == Softmax
         μ .*= 0.0
     end
-    pred = ones(size(Y, 1), params.K) .* μ'
+    # pred = ones(size(Y, 1), params.K) .* μ'
+    pred = zeros(SVector{params.K,Float64}, size(X,1))
+    for i in eachindex(pred)
+        pred[i] += μ
+    end
 
     # eval init
     if size(Y_eval, 1) > 0
-        pred_eval = ones(size(Y_eval, 1), params.K) .* μ'
+        # pred_eval = ones(size(Y_eval, 1), params.K) .* μ'
+        pred_eval = zeros(SVector{params.K,Float64}, size(X_eval,1))
+        for i in eachindex(pred_eval)
+            pred_eval[i] += μ
+        end
     end
 
     # bias = Tree([TreeNode(SVector{1, Float64}(μ))])
-    bias = Tree([TreeNode(SVector{params.K}(μ))])
+    bias = Tree([TreeNode(SVector{params.K,Float64}(μ))])
     gbtree = GBTree([bias], params, Metric())
 
     X_size = size(X)
@@ -129,9 +137,8 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
         𝑖 = 𝑖_[sample(𝑖_, ceil(Int, params.rowsample * X_size[1]), replace = false)]
         𝑗 = 𝑗_[sample(𝑗_, ceil(Int, params.colsample * X_size[2]), replace = false)]
 
-        # reset gain to 0.0
+        # reset gain to -Inf
         for feat in 𝑗_
-            # splits[feat] = SplitInfo{Float64, Int}(-Inf, SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
             splits[feat].gain = -Inf
         end
 

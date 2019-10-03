@@ -43,7 +43,8 @@ params1 = EvoTreeRegressor(
 # initial info
 @time δ, δ² = zeros(SVector{params1.K, Float64}, size(X_train, 1)), zeros(SVector{params1.K, Float64}, size(X_train, 1))
 𝑤 = zeros(SVector{1, Float64}, size(X_train, 1)) .+ 1
-pred = zeros(size(Y_train, 1), params1.K)
+# pred = zeros(size(Y_train, 1), params1.K)
+pred = zeros(SVector{params1.K,Float64}, size(X_train,1))
 @time update_grads!(params1.loss, params1.α, pred, Y_train, δ, δ², 𝑤)
 ∑δ, ∑δ², ∑𝑤 = sum(δ[𝑖]), sum(δ²[𝑖]), sum(𝑤[𝑖])
 gain = get_gain(params1.loss, ∑δ, ∑δ², ∑𝑤, params1.λ)
@@ -85,11 +86,12 @@ for feat in 1:size(𝑗, 1)
 end
 
 # grow single tree
+#  0.135954 seconds (717.54 k allocations: 15.219 MiB)
 @time train_nodes[1] = TrainNode(1, SVector(∑δ), SVector(∑δ²), SVector(∑𝑤), gain, BitSet(𝑖), 𝑗)
 @time tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params1, train_nodes, splits, edges, X_bin)
 # @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $hist_δ, $hist_δ², $hist_𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
 @time pred_train = predict(tree, X_train, params1.K)
-# 3.206 ms (43472 allocations: 4.30 MiB)
+# 705.901 μs (18 allocations: 626.08 KiB)
 @btime pred_train = predict($tree, $X_train, $params1.K)
 @time pred_leaf_ = pred_leaf(params1.loss, train_nodes[1], params1, δ²)
 # 1.899 ns (0 allocations: 0 bytes)
@@ -119,14 +121,12 @@ feat = 1
 typeof(bags[feat][1])
 # initialise node, info and tracks
 train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-splits[feat] = SplitInfo{Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, 0, feat, 0.0)
-# tracks[feat] = SplitTrack{Float64}(SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, -Inf)
+splits[feat] = SplitInfo{params1.K, Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, 0, feat, 0.0)
 
-# 491.800 μs (340 allocations: 6.78 KiB)
+# 492.199 μs (343 allocations: 6.83 KiB)
 splits[feat]
-# @time find_split_static!(hist_δ, hist_δ², hist_𝑤, bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
 @time find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], train_nodes[1].𝑖)
-@btime find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], train_nodes[1].𝑖)
+@btime find_split_static!($hist_δ[feat], $hist_δ²[feat], $hist_𝑤[feat], $bags[feat], $view(X_bin,:,feat), $δ, $δ², $𝑤, $∑δ, $∑δ², $∑𝑤, $params1, $splits[feat], $edges[feat], $train_nodes[1].𝑖)
 
 feat = 2
 typeof(bags[feat][1])
