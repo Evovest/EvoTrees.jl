@@ -16,7 +16,7 @@ function update_grads!(loss::Logistic, α::T, pred::Vector{SVector{L,T}}, target
     end
 end
 
-# Poisson: https://isaacchanghau.github.io/post/loss_functions/
+# Poisson
 function update_grads!(loss::Poisson, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
     @inbounds for i in eachindex(δ)
         δ[i] = (exp.(pred[i]) .- target[i]) .* 𝑤[i]
@@ -47,6 +47,14 @@ function update_grads!(loss::Quantile, α::T, pred::Vector{SVector{L,T}}, target
     @inbounds for i in eachindex(δ)
         δ[i] = target[i] > pred[i][1] ? α * 𝑤[i] : (α - 1) * 𝑤[i]
         δ²[i] = target[i] - pred[i] # δ² serves to calculate the quantile value - hence no weighting on δ²
+    end
+end
+
+# Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
+function update_grads!(loss::Gaussian, α, pred::Vector{SVector{L,T}}, target::AbstractArray{T, 1}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+    @inbounds @threads for i in eachindex(δ)
+        δ[i] = SVector((pred[i][1] - target[i]) / exp(pred[i][2]) * 𝑤[i][1], 𝑤[i][1] / 2 * (1 - (pred[i][1] - target[i])^2 / exp(pred[i][2])))
+        δ²[i] = SVector(𝑤[i][1] / exp(pred[i][2]), 𝑤[i][1] / exp(pred[i][2]) * (pred[i][1] - target[i])^2)
     end
 end
 
@@ -102,5 +110,11 @@ end
 # QuantileRegression
 function get_gain(loss::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: QuantileRegression, T <: AbstractFloat, L}
     gain = sum(abs.(∑δ) ./ (1 .+ λ))
+    return gain
+end
+
+# GaussianRegression
+function get_gain(loss::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: GaussianRegression, T <: AbstractFloat, L}
+    gain = sum((∑δ .^ 2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
     return gain
 end

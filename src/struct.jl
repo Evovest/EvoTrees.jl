@@ -6,12 +6,14 @@ abstract type GradientRegression <: ModelType end
 abstract type L1Regression <: ModelType end
 abstract type QuantileRegression <: ModelType end
 abstract type MultiClassRegression <: ModelType end
+abstract type GaussianRegression <: ModelType end
 struct Linear <: GradientRegression end
 struct Poisson <: GradientRegression end
 struct Logistic <: GradientRegression end
 struct L1 <: L1Regression end
 struct Quantile <: QuantileRegression end
 struct Softmax <: MultiClassRegression end
+struct Gaussian <: GaussianRegression end
 
 # store perf info of each variable
 mutable struct SplitInfo{L, T<:AbstractFloat, S<:Int}
@@ -80,6 +82,12 @@ function EvoTreeRegressor(;
     elseif loss == :L1 model_type = L1()
     elseif loss == :quantile model_type = Quantile()
     elseif loss == :softmax model_type = Softmax()
+    elseif loss == :gaussian model_type = Gaussian()
+    end
+
+    # override K for gaussian
+    if loss == :gaussian
+        K = 2
     end
 
     model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed, K)
@@ -111,6 +119,11 @@ function EvoTreeRegressorR(
     elseif loss == :L1 model_type = L1()
     elseif loss == :quantile model_type = Quantile()
     elseif loss == :softmax model_type = Softmax()
+    elseif loss == :gaussian model_type = Gaussian()
+    end
+
+    if loss == :gaussian
+        K = 2
     end
 
     model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed, K)

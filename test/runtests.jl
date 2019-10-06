@@ -37,11 +37,6 @@ params1 = EvoTreeRegressor(
 @time p1 = EvoTrees.predict(model, X_eval)
 mean(abs.(p1 - Y_eval))
 
-# continue training
-@time model2 = grow_gbtree!(model, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-@time pred_train_linear2 = EvoTrees.predict(model2, X_train)
-
-
 # logistic / cross-entropy
 params1 = EvoTreeRegressor(
     loss=:logistic, metric = :logloss,
