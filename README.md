@@ -4,28 +4,37 @@
 
 A Julia implementation of boosted trees.
 
+Provides flexibility for efficient custom objectives (notably multi-target objectives such as max likelihood methods).
+
+Only histogram methods is implemented at the moment, a high performant approach for large datasets.
+
 Currently supports:
+
     - linear
     - logistic
     - Poisson
-    - Quantile
     - L1 (mae regression)
+    - Quantile
     - multiclassification (softmax)
     - Gaussian (max likelihood)
 
-### Installation
+## Installation
+
+Latest:
 
 ```julia-repl
 julia> Pkg.add("https://github.com/Evovest/EvoTrees.jl")
 ```
 
+Official Repo:
+
 ```julia-repl
-julia> Pkg.add("EvoTrees.jl")
+julia> Pkg.add("EvoTrees")
 ```
 
-### Parameters
+## Parameters
 
-  - loss: {:linear, :logistic, :poisson, :L1, :quantile}
+  - loss: {:linear, :logistic, :poisson, :L1, :quantile, :softmax, :gaussian}
   - nrounds: 10L
   - λ: 0.0
   - γ: 0.0
@@ -39,7 +48,7 @@ julia> Pkg.add("EvoTrees.jl")
   - metric: {:mse, :rmse, :mae, :logloss, :quantile},  default=:none
   - K: number of class for softmax.
 
-### Getting started
+## Getting started
 
 Minimal example to fit a noisy sinus wave.
 
@@ -148,7 +157,7 @@ pred_train_q80 = predict(model, X_train)
 ![](gaussian_likelihood.png)
 
 ```julia
-pparams1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(
     loss=:gaussian, metric=:gaussian,
     nrounds=100, nbins=100,
     λ = 0.0, γ=0.0, η=0.1,
