@@ -10,13 +10,13 @@ Only histogram methods is implemented at the moment, a high performant approach 
 
 Currently supports:
 
-    - linear
-    - logistic
-    - Poisson
-    - L1 (mae regression)
-    - Quantile
-    - multiclassification (softmax)
-    - Gaussian (max likelihood)
+- linear
+- logistic
+- Poisson
+- L1 (mae regression)
+- Quantile
+- multiclassification (softmax)
+- Gaussian (max likelihood)
 
 ## Installation
 
