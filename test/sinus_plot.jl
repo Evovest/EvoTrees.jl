@@ -32,7 +32,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:mse,
     nrounds=100, nbins = 100,
-    λ = 0.5, γ=0.1, η=0.01,
+    λ = 0.5, γ=0.1, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
@@ -53,7 +53,7 @@ sqrt(mean((pred_train_linear .- Y_train) .^ 2))
 params1 = EvoTreeRegressor(
     loss=:logistic, metric = :logloss,
     nrounds=100, nbins = 100,
-    λ = 0.5, γ=0.1, η=0.1,
+    λ = 0.5, γ=0.1, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
@@ -66,9 +66,9 @@ sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
 
 # Poisson
 params1 = EvoTreeRegressor(
-    loss=:poisson, metric = :logloss,
+    loss=:poisson, metric = :poisson,
     nrounds=100, nbins = 100,
-    λ = 0.5, γ=0.1, η=0.1,
+    λ = 0.5, γ=0.1, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
@@ -81,7 +81,7 @@ sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
 params1 = EvoTreeRegressor(
     loss=:L1, α=0.5, metric = :mae,
     nrounds=100, nbins=100,
-    λ = 0.5, γ=0.1, η=0.1,
+    λ = 0.5, γ=0.1, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)

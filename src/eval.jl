@@ -49,6 +49,15 @@ function eval_metric(::Val{:mlogloss}, pred::Vector{SVector{L,T}}, Y::AbstractVe
     return eval
 end
 
+function eval_metric(::Val{:poisson}, pred::Vector{SVector{1,T}}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
+    eval = zero(T)
+    @inbounds for i in 1:length(pred)
+        eval += exp(pred[i][1]) * (1 - Y[i]) + log(factorial(Y[i]))
+    end
+    eval /= length(pred)
+    return eval
+end
+
 function eval_metric(::Val{:gaussian}, pred::Vector{SVector{L,T}}, Y::AbstractVector{T}, α=0.0) where {L, T <: AbstractFloat}
     eval = zero(T)
     for i in 1:length(pred)
