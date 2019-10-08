@@ -72,7 +72,8 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     elseif typeof(params.loss) == Softmax
         μ .*= 0.0
     end
-    # pred = ones(size(Y, 1), params.K) .* μ'
+
+    # initialize preds
     pred = zeros(SVector{params.K,Float64}, size(X,1))
     for i in eachindex(pred)
         pred[i] += μ
@@ -191,25 +192,34 @@ end
 
 # grow_gbtree - continue training
 function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractVector{S};
-    X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractVector{S} = Array{Float64, 1}(undef, 0),
+    X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractVector{S} = Vector{S}(undef, 0),
     early_stopping_rounds=Int(1e5), print_every_n=100, verbosity=1) where {R<:Real, S<:Real}
 
     params = model.params
     seed!(params.seed)
 
-    # initialize gradients and weights
-    δ, δ² = zeros(Float64, size(Y, 1)), zeros(Float64, size(Y, 1))
-    𝑤 = ones(Float64, size(Y, 1))
-
-    pred = predict(model, X)
+    # initialize predictions - efficiency to be improved
+    pred = zeros(SVector{params.K,Float64}, size(X,1))
+    pred_ = predict(model, X)
+    for i in eachindex(pred)
+        pred[i] = SVector{params.K,Float64}(pred_[i])
+    end
     # eval init
     if size(Y_eval, 1) > 0
-        pred_eval = predict(model, X_eval)
+        pred_eval = zeros(SVector{params.K,Float64}, size(X_eval,1))
+        pred_eval_ = predict(model, X_eval)
+        for i in eachindex(pred_eval)
+            pred_eval[i] = SVector{params.K,Float64}(pred_eval_[i])
+        end
     end
 
     X_size = size(X)
     𝑖_ = collect(1:X_size[1])
     𝑗_ = collect(1:X_size[2])
+
+    # initialize gradients and weights
+    δ, δ² = zeros(SVector{params.K, Float64}, X_size[1]), zeros(SVector{params.K, Float64}, X_size[1])
+    𝑤 = zeros(SVector{1, Float64}, X_size[1]) .+ 1
 
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
@@ -219,9 +229,21 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractVector{S
     end
 
     # initialize train nodes
-    train_nodes = Vector{TrainNode{Float64, BitSet, Array{Int64, 1}, Int64}}(undef, 2^params.max_depth-1)
-    for feat in 1:2^params.max_depth-1
-        train_nodes[feat] = TrainNode(0, -Inf, -Inf, -Inf, -Inf, BitSet([0]), [0])
+    train_nodes = Vector{TrainNode{params.K, Float64, BitSet, Array{Int64, 1}, Int64}}(undef, 2^params.max_depth-1)
+    for node in 1:2^params.max_depth-1
+        train_nodes[node] = TrainNode(0, SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, BitSet([0]), [0])
+    end
+
+    # initializde node splits info and tracks - colsample size (𝑗)
+    splits = Vector{SplitInfo{params.K, Float64, Int64}}(undef, X_size[2])
+    hist_δ = Vector{Vector{SVector{params.K, Float64}}}(undef, X_size[2])
+    hist_δ² = Vector{Vector{SVector{params.K, Float64}}}(undef, X_size[2])
+    hist_𝑤 = Vector{Vector{SVector{1, Float64}}}(undef, X_size[2])
+    for feat in 𝑗_
+        splits[feat] = SplitInfo{params.K, Float64, Int}(-Inf, SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
+        hist_δ[feat] = zeros(SVector{params.K, Float64}, length(bags[feat]))
+        hist_δ²[feat] = zeros(SVector{params.K, Float64}, length(bags[feat]))
+        hist_𝑤[feat] = zeros(SVector{1, Float64}, length(bags[feat]))
     end
 
     # initialize metric
@@ -237,24 +259,20 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractVector{S
         𝑖 = 𝑖_[sample(𝑖_, ceil(Int, params.rowsample * X_size[1]), replace = false)]
         𝑗 = 𝑗_[sample(𝑗_, ceil(Int, params.colsample * X_size[2]), replace = false)]
 
+        # reset gain to -Inf
+        for feat in 𝑗_
+            splits[feat].gain = -Inf
+        end
+
         # get gradients
         update_grads!(params.loss, params.α, pred, Y, δ, δ², 𝑤)
         ∑δ, ∑δ², ∑𝑤 = sum(δ[𝑖]), sum(δ²[𝑖]), sum(𝑤[𝑖])
         gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
 
-        # initializde node splits info and tracks - colsample size (𝑗)
-        splits = Vector{SplitInfo{Float64, Int64}}(undef, X_size[2])
-        for feat in 𝑗_
-            splits[feat] = SplitInfo{Float64, Int64}(-Inf, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, 0, feat, 0.0)
-        end
-        tracks = Vector{SplitTrack{Float64}}(undef, X_size[2])
-        for feat in 𝑗_
-            tracks[feat] = SplitTrack{Float64}(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -Inf, -Inf, -Inf)
-        end
-
         # assign a root and grow tree
         train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-        tree = grow_tree(bags, δ, δ², 𝑤, params, train_nodes, splits, tracks, edges, X_bin)
+        tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params, train_nodes, splits, edges, X_bin)
+
         # update push tree to model
         push!(model.trees, tree)
 

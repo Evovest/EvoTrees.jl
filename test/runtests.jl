@@ -26,7 +26,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # linear
 params1 = EvoTreeRegressor(
-    loss=:linear, metric=:mse,
+    loss=:linear, metric=:mae,
     nrounds=100, nbins=100,
     λ = 0.5, γ=0.1, η=0.01,
     max_depth = 6, min_weight = 1.0,
@@ -36,6 +36,12 @@ params1 = EvoTreeRegressor(
 
 @time p1 = EvoTrees.predict(model, X_eval)
 mean(abs.(p1 - Y_eval))
+
+# continue training
+@time grow_gbtree!(model, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+pred_train_linear = EvoTrees.predict(model, X_train)
+p2 = EvoTrees.predict(model, X_eval)
+mean(abs.(p2 - Y_eval))
 
 # logistic / cross-entropy
 params1 = EvoTreeRegressor(
