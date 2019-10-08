@@ -39,20 +39,20 @@ function update_bags!(bins, set)
 end
 
 
-function find_split_turbo!(bins::Vector{BitSet}, X_bin, δ::Vector{S}, δ²::Vector{S}, 𝑤::Vector{S}, ∑δ::S, ∑δ²::S, ∑𝑤::S, params::EvoTreeRegressor, info::SplitInfo{S, Int}, track::SplitTrack{S}, edges, set::BitSet) where {S<:AbstractFloat}
+function find_split_static!(hist_δ::Vector{SVector{L,T}}, hist_δ²::Vector{SVector{L,T}}, hist_𝑤::Vector{SVector{1,T}}, bins::Vector{BitSet}, X_bin, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, params::EvoTreeRegressor, info::SplitInfo{L,T,S}, edges, set::BitSet) where {L,T,S}
 
-    info.gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
+    # initialize histogram
+    hist_δ .*= 0.0
+    hist_δ² .*= 0.0
+    hist_𝑤 .*= 0.0
 
-    track.∑δL = zero(S)
-    track.∑δ²L = zero(S)
-    track.∑𝑤L = zero(S)
-    track.∑δR = ∑δ
-    track.∑δ²R = ∑δ²
-    track.∑𝑤R = ∑𝑤
-
-    hist_δ = zeros(Float64, length(bins))
-    hist_δ² = zeros(Float64, length(bins))
-    hist_𝑤 = zeros(Float64, length(bins))
+    # initialize tracking
+    ∑δL = ∑δ * 0
+    ∑δ²L = ∑δ² * 0
+    ∑𝑤L = ∑𝑤 * 0
+    ∑δR = ∑δ
+    ∑δ²R = ∑δ²
+    ∑𝑤R = ∑𝑤
 
     # build histogram
     @inbounds for i in set
@@ -62,24 +62,26 @@ function find_split_turbo!(bins::Vector{BitSet}, X_bin, δ::Vector{S}, δ²::Vec
     end
 
     @inbounds for bin in 1:(length(bins)-1)
-        track.∑δL += hist_δ[bin]
-        track.∑δ²L += hist_δ²[bin]
-        track.∑𝑤L += hist_𝑤[bin]
-        track.∑δR -= hist_δ[bin]
-        track.∑δ²R -= hist_δ²[bin]
-        track.∑𝑤R -= hist_𝑤[bin]
-        update_track!(params.loss, track, params.λ)
+        ∑δL += hist_δ[bin]
+        ∑δ²L += hist_δ²[bin]
+        ∑𝑤L += hist_𝑤[bin]
+        ∑δR -= hist_δ[bin]
+        ∑δ²R -= hist_δ²[bin]
+        ∑𝑤R -= hist_𝑤[bin]
 
-        if track.gain > info.gain && track.∑𝑤L >= params.min_weight && track.∑𝑤R >= params.min_weight
-            info.gain = track.gain
-            info.gainL = track.gainL
-            info.gainR = track.gainR
-            info.∑δL = track.∑δL
-            info.∑δ²L = track.∑δ²L
-            info.∑𝑤L = track.∑𝑤L
-            info.∑δR = track.∑δR
-            info.∑δ²R = track.∑δ²R
-            info.∑𝑤R = track.∑𝑤R
+        gainL, gainR = get_gain(params.loss, ∑δL, ∑δ²L, ∑𝑤L, params.λ), get_gain(params.loss, ∑δR, ∑δ²R, ∑𝑤R, params.λ)
+        gain = gainL + gainR
+
+        if gain > info.gain && ∑𝑤L[1] >= params.min_weight && ∑𝑤R[1] >= params.min_weight
+            info.gain = gain
+            info.gainL = gainL
+            info.gainR = gainR
+            info.∑δL = ∑δL
+            info.∑δ²L = ∑δ²L
+            info.∑𝑤L = ∑𝑤L
+            info.∑δR = ∑δR
+            info.∑δ²R = ∑δ²R
+            info.∑𝑤R = ∑𝑤R
             info.cond = edges[bin]
             info.𝑖 = bin
         end

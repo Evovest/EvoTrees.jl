@@ -2,19 +2,39 @@
 
 [![Build Status](https://travis-ci.org/Evovest/EvoTrees.jl.svg?branch=master)](https://travis-ci.org/Evovest/EvoTrees.jl)
 
-A Julia implementation of boosted trees.  
+A Julia implementation of boosted trees.
 
-Currently supports linear, logistic, Poisson, Quantile and robust (L1) regression.
+Provides flexibility for efficient custom objectives (notably multi-target objectives such as max likelihood methods).
 
-### Installation
+Only histogram methods is implemented at the moment, a high performant approach for large datasets.
+
+Currently supports:
+
+- linear
+- logistic
+- Poisson
+- L1 (mae regression)
+- Quantile
+- multiclassification (softmax)
+- Gaussian (max likelihood)
+
+## Installation
+
+Latest:
 
 ```julia-repl
 julia> Pkg.add("https://github.com/Evovest/EvoTrees.jl")
 ```
 
-### Parameters
+Official Repo:
 
-  - loss: {:linear, :logistic, :poisson, :L1, :quantile}
+```julia-repl
+julia> Pkg.add("EvoTrees")
+```
+
+## Parameters
+
+  - loss: {:linear, :logistic, :poisson, :L1, :quantile, :softmax, :gaussian}
   - nrounds: 10L
   - λ: 0.0
   - γ: 0.0
@@ -26,8 +46,9 @@ julia> Pkg.add("https://github.com/Evovest/EvoTrees.jl")
   - nbins: Int, number of bins into which features will be quantilized default=64
   - α: float \[0,1\], set the quantile or bias in L1 default=0.5
   - metric: {:mse, :rmse, :mae, :logloss, :quantile},  default=:none
+  - K: number of class for softmax.
 
-### Getting started
+## Getting started
 
 Minimal example to fit a noisy sinus wave.
 
@@ -94,8 +115,9 @@ model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval,
 pred_eval_L1 = predict(model, X_eval)
 ```
 
-![](quantiles_sinus.png)
+## Quantile Regression
 
+![](quantiles_sinus.png)
 
 ```julia
 # q50
@@ -128,4 +150,17 @@ params1 = EvoTreeRegressor(
     rowsample=0.5, colsample=1.0)
 model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_q80 = predict(model, X_train)
+```
+
+## Gaussian Max Likelihood
+
+![](gaussian_likelihood.png)
+
+```julia
+params1 = EvoTreeRegressor(
+    loss=:gaussian, metric=:gaussian,
+    nrounds=100, nbins=100,
+    λ = 0.0, γ=0.0, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0, seed=123)
 ```

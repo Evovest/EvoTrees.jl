@@ -5,31 +5,25 @@ abstract type ModelType end
 abstract type GradientRegression <: ModelType end
 abstract type L1Regression <: ModelType end
 abstract type QuantileRegression <: ModelType end
+abstract type MultiClassRegression <: ModelType end
+abstract type GaussianRegression <: ModelType end
 struct Linear <: GradientRegression end
 struct Poisson <: GradientRegression end
 struct Logistic <: GradientRegression end
 struct L1 <: L1Regression end
 struct Quantile <: QuantileRegression end
+struct Softmax <: MultiClassRegression end
+struct Gaussian <: GaussianRegression end
 
-# compact alternative to ModeLData - not used for now
-# To Do: how to exploit pre-sorting and binning
-struct TrainData{T<:AbstractFloat}
-    X::Matrix{T}
-    X_permsort::Matrix{T}
-    Y::Matrix{T}
-    δ::Vector{T}
-    δ²::Vector{T}
-    𝑤::Vector{T}
-end
-
-mutable struct SplitInfo{T<:AbstractFloat, S<:Int}
+# store perf info of each variable
+mutable struct SplitInfo{L, T<:AbstractFloat, S<:Int}
     gain::T
-    ∑δL::T
-    ∑δ²L::T
-    ∑𝑤L::T
-    ∑δR::T
-    ∑δ²R::T
-    ∑𝑤R::T
+    ∑δL::SVector{L,T}
+    ∑δ²L::SVector{L,T}
+    ∑𝑤L::SVector{1,T}
+    ∑δR::SVector{L,T}
+    ∑δ²R::SVector{L,T}
+    ∑𝑤R::SVector{1,T}
     gainL::T
     gainR::T
     𝑖::S
@@ -37,29 +31,17 @@ mutable struct SplitInfo{T<:AbstractFloat, S<:Int}
     cond::T
 end
 
-mutable struct SplitTrack{T<:AbstractFloat}
-    ∑δL::T
-    ∑δ²L::T
-    ∑𝑤L::T
-    ∑δR::T
-    ∑δ²R::T
-    ∑𝑤R::T
-    gainL::T
-    gainR::T
-    gain::T
-end
-
-struct TreeNode{T<:AbstractFloat, S<:Int, B<:Bool}
+struct TreeNode{L, T<:AbstractFloat, S<:Int, B<:Bool}
     left::S
     right::S
     feat::S
     cond::T
-    pred::T
+    pred::SVector{L,T}
     split::B
 end
 
-TreeNode(left::S, right::S, feat::S, cond::T) where {T<:AbstractFloat, S<:Int} = TreeNode{T,S,Bool}(left, right, feat, cond, 0.0, true)
-TreeNode(pred::T) where {T<:AbstractFloat} = TreeNode{T,Int,Bool}(0, 0, 0, 0.0, pred, false)
+TreeNode(left::S, right::S, feat::S, cond::T, L::S) where {T<:AbstractFloat, S<:Int} = TreeNode{L,T,S,Bool}(left, right, feat, cond, zeros(SVector{L,T}), true)
+TreeNode(pred::SVector{L,T}) where {L,T} = TreeNode(0, 0, 0, 0.0, pred, false)
 
 mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} #<: MLJBase.Deterministic
     loss::U
@@ -75,6 +57,7 @@ mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} #<: MLJB
     α::T
     metric::Symbol
     seed::S
+    K::S # length of predictions: 1 by default, > 1 for multiclassif or maxloglikelihood
 end
 
 function EvoTreeRegressor(;
@@ -90,16 +73,24 @@ function EvoTreeRegressor(;
     nbins=64,
     α=0.5,
     metric=:mse,
-    seed=444)
+    seed=444,
+    K=1)
 
     if loss == :linear model_type = Linear()
     elseif loss == :logistic model_type = Logistic()
     elseif loss == :poisson model_type = Poisson()
     elseif loss == :L1 model_type = L1()
     elseif loss == :quantile model_type = Quantile()
+    elseif loss == :softmax model_type = Softmax()
+    elseif loss == :gaussian model_type = Gaussian()
     end
 
-    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+    # override K for gaussian
+    if loss == :gaussian
+        K = 2
+    end
+
+    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed, K)
     # message = MLJBase.clean!(model)
     # isempty(message) || @warn message
     return model
@@ -119,35 +110,42 @@ function EvoTreeRegressorR(
     nbins,
     α,
     metric,
-    seed)
+    seed,
+    K)
 
     if loss == :linear model_type = Linear()
     elseif loss == :logistic model_type = Logistic()
     elseif loss == :poisson model_type = Poisson()
     elseif loss == :L1 model_type = L1()
     elseif loss == :quantile model_type = Quantile()
+    elseif loss == :softmax model_type = Softmax()
+    elseif loss == :gaussian model_type = Gaussian()
     end
 
-    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+    if loss == :gaussian
+        K = 2
+    end
+
+    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed, K)
     # message = MLJBase.clean!(model)
     # isempty(message) || @warn message
     return model
 end
 
 # single tree is made of a root node that containes nested nodes and leafs
-struct TrainNode{T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
+struct TrainNode{L, T<:AbstractFloat, I<:BitSet, J<:AbstractArray{Int, 1}, S<:Int}
     depth::S
-    ∑δ::T
-    ∑δ²::T
-    ∑𝑤::T
+    ∑δ::SVector{L,T}
+    ∑δ²::SVector{L,T}
+    ∑𝑤::SVector{1,T}
     gain::T
     𝑖::I
     𝑗::J
 end
 
 # single tree is made of a root node that containes nested nodes and leafs
-struct Tree{T<:AbstractFloat, S<:Int}
-    nodes::Vector{TreeNode{T,S,Bool}}
+struct Tree{L, T<:AbstractFloat, S<:Int}
+    nodes::Vector{TreeNode{L,T,S,Bool}}
 end
 
 # eval metric tracking
@@ -158,8 +156,8 @@ end
 Metric() = Metric([0], [Inf])
 
 # gradient-boosted tree is formed by a vector of trees
-struct GBTree{T<:AbstractFloat, S<:Int}
-    trees::Vector{Tree{T,S}}
+struct GBTree{L, T<:AbstractFloat, S<:Int}
+    trees::Vector{Tree{L,T,S}}
     params::EvoTreeRegressor
     metric::Metric
 end

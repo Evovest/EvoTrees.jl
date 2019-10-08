@@ -30,8 +30,8 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=1.0, colsample=1.0, nbins=32)
 
-# 1.21 sec, 486 Mb
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = Inf)
+# 1.323 s (685585 allocations: 467.74 MiB)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 2)
 @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train = predict(model, X_train)
 @btime pred_train = predict($model, $X_train)

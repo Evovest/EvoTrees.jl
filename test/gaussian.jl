@@ -1,34 +1,27 @@
-using BenchmarkTools
 using DataFrames
 using CSV
 using Statistics
-using StatsBase: sample, quantile
-using Plots
-using Plots: colormap
 using Base.Threads: @threads
-
+using StatsBase: sample
+using StaticArrays
 using Revise
+using BenchmarkTools
 using EvoTrees
-using EvoTrees: sigmoid, logit
-using EvoTrees: softmax
-using EvoTrees: update_grads!, get_gain, TrainNode, SplitInfo, get_edges, binarize, find_bags, grow_tree, find_split_static!
-using EvoTrees: pred_leaf, softmax
-using Flux: onehot
+using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, EvoTreeRegressor, predict, predict!, sigmoid
+using EvoTrees: find_bags, update_bags!, find_split_static!, pred_leaf, sigmoid, logit
+using Plots
+using Distributions
 
 # prepare a dataset
-iris = CSV.read("./data/iris.csv")
-names(iris)
-
-features = iris[[:PetalLength, :PetalWidth, :SepalLength, :SepalWidth]]
-X = convert(Matrix, features)
-Y = iris[:Species]
-values = sort(unique(Y))
-dict = Dict{String, Int}(values[i] => i for i in 1:length(values))
-Y = map((x) -> dict[x], Y)
-
-# train-eval split
+features = rand(10_000) .* 5
+X = reshape(features, (size(features)[1], 1))
+Y = sin.(features) .* 0.5 .+ 0.5
+Y = logit(Y) + randn(size(Y))
+Y = sigmoid(Y)
 𝑖 = collect(1:size(X,1))
 𝑗 = collect(1:size(X,2))
+
+# train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
 train_size = 0.8
 𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
@@ -37,20 +30,16 @@ train_size = 0.8
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 𝑖 = collect(1:size(X_train,1))
-# scatter(X_train[:,1], X_train[:,2], color=Y_train, legend=nothing)
-# scatter(X_eval[:,1], X_eval[:,2], color=Y_eval, legend=nothing)
 
-##################################
-# Step by step development
-##################################
 # set parameters
 params1 = EvoTreeRegressor(
-    loss=:softmax, metric=:mlogloss,
-    nrounds=1, nbins=16,
-    λ = 0.0, γ=0.0, η=0.3,
-    max_depth = 3, min_weight = 1.0,
-    rowsample=1.0, colsample=1.0,
-    K = 3, seed=44)
+    loss=:gaussian, metric=:gaussian,
+    nrounds=100, nbins=100,
+    λ = 0.0, γ=0.0, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0, seed=123)
+
+mean(Y_train.^2)
 
 # initial info
 @time δ, δ² = zeros(SVector{params1.K, Float64}, size(X_train, 1)), zeros(SVector{params1.K, Float64}, size(X_train, 1))
@@ -59,6 +48,7 @@ pred = zeros(SVector{params1.K,Float64}, size(X_train,1))
 @time update_grads!(params1.loss, params1.α, pred, Y_train, δ, δ², 𝑤)
 ∑δ, ∑δ², ∑𝑤 = sum(δ[𝑖]), sum(δ²[𝑖]), sum(𝑤[𝑖])
 @time gain = get_gain(params1.loss, ∑δ, ∑δ², ∑𝑤, params1.λ)
+# @btime gain = get_gain($params1.loss, $∑δ, $∑δ², $∑𝑤, $params1.λ)
 
 # initialize train_nodes
 train_nodes = Vector{TrainNode{params1.K, Float64, BitSet, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
@@ -97,51 +87,34 @@ for feat in 1:size(𝑗, 1)
 end
 
 # grow single tree
-@time train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-@time pred_leaf_ = pred_leaf(params1.loss, train_nodes[1], params1, δ²)
-# @btime pred_leaf_ = pred_leaf($params1.loss, $train_nodes[1], $params1, $δ²)
+#  0.135954 seconds (717.54 k allocations: 15.219 MiB)
+@time train_nodes[1] = TrainNode(1, SVector(∑δ), SVector(∑δ²), SVector(∑𝑤), gain, BitSet(𝑖), 𝑗)
 @time tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params1, train_nodes, splits, edges, X_bin)
+# @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $hist_δ, $hist_δ², $hist_𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
+@time pred_train = predict(tree, X_train, params1.K)
+# 705.901 μs (18 allocations: 626.08 KiB)
+# @btime pred_train = predict($tree, $X_train, $params1.K)
+@time pred_leaf_ = pred_leaf(params1.loss, train_nodes[1], params1, δ²)
+# 1.899 ns (0 allocations: 0 bytes)
+# @btime pred_leaf_ = pred_leaf($params1.loss, $train_nodes[1], $params1, $δ²)
+# @btime pred_train = predict($tree, $X_train, params1.K)
 
-# feat = 1
-# typeof(bags[feat][1])
-# train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-# find_split_turbo!(bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], tracks[feat], edges[feat], train_nodes[1].𝑖)
-
-pred = predict(tree, X_train, params1.K)
-for i in eachindex(pred)
-    pred[i] = exp.(pred[i]) / sum(exp.(pred[i]))
-end
-pred_int = zeros(Int, length(pred))
-for i in eachindex(pred)
-    pred_int[i] = findmax(pred[i])[2]
-end
-sum(pred_int .== Y_train)
-
-params1 = EvoTreeRegressor(
-    loss=:softmax, metric=:mlogloss,
-    nrounds=20, nbins=16,
-    λ = 0.0, γ=1e-5, η=0.3,
-    max_depth = 3, min_weight = 1.0,
-    rowsample=1.0, colsample=1.0,
-    K = 3, seed=44)
-
-@time model = grow_gbtree(X_train, Y_train, params1, print_every_n = Inf)
-# @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 1)
-
-sum(Y_train.==3)/length(Y_train)
+@time model = grow_gbtree(X_train, Y_train, params1, print_every_n = 20)
+# @btime model = grow_gbtree($X_train, $Y_train, $params1, print_every_n = 1)
 @time pred_train = predict(model, X_train)
-@time pred_eval = predict(model, X_eval)
+# @btime pred_train = predict($model, $X_train)
 
-maximum(pred_train)
-minimum(pred_train)
-
-pred_train_int = zeros(Int, length(Y_train))
-for i in 1:size(pred_train, 1)
-    pred_train_int[i] = findmax(pred_train[i,:])[2]
-end
-
-pred_eval_int = zeros(Int, length(Y_eval))
-for i in 1:size(pred_eval, 1)
-    pred_eval_int[i] = findmax(pred_eval[i,:])[2]
-end
-sum(pred_train_int .== Y_train), sum(pred_eval_int .== Y_eval)
+x_perm = sortperm(X_train[:,1])
+plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "lightgray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot!(X_train[:,1][x_perm], pred_train[:,1][x_perm], color = "navy", linewidth = 1.5, label = "Median")
+# σ²
+plot!(X_train[:,1][x_perm], sqrt.(pred_train[:,2][x_perm]), color = "red", linewidth = 1.5, label = "sigma")
+# q20
+dist = Normal.(pred_train[:,1][x_perm], sqrt.(pred_train[:,2][x_perm]))
+pred_train_q20 = quantile.(dist, 0.2)
+pred_train_q80 = quantile.(dist, 0.8)
+sum(pred_train_q20 .< Y_train[x_perm]) / size(Y_train,1)
+sum(pred_train_q80 .< Y_train[x_perm]) / size(pred_train,1)
+plot!(X_train[:,1][x_perm], pred_train_q20, color = "green", linewidth = 1.5, label = "Q20")
+plot!(X_train[:,1][x_perm], pred_train_q80, color = "green", linewidth = 1.5, label = "Q80")
+savefig("gaussian_likelihood.png")
