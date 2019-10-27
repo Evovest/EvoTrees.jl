@@ -3,9 +3,9 @@ function grow_tree(bags::Vector{Vector{BitSet}},
     δ, δ², 𝑤,
     hist_δ, hist_δ², hist_𝑤,
     params::EvoTreeRegressor,
-    train_nodes::Vector{TrainNode{L,T,I,J,S}},
+    train_nodes::Vector{TrainNode{L,T,S}},
     splits::Vector{SplitInfo{L,T,Int}},
-    edges, X_bin) where {R<:Real, T<:AbstractFloat, I<:AbstractVector{Int}, J<:AbstractVector{Int}, S<:Int, L}
+    edges, X_bin) where {R<:Real, T<:AbstractFloat, S<:Int, L}
 
     active_id = ones(Int, 1)
     leaf_count = 1::Int
@@ -109,7 +109,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     end
 
     # initialize train nodes
-    train_nodes = Vector{TrainNode{params.K, Float64, Vector{Int64}, Vector{Int64}, Int64}}(undef, 2^params.max_depth-1)
+    train_nodes = Vector{TrainNode{params.K, Float64, Int64}}(undef, 2^params.max_depth-1)
     for node in 1:2^params.max_depth-1
         train_nodes[node] = TrainNode(0, SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, [0], [0])
     end
@@ -230,7 +230,7 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractVector{S
     end
 
     # initialize train nodes
-    train_nodes = Vector{TrainNode{params.K, Float64, BitSet, Array{Int64, 1}, Int64}}(undef, 2^params.max_depth-1)
+    train_nodes = Vector{TrainNode{params.K, Float64, BitSet, Vector{Int64}, Int64}}(undef, 2^params.max_depth-1)
     for node in 1:2^params.max_depth-1
         train_nodes[node] = TrainNode(0, SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, BitSet([0]), [0])
     end
