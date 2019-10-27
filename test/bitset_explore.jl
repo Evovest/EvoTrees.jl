@@ -1,13 +1,91 @@
 using StaticArrays
 using Base.Threads: @threads
 using StatsBase: sample
+using BenchmarkTools
 
 x1 = BitSet([1,2,3,4,5,8,9])
 x2 = BitSet([2,5,8])
 x3 = BitSet([1,3])
 x4 = BitSet([4,9])
-
 bags = [[x2, x3, x4]]
+intersect(x1, x2)
+
+x1 = [1,2,3,4,5,8,9]
+x2 = [2,5,8]
+x3 = [1,3]
+x4 = [4,9]
+bags = [[x2, x3, x4]]
+intersect(x1, x2)
+
+nrows = 80_000
+ncols = 100
+nbins = 32
+
+id1_int = sample(1:nrows, nrows, replace=false, ordered=true)
+id2_int = sample(1:nrows, Int(nrows/2), replace=false, ordered=false)
+
+id1_bit = BitSet(sample(1:nrows, nrows, replace=false, ordered=true));
+id2_bit = BitSet(sample(1:nrows, Int(nrows/2), replace=false, ordered=false));
+
+hist = zeros(32)
+x_bin = sample(UInt8.(1:nbins), nrows, replace=true, ordered=false)
+value = rand(nrows)
+
+function hist_sum(x::Vector{S}, hist::Vector{T}, set::I, value::Vector{T}) where {S,T,I}
+    hist .*= 0
+    for i in set
+        hist[x[i]] += value[i]
+    end
+    return
+end
+@btime hist_sum($x_bin, $hist, $id1_int, $value)
+@btime hist_sum($x_bin, $hist, $id1_bit, $value)
+
+function inter(x1, x2)
+    res = intersect(x1, x2)
+    return res
+end
+@btime inter($id1_int, $id2_int)
+@btime inter($id1_bit, $id2_bit)
+
+@time inter(id1_int, id2_int)
+@time inter(id1_bit, id2_bit)
+@time inter(id1_int, id2_bit)
+
+function pushtest(src, cond, child)
+    for i in src
+        if in(i, cond)
+            push!(child, i)
+        end
+    end
+end
+
+function conv(x::Vector{Int})
+    BitSet(x)
+end
+
+function conv(x::BitSet)
+    Int.(x)
+end
+
+src = sample(1:nrows, nrows, replace=false, ordered=false)
+cond = sample(1:nrows, 50_000, replace=false, ordered=false)
+cond = BitSet(cond);
+child = Vector{Int}()
+@time pushtest(src, cond, child)
+
+@time src_bit = conv(src);
+@time src_int = conv(src_bit)
+
+
+x1 = rand(100_000, 100)
+
+function sum(x::Matrix{T}, hist::Matrix{T})
+
+    res = intersect(x1, x2)
+    return res
+end
+
 
 intersect.(Ref(x1), bags[1])
 

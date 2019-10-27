@@ -9,10 +9,10 @@ using BenchmarkTools
 using EvoTrees
 using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, EvoTreeRegressor, predict, predict!, sigmoid
 using EvoTrees: find_bags, update_bags!
-using EvoTrees: find_split_static!, pred_leaf
+using EvoTrees: find_split_static!, pred_leaf, find_split_wide!, find_split_narrow!
 
 # prepare a dataset
-features = rand(100_000, 100)
+features = rand(1_000_000, 100)
 # features = rand(1_000 10)
 # x = cat(ones(20), ones(80)*2, dims=1)
 # features =  hcat(x, features)
@@ -50,9 +50,9 @@ pred = zeros(SVector{params1.K,Float64}, size(X_train,1))
 # @btime gain = get_gain($params1.loss, $∑δ, $∑δ², $∑𝑤, $params1.λ)
 
 # initialize train_nodes
-train_nodes = Vector{TrainNode{params1.K, Float64, BitSet, Array{Int64, 1}, Int}}(undef, 2^params1.max_depth-1)
+train_nodes = Vector{TrainNode{params1.K, Float64, Vector{Int64}, Vector{Int64}, Int}}(undef, 2^params1.max_depth-1)
 for node in 1:2^params1.max_depth-1
-    train_nodes[node] = TrainNode(0, SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, BitSet([0]), [0])
+    train_nodes[node] = TrainNode(0, SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, [0], [0])
     # train_nodes[feat] = TrainNode(0, fill(-Inf, params1.K), fill(-Inf, params1.K), -Inf, -Inf, BitSet([0]), [0])
 end
 
@@ -72,7 +72,7 @@ function prep(X_bin, bags)
     end
     return bags
 end
-@time bags = prep(X_bin, bags)
+@time prep(X_bin, bags);
 
 # initialize histograms
 feat=1
@@ -87,7 +87,7 @@ end
 
 # grow single tree
 #  0.135954 seconds (717.54 k allocations: 15.219 MiB)
-@time train_nodes[1] = TrainNode(1, SVector(∑δ), SVector(∑δ²), SVector(∑𝑤), gain, BitSet(𝑖), 𝑗)
+@time train_nodes[1] = TrainNode(1, SVector(∑δ), SVector(∑δ²), SVector(∑𝑤), gain, 𝑖, 𝑗)
 @time tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params1, train_nodes, splits, edges, X_bin)
 # @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $hist_δ, $hist_δ², $hist_𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
 @time pred_train = predict(tree, X_train, params1.K)
@@ -137,6 +137,37 @@ train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
 splits[feat] = SplitInfo{Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, 0, feat, 0.0)
 @time find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], train_nodes[1].𝑖)
 @btime find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], train_nodes[1].𝑖)
+
+
+# find split wide
+set = Int64.(train_nodes[1].𝑖)
+@time find_split_wide!(hist_δ, hist_δ², hist_𝑤, bags, X_bin, δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits, edges, set)
+@btime find_split_wide!($hist_δ, $hist_δ², $hist_𝑤, $bags, $X_bin, $δ, $δ², $𝑤, $∑δ, $∑δ², $∑𝑤, $params1, $splits, $edges, $set)
+
+# find split narrow
+@time find_split_narrow!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], set)
+@btime find_split_narrow!($hist_δ[feat], $hist_δ²[feat], $hist_𝑤[feat], $bags[feat], $view(X_bin,:,feat), $δ, $δ², $𝑤, $∑δ, $∑δ², $∑𝑤, $params1, $splits[feat], $edges[feat], $set)
+function test_narrow()
+    # set = Int64.(train_nodes[1].𝑖)
+    @threads for feat in 𝑗
+        find_split_narrow!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], set)
+    end
+end
+@btime test_narrow()
+
+using Base.Threads: @threads
+function test()
+    # x = collect(1:8)
+    x = BitSet(1:8)
+    # x = Int64.(x)
+    res = zero(Int)
+    @threads for i in x
+        res += i
+    end
+    return res
+end
+
+test()
 
 length(union(train_nodes[1].bags[1][1:13]...))
 length(union(train_nodes[1].bags[1][1:13]...))
