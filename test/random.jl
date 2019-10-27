@@ -32,6 +32,7 @@ params1 = EvoTreeRegressor(
 
 # 1.323 s (685585 allocations: 467.74 MiB)
 # with Int64 set 100K rows: 654.218 ms (583199 allocations: 488.97 MiB)
+# with BitSet 𝑖 100K rows: 563.297 ms (576642 allocations: 475.41 MiB)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 2)
 @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train = predict(model, X_train)
