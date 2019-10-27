@@ -9,10 +9,10 @@ using BenchmarkTools
 using EvoTrees
 using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, EvoTreeRegressor, predict, predict!, sigmoid
 using EvoTrees: find_bags, update_bags!
-using EvoTrees: find_split_static!, pred_leaf, find_split_wide!, find_split_narrow!
+using EvoTrees: find_split_static!, pred_leaf, update_hist!, find_split!, find_split_narrow!
 
 # prepare a dataset
-features = rand(1_000_000, 100)
+features = rand(100_000, 100)
 # features = rand(1_000 10)
 # x = cat(ones(20), ones(80)*2, dims=1)
 # features =  hcat(x, features)
@@ -50,7 +50,7 @@ pred = zeros(SVector{params1.K,Float64}, size(X_train,1))
 # @btime gain = get_gain($params1.loss, $∑δ, $∑δ², $∑𝑤, $params1.λ)
 
 # initialize train_nodes
-train_nodes = Vector{TrainNode{params1.K, Float64, Vector{Int64}, Vector{Int64}, Int}}(undef, 2^params1.max_depth-1)
+train_nodes = Vector{TrainNode{params1.K, Float64, Int}}(undef, 2^params1.max_depth-1)
 for node in 1:2^params1.max_depth-1
     train_nodes[node] = TrainNode(0, SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, [0], [0])
     # train_nodes[feat] = TrainNode(0, fill(-Inf, params1.K), fill(-Inf, params1.K), -Inf, -Inf, BitSet([0]), [0])
@@ -120,7 +120,7 @@ sqrt(mean((pred_train .- Y_train) .^ 2))
 feat = 1
 typeof(bags[feat][1])
 # initialise node, info and tracks
-train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
+train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
 splits[feat] = SplitInfo{params1.K, Float64, Int}(gain, SVector{params1.K, Float64}(zeros(params1.K)), SVector{params1.K, Float64}(zeros(params1.K)), SVector{1, Float64}(zeros(1)), ∑δ, ∑δ², ∑𝑤, -Inf, -Inf, 0, feat, 0.0)
 
 # 492.199 μs (343 allocations: 6.83 KiB)
@@ -138,11 +138,43 @@ splits[feat] = SplitInfo{Float64, Int}(gain, SVector{params1.K, Float64}(zeros(p
 @time find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], train_nodes[1].𝑖)
 @btime find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], train_nodes[1].𝑖)
 
+function find_split_static()
+    @threads for feat in 𝑗
+        find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], train_nodes[1].𝑖)
+    end
+end
+@btime find_split_tot()
 
 # find split wide
 set = Int64.(train_nodes[1].𝑖)
-@time find_split_wide!(hist_δ, hist_δ², hist_𝑤, bags, X_bin, δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits, edges, set)
-@btime find_split_wide!($hist_δ, $hist_δ², $hist_𝑤, $bags, $X_bin, $δ, $δ², $𝑤, $∑δ, $∑δ², $∑𝑤, $params1, $splits, $edges, $set)
+# @time update_hist!(hist_δ, hist_δ², hist_𝑤, X_bin, δ, δ², 𝑤, set)
+@time update_hist!(hist_δ, hist_δ², hist_𝑤, X_bin, δ, δ², 𝑤, set, feat)
+# 9.933 ms (1 allocation: 96 bytes)
+@btime update_hist!($hist_δ, $hist_δ², $hist_𝑤, $X_bin, $δ, $δ², $𝑤, $set, $feat)
+function update_hist_wide()
+    @threads for j in 𝑗
+        update_hist!(hist_δ, hist_δ², hist_𝑤, X_bin, δ, δ², 𝑤, train_nodes[1].𝑖, j)
+    end
+end
+# 100K: 6.502 ms (0 allocations: 0 bytes)
+@btime update_hist_wide()
+
+@time find_split!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], feat)
+@btime find_split!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], feat)
+function find_split_wide()
+    @threads for feat in 𝑗
+        find_split!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], feat)
+    end
+end
+@btime find_split_wide()
+
+function find_split_tot()
+    @threads for feat in 𝑗
+        update_hist!(hist_δ, hist_δ², hist_𝑤, X_bin, δ, δ², 𝑤, train_nodes[1].𝑖, feat)
+        find_split!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], feat)
+    end
+end
+@btime find_split_tot()
 
 # find split narrow
 @time find_split_narrow!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], set)
@@ -153,6 +185,7 @@ function test_narrow()
         find_split_narrow!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, ∑δ, ∑δ², ∑𝑤, params1, splits[feat], edges[feat], set)
     end
 end
+# 100K: 18.765 ms (300 allocations: 9.38 KiB)
 @btime test_narrow()
 
 using Base.Threads: @threads
