@@ -230,9 +230,9 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractVector{S
     end
 
     # initialize train nodes
-    train_nodes = Vector{TrainNode{params.K, Float64, BitSet, Vector{Int64}, Int64}}(undef, 2^params.max_depth-1)
+    train_nodes = Vector{TrainNode{params.K, Float64, Int64}}(undef, 2^params.max_depth-1)
     for node in 1:2^params.max_depth-1
-        train_nodes[node] = TrainNode(0, SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, BitSet([0]), [0])
+        train_nodes[node] = TrainNode(0, SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, [0], [0])
     end
 
     # initializde node splits info and tracks - colsample size (𝑗)
@@ -271,7 +271,7 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractVector{S
         gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
 
         # assign a root and grow tree
-        train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
+        train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
         tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params, train_nodes, splits, edges, X_bin)
 
         # update push tree to model
