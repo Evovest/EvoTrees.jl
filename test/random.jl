@@ -30,7 +30,6 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 
-# 1.323 s (685585 allocations: 467.74 MiB)
 # with Int64 set 100K rows: 654.218 ms (583199 allocations: 488.97 MiB)
 # with BitSet 𝑖 100K rows: 563.297 ms (576642 allocations: 475.41 MiB)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 2)
