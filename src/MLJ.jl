@@ -36,22 +36,28 @@ function MLJBase.update(model::EvoTreeRegressor, verbosity,
         # indentical with model (and which `update` should not modify
         # permanently). For updating, we temporarily change this value
         # to δnrounds:
+        println("OK to continue return old fit result")
         old_nrounds = model.nrounds
         model.nrounds = δnrounds
 
-        fitresult = grow_gbtree!(old_fitresult, Xmatrix, y;
+        println("δnrounds: ", δnrounds)
+        println(old_fitresult.params)
+        println("old_fitresult nrounds: ", old_fitresult.params.nrounds)
+
+        old_fitresult = grow_gbtree!(old_fitresult, Xmatrix, y;
                                  verbosity=verbosity)
 
         # now restore model:
         model.nrounds = old_nrounds
     else
+        println("Not OK to continue")
         fitresult = grow_gbtree(Xmatrix, y, model, verbosity = verbosity)
     end
 
     cache = (Xmatrix, deepcopy(model))
     report = nothing
 
-    return fitresult, cache, report
+    return old_fitresult, cache, report
 end
 
 function MLJBase.predict(model::EvoTreeRegressor, fitresult, Xnew)
@@ -65,7 +71,7 @@ const EvoTypes = Union{EvoTreeRegressor}
 MLJBase.input_scitype(::Type{<:EvoTreeRegressor}) = MLJBase.Table(MLJBase.Continuous)
 # MLJBase.target_scitype(::Type{<:EvoTreeRegressor}) = MLJBase.Continuous
 
-MLJBase.load_path(::Type{<:EvoTreeRegressor}) = "EvoTrees.MLJ.EvoTreeRegressor"
+MLJBase.load_path(::Type{<:EvoTreeRegressor}) = "EvoTrees.EvoTreeRegressor"
 MLJBase.package_name(::Type{<:EvoTypes}) = "EvoTrees"
 MLJBase.package_uuid(::Type{<:EvoTypes}) = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
 MLJBase.package_url(::Type{<:EvoTypes}) = "https://github.com/Evovest/EvoTrees.jl"

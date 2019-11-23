@@ -316,3 +316,87 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractVector{S
     end
     return model
 end
+
+
+
+# grow_gbtree - continue training for MLJ - continue training from same dataset - all preprocessed elements passed as cache
+function grow_gbtree2!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractVector{S};
+    early_stopping_rounds=Int(1e5), print_every_n=100, verbosity=1) where {R<:Real, S<:Real}
+
+    params = model.params
+    seed!(params.seed)
+
+    # initialize predictions - efficiency to be improved
+    pred = zeros(SVector{params.K,Float64}, size(X,1))
+    pred_ = predict(model, X)
+    for i in eachindex(pred)
+        pred[i] = SVector{params.K,Float64}(pred_[i])
+    end
+
+    X_size = size(X)
+    𝑖_ = collect(1:X_size[1])
+    𝑗_ = collect(1:X_size[2])
+
+    # initialize gradients and weights
+    δ, δ² = zeros(SVector{params.K, Float64}, X_size[1]), zeros(SVector{params.K, Float64}, X_size[1])
+    𝑤 = zeros(SVector{1, Float64}, X_size[1]) .+ 1
+
+    # loop over nrounds
+    for i in 1:params.nrounds
+        # select random rows and cols
+        𝑖 = 𝑖_[sample(𝑖_, ceil(Int, params.rowsample * X_size[1]), replace=false, ordered=true)]
+        𝑗 = 𝑗_[sample(𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)]
+
+        # reset gain to -Inf
+        for feat in 𝑗_
+            splits[feat].gain = -Inf
+        end
+
+        # get gradients
+        update_grads!(params.loss, params.α, pred, Y, δ, δ², 𝑤)
+        ∑δ, ∑δ², ∑𝑤 = sum(δ[𝑖]), sum(δ²[𝑖]), sum(𝑤[𝑖])
+        gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
+
+        # assign a root and grow tree
+        train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
+        tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params, train_nodes, splits, edges, X_bin)
+
+        # update push tree to model
+        push!(model.trees, tree)
+
+        # get update predictions
+        predict!(pred, tree, X)
+        # eval predictions
+        if size(Y_eval, 1) > 0
+            predict!(pred_eval, tree, X_eval)
+        end
+
+        # callback function
+        if params.metric != :none
+
+            if size(Y_eval, 1) > 0
+                metric_track.metric .= eval_metric(Val{params.metric}(), pred_eval, Y_eval, params.α)
+            else
+                metric_track.metric .= eval_metric(Val{params.metric}(), pred, Y, params.α)
+            end
+
+            if metric_track.metric < metric_best.metric
+                metric_best.metric .=  metric_track.metric
+                metric_best.iter .=  i
+            else
+                iter_since_best += 1
+            end
+
+            if mod(i, print_every_n) == 0 && verbosity > 0
+                display(string("iter:", i, ", eval: ", metric_track.metric))
+            end
+            iter_since_best >= early_stopping_rounds ? break : nothing
+        end
+    end #end of nrounds
+
+    if params.metric != :none
+        model.metric.iter .= metric_best.iter
+        model.metric.metric .= metric_best.metric
+    end
+    return model
+end

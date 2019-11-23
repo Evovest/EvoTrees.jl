@@ -10,7 +10,7 @@ using StatsBase: sample, quantile
 using Random: seed!
 using StaticArrays
 using Flux: onehot
-# import MLJBase
+import MLJBase
 # import MLJ
 
 include("struct.jl")
@@ -19,6 +19,6 @@ include("eval.jl")
 include("predict.jl")
 include("find_split.jl")
 include("trees.jl")
-# include("MLJ.jl")
+include("MLJ.jl")
 
 end # module
