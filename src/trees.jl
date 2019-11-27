@@ -65,6 +65,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractVector{S} = Vector{S}(undef, 0),
     early_stopping_rounds=Int(1e5), print_every_n=100, verbosity=1) where {R<:Real, S<:Real}
 
+    display(string("start grow_gbtree preproc"))
     seed!(params.seed)
 
     μ = ones(params.K)
@@ -137,6 +138,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     end
 
     # loop over nrounds
+    display(string("start grow_gbtree train loop"))
     for i in 1:params.nrounds
         # select random rows and cols
         𝑖 = 𝑖_[sample(𝑖_, ceil(Int, params.rowsample * X_size[1]), replace=false, ordered=true)]
