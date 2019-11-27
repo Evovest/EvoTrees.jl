@@ -12,7 +12,7 @@ using EvoTrees: find_bags, update_bags!
 using EvoTrees: find_split_static!, pred_leaf, update_hist!, find_split!, find_split_narrow!
 
 # prepare a dataset
-features = rand(100_000, 100)
+features = rand(1_000_000, 100)
 # features = rand(1_000 10)
 # x = cat(ones(20), ones(80)*2, dims=1)
 # features =  hcat(x, features)
@@ -52,7 +52,7 @@ pred = zeros(SVector{params1.K,Float64}, size(X_train,1))
 # initialize train_nodes
 train_nodes = Vector{TrainNode{params1.K, Float64, Int}}(undef, 2^params1.max_depth-1)
 for node in 1:2^params1.max_depth-1
-    train_nodes[node] = TrainNode(0, SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, [0], [0])
+    train_nodes[node] = TrainNode(0, SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{params1.K, Float64}(fill(-Inf, params1.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, BitSet([0]), [0])
     # train_nodes[feat] = TrainNode(0, fill(-Inf, params1.K), fill(-Inf, params1.K), -Inf, -Inf, BitSet([0]), [0])
 end
 
@@ -63,9 +63,9 @@ for feat in 1:size(𝑗, 1)
 end
 
 # binarize data and create bags
-@time edges = get_edges(X_train, params1.nbins)
-@time X_bin = binarize(X_train, edges)
-@time bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1))
+@time edges = get_edges(X_train, params1.nbins);
+@time X_bin = binarize(X_train, edges);
+@time bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1));
 function prep(X_bin, bags)
     @threads for feat in 1:size(𝑗, 1)
          bags[feat] = find_bags(X_bin[:,feat])
@@ -87,7 +87,7 @@ end
 
 # grow single tree
 #  0.135954 seconds (717.54 k allocations: 15.219 MiB)
-@time train_nodes[1] = TrainNode(1, SVector(∑δ), SVector(∑δ²), SVector(∑𝑤), gain, 𝑖, 𝑗)
+@time train_nodes[1] = TrainNode(1, SVector(∑δ), SVector(∑δ²), SVector(∑𝑤), gain, BitSet(𝑖), 𝑗);
 @time tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params1, train_nodes, splits, edges, X_bin)
 # @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $hist_δ, $hist_δ², $hist_𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
 @time pred_train = predict(tree, X_train, params1.K)
