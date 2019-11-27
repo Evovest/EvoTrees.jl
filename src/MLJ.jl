@@ -1,13 +1,13 @@
 function MLJBase.fit(model::EvoTreeRegressor, verbosity::Int, X, y)
     Xmatrix = MLJBase.matrix(X)
-    fitresult = grow_gbtree(Xmatrix, y, model, verbosity = verbosity)
-    cache = (Xmatrix, deepcopy(model))
+    fitresult, cache = grow_gbtree_MLJ(Xmatrix, y, model, verbosity = verbosity)
+    # cache = (Xmatrix, deepcopy(model))
     report = nothing
     return fitresult, cache, report
 end
 
 function MLJBase.update(model::EvoTreeRegressor, verbosity,
-                        old_fitresult, old_cache, X, y)
+    old_fitresult, old_cache, X, y)
 
     Xmatrix, old_model = old_cache
     δnrounds = model.nrounds - old_model.nrounds
@@ -19,17 +19,17 @@ function MLJBase.update(model::EvoTreeRegressor, verbosity,
     # learning rate).
 
     okay_to_continue =
-        δnrounds >= 0 &&
-        model.loss == old_model.loss &&
-        model.λ == old_model.λ &&
-        model.γ == old_model.γ &&
-        model.max_depth  == old_model.max_depth &&
-        model.min_weight == old_model.min_weight &&
-        model.rowsample ==  old_model.rowsample &&
-        model.colsample ==  old_model.colsample &&
-        model.nbins ==  old_model.nbins &&
-        model.α ==  old_model.α &&
-        model.metric ==  old_model.metric
+    δnrounds >= 0 &&
+    model.loss == old_model.loss &&
+    model.λ == old_model.λ &&
+    model.γ == old_model.γ &&
+    model.max_depth  == old_model.max_depth &&
+    model.min_weight == old_model.min_weight &&
+    model.rowsample ==  old_model.rowsample &&
+    model.colsample ==  old_model.colsample &&
+    model.nbins ==  old_model.nbins &&
+    model.α ==  old_model.α &&
+    model.metric ==  old_model.metric
 
     if okay_to_continue
         # Grow_gbtree! gets nrounds from old_fitresult.params, which is
@@ -44,20 +44,20 @@ function MLJBase.update(model::EvoTreeRegressor, verbosity,
         println(old_fitresult.params)
         println("old_fitresult nrounds: ", old_fitresult.params.nrounds)
 
-        old_fitresult = grow_gbtree!(old_fitresult, Xmatrix, y;
-                                 verbosity=verbosity)
+        old_fitresult = grow_gbtree_MLJ!(old_fitresult, cache, verbosity=verbosity)
 
         # now restore model:
         model.nrounds = old_nrounds
     else
         println("Not OK to continue")
-        fitresult = grow_gbtree(Xmatrix, y, model, verbosity = verbosity)
+        Xmatrix = MLJBase.matrix(X)
+        fitresult, cache = grow_gbtree_MLJ(Xmatrix, y, model, verbosity = verbosity)
     end
 
-    cache = (Xmatrix, deepcopy(model))
+    # cache = (Xmatrix, deepcopy(model))
     report = nothing
 
-    return old_fitresult, cache, report
+    return fitresult, cache, report
 end
 
 function MLJBase.predict(model::EvoTreeRegressor, fitresult, Xnew)
