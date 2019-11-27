@@ -321,7 +321,7 @@ end
 
 
 # grow_gbtree
-function grow_gbtree_MLJ(X::AbstractMatrix{R, 2}, Y::AbstractVector{S}, params::EvoTreeRegressor; verbosity=1) where {R<:Real, S<:Real}
+function grow_gbtree_MLJ(X::AbstractMatrix{R}, Y::AbstractVector{S}, params::EvoTreeRegressor; verbosity=1) where {R<:Real, S<:Real}
 
     seed!(params.seed)
 
