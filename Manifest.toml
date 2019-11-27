@@ -198,9 +198,9 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[Distributions]]
 deps = ["LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SpecialFunctions", "Statistics", "StatsBase", "StatsFuns"]
-git-tree-sha1 = "ce189b71fac635d6ec9582dc0f208887db25e6d3"
+git-tree-sha1 = "51d184211a807ddba5f48d06098e93986759ec43"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.21.8"
+version = "0.21.9"
 
 [[DocStringExtensions]]
 deps = ["LibGit2", "Markdown", "Pkg", "Test"]
@@ -346,9 +346,9 @@ version = "0.5.4"
 
 [[MLJBase]]
 deps = ["CategoricalArrays", "DelimitedFiles", "Distributions", "InteractiveUtils", "LinearAlgebra", "LossFunctions", "Missings", "OrderedCollections", "Parameters", "Random", "ScientificTypes", "Statistics", "StatsBase", "Tables"]
-git-tree-sha1 = "fdf5f06f925f7238e3b0f54c70bf4bc59f7ee404"
+git-tree-sha1 = "910cff6b02aca70b03a5620dd8c86b3d460d2237"
 uuid = "a7f614a8-145f-11e9-1d2a-a57a1082229d"
-version = "0.8.2"
+version = "0.8.3"
 
 [[MLJModels]]
 deps = ["CategoricalArrays", "ColorTypes", "Distances", "Distributions", "InteractiveUtils", "LinearAlgebra", "MLJBase", "OrderedCollections", "Parameters", "Pkg", "Random", "Requires", "ScientificTypes", "Statistics", "StatsBase", "Tables"]
@@ -417,7 +417,7 @@ uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 version = "0.3.10"
 
 [[Pkg]]
-deps = ["Dates", "LibGit2", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
+deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[PooledArrays]]
@@ -493,9 +493,9 @@ uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 
 [[ScientificTypes]]
 deps = ["CategoricalArrays", "ColorTypes", "Tables"]
-git-tree-sha1 = "312929ba03f39c4f7118424ac57b102d0d1432bb"
+git-tree-sha1 = "3a2d160eb9a88fa38a74a2c4d2c59877689865a9"
 uuid = "321657f4-b219-11e9-178b-2701a2544e81"
-version = "0.2.5"
+version = "0.2.6"
 
 [[Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
@@ -546,7 +546,7 @@ uuid = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
 version = "0.9.0"
 
 [[SuiteSparse]]
-deps = ["Libdl", "LinearAlgebra", "SparseArrays"]
+deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
 uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 
 [[TableTraits]]

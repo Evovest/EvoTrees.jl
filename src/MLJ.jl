@@ -9,7 +9,7 @@ end
 function MLJBase.update(model::EvoTreeRegressor, verbosity,
     old_fitresult, old_cache, X, y)
 
-    Xmatrix, old_model = old_cache
+    old_model, Xmatrix, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, bags, train_nodes, splits, hist_δ, hist_δ², hist_𝑤 = old_cache
     δnrounds = model.nrounds - old_model.nrounds
 
     # We only continue computation from where we left off if: (i) The
@@ -36,25 +36,12 @@ function MLJBase.update(model::EvoTreeRegressor, verbosity,
         # indentical with model (and which `update` should not modify
         # permanently). For updating, we temporarily change this value
         # to δnrounds:
-        println("OK to continue return old fit result")
-        old_nrounds = model.nrounds
-        model.nrounds = δnrounds
-
-        println("δnrounds: ", δnrounds)
-        println(old_fitresult.params)
-        println("old_fitresult nrounds: ", old_fitresult.params.nrounds)
-
-        old_fitresult = grow_gbtree_MLJ!(old_fitresult, cache, verbosity=verbosity)
-
-        # now restore model:
-        model.nrounds = old_nrounds
+        fitresult, cache = grow_gbtree_MLJ!(old_fitresult, Xmatrix, old_cache, verbosity=verbosity)
     else
-        println("Not OK to continue")
         Xmatrix = MLJBase.matrix(X)
         fitresult, cache = grow_gbtree_MLJ(Xmatrix, y, model, verbosity = verbosity)
     end
 
-    # cache = (Xmatrix, deepcopy(model))
     report = nothing
 
     return fitresult, cache, report

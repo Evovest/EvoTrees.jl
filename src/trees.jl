@@ -400,23 +400,28 @@ function grow_gbtree_MLJ(X::AbstractMatrix{R}, Y::AbstractVector{S}, params::Evo
         # push new tree to model
         push!(gbtree.trees, tree)
 
+        # get update predictions
+        predict!(pred, tree, X)
+
     end #end of nrounds
 
-    cache = (Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, bags, train_nodes, splits, hist_δ, hist_δ², hist_𝑤)
+    cache = (deepcopy(params), X, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, bags, train_nodes, splits, hist_δ, hist_δ², hist_𝑤)
     return gbtree, cache
 end
 
 # grow_gbtree - continue training for MLJ - continue training from same dataset - all preprocessed elements passed as cache
-function grow_gbtree_MLJ!(model::GBTree, cache; verbosity=1) where {S<:Real}
+function grow_gbtree_MLJ!(model::GBTree, X, cache; verbosity=1) where {S<:Real}
 
     params = model.params
-    seed!(params.seed)
 
     # initialize predictions
-    Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, bags, train_nodes, splits, hist_δ, hist_δ², hist_𝑤 = cache
+    cache_params, X, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, bags, train_nodes, splits, hist_δ, hist_δ², hist_𝑤 = cache
+    X_size = size(X_bin)
+    δnrounds = params.nrounds - cache_params.nrounds
 
     # loop over nrounds
-    for i in 1:params.nrounds
+    for i in 1:δnrounds
+
         # select random rows and cols
         𝑖 = 𝑖_[sample(𝑖_, ceil(Int, params.rowsample * X_size[1]), replace=false, ordered=true)]
         𝑗 = 𝑗_[sample(𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)]
@@ -438,7 +443,12 @@ function grow_gbtree_MLJ!(model::GBTree, cache; verbosity=1) where {S<:Real}
         # update push tree to model
         push!(model.trees, tree)
 
+        # get update predictions
+        predict!(pred, tree, X)
+
     end #end of nrounds
+
+    cache = (deepcopy(params), X, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, bags, train_nodes, splits, hist_δ, hist_δ², hist_𝑤)
 
     return model, cache
 end
