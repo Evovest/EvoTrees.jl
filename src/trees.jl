@@ -68,6 +68,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     display(string("start grow_gbtree preproc"))
     seed!(params.seed)
 
+    display(string("get mean"))
     μ = ones(params.K)
     μ .*= mean(Y)
     if typeof(params.loss) == Logistic
@@ -78,12 +79,14 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
         μ .*= 0.0
     end
 
+    display(string("initialize preds"))
     # initialize preds
     pred = zeros(SVector{params.K,Float64}, size(X,1))
     for i in eachindex(pred)
         pred[i] += μ
     end
 
+    display(string("eval preds"))
     # eval init
     if size(Y_eval, 1) > 0
         # pred_eval = ones(size(Y_eval, 1), params.K) .* μ'
@@ -93,6 +96,7 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
         end
     end
 
+    display(string("set bias and intial gbtree"))
     # bias = Tree([TreeNode(SVector{1, Float64}(μ))])
     bias = Tree([TreeNode(SVector{params.K,Float64}(μ))])
     gbtree = GBTree([bias], params, Metric())
@@ -101,10 +105,12 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     𝑖_ = collect(1:X_size[1])
     𝑗_ = collect(1:X_size[2])
 
+    display(string("initialize gradients"))
     # initialize gradients and weights
     δ, δ² = zeros(SVector{params.K, Float64}, X_size[1]), zeros(SVector{params.K, Float64}, X_size[1])
     𝑤 = zeros(SVector{1, Float64}, X_size[1]) .+ 1
 
+    display(string("edges and bags"))
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
     bags = Vector{Vector{BitSet}}(undef, size(𝑗_, 1))
@@ -112,12 +118,14 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
         bags[feat] = find_bags(X_bin[:,feat])
     end
 
+    display(string("train nodes"))
     # initialize train nodes
     train_nodes = Vector{TrainNode{params.K, Float64, Int64}}(undef, 2^params.max_depth-1)
     for node in 1:2^params.max_depth-1
         train_nodes[node] = TrainNode(0, SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, BitSet([0]), [0])
     end
 
+    display(string("split info and hist"))
     # initializde node splits info and tracks - colsample size (𝑗)
     splits = Vector{SplitInfo{params.K, Float64, Int64}}(undef, X_size[2])
     hist_δ = Vector{Vector{SVector{params.K, Float64}}}(undef, X_size[2])
