@@ -9,7 +9,7 @@ end
 function MLJBase.update(model::EvoTreeRegressor, verbosity,
     old_fitresult, old_cache, X, y)
 
-    old_model, Xmatrix, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, bags, train_nodes, splits, hist_δ, hist_δ², hist_𝑤 = old_cache
+    old_model, Xmatrix, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, train_nodes, splits, hist_δ, hist_δ², hist_𝑤 = old_cache
     δnrounds = model.nrounds - old_model.nrounds
 
     # We only continue computation from where we left off if: (i) The

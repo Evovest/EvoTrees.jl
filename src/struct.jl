@@ -139,7 +139,7 @@ struct TrainNode{L, T<:AbstractFloat, S<:Int}
     ∑δ²::SVector{L,T}
     ∑𝑤::SVector{1,T}
     gain::T
-    𝑖::BitSet
+    𝑖::Vector{S}
     𝑗::Vector{S}
 end
 

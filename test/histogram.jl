@@ -12,7 +12,7 @@ using EvoTrees: find_bags, update_bags!
 using EvoTrees: find_split_static!, pred_leaf, update_hist!, find_split!, find_split_narrow!
 
 # prepare a dataset
-features = rand(100_000, 100)
+features = rand(1_000, 10)
 # features = rand(1_000 10)
 # x = cat(ones(20), ones(80)*2, dims=1)
 # features =  hcat(x, features)
@@ -63,9 +63,9 @@ for feat in 1:size(𝑗, 1)
 end
 
 # binarize data and create bags
-@time edges = get_edges(X_train, params1.nbins)
-@time X_bin = binarize(X_train, edges)
-@time bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1))
+@time edges = get_edges(X_train, params1.nbins);
+@time X_bin = binarize(X_train, edges);
+@time bags = Vector{Vector{BitSet}}(undef, size(𝑗, 1));
 function prep(X_bin, bags)
     @threads for feat in 1:size(𝑗, 1)
          bags[feat] = find_bags(X_bin[:,feat])
@@ -87,7 +87,7 @@ end
 
 # grow single tree
 #  0.135954 seconds (717.54 k allocations: 15.219 MiB)
-@time train_nodes[1] = TrainNode(1, SVector(∑δ), SVector(∑δ²), SVector(∑𝑤), gain, 𝑖, 𝑗)
+@time train_nodes[1] = TrainNode(1, SVector(∑δ), SVector(∑δ²), SVector(∑𝑤), gain, 𝑖, 𝑗);
 @time tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params1, train_nodes, splits, edges, X_bin)
 # @btime tree = grow_tree($bags, $δ, $δ², $𝑤, $hist_δ, $hist_δ², $hist_𝑤, $params1, $train_nodes, $splits, $tracks, $edges, $X_bin)
 @time pred_train = predict(tree, X_train, params1.K)
@@ -113,7 +113,6 @@ sqrt(mean((pred_train .- Y_train) .^ 2))
 #############################################
 # Quantiles with turbo
 #############################################
-
 𝑖_set = BitSet(𝑖);
 @time bags = prep(X_bin, bags);
 # target: find_split_turbo! in 0.001 sec for 100_000 observations
@@ -201,6 +200,51 @@ function test()
 end
 
 test()
+
+
+
+##################################################
+# Split set into left-right
+##################################################
+
+𝑖_int = 𝑖;
+@time bags = prep(X_bin, bags);
+
+function update_set(set, best, x_bin, bag)
+    left = intersect(set, union(bag[1:best]...))
+    right = intersect!(set, union(bag[(best+1):end]...))
+    return left, right
+end
+
+𝑖_set = BitSet(𝑖);
+@time test_set = update_set(𝑖_set, 12, X_bin[:,1], bags[1])
+length(test_set[1])
+length(test_set[2])
+@time Int.(𝑖_set)
+
+function update_set(set, best, x_bin)
+    left = similar(set)
+    right = similar(set)
+    left_count = 0
+    right_count = 0
+    @inbounds for i in set
+        if x_bin[i] <= best
+            left_count += 1
+            left[left_count] = i
+            # append!(left, i)
+        else
+            right_count += 1
+            right[right_count] = i
+            # append!(right, i)
+        end
+    end
+    resize!(left, left_count)
+    resize!(right, right_count)
+    return left, right
+end
+
+@time test_int = update_set(𝑖_int, 12, X_bin[:,1])
+@time test_int = update_set(𝑖_int, 12, view(X_bin,:,1))
 
 length(union(train_nodes[1].bags[1][1:13]...))
 length(union(train_nodes[1].bags[1][1:13]...))

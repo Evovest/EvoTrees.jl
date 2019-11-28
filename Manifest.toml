@@ -248,9 +248,9 @@ version = "0.4.1"
 
 [[ForwardDiff]]
 deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "NaNMath", "Random", "SpecialFunctions", "StaticArrays"]
-git-tree-sha1 = "4407e7b76999eca2646abdb68203bd4302476168"
+git-tree-sha1 = "da46ac97b17793eba44ff366dc6cb70f1238a738"
 uuid = "f6369f11-7733-5829-9624-2563aa707210"
-version = "0.10.6"
+version = "0.10.7"
 
 [[Future]]
 deps = ["Random"]
@@ -340,21 +340,21 @@ version = "0.4.2"
 
 [[MLJ]]
 deps = ["CategoricalArrays", "ComputationalResources", "Dates", "DelimitedFiles", "Distributed", "Distributions", "DocStringExtensions", "InteractiveUtils", "LinearAlgebra", "MLJBase", "MLJModels", "OrderedCollections", "Pkg", "PrettyTables", "ProgressMeter", "Random", "RecipesBase", "ScientificTypes", "Statistics", "StatsBase", "Tables"]
-git-tree-sha1 = "8f4b1be988da5481800b6fd979c2f6b571642d98"
+git-tree-sha1 = "8b0e3d81165a165529ef6e7c9dbc3117abd0d2c7"
 uuid = "add582a8-e3ab-11e8-2d5e-e98b27df1bc7"
-version = "0.5.4"
+version = "0.5.5"
 
 [[MLJBase]]
-deps = ["CategoricalArrays", "DelimitedFiles", "Distributions", "InteractiveUtils", "LinearAlgebra", "LossFunctions", "Missings", "OrderedCollections", "Parameters", "Random", "ScientificTypes", "Statistics", "StatsBase", "Tables"]
-git-tree-sha1 = "910cff6b02aca70b03a5620dd8c86b3d460d2237"
+deps = ["CategoricalArrays", "DelimitedFiles", "Distributions", "InteractiveUtils", "InvertedIndices", "LinearAlgebra", "LossFunctions", "Missings", "OrderedCollections", "Parameters", "Random", "ScientificTypes", "Statistics", "StatsBase", "Tables"]
+git-tree-sha1 = "5024f1835e8b100fb2559d9a3fa8aae863dffc9b"
 uuid = "a7f614a8-145f-11e9-1d2a-a57a1082229d"
-version = "0.8.3"
+version = "0.8.4"
 
 [[MLJModels]]
-deps = ["CategoricalArrays", "ColorTypes", "Distances", "Distributions", "InteractiveUtils", "LinearAlgebra", "MLJBase", "OrderedCollections", "Parameters", "Pkg", "Random", "Requires", "ScientificTypes", "Statistics", "StatsBase", "Tables"]
-git-tree-sha1 = "c680e986db8dcda1bfed5fc5d617cc4716f06fec"
+deps = ["CategoricalArrays", "Distances", "Distributions", "InteractiveUtils", "LinearAlgebra", "MLJBase", "MultivariateStats", "OrderedCollections", "Parameters", "Pkg", "Random", "Requires", "ScientificTypes", "Statistics", "StatsBase", "Tables"]
+git-tree-sha1 = "821a2b99344153726f6a5ae23b5ce0d107d4f03b"
 uuid = "d491faf4-2d78-11e9-2867-c94bc002c0b7"
-version = "0.5.7"
+version = "0.5.9"
 
 [[MacroTools]]
 deps = ["Compat", "DataStructures", "Test"]
@@ -380,6 +380,12 @@ version = "0.4.3"
 
 [[Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
+
+[[MultivariateStats]]
+deps = ["Arpack", "LinearAlgebra", "SparseArrays", "Statistics", "StatsBase"]
+git-tree-sha1 = "352fae519b447bf52e6de627b89f448bcd469e4e"
+uuid = "6f286f6a-111f-5878-ab1e-185364afe411"
+version = "0.7.0"
 
 [[NNlib]]
 deps = ["Libdl", "LinearAlgebra", "Requires", "Statistics", "TimerOutputs"]

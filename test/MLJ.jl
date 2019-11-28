@@ -6,6 +6,10 @@ using EvoTrees
 import EvoTrees: EvoTreeRegressor, predict
 using EvoTrees: logit, sigmoid
 
+
+##################################################
+### small data test
+##################################################
 features = rand(10_000) .* 5 .- 2
 X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5
@@ -33,7 +37,7 @@ mean(abs.(pred_test - MLJ.selectrows(Y,test)))
 
 
 ##################################################
-### Large dataset
+### Larger dataset
 ##################################################
 features = rand(100_000, 100)
 # features = rand(100, 10)
@@ -63,8 +67,15 @@ tree = machine(tree_model, X, Y)
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
 @time MLJ.fit!(tree, rows=train, verbosity=1)
 
-tree.model.nrounds += 10
-@time MLJ.fit!(tree, rows=train, verbosity=1)
+@time for i in 1:10
+    tree.model.nrounds += 1
+    MLJ.fit!(tree, rows=train, verbosity=0)
+end
+
+@time for i in 1:1
+    tree.model.nrounds += 10
+    MLJ.fit!(tree, rows=train, verbosity=0)
+end
 
 # yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
 pred_train = MLJ.predict(tree, MLJ.selectrows(X,train))

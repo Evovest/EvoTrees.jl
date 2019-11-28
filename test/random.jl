@@ -7,7 +7,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(100_000, 100)
+features = rand(Int(1e5), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -30,10 +30,10 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 
-# with Int64 set 100K rows: 654.218 ms (583199 allocations: 488.97 MiB)
-# with BitSet 𝑖 100K rows: 563.297 ms (576642 allocations: 475.41 MiB)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 2)
-@btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
+# for 100k: 428.281 ms (532170 allocations: 196.80 MiB)
+# for 1.25e6: 6.964114 seconds (6.05 M allocations: 2.350 GiB, 2.82% gc time)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 5);
+@btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval);
 @time pred_train = predict(model, X_train)
 @btime pred_train = predict($model, $X_train)
 mean(abs.(pred_train .- Y_train))

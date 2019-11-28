@@ -39,7 +39,7 @@ function update_bags!(bins, set)
 end
 
 
-function find_split_static!(hist_δ::Vector{SVector{L,T}}, hist_δ²::Vector{SVector{L,T}}, hist_𝑤::Vector{SVector{1,T}}, bins::Vector{BitSet}, X_bin, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, params::EvoTreeRegressor, info::SplitInfo{L,T,S}, edges::Vector{T}, set::Vector{S}) where {L,T,S}
+function find_split_static!(hist_δ::Vector{SVector{L,T}}, hist_δ²::Vector{SVector{L,T}}, hist_𝑤::Vector{SVector{1,T}}, X_bin, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, params::EvoTreeRegressor, info::SplitInfo{L,T,S}, edges::Vector{T}, set::Vector{S}) where {L,T,S}
 
     # initialize histogram
     hist_δ .*= 0.0
@@ -61,7 +61,7 @@ function find_split_static!(hist_δ::Vector{SVector{L,T}}, hist_δ²::Vector{SVe
         hist_𝑤[X_bin[i]] += 𝑤[i]
     end
 
-    @inbounds for bin in 1:(length(bins)-1)
+    @inbounds for bin in 1:(length(hist_δ)-1)
         ∑δL += hist_δ[bin]
         ∑δ²L += hist_δ²[bin]
         ∑𝑤L += hist_𝑤[bin]
@@ -90,6 +90,24 @@ function find_split_static!(hist_δ::Vector{SVector{L,T}}, hist_δ²::Vector{SVe
 end
 
 
+function update_set(set, best, x_bin)
+    left = similar(set)
+    right = similar(set)
+    left_count = 0
+    right_count = 0
+    @inbounds for i in set
+        if x_bin[i] <= best
+            left_count += 1
+            left[left_count] = i
+        else
+            right_count += 1
+            right[right_count] = i
+        end
+    end
+    resize!(left, left_count)
+    resize!(right, right_count)
+    return left, right
+end
 
 function update_hist!(hist_δ::Vector{Vector{SVector{L,T}}}, hist_δ²::Vector{Vector{SVector{L,T}}}, hist_𝑤::Vector{Vector{SVector{1,T}}}, X_bin, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}, set::Vector{S}, j::Int) where {L,T,S}
     # build histogram
