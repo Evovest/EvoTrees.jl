@@ -107,12 +107,21 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     δ = zeros(SVector{params.K, Float64}, X_size[1])
     display(string("initialize delta2"))
     δ² = zeros(SVector{params.K, Float64}, X_size[1])
+
+    display(string("initialize test"))
+    allo = zeros(SVector{params.K, Float64}, X_size[1])
+    display(string("add one to test"))
+    offset = ones(1)
+    for i in eachindex(allo)
+        allo[i] += offset
+    end
     display(string("initialize w"))
     𝑤 = zeros(SVector{1, Float64}, X_size[1])
     display(string("add one to w"))
     for i in eachindex(𝑤)
-        𝑤[i] += 1
+        𝑤[i] += ones(1)
     end
+
 
     display(string("edges and bags"))
     edges = get_edges(X, params.nbins)
