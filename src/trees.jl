@@ -108,7 +108,9 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     display(string("initialize delta2"))
     δ² = zeros(SVector{params.K, Float64}, X_size[1])
     display(string("initialize w"))
-    𝑤 = zeros(SVector{1, Float64}, X_size[1]) .+ 1
+    𝑤 = zeros(SVector{1, Float64}, X_size[1])
+    display(string("add one to w"))
+    𝑤 = 𝑤 .+ one(Float64)
 
     display(string("edges and bags"))
     edges = get_edges(X, params.nbins)
@@ -125,7 +127,6 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
         train_nodes[node] = TrainNode(0, SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, BitSet([0]), [0])
     end
 
-    display(string("split info and hist"))
     # initializde node splits info and tracks - colsample size (𝑗)
     splits = Vector{SplitInfo{params.K, Float64, Int64}}(undef, X_size[2])
     hist_δ = Vector{Vector{SVector{params.K, Float64}}}(undef, X_size[2])
