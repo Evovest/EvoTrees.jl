@@ -68,7 +68,6 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     display(string("start grow_gbtree preproc"))
     seed!(params.seed)
 
-    display(string("get mean"))
     μ = ones(params.K)
     μ .*= mean(Y)
     if typeof(params.loss) == Logistic
@@ -79,14 +78,12 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
         μ .*= 0.0
     end
 
-    display(string("initialize preds"))
     # initialize preds
     pred = zeros(SVector{params.K,Float64}, size(X,1))
     for i in eachindex(pred)
         pred[i] += μ
     end
 
-    display(string("eval preds"))
     # eval init
     if size(Y_eval, 1) > 0
         # pred_eval = ones(size(Y_eval, 1), params.K) .* μ'
@@ -105,9 +102,12 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     𝑖_ = collect(1:X_size[1])
     𝑗_ = collect(1:X_size[2])
 
-    display(string("initialize gradients"))
+    display(string("initialize delta1"))
     # initialize gradients and weights
-    δ, δ² = zeros(SVector{params.K, Float64}, X_size[1]), zeros(SVector{params.K, Float64}, X_size[1])
+    δ = zeros(SVector{params.K, Float64}, X_size[1])
+    display(string("initialize delta2"))
+    δ² = zeros(SVector{params.K, Float64}, X_size[1])
+    display(string("initialize w"))
     𝑤 = zeros(SVector{1, Float64}, X_size[1]) .+ 1
 
     display(string("edges and bags"))
