@@ -1,6 +1,5 @@
 # initialize train_nodes
-function grow_tree(bags::Vector{Vector{BitSet}},
-    δ, δ², 𝑤,
+function grow_tree(δ, δ², 𝑤,
     hist_δ, hist_δ², hist_𝑤,
     params::EvoTreeRegressor,
     train_nodes::Vector{TrainNode{L,T,S}},
@@ -8,8 +7,8 @@ function grow_tree(bags::Vector{Vector{BitSet}},
     edges, X_bin) where {R<:Real, T<:AbstractFloat, S<:Int, L}
 
     active_id = ones(Int, 1)
-    leaf_count = 1::Int
-    tree_depth = 1::Int
+    leaf_count = one(Int)
+    tree_depth = one(Int)
     tree = Tree(Vector{TreeNode{params.K, T, Int, Bool}}())
 
     # grow while there are remaining active nodes
@@ -21,10 +20,9 @@ function grow_tree(bags::Vector{Vector{BitSet}},
             if tree_depth == params.max_depth || node.∑𝑤[1] <= params.min_weight
                 push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, δ²)))
             else
-                set = Int64.(node.𝑖)
                 @threads for feat in node.𝑗
                     splits[feat].gain = node.gain
-                    find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], bags[feat], view(X_bin,:,feat), δ, δ², 𝑤, node.∑δ, node.∑δ², node.∑𝑤, params, splits[feat], edges[feat], set)
+                    find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], view(X_bin,:,feat), δ, δ², 𝑤, node.∑δ, node.∑δ², node.∑𝑤, params, splits[feat], edges[feat], node.𝑖)
                     # update_hist!(hist_δ, hist_δ², hist_𝑤, X_bin, δ, δ², 𝑤, set, feat)
                     # find_split!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], node.∑δ, node.∑δ², node.∑𝑤, params, splits[feat], edges[feat], feat)
                 end
@@ -34,8 +32,9 @@ function grow_tree(bags::Vector{Vector{BitSet}},
                 if best.gain > node.gain + params.γ
                     # Node: depth, ∑δ, ∑δ², gain, 𝑖, 𝑗
                     # set = BitSet(node.𝑖)
-                    train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, intersect(node.𝑖, union(bags[best.feat][1:best.𝑖]...)), node.𝑗)
-                    train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, intersect!(node.𝑖, union(bags[best.feat][(best.𝑖+1):end]...)), node.𝑗)
+                    left, right = update_set(node.𝑖, best.𝑖, view(X_bin,:,best.feat))
+                    train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, left, node.𝑗)
+                    train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, right, node.𝑗)
                     # push split Node
                     push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond, params.K))
                     push!(next_active_id, leaf_count + 1)
@@ -110,15 +109,11 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
 
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
-    bags = Vector{Vector{BitSet}}(undef, size(𝑗_, 1))
-    @threads for feat in 1:size(𝑗_, 1)
-        bags[feat] = find_bags(X_bin[:,feat])
-    end
 
     # initialize train nodes
     train_nodes = Vector{TrainNode{params.K, Float64, Int64}}(undef, 2^params.max_depth-1)
     for node in 1:2^params.max_depth-1
-        train_nodes[node] = TrainNode(0, SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, BitSet([0]), [0])
+        train_nodes[node] = TrainNode(0, SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, [0], [0])
     end
 
     # initializde node splits info and tracks - colsample size (𝑗)
@@ -128,9 +123,9 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     hist_𝑤 = Vector{Vector{SVector{1, Float64}}}(undef, X_size[2])
     for feat in 𝑗_
         splits[feat] = SplitInfo{params.K, Float64, Int}(-Inf, SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
-        hist_δ[feat] = zeros(SVector{params.K, Float64}, length(bags[feat]))
-        hist_δ²[feat] = zeros(SVector{params.K, Float64}, length(bags[feat]))
-        hist_𝑤[feat] = zeros(SVector{1, Float64}, length(bags[feat]))
+        hist_δ[feat] = zeros(SVector{params.K, Float64}, length(edges[feat]))
+        hist_δ²[feat] = zeros(SVector{params.K, Float64}, length(edges[feat]))
+        hist_𝑤[feat] = zeros(SVector{1, Float64}, length(edges[feat]))
     end
 
     # initialize metric
@@ -157,8 +152,8 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
         gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
 
         # assign a root and grow tree
-        train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-        tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params, train_nodes, splits, edges, X_bin)
+        train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
+        tree = grow_tree(δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params, train_nodes, splits, edges, X_bin)
         # push new tree to model
         push!(gbtree.trees, tree)
         # update predictions
@@ -231,15 +226,11 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractVector{S
 
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
-    bags = Vector{Vector{BitSet}}(undef, size(𝑗_, 1))
-    @threads for feat in 1:size(𝑗_, 1)
-        bags[feat] = find_bags(X_bin[:,feat])
-    end
 
     # initialize train nodes
     train_nodes = Vector{TrainNode{params.K, Float64, Int64}}(undef, 2^params.max_depth-1)
     for node in 1:2^params.max_depth-1
-        train_nodes[node] = TrainNode(0, SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, BitSet([0]), [0])
+        train_nodes[node] = TrainNode(0, SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{params.K, Float64}(fill(-Inf, params.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, [0], [0])
     end
 
     # initializde node splits info and tracks - colsample size (𝑗)
@@ -249,9 +240,9 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractVector{S
     hist_𝑤 = Vector{Vector{SVector{1, Float64}}}(undef, X_size[2])
     for feat in 𝑗_
         splits[feat] = SplitInfo{params.K, Float64, Int}(-Inf, SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), SVector{params.K, Float64}(zeros(params.K)), SVector{params.K, Float64}(zeros(params.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
-        hist_δ[feat] = zeros(SVector{params.K, Float64}, length(bags[feat]))
-        hist_δ²[feat] = zeros(SVector{params.K, Float64}, length(bags[feat]))
-        hist_𝑤[feat] = zeros(SVector{1, Float64}, length(bags[feat]))
+        hist_δ[feat] = zeros(SVector{params.K, Float64}, length(edges[feat]))
+        hist_δ²[feat] = zeros(SVector{params.K, Float64}, length(edges[feat]))
+        hist_𝑤[feat] = zeros(SVector{1, Float64}, length(edges[feat]))
     end
 
     # initialize metric
@@ -278,8 +269,8 @@ function grow_gbtree!(model::GBTree, X::AbstractArray{R, 2}, Y::AbstractVector{S
         gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
 
         # assign a root and grow tree
-        train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, BitSet(𝑖), 𝑗)
-        tree = grow_tree(bags, δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params, train_nodes, splits, edges, X_bin)
+        train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
+        tree = grow_tree(δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params, train_nodes, splits, edges, X_bin)
 
         # update push tree to model
         push!(model.trees, tree)
