@@ -110,7 +110,9 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     display(string("initialize w"))
     𝑤 = zeros(SVector{1, Float64}, X_size[1])
     display(string("add one to w"))
-    𝑤 = 𝑤 .+ one(Float64)
+    for i in eachindex(𝑤)
+        𝑤[i] += 1
+    end
 
     display(string("edges and bags"))
     edges = get_edges(X, params.nbins)
