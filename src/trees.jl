@@ -65,7 +65,6 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractVector{S} = Vector{S}(undef, 0),
     early_stopping_rounds=Int(1e5), print_every_n=100, verbosity=1) where {R<:Real, S<:Real}
 
-    display(string("start grow_gbtree preproc"))
     seed!(params.seed)
 
     μ = ones(params.K)
@@ -93,7 +92,6 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
         end
     end
 
-    display(string("set bias and intial gbtree"))
     # bias = Tree([TreeNode(SVector{1, Float64}(μ))])
     bias = Tree([TreeNode(SVector{params.K,Float64}(μ))])
     gbtree = GBTree([bias], params, Metric())
@@ -102,28 +100,14 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     𝑖_ = collect(1:X_size[1])
     𝑗_ = collect(1:X_size[2])
 
-    display(string("initialize delta1"))
     # initialize gradients and weights
     δ = zeros(SVector{params.K, Float64}, X_size[1])
-    display(string("initialize delta2"))
     δ² = zeros(SVector{params.K, Float64}, X_size[1])
-
-    display(string("initialize test"))
-    allo = zeros(SVector{params.K, Float64}, X_size[1])
-    display(string("add one to test"))
-    offset = ones(1)
-    for i in eachindex(allo)
-        allo[i] += offset
-    end
-    display(string("initialize w"))
     𝑤 = zeros(SVector{1, Float64}, X_size[1])
-    display(string("add one to w"))
     for i in eachindex(𝑤)
         𝑤[i] += ones(1)
     end
 
-
-    display(string("edges and bags"))
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
     bags = Vector{Vector{BitSet}}(undef, size(𝑗_, 1))
@@ -131,7 +115,6 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
         bags[feat] = find_bags(X_bin[:,feat])
     end
 
-    display(string("train nodes"))
     # initialize train nodes
     train_nodes = Vector{TrainNode{params.K, Float64, Int64}}(undef, 2^params.max_depth-1)
     for node in 1:2^params.max_depth-1
@@ -158,7 +141,6 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
     end
 
     # loop over nrounds
-    display(string("start grow_gbtree train loop"))
     for i in 1:params.nrounds
         # select random rows and cols
         𝑖 = 𝑖_[sample(𝑖_, ceil(Int, params.rowsample * X_size[1]), replace=false, ordered=true)]
