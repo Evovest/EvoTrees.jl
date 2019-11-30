@@ -45,5 +45,15 @@ params1 = EvoTreeRegressor(
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=1.0, colsample=1.0, nbins=64)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=2)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=5)
+@time pred_train = predict(model, X_train)
+
+# train model - gaussian
+params1 = EvoTreeRegressor(
+    loss=:gaussian, metric=:gaussian,
+    nrounds=10,
+    λ=0.1, γ=1.0, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=1.0, colsample=1.0, nbins=64)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=5)
 @time pred_train = predict(model, X_train)
