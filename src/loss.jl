@@ -51,10 +51,12 @@ function update_grads!(loss::Quantile, α::T, pred::Vector{SVector{L,T}}, target
 end
 
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
+# pred[i][1] = μ
+# pred[i][2] = log(σ²)
 function update_grads!(loss::Gaussian, α, pred::Vector{SVector{L,T}}, target::AbstractArray{T, 1}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
     @inbounds @threads for i in eachindex(δ)
-        δ[i] = SVector((pred[i][1] - target[i]) / exp(pred[i][2]) * 𝑤[i][1], 𝑤[i][1] / 2 * (1 - (pred[i][1] - target[i])^2 / exp(pred[i][2])))
-        δ²[i] = SVector(𝑤[i][1] / exp(pred[i][2]), 𝑤[i][1] / exp(pred[i][2]) * (pred[i][1] - target[i])^2)
+        δ[i] = SVector((pred[i][1] - target[i]) / max(1e-8, exp(pred[i][2])) * 𝑤[i][1], 𝑤[i][1] / 2 * (1 - (pred[i][1] - target[i])^2 / max(1e-8, exp(pred[i][2]))))
+        δ²[i] = SVector(𝑤[i][1] / max(1e-8, exp(pred[i][2])), 𝑤[i][1] / max(1e-8, exp(pred[i][2])) * (pred[i][1] - target[i])^2)
     end
 end
 

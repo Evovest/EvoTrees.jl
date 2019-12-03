@@ -7,7 +7,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(1e5), 100)
+features = rand(Int(1.25e6), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -38,12 +38,22 @@ params1 = EvoTreeRegressor(
 @btime pred_train = predict($model, $X_train)
 mean(abs.(pred_train .- Y_train))
 
-# train model
+# logistic
 params1 = EvoTreeRegressor(
     loss=:logistic, metric=:logloss,
     nrounds=10,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=1.0, colsample=1.0, nbins=64)
+    rowsample=0.5, colsample=0.5, nbins=32)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=2)
+@time pred_train = predict(model, X_train)
+
+# gaussian
+params1 = EvoTreeRegressor(
+    loss=:gaussian, metric=:gaussian,
+    nrounds=10,
+    λ = 0.0, γ=0.0, η=0.1,
+    max_depth = 6, min_weight = 10.0,
+    rowsample=0.5, colsample=0.5, nbins=32)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=2)
 @time pred_train = predict(model, X_train)
