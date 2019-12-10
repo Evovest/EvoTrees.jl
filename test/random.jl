@@ -48,6 +48,16 @@ params1 = EvoTreeRegressor(
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=2)
 @time pred_train = predict(model, X_train)
 
+# Quantile
+params1 = EvoTreeRegressor(
+    loss=:quantile, metric=:quantile, α=0.80,
+    nrounds=10,
+    λ = 0.1, γ=0.0, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=0.5, nbins=32)
+@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=2)
+@time pred_train = predict(model, X_train)
+
 # gaussian
 params1 = EvoTreeRegressor(
     loss=:gaussian, metric=:gaussian,
