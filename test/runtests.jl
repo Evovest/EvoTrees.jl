@@ -87,7 +87,7 @@ params1 = EvoTreeRegressor(
 params1 = EvoTreeRegressor(
     loss=:gaussian, α=0.5, metric = :gaussian,
     nrounds=100, nbins=100,
-    λ = 0.5, γ=0.1, η=0.05,
+    λ = 0.0, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 10.0,
     rowsample=0.5, colsample=1.0, seed = seed)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
