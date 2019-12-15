@@ -9,7 +9,7 @@ using Revise
 using EvoTrees
 using EvoTrees: sigmoid, logit
 using Profile
-using ProfileView
+# using ProfileView
 
 # prepare a dataset
 features = rand(10_000) .* 5

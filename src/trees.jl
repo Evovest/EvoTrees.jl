@@ -74,6 +74,8 @@ function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTr
         μ .= log.(μ)
     elseif typeof(params.loss) == Softmax
         μ .*= 0.0
+    elseif typeof(params.loss) == Gaussian
+        μ = SVector{2}([mean(Y), log(var(Y))])
     end
 
     # initialize preds

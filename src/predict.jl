@@ -53,7 +53,7 @@ end
 
 # prediction in Leaf - MultiClassRegression
 function pred_leaf(loss::S, node::TrainNode{L,T}, params::EvoTreeRegressor, δ²) where {S<:MultiClassRegression,L,T}
-    - params.η * node.∑δ ./ (node.∑δ² + params.λ * node.∑𝑤[1])
+    - params.η * node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤[1])
 end
 
 # prediction in Leaf - L1Regression
@@ -69,5 +69,5 @@ end
 
 # prediction in Leaf - GaussianRegression
 function pred_leaf(loss::S, node::TrainNode{L,T}, params::EvoTreeRegressor, δ²) where {S<:GaussianRegression,L,T}
-    - params.η * node.∑δ ./ (node.∑δ² + params.λ * node.∑𝑤[1])
+    - params.η * node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤[1])
 end

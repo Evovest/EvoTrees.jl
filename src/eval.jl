@@ -58,10 +58,17 @@ function eval_metric(::Val{:poisson}, pred::Vector{SVector{1,T}}, Y::AbstractVec
     return eval
 end
 
+# gaussian
+# pred[i][1] = μ
+# pred[i][2] = log(σ²)
 function eval_metric(::Val{:gaussian}, pred::Vector{SVector{L,T}}, Y::AbstractVector{T}, α=0.0) where {L, T <: AbstractFloat}
     eval = zero(T)
     for i in 1:length(pred)
+<<<<<<< HEAD
         eval += pred[i][2]/2 + (Y[i] - pred[i][1]) / max(1e-8, 2*exp(pred[i][2]))
+=======
+        eval += pred[i][2]/2 + (Y[i] - pred[i][1])^2 / (2*max(1e-8, exp(pred[i][2])))
+>>>>>>> master
     end
     eval /= length(Y)
     return eval
