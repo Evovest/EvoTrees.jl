@@ -39,7 +39,7 @@ function update_bags!(bins, set)
 end
 
 
-function find_split_static!(hist_δ::Vector{SVector{L,T}}, hist_δ²::Vector{SVector{L,T}}, hist_𝑤::Vector{SVector{1,T}}, X_bin, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, params::EvoTreeRegressor, info::SplitInfo{L,T,S}, edges::Vector{T}, set::Vector{S}) where {L,T,S}
+function find_split_static!(hist_δ::Vector{SVector{L,T}}, hist_δ²::Vector{SVector{L,T}}, hist_𝑤::Vector{SVector{1,T}}, X_bin, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, params::EvoTypes, info::SplitInfo{L,T,S}, edges::Vector{T}, set::Vector{S}) where {L,T,S}
 
     # initialize histogram
     hist_δ .*= 0.0

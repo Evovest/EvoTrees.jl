@@ -3,12 +3,11 @@ using MLJ
 using StatsBase: sample
 using Revise
 using EvoTrees
-import EvoTrees: EvoTreeRegressor, predict
-using EvoTrees: logit, sigmoid
-
+using EvoTrees: logit, sigmoid, predict
+import EvoTrees: EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian
 
 ##################################################
-### small data test
+### Regrtession - small data
 ##################################################
 features = rand(10_000) .* 5 .- 2
 X = reshape(features, (size(features)[1], 1))
@@ -37,7 +36,32 @@ mean(abs.(pred_test - MLJ.selectrows(Y,test)))
 
 
 ##################################################
-### Larger dataset
+### classif
+##################################################
+features = rand(10_000) .* 5 .- 2
+X = reshape(features, (size(features)[1], 1))
+Y = sin.(features) .* 0.5 .+ 0.5
+Y = logit(Y) + randn(size(Y))
+Y = sigmoid(Y)
+y = Int.(round.(Y)) .+ 1
+y = CategoricalArray(y, ordered=false)
+X = Tables.table(X)
+
+# @load EvoTreeRegressor
+tree_model = EvoTreeClassifier(max_depth=5, η=0.01, λ=0.0, γ=0.0, nrounds=10, K=2)
+tree = machine(tree_model, X, y)
+train, test = partition(eachindex(y), 0.7, shuffle=true); # 70:30 split
+MLJ.fit!(tree, rows=train, verbosity=1)
+
+tree.model.nrounds += 10
+@time MLJ.fit!(tree, rows=train, verbosity=1)
+
+# yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
+pred_train = MLJ.predict(tree, MLJ.selectrows(X,train))
+mean(abs.(pred_train - MLJ.selectrows(Y,train)))
+
+##################################################
+### regression - Larger data
 ##################################################
 features = rand(100_000, 100)
 # features = rand(100, 10)
@@ -65,7 +89,7 @@ tree_model = EvoTreeRegressor(
 X = Tables.table(X)
 tree = machine(tree_model, X, Y)
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
-@time MLJ.fit!(tree, rows=train, verbosity=1)
+@time MLJ.fit!(tree, rows=train, verbosity=1, force=true)
 
 @time for i in 1:10
     tree.model.nrounds += 1

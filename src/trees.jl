@@ -1,7 +1,7 @@
 # initialize train_nodes
 function grow_tree(δ, δ², 𝑤,
     hist_δ, hist_δ², hist_𝑤,
-    params::EvoTreeRegressor,
+    params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassifier,EvoTreeGaussian},
     train_nodes::Vector{TrainNode{L,T,S}},
     splits::Vector{SplitInfo{L,T,Int}},
     edges, X_bin) where {R<:Real, T<:AbstractFloat, S<:Int, L}
@@ -60,7 +60,7 @@ function get_max_gain(splits::Vector{SplitInfo{L,T,S}}) where {L,T,S}
 end
 
 # grow_gbtree
-function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::EvoTreeRegressor;
+function grow_gbtree(X::AbstractArray{R, 2}, Y::AbstractVector{S}, params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassifier,EvoTreeGaussian};
     X_eval::AbstractArray{R, 2} = Array{R, 2}(undef, (0,0)), Y_eval::AbstractVector{S} = Vector{S}(undef, 0),
     early_stopping_rounds=Int(1e5), print_every_n=100, verbosity=1) where {R<:Real, S<:Real}
 
@@ -318,7 +318,7 @@ end
 
 
 # grow_gbtree
-function grow_gbtree_MLJ(X::AbstractMatrix{R}, Y::AbstractVector{S}, params::EvoTreeRegressor; verbosity=1) where {R<:Real, S<:Real}
+function grow_gbtree_MLJ(X::AbstractMatrix{R}, Y::AbstractVector{S}, params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassifier,EvoTreeGaussian}; verbosity=1) where {R<:Real, S<:Real}
 
     seed!(params.seed)
 
@@ -330,6 +330,8 @@ function grow_gbtree_MLJ(X::AbstractMatrix{R}, Y::AbstractVector{S}, params::Evo
         μ .= log.(μ)
     elseif typeof(params.loss) == Softmax
         μ .*= 0.0
+    elseif typeof(params.loss) == Gaussian
+        μ = SVector{2}([mean(Y), log(var(Y))])
     end
 
     # initialize preds
@@ -402,7 +404,7 @@ function grow_gbtree_MLJ(X::AbstractMatrix{R}, Y::AbstractVector{S}, params::Evo
     return gbtree, cache
 end
 
-# grow_gbtree - continue training for MLJ - continue training from same dataset - all preprocessed elements passed as cache
+# continue training for MLJ - continue training from same dataset - all preprocessed elements passed as cache
 function grow_gbtree_MLJ!(model::GBTree, X, cache; verbosity=1) where {S<:Real}
 
     params = model.params

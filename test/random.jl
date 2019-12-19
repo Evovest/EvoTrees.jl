@@ -35,6 +35,12 @@ params1 = EvoTreeRegressor(
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 5);
 @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval);
 @time pred_train = predict(model, X_train)
+
+@code_warntype predict(model, X_train)
+@time pred = zeros(SVector{1,Float64}, size(X_train, 1))
+@time EvoTrees.predict!(pred, model.trees[2], X_train)
+
+@time predict(model, X_train)
 @btime pred_train = predict($model, $X_train)
 mean(abs.(pred_train .- Y_train))
 
@@ -44,20 +50,6 @@ params1 = EvoTreeRegressor(
     nrounds=10,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
-<<<<<<< HEAD
-    rowsample=1.0, colsample=1.0, nbins=64)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=5)
-@time pred_train = predict(model, X_train)
-
-# train model - gaussian
-params1 = EvoTreeRegressor(
-    loss=:gaussian, metric=:gaussian,
-    nrounds=10,
-    λ=0.1, γ=1.0, η=0.1,
-    max_depth = 6, min_weight = 1.0,
-    rowsample=1.0, colsample=1.0, nbins=64)
-@time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=5)
-=======
     rowsample=0.5, colsample=0.5, nbins=32)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=2)
 @time pred_train = predict(model, X_train)
@@ -80,5 +72,4 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 10.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n=2)
->>>>>>> master
 @time pred_train = predict(model, X_train)
