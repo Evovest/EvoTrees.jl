@@ -44,6 +44,7 @@ Y = sin.(features) .* 0.5 .+ 0.5
 Y = logit(Y) + randn(size(Y))
 Y = sigmoid(Y)
 y = Int.(round.(Y)) .+ 1
+y = string.(y)
 y = CategoricalArray(y, ordered=false)
 X = Tables.table(X)
 
@@ -58,7 +59,10 @@ tree.model.nrounds += 10
 
 # yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
 pred_train = MLJ.predict(tree, MLJ.selectrows(X,train))
-mean(abs.(pred_train - MLJ.selectrows(Y,train)))
+
+y_levels = classes(y[1])
+pred_mlj = [MLJBase.UnivariateFinite(y_levels, pred_train[i,:]) for i in 1:size(pred_train, 1)]
+cross_entropy(pred_mlj, MLJ.selectrows(y,train))
 
 ##################################################
 ### regression - Larger data
@@ -87,9 +91,22 @@ tree_model = EvoTreeRegressor(
     rowsample=0.5, colsample=0.5, nbins=32)
 
 X = Tables.table(X)
-tree = machine(tree_model, X, Y)
+@time tree = machine(tree_model, X, Y)
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
 @time MLJ.fit!(tree, rows=train, verbosity=1, force=true)
+
+tree.model.nrounds = 10
+tree.cache.params.nrounds = 10
+
+using MLJBase
+tree.model.nrounds += 10
+@time EvoTrees.grow_gbtree_MLJ!(tree.fitresult, tree.cache, verbosity=1)
+
+tree.model.nrounds += 10
+@time MLJBase.update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
+
+tree.model.nrounds += 1
+@time MLJ.fit!(tree, rows=train, verbosity=0)
 
 @time for i in 1:10
     tree.model.nrounds += 1

@@ -1,6 +1,14 @@
 
 function MLJBase.fit(model::EvoTypes, verbosity::Int, X, y)
     Xmatrix = MLJBase.matrix(X)
+    fitresult, cache = grow_gbtree_MLJ(Xmatrix, y, model, verbosity = verbosity)
+    report = nothing
+    return fitresult, cache, report
+end
+
+function MLJBase.fit(model::EvoTreeClassifier, verbosity::Int, X, y)
+    Xmatrix = MLJBase.matrix(X)
+    y_levels = MLJBase.classes(y[1])
     y = MLJBase.int(y)
     fitresult, cache = grow_gbtree_MLJ(Xmatrix, y, model, verbosity = verbosity)
     report = nothing
@@ -10,7 +18,7 @@ end
 function MLJBase.update(model::EvoTypes, verbosity,
     old_fitresult, old_cache, X, y)
 
-    old_model, Xmatrix, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, train_nodes, splits, hist_δ, hist_δ², hist_𝑤 = old_cache
+    old_model = old_cache.params
     δnrounds = model.nrounds - old_model.nrounds
 
     okay_to_continue =
@@ -27,14 +35,15 @@ function MLJBase.update(model::EvoTypes, verbosity,
     model.metric ==  old_model.metric
 
     if okay_to_continue
-        fitresult, cache = grow_gbtree_MLJ!(old_fitresult, Xmatrix, old_cache, verbosity=verbosity)
+        # fitresult, cache = grow_gbtree_MLJ!(old_fitresult, old_cache, verbosity=verbosity)
+        fitresult = grow_gbtree_MLJ!(old_fitresult, old_cache, verbosity=verbosity)
+        cache = old_cache
     else
         Xmatrix = MLJBase.matrix(X)
         fitresult, cache = grow_gbtree_MLJ(Xmatrix, y, model, verbosity = verbosity)
     end
 
     report = nothing
-
     return fitresult, cache, report
 end
 
@@ -44,8 +53,14 @@ function MLJBase.predict(model::EvoTypes, fitresult, Xnew)
     return pred
 end
 
-# shared metadata
+function MLJBase.predict(model::EvoTreeClassifier, fitresult, Xnew)
+    Xmatrix = MLJBase.matrix(Xnew)
+    pred = predict(fitresult, Xmatrix)
+    y_levels = CategoricalString(string.(1:model.K))
+    return [MLJBase.UnivariateFinite(y_levels, pred[i,:]) for i in 1:size(pred, 1)]
+end
 
+# shared metadata
 MLJBase.package_name(::Type{<:EvoTypes}) = "EvoTrees"
 MLJBase.package_uuid(::Type{<:EvoTypes}) = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
 MLJBase.package_url(::Type{<:EvoTypes}) = "https://github.com/Evovest/EvoTrees.jl"
@@ -62,6 +77,10 @@ MLJBase.target_scitype(::Type{<:EvoTreeCount}) = AbstractVector{<:MLJBase.Count}
 MLJBase.load_path(::Type{<:EvoTreeClassifier}) = "EvoTrees.EvoTreeClassifier"
 MLJBase.input_scitype(::Type{<:EvoTreeClassifier}) = MLJBase.Table(MLJBase.Continuous)
 MLJBase.target_scitype(::Type{<:EvoTreeClassifier}) = AbstractVector{<:MLJBase.Finite}
+
+MLJBase.load_path(::Type{<:EvoTreeGaussian}) = "EvoTrees.EvoTreeGaussian"
+MLJBase.input_scitype(::Type{<:EvoTreeGaussian}) = MLJBase.Table(MLJBase.Continuous)
+MLJBase.target_scitype(::Type{<:EvoTreeGaussian}) = AbstractVector{<:MLJBase.Continuous}
 
 # function MLJ.clean!(model::EvoTreeRegressor)
 #     warning = ""

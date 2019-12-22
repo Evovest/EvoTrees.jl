@@ -400,50 +400,59 @@ function grow_gbtree_MLJ(X::AbstractMatrix{R}, Y::AbstractVector{S}, params::Uni
 
     end #end of nrounds
 
-    cache = (deepcopy(params), X, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, train_nodes, splits, hist_δ, hist_δ², hist_𝑤)
+    cache = (params=deepcopy(params), X=X, Y=Y, pred=pred, 𝑖_=𝑖_, 𝑗_=𝑗_, δ=δ, δ²=δ², 𝑤=𝑤, edges=edges, X_bin=X_bin,
+        train_nodes=train_nodes, splits=splits, hist_δ=hist_δ, hist_δ²=hist_δ², hist_𝑤=hist_𝑤)
+    # cache = (deepcopy(params), X, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, train_nodes, splits, hist_δ, hist_δ², hist_𝑤)
     return gbtree, cache
 end
 
 # continue training for MLJ - continue training from same dataset - all preprocessed elements passed as cache
-function grow_gbtree_MLJ!(model::GBTree, X, cache; verbosity=1) where {S<:Real}
+function grow_gbtree_MLJ!(model::GBTree, cache; verbosity=1)
 
     params = model.params
 
     # initialize predictions
-    cache_params, X, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, train_nodes, splits, hist_δ, hist_δ², hist_𝑤 = cache
-    X_size = size(X_bin)
-    δnrounds = params.nrounds - cache_params.nrounds
+    # cache_params, X, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, train_nodes, splits, hist_δ, hist_δ², hist_𝑤 = cache
+    train_nodes = cache.train_nodes
+    splits = cache.splits
+
+    X_size = size(cache.X_bin)
+    δnrounds = params.nrounds - cache.params.nrounds
+    # println("MLJ! δnrounds: ", δnrounds)
 
     # loop over nrounds
     for i in 1:δnrounds
 
         # select random rows and cols
-        𝑖 = 𝑖_[sample(𝑖_, ceil(Int, params.rowsample * X_size[1]), replace=false, ordered=true)]
-        𝑗 = 𝑗_[sample(𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)]
+        𝑖 = cache.𝑖_[sample(cache.𝑖_, ceil(Int, params.rowsample * X_size[1]), replace=false, ordered=true)]
+        𝑗 = cache.𝑗_[sample(cache.𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)]
 
         # reset gain to -Inf
-        for feat in 𝑗_
+        for feat in cache.𝑗_
             splits[feat].gain = -Inf
         end
 
         # get gradients
-        update_grads!(params.loss, params.α, pred, Y, δ, δ², 𝑤)
-        ∑δ, ∑δ², ∑𝑤 = sum(δ[𝑖]), sum(δ²[𝑖]), sum(𝑤[𝑖])
+        update_grads!(params.loss, params.α, cache.pred, cache.Y, cache.δ, cache.δ², cache.𝑤)
+        ∑δ, ∑δ², ∑𝑤 = sum(cache.δ[𝑖]), sum(cache.δ²[𝑖]), sum(cache.𝑤[𝑖])
         gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
 
         # assign a root and grow tree
         train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
-        tree = grow_tree(δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, params, train_nodes, splits, edges, X_bin)
+        tree = grow_tree(cache.δ, cache.δ², cache.𝑤, cache.hist_δ, cache.hist_δ², cache.hist_𝑤, params, train_nodes, splits, cache.edges, cache.X_bin)
 
         # update push tree to model
         push!(model.trees, tree)
 
         # get update predictions
-        predict!(pred, tree, X)
+        predict!(cache.pred, tree, cache.X)
 
     end #end of nrounds
 
-    cache = (deepcopy(params), X, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, train_nodes, splits, hist_δ, hist_δ², hist_𝑤)
 
-    return model, cache
+    cache.params.nrounds = params.nrounds
+    # cache = (deepcopy(params), X, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, train_nodes, splits, hist_δ, hist_δ², hist_𝑤)
+
+    # return model, cache
+    return model
 end
