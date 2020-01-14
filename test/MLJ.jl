@@ -1,5 +1,6 @@
 using Tables
 using MLJ
+using MLJBase
 using StatsBase: sample
 using Revise
 using EvoTrees
@@ -92,7 +93,9 @@ tree_model = EvoTreeRegressor(
 
 X = Tables.table(X)
 X = Tables.rowtable(X)
+X = Tables.columntable(X)
 X_matrix = MLJBase.matrix(X)
+using DataFrames
 @time X = DataFrame(X)
 # typeof(X)
 # @time Xmatrix = MLJBase.matrix(X)
@@ -101,13 +104,13 @@ X_matrix = MLJBase.matrix(X)
 @time tree = machine(tree_model, X, Y)
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
 @time MLJ.fit!(tree, rows=train, verbosity=1, force=true)
+@time test_fit!(tree, rows=train, verbosity=1, force=true)
 @time EvoTrees.grow_gbtree_MLJ(X_matrix, Y, tree_model, verbosity=1)
 @time EvoTrees.grow_gbtree(X_matrix, Y, tree_model, verbosity=1)
 
 tree.model.nrounds = 10
 tree.cache.params.nrounds = 10
 
-using MLJBase
 tree.model.nrounds += 10
 @time EvoTrees.grow_gbtree_MLJ!(tree.fitresult, tree.cache, verbosity=1)
 
@@ -148,9 +151,11 @@ function test_fit!(mach::AbstractMachine; rows=nothing, verbosity=1, force=false
     else
         data_has_changed = rows_have_changed
         previously_fit = isdefined(mach, :fitresult)
-        # args = [selectrows(arg, rows) for arg in mach.args]
+        args = [selectrows(arg, rows) for arg in mach.args]
         # println(rows_have_changed)
-        args = rows_have_changed ? [selectrows(arg, rows) for arg in mach.args] : mach.args
+        # args = rows_have_changed ? [selectrows(arg, rows) for arg in mach.args] : mach.args
+        # println(rows_have_changed)
+        # println(size(args[2]))
         # args = mach.args
     end
 
