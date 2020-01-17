@@ -2,10 +2,11 @@ using Tables
 using MLJ
 using MLJBase
 using StatsBase: sample
+using  CategoricalArrays
 using Revise
 using EvoTrees
 using EvoTrees: logit, sigmoid, predict
-import EvoTrees: EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian
+import EvoTrees: EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian
 
 ##################################################
 ### Regrtession - small data
@@ -48,6 +49,7 @@ y = Int.(round.(Y)) .+ 1
 y = string.(y)
 y = CategoricalArray(y, ordered=false)
 X = Tables.table(X)
+X_matrix = MLJBase.matrix(X)
 
 # @load EvoTreeRegressor
 tree_model = EvoTreeClassifier(max_depth=5, η=0.01, λ=0.0, γ=0.0, nrounds=10, K=2)
@@ -58,9 +60,7 @@ MLJ.fit!(tree, rows=train, verbosity=1)
 tree.model.nrounds += 10
 @time MLJ.fit!(tree, rows=train, verbosity=1)
 
-# yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
 pred_train = MLJ.predict(tree, MLJ.selectrows(X,train))
-
 y_levels = classes(y[1])
 pred_mlj = [MLJBase.UnivariateFinite(y_levels, pred_train[i,:]) for i in 1:size(pred_train, 1)]
 cross_entropy(pred_mlj, MLJ.selectrows(y,train))

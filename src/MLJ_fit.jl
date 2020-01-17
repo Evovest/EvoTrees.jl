@@ -56,7 +56,7 @@ end
 function MLJBase.predict(model::EvoTreeClassifier, fitresult, Xnew)
     Xmatrix = MLJBase.matrix(Xnew)
     pred = predict(fitresult, Xmatrix)
-    y_levels = CategoricalString(string.(1:model.K))
+    y_levels = CategoricalArray(string.(1:model.K))
     return [MLJBase.UnivariateFinite(y_levels, pred[i,:]) for i in 1:size(pred, 1)]
 end
 
