@@ -1,6 +1,7 @@
 # using CUDA
 using CUDAnative
 using CuArrays
+using Flux
 using GeometricFlux
 
 features = rand(1_000, 10)
@@ -24,9 +25,24 @@ set_gpu = CuArray(set)
 @time sumpool(idx, δ)
 @time sumpool(idx_gpu, δ_gpu)
 @time scatter_add!(hist, δ, idx)
+
+function scatter_loop(hist, δ, idx)
+    for i in 1:10
+        scatter_add!(hist, δ, idx)
+    end
+    return Array(hist)
+end
+@time hh = scatter_loop(hist_gpu, δ_gpu, idx_gpu)
+println(hh)
 CuArrays.@time scatter_add!(hist_gpu, δ_gpu, idx_gpu)
 
-CuArrays.@time CuArrays.scan!(+,δ²_gpu, δ_gpu,dims=1)
+
+δ = rand(Float32, 100, 2_000_000)
+δ² = rand(Float32, 100, 2_000_000)
+δ_gpu = CuArray(δ)
+δ²_gpu = CuArray(δ²)
+CuArrays.@time CuArrays.scan!(+ ,δ²_gpu, δ_gpu,dims=1)
+@time x = δ²_gpu[2,5]
 
 δ = rand(Float32, 1, 1_000)
 hist_gpu = CuArray(hist)
