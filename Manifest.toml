@@ -312,9 +312,9 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
 [[Interpolations]]
 deps = ["AxisAlgorithms", "LinearAlgebra", "OffsetArrays", "Random", "Ratios", "SharedArrays", "SparseArrays", "StaticArrays", "WoodburyMatrices"]
-git-tree-sha1 = "e4a219889f33a8c2435c26bf1bca6f4fbf8c1c0b"
+git-tree-sha1 = "96b16bb44b1037f42a50e3fa9ba38dd78c9c1a3e"
 uuid = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
-version = "0.12.6"
+version = "0.12.7"
 
 [[InvertedIndices]]
 deps = ["Test"]
@@ -461,9 +461,9 @@ uuid = "46757867-2c16-5918-afeb-47bfcb05e46a"
 version = "0.2.0"
 
 [[OffsetArrays]]
-git-tree-sha1 = "87d0a91efe29352d5caaa271ae3927083c096e33"
+git-tree-sha1 = "fcfb0d1acd89dd37bbfce2873c8401713a855f80"
 uuid = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
-version = "0.11.4"
+version = "1.0.1"
 
 [[OpenBLAS_jll]]
 deps = ["Libdl", "Pkg"]

@@ -116,16 +116,9 @@ X_matrix = MLJBase.matrix(X)
 @time tree = machine(tree_model, X, Y)
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
 @time MLJ.fit!(tree, rows=train, verbosity=1, force=true)
-@time test_fit!(tree, rows=train, verbosity=1, force=true)
-@time EvoTrees.grow_gbtree_MLJ(X_matrix, Y, tree_model, verbosity=1)
-@time EvoTrees.grow_gbtree(X_matrix, Y, tree_model, verbosity=1)
-
-tree.model.nrounds = 10
-tree.cache.params.nrounds = 10
 
 tree.model.nrounds += 10
 @time MLJBase.update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
-# @time x1, x2, x3 = MLJBase.update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
 
 tree.model.nrounds += 10
 @time MLJ.fit!(tree, rows=train, verbosity=1)
