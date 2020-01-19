@@ -24,7 +24,7 @@ end
 
 # prediction from single tree - assign each observation to its final leaf
 function predict(model::GBTree, X::AbstractMatrix{T}) where T<:Real
-    pred = zeros(SVector{model.params.K,T}, size(X, 1))
+    pred = zeros(SVector{model.K,T}, size(X, 1))
     for tree in model.trees
         predict!(pred, tree, X)
     end
@@ -34,10 +34,10 @@ function predict(model::GBTree, X::AbstractMatrix{T}) where T<:Real
     elseif typeof(model.params.loss) == Poisson
         @. pred = exp(pred)
     elseif typeof(model.params.loss) == Gaussian
-        pred = transpose(reshape(pred, model.params.K, :))
+        pred = transpose(reshape(pred, 2, :))
         pred[:,2] = exp.(pred[:,2])
     elseif typeof(model.params.loss) == Softmax
-        pred = transpose(reshape(pred, model.params.K, :))
+        pred = transpose(reshape(pred, model.K, :))
         for row in eachrow(pred)
             row .= softmax(row)
         end

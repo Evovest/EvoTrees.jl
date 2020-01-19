@@ -1,48 +1,36 @@
 
 function MLJBase.fit(model::EvoTypes, verbosity::Int, X, y)
     Xmatrix = MLJBase.matrix(X)
-    fitresult, cache = grow_gbtree_MLJ(Xmatrix, y, model, verbosity = verbosity)
+    fitresult, cache = init_evotree(model, Xmatrix, y, verbosity = verbosity)
+    grow_evotree!(fitresult, cache, verbosity = verbosity)
     report = nothing
     return fitresult, cache, report
 end
 
-function MLJBase.fit(model::EvoTreeClassifier, verbosity::Int, X, y)
-    Xmatrix = MLJBase.matrix(X)
-    y_levels = MLJBase.classes(y[1])
-    y = MLJBase.int(y)
-    fitresult, cache = grow_gbtree_MLJ(Xmatrix, y, model, verbosity = verbosity)
-    report = nothing
-    return fitresult, cache, report
+function okay_to_continue(new, old)
+    new.nrounds - old.nrounds >= 0 &&
+    new.loss == old.loss &&
+    new.λ == old.λ &&
+    new.γ == old.γ &&
+    new.max_depth  == old.max_depth &&
+    new.min_weight == old.min_weight &&
+    new.rowsample ==  old.rowsample &&
+    new.colsample ==  old.colsample &&
+    new.nbins ==  old.nbins &&
+    new.α ==  old.α &&
+    new.metric ==  old.metric
 end
 
 function MLJBase.update(model::EvoTypes, verbosity,
-    old_fitresult, old_cache, X, y)
+    fitresult, cache, X, y)
 
-    old_model = old_cache.params
-    δnrounds = model.nrounds - old_model.nrounds
-
-    okay_to_continue =
-    δnrounds >= 0 &&
-    model.loss == old_model.loss &&
-    model.λ == old_model.λ &&
-    model.γ == old_model.γ &&
-    model.max_depth  == old_model.max_depth &&
-    model.min_weight == old_model.min_weight &&
-    model.rowsample ==  old_model.rowsample &&
-    model.colsample ==  old_model.colsample &&
-    model.nbins ==  old_model.nbins &&
-    model.α ==  old_model.α &&
-    model.metric ==  old_model.metric
-
-    if okay_to_continue
-        # fitresult, cache = grow_gbtree_MLJ!(old_fitresult, old_cache, verbosity=verbosity)
-        fitresult = grow_gbtree_MLJ!(old_fitresult, old_cache, verbosity=verbosity)
-        cache = old_cache
+    if okay_to_continue(model, cache.params)
+        grow_evotree!(fitresult, cache, verbosity = verbosity)
     else
         Xmatrix = MLJBase.matrix(X)
-        fitresult, cache = grow_gbtree_MLJ(Xmatrix, y, model, verbosity = verbosity)
+        fitresult, cache = init_evotree(model, Xmatrix, y, verbosity = verbosity)
+        grow_evotree!(fitresult, cache, verbosity = verbosity)
     end
-
     report = nothing
     return fitresult, cache, report
 end
@@ -56,9 +44,11 @@ end
 function MLJBase.predict(model::EvoTreeClassifier, fitresult, Xnew)
     Xmatrix = MLJBase.matrix(Xnew)
     pred = predict(fitresult, Xmatrix)
-    y_levels = CategoricalArray(string.(1:model.K))
-    return [MLJBase.UnivariateFinite(y_levels, pred[i,:]) for i in 1:size(pred, 1)]
+    return [MLJBase.UnivariateFinite(fitresult.levels, pred[i,:]) for i in 1:size(pred, 1)]
 end
+
+MLJBase.predict_mode(model::EvoTreeClassifier, fitresult, Xnew) =
+    mode.(MLJBase.predict(model, fitresult, Xnew))
 
 # shared metadata
 MLJBase.package_name(::Type{<:EvoTypes}) = "EvoTrees"

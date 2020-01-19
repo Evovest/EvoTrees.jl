@@ -1,6 +1,8 @@
 module EvoTrees
 
-export grow_tree!, grow_gbtree, grow_gbtree!, Tree, Node, Params, predict, EvoTreeRegressor, EvoTreeRegressorR
+export init_evotree, grow_evotree!, grow_tree, Tree, Node, predict, fit,
+    EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
+    EvoTreeRegressorR
 
 using DataFrames
 using Statistics
@@ -9,18 +11,19 @@ using Base.Threads: @threads
 using StatsBase: sample, quantile
 using Random: seed!
 using StaticArrays
+using Distributions
 using CategoricalArrays
 using Flux: onehot
 import MLJBase
 # import MLJ
 
-include("MLJ_struct.jl")
-include("struct.jl")
+include("models.jl")
+include("structs.jl")
 include("loss.jl")
 include("eval.jl")
 include("predict.jl")
 include("find_split.jl")
-include("trees.jl")
-include("MLJ_fit.jl")
+include("fit.jl")
+include("MLJ.jl")
 
 end # module

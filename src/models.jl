@@ -26,7 +26,6 @@ mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBa
     α::T
     metric::Symbol
     seed::S
-    K::S # length of predictions: 1 by default, > 1 for multiclassif or maxloglikelihood
 end
 
 function EvoTreeRegressor(;
@@ -50,7 +49,7 @@ function EvoTreeRegressor(;
     elseif loss == :quantile model_type = Quantile()
     end
 
-    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed, 1)
+    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
 
     return model
 end
@@ -71,7 +70,6 @@ mutable struct EvoTreeCount{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBase.D
     α::T
     metric::Symbol
     seed::S
-    K::S # length of predictions: 1 by default, > 1 for multiclassif or maxloglikelihood
 end
 
 function EvoTreeCount(;
@@ -86,11 +84,11 @@ function EvoTreeCount(;
     colsample=1.0,
     nbins=64,
     α=0.5,
-    metric=:mse,
+    metric=:poisson,
     seed=444)
 
     model_type = Poisson()
-    model = EvoTreeCount(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed, 1)
+    model = EvoTreeCount(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
 
     return model
 end
@@ -110,7 +108,6 @@ mutable struct EvoTreeClassifier{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJB
     α::T
     metric::Symbol
     seed::S
-    K::S # length of predictions: 1 by default, > 1 for multiclassif or maxloglikelihood
 end
 
 function EvoTreeClassifier(;
@@ -125,12 +122,11 @@ function EvoTreeClassifier(;
     colsample=1.0,
     nbins=64,
     α=0.5,
-    metric=:mse,
-    seed=444,
-    K)
+    metric=:mlogloss,
+    seed=444)
 
     model_type = Softmax()
-    model = EvoTreeClassifier(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed, K)
+    model = EvoTreeClassifier(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
 
     return model
 end
@@ -151,7 +147,6 @@ mutable struct EvoTreeGaussian{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBas
     α::T
     metric::Symbol
     seed::S
-    K::S # length of predictions: 1 by default, > 1 for multiclassif or maxloglikelihood
 end
 
 function EvoTreeGaussian(;
@@ -166,11 +161,11 @@ function EvoTreeGaussian(;
     colsample=1.0,
     nbins=64,
     α=0.5,
-    metric=:mse,
+    metric=:gaussian,
     seed=444)
 
     model_type = Gaussian()
-    model = EvoTreeGaussian(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed, 2)
+    model = EvoTreeGaussian(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
 
     return model
 end
@@ -190,8 +185,7 @@ function EvoTreeRegressorR(
     nbins,
     α,
     metric,
-    seed,
-    K)
+    seed)
 
     if loss == :linear model_type = Linear()
     elseif loss == :logistic model_type = Logistic()
@@ -202,11 +196,7 @@ function EvoTreeRegressorR(
     elseif loss == :gaussian model_type = Gaussian()
     end
 
-    if loss == :gaussian
-        K = 2
-    end
-
-    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed, K)
+    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
 
     return model
 end

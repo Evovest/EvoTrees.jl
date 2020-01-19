@@ -30,8 +30,6 @@ function grow_tree(δ, δ², 𝑤,
                 best = get_max_gain(splits)
                 # grow node if best split improve gain
                 if best.gain > node.gain + params.γ
-                    # Node: depth, ∑δ, ∑δ², gain, 𝑖, 𝑗
-                    # set = BitSet(node.𝑖)
                     left, right = update_set(node.𝑖, best.𝑖, view(X_bin,:,best.feat))
                     train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, left, node.𝑗)
                     train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, right, node.𝑗)
@@ -448,7 +446,6 @@ function grow_gbtree_MLJ!(model::GBTree, cache; verbosity=1)
         predict!(cache.pred, tree, cache.X)
 
     end #end of nrounds
-
 
     cache.params.nrounds = params.nrounds
     # cache = (deepcopy(params), X, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, train_nodes, splits, hist_δ, hist_δ², hist_𝑤)

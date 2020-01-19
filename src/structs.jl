@@ -57,4 +57,6 @@ struct GBTree{L, T<:AbstractFloat, S<:Int}
     trees::Vector{Tree{L,T,S}}
     params::EvoTypes
     metric::Metric
+    K::Int
+    levels
 end
