@@ -10,7 +10,7 @@ using EvoTrees: logit, sigmoid
 import EvoTrees: EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian
 
 ##################################################
-### Regrtession - small data
+### Regression - small data
 ##################################################
 features = rand(10_000) .* 5 .- 2
 X = reshape(features, (size(features)[1], 1))
