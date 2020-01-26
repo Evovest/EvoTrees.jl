@@ -1,5 +1,4 @@
 using DataFrames
-using CSV
 using Statistics
 using Base.Threads: @threads
 using StatsBase: sample
@@ -7,7 +6,7 @@ using StaticArrays
 using Revise
 using BenchmarkTools
 using EvoTrees
-using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, grow_gbtree, SplitInfo, Tree, TrainNode, TreeNode, EvoTreeRegressor, predict, predict!, sigmoid
+using EvoTrees: get_gain, get_edges, binarize, get_max_gain, update_grads!, grow_tree, fit_evotree, SplitInfo, Tree, TrainNode, TreeNode, EvoTreeRegressor, predict, predict!, sigmoid
 using EvoTrees: find_bags, update_bags!, find_split_static!, pred_leaf, sigmoid, logit
 using Plots
 using Distributions
@@ -32,7 +31,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 𝑖 = collect(1:size(X_train,1))
 
 # set parameters
-params1 = EvoTreeRegressor(
+params1 = EvoTreeGaussian(
     loss=:gaussian, metric=:gaussian,
     nrounds=100, nbins=100,
     λ = 0.0, γ=0.0, η=0.1,
@@ -99,7 +98,7 @@ end
 # @btime pred_leaf_ = pred_leaf($params1.loss, $train_nodes[1], $params1, $δ²)
 # @btime pred_train = predict($tree, $X_train, params1.K)
 
-@time model = grow_gbtree(X_train, Y_train, params1, print_every_n = 20)
+@time model = fit_evotree(params1, X_train, Y_train, print_every_n = 20)
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, print_every_n = 1)
 @time pred_train = predict(model, X_train)
 # @btime pred_train = predict($model, $X_train)
