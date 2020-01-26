@@ -6,7 +6,6 @@ export init_evotree, grow_evotree!, grow_tree, predict, fit_evotree,
 
 using DataFrames
 using Statistics
-using CSV
 using Base.Threads: @threads
 using StatsBase: sample, quantile
 using Random: seed!

@@ -1,5 +1,4 @@
 using DataFrames
-using CSV
 using Statistics
 using StatsBase: sample
 using Test
