@@ -9,6 +9,7 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
     if typeof(params.loss) == Logistic
         μ = fill(logit(mean(Y)), 1)
     elseif typeof(params.loss) == Poisson
+        Y = Float64.(Y)
         μ = fill(log(mean(Y)), 1)
     elseif typeof(params.loss) == Softmax
         if typeof(Y) <: AbstractCategoricalVector
@@ -178,10 +179,13 @@ function get_max_gain(splits::Vector{SplitInfo{L,T,S}}) where {L,T,S}
     return best
 end
 
-function fit(params, X_train, Y_train;
-    early_stopping_rounds=Inf)
+function fit_evotree(params, X_train, Y_train;
+    X_eval=nothing, Y_eval=nothing,
+    early_stopping_rounds=9999,
+    eval_every_n=1,
+    print_every_n=9999,
+    verbosity=1)
 
-    nrounds_max = params.nrounds
     # initialize metric
     iter_since_best = 0
     if params.metric != :none
@@ -189,36 +193,42 @@ function fit(params, X_train, Y_train;
         metric_best = Metric()
     end
 
-    model, cache = init_evotree(params, X_train, Y_train)
-
+    nrounds_max = params.nrounds
     params.nrounds = 0
+    model, cache = init_evotree(params, X_train, Y_train)
     iter = 1
 
-    while iter <= nrounds_max && iter_since_best < early_stopping_rounds
+    if params.metric != :none && !isnothing(X_eval)
+        pred_eval = predict(model.trees[1], X_eval, model.K)
+    end
 
-        params.nrounds += 1
+    while model.params.nrounds < nrounds_max && iter_since_best < early_stopping_rounds
+        model.params.nrounds += 1
         grow_evotree!(model, cache)
-
         # callback function
         if params.metric != :none
-            if size(Y_eval, 1) > 0
+            if !isnothing(X_eval)
+                predict!(pred_eval, model.trees[model.params.nrounds+1], X_eval)
                 metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, params.α)
             else
-                metric_track.metric = eval_metric(Val{params.metric}(), pred, Y, params.α)
+                metric_track.metric = eval_metric(Val{params.metric}(), cache.pred, Y_train, params.α)
             end
-
             if metric_track.metric < metric_best.metric
-                metric_best.metric =  metric_track.metric
-                metric_best.iter =  i
+                metric_best.metric = metric_track.metric
+                metric_best.iter =  model.params.nrounds
+                iter_since_best = 0
             else
                 iter_since_best += 1
             end
-            if mod(i, print_every_n) == 0 && verbosity > 0
-                display(string("iter:", i, ", eval: ", metric_track.metric))
+            if mod(model.params.nrounds, print_every_n) == 0 && verbosity > 0
+                display(string("iter:", model.params.nrounds, ", eval: ", metric_track.metric))
             end
         end # end of callback
-
-        iter += 1
     end
+    if params.metric != :none
+        model.metric.iter = metric_best.iter
+        model.metric.metric = metric_best.metric
+    end
+    params.nrounds = nrounds_max
     return model
 end

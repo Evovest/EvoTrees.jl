@@ -36,19 +36,37 @@ function MLJBase.update(model::EvoTypes, verbosity,
 end
 
 function MLJBase.predict(model::EvoTypes, fitresult, Xnew)
-    Xmatrix = MLJBase.matrix(Xnew)
-    pred = predict(fitresult, Xmatrix)
+    Xnew = MLJBase.matrix(Xnew)
+    pred = predict(fitresult, Xnew)
     return pred
 end
 
 function MLJBase.predict(model::EvoTreeClassifier, fitresult, Xnew)
-    Xmatrix = MLJBase.matrix(Xnew)
-    pred = predict(fitresult, Xmatrix)
-    return [MLJBase.UnivariateFinite(fitresult.levels, pred[i,:]) for i in 1:size(pred, 1)]
+    Xnew = MLJBase.matrix(Xnew)
+    pred = predict(fitresult, Xnew)
+    return [MLJBase.UnivariateFinite(fitresult.levels, params) for params in eachrow(pred)]
 end
 
-MLJBase.predict_mode(model::EvoTreeClassifier, fitresult, Xnew) =
+function MLJBase.predict(model::EvoTreeCount, fitresult, Xnew)
+    Xnew = MLJBase.matrix(Xnew)
+    λ = predict(fitresult, Xnew)
+    return [Distributions.Poisson(λᵢ) for λᵢ ∈ λ]
+end
+
+function MLJBase.predict(model::EvoTreeGaussian, fitresult, Xnew)
+    Xnew = MLJBase.matrix(Xnew)
+    pred = predict(fitresult, Xnew)
+    return [Distributions.Normal(params...) for params in eachrow(pred)]
+end
+
+MLJBase.predict_mean(model::Union{EvoTreeRegressor, EvoTreeCount, EvoTreeGaussian}, fitresult, Xnew) =
+    mean.(MLJBase.predict(model, fitresult, Xnew))
+
+MLJBase.predict_mode(model::Union{EvoTreeRegressor, EvoTreeClassifier,EvoTreeCount, EvoTreeGaussian}, fitresult, Xnew) =
     mode.(MLJBase.predict(model, fitresult, Xnew))
+
+MLJBase.predict_median(model::Union{EvoTreeRegressor, EvoTreeCount, EvoTreeGaussian}, fitresult, Xnew) =
+    median.(MLJBase.predict(model, fitresult, Xnew))
 
 # shared metadata
 MLJBase.package_name(::Type{<:EvoTypes}) = "EvoTrees"

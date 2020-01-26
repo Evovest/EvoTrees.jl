@@ -1,6 +1,6 @@
 module EvoTrees
 
-export init_evotree, grow_evotree!, grow_tree, Tree, Node, predict, fit,
+export init_evotree, grow_evotree!, grow_tree, predict, fit_evotree,
     EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
     EvoTreeRegressorR
 

@@ -73,7 +73,7 @@ mutable struct EvoTreeCount{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBase.D
 end
 
 function EvoTreeCount(;
-    loss=:linear,
+    loss=:poisson,
     nrounds=10,
     λ=0.0, #
     γ=0.0, # gamma: min gain to split
@@ -150,7 +150,7 @@ mutable struct EvoTreeGaussian{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBas
 end
 
 function EvoTreeGaussian(;
-    loss=:linear,
+    loss=:gaussian,
     nrounds=10,
     λ=0.0, #
     γ=0.0, # gamma: min gain to split
@@ -201,4 +201,4 @@ function EvoTreeRegressorR(
     return model
 end
 
-const EvoTypes = Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassifier}
+const EvoTypes = Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassifier,EvoTreeGaussian}

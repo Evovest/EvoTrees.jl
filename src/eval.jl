@@ -2,7 +2,7 @@
 #     eval = mean((pred .- Y) .^ 2)
 #     return eval
 # end
-function eval_metric(::Val{:mse}, pred::Vector{SVector{1,T}}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
+function eval_metric(::Val{:mse}, pred::Vector{SVector{1,T}}, Y::AbstractVector{T}, α) where T <: AbstractFloat
     eval = zero(T)
     @inbounds for i in 1:length(pred)
         eval += (pred[i][1] - Y[i]) ^ 2
@@ -41,7 +41,7 @@ end
 function eval_metric(::Val{:mlogloss}, pred::Vector{SVector{L,T}}, Y::AbstractVector{S}, α=0.0) where {L, T <: AbstractFloat, S <: Int}
     eval = zero(T)
     pred = pred - maximum.(pred)
-    for i in 1:length(pred)
+    @inbounds for i in 1:length(pred)
         soft_pred = exp.(pred[i]) / sum(exp.(pred[i]))
         eval -= log(soft_pred[Y[i]])
     end

@@ -48,8 +48,6 @@ mean(abs.(pred_test - MLJ.selectrows(Y,test)))
 ##################################################
 ### classif
 ##################################################
-X, y = @load_crabs
-
 # features = rand(10_000) .* 5 .- 2
 # X = reshape(features, (size(features)[1], 1))
 # Y = sin.(features) .* 0.5 .+ 0.5
@@ -61,6 +59,8 @@ X, y = @load_crabs
 # y = CategoricalArray(y, ordered=false)
 # X = Tables.table(X)
 # X_matrix = MLJBase.matrix(X)
+
+X, y = @load_crabs
 
 # define hyperparameters
 tree_model = EvoTreeClassifier(max_depth=5, η=0.01, λ=0.0, γ=0.0, nrounds=10)
@@ -127,3 +127,110 @@ tree.model.nrounds += 10
 # yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
 pred_train = MLJ.predict(tree, MLJ.selectrows(X,train))
 mean(abs.(pred_train - MLJ.selectrows(Y,train)))
+
+pred_train = MLJ.predict_mean(tree, MLJ.selectrows(X,train))
+mean(abs.(pred_train - MLJ.selectrows(Y,train)))
+
+pred_train = MLJ.predict_mode(tree, MLJ.selectrows(X,train))
+pred_train = MLJ.predict_median(tree, MLJ.selectrows(X,train))
+
+##################################################
+### count - Larger data
+##################################################
+features = rand(100_000, 100)
+# features = rand(100, 10)
+X = features
+Y = rand(UInt8, size(X, 1))
+𝑖 = collect(1:size(X,1))
+
+# train-eval split
+𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
+train_size = 0.8
+𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
+𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1)) + 1:end]
+
+X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
+Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
+
+# @load EvoTreeRegressor
+tree_model = EvoTreeCount(
+    loss=:poisson, metric=:poisson,
+    nrounds=10,
+    λ = 0.0, γ=0.0, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=0.5, nbins=32)
+
+X = Tables.table(X)
+X = Tables.rowtable(X)
+X = Tables.columntable(X)
+X_matrix = MLJBase.matrix(X)
+
+# typeof(X)
+@time tree = machine(tree_model, X, Y)
+train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
+@time MLJ.fit!(tree, rows=train, verbosity=1, force=true)
+
+tree.model.nrounds += 10
+@time MLJBase.update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
+
+tree.model.nrounds += 10
+@time MLJ.fit!(tree, rows=train, verbosity=1)
+# @time MLJBase.fit!(tree, rows=train, verbosity=1)
+
+# yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
+pred = MLJ.predict(tree, MLJ.selectrows(X,train))
+pred_mean = MLJ.predict_mean(tree, MLJ.selectrows(X,train))
+pred_mode = MLJ.predict_mode(tree, MLJ.selectrows(X,train))
+pred_median = MLJ.predict_median(tree, MLJ.selectrows(X,train))
+mean(abs.(pred_train - MLJ.selectrows(Y,train)))
+
+##################################################
+### Gaussian - Larger data
+##################################################
+features = rand(100_000, 100)
+# features = rand(100, 10)
+X = features
+Y = rand(size(X, 1))
+𝑖 = collect(1:size(X,1))
+
+# train-eval split
+𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
+train_size = 0.8
+𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
+𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1)) + 1:end]
+
+X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
+Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
+
+# @load EvoTreeRegressor
+tree_model = EvoTreeGaussian(
+    loss=:gaussian, metric=:gaussian,
+    nrounds=10,
+    λ = 0.0, γ=0.0, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=0.5, nbins=32)
+
+X = Tables.table(X)
+X_matrix = MLJBase.matrix(X)
+
+# typeof(X)
+@time tree = machine(tree_model, X, Y)
+train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
+@time MLJ.fit!(tree, rows=train, verbosity=1, force=true)
+
+tree.model.nrounds += 10
+@time MLJBase.update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
+
+tree.model.nrounds += 10
+@time MLJ.fit!(tree, rows=train, verbosity=1)
+# @time MLJBase.fit!(tree, rows=train, verbosity=1)
+
+# yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
+pred = MLJ.predict(tree, MLJ.selectrows(X,train))
+pred_mean = MLJ.predict_mean(tree, MLJ.selectrows(X,train))
+pred_mode = MLJ.predict_mode(tree, MLJ.selectrows(X,train))
+pred_median = MLJ.predict_median(tree, MLJ.selectrows(X,train))
+mean(abs.(pred_train - MLJ.selectrows(Y,train)))
+
+q_20 = quantile.(pred, 0.20)
+q_20 = quantile.(pred, 0.80)
