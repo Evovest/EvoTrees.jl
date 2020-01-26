@@ -32,7 +32,7 @@ function update_grads!(loss::L1, α::T, pred::Vector{SVector{L,T}}, target::Abst
 end
 
 # Softmax
-function update_grads!(loss::Softmax, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{Int}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+function update_grads!(loss::Softmax, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{UInt32}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
     pred = pred - maximum.(pred)
     # sums = sum(exp.(pred), dims=2)
     @inbounds for i in 1:size(pred,1)

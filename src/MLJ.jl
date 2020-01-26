@@ -1,75 +1,94 @@
-function MLJBase.fit(model::EvoTreeRegressor, verbosity::Int, X, y)
+
+function MLJBase.fit(model::EvoTypes, verbosity::Int, X, y)
     Xmatrix = MLJBase.matrix(X)
-    fitresult = grow_gbtree(Xmatrix, y, model, verbosity = verbosity)
-    cache = (Xmatrix, deepcopy(model))
+    fitresult, cache = init_evotree(model, Xmatrix, y, verbosity = verbosity)
+    grow_evotree!(fitresult, cache, verbosity = verbosity)
     report = nothing
     return fitresult, cache, report
 end
 
-function MLJBase.update(model::EvoTreeRegressor, verbosity,
-                        old_fitresult, old_cache, X, y)
+function okay_to_continue(new, old)
+    new.nrounds - old.nrounds >= 0 &&
+    new.loss == old.loss &&
+    new.λ == old.λ &&
+    new.γ == old.γ &&
+    new.max_depth  == old.max_depth &&
+    new.min_weight == old.min_weight &&
+    new.rowsample ==  old.rowsample &&
+    new.colsample ==  old.colsample &&
+    new.nbins ==  old.nbins &&
+    new.α ==  old.α &&
+    new.metric ==  old.metric
+end
 
-    Xmatrix, old_model = old_cache
-    δnrounds = model.nrounds - old_model.nrounds
+function MLJBase.update(model::EvoTypes, verbosity,
+    fitresult, cache, X, y)
 
-    # We only continue computation from where we left off if: (i) The
-    # number of iterations has not decreased; and (ii) All other
-    # hyperparameters are unchanged, with the exception of the
-    # learning rate (to allow for externally controlled adaptive
-    # learning rate).
-
-    okay_to_continue =
-        δnrounds >= 0 &&
-        model.loss == old_model.loss &&
-        model.λ == old_model.λ &&
-        model.γ == old_model.γ &&
-        model.max_depth  == old_model.max_depth &&
-        model.min_weight == old_model.min_weight &&
-        model.rowsample ==  old_model.rowsample &&
-        model.colsample ==  old_model.colsample &&
-        model.nbins ==  old_model.nbins &&
-        model.α ==  old_model.α &&
-        model.metric ==  old_model.metric
-
-    if okay_to_continue
-        # Grow_gbtree! gets nrounds from old_fitresult.params, which is
-        # indentical with model (and which `update` should not modify
-        # permanently). For updating, we temporarily change this value
-        # to δnrounds:
-        old_nrounds = model.nrounds
-        model.nrounds = δnrounds
-
-        fitresult = grow_gbtree!(old_fitresult, Xmatrix, y;
-                                 verbosity=verbosity)
-
-        # now restore model:
-        model.nrounds = old_nrounds
+    if okay_to_continue(model, cache.params)
+        grow_evotree!(fitresult, cache, verbosity = verbosity)
     else
-        fitresult = grow_gbtree(Xmatrix, y, model, verbosity = verbosity)
+        Xmatrix = MLJBase.matrix(X)
+        fitresult, cache = init_evotree(model, Xmatrix, y, verbosity = verbosity)
+        grow_evotree!(fitresult, cache, verbosity = verbosity)
     end
-
-    cache = (Xmatrix, deepcopy(model))
     report = nothing
-
     return fitresult, cache, report
 end
 
-function MLJBase.predict(model::EvoTreeRegressor, fitresult, Xnew)
-    Xmatrix = MLJBase.matrix(Xnew)
-    pred = predict(fitresult, Xmatrix)
+function MLJBase.predict(model::EvoTypes, fitresult, Xnew)
+    Xnew = MLJBase.matrix(Xnew)
+    pred = predict(fitresult, Xnew)
     return pred
 end
 
-# shared metadata
-const EvoTypes = Union{EvoTreeRegressor}
-MLJBase.input_scitype(::Type{<:EvoTreeRegressor}) = MLJBase.Table(MLJBase.Continuous)
-# MLJBase.target_scitype(::Type{<:EvoTreeRegressor}) = MLJBase.Continuous
+function MLJBase.predict(model::EvoTreeClassifier, fitresult, Xnew)
+    Xnew = MLJBase.matrix(Xnew)
+    pred = predict(fitresult, Xnew)
+    return [MLJBase.UnivariateFinite(fitresult.levels, params) for params in eachrow(pred)]
+end
 
-MLJBase.load_path(::Type{<:EvoTreeRegressor}) = "EvoTrees.MLJ.EvoTreeRegressor"
+function MLJBase.predict(model::EvoTreeCount, fitresult, Xnew)
+    Xnew = MLJBase.matrix(Xnew)
+    λ = predict(fitresult, Xnew)
+    return [Distributions.Poisson(λᵢ) for λᵢ ∈ λ]
+end
+
+function MLJBase.predict(model::EvoTreeGaussian, fitresult, Xnew)
+    Xnew = MLJBase.matrix(Xnew)
+    pred = predict(fitresult, Xnew)
+    return [Distributions.Normal(params...) for params in eachrow(pred)]
+end
+
+MLJBase.predict_mean(model::Union{EvoTreeRegressor, EvoTreeCount, EvoTreeGaussian}, fitresult, Xnew) =
+    mean.(MLJBase.predict(model, fitresult, Xnew))
+
+MLJBase.predict_mode(model::Union{EvoTreeRegressor, EvoTreeClassifier,EvoTreeCount, EvoTreeGaussian}, fitresult, Xnew) =
+    mode.(MLJBase.predict(model, fitresult, Xnew))
+
+MLJBase.predict_median(model::Union{EvoTreeRegressor, EvoTreeCount, EvoTreeGaussian}, fitresult, Xnew) =
+    median.(MLJBase.predict(model, fitresult, Xnew))
+
+# shared metadata
 MLJBase.package_name(::Type{<:EvoTypes}) = "EvoTrees"
 MLJBase.package_uuid(::Type{<:EvoTypes}) = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
 MLJBase.package_url(::Type{<:EvoTypes}) = "https://github.com/Evovest/EvoTrees.jl"
 MLJBase.is_pure_julia(::Type{<:EvoTypes}) = true
+
+MLJBase.load_path(::Type{<:EvoTreeRegressor}) = "EvoTrees.EvoTreeRegressor"
+MLJBase.input_scitype(::Type{<:EvoTreeRegressor}) = MLJBase.Table(MLJBase.Continuous)
+MLJBase.target_scitype(::Type{<:EvoTreeRegressor}) = AbstractVector{<:MLJBase.Continuous}
+
+MLJBase.load_path(::Type{<:EvoTreeCount}) = "EvoTrees.EvoTreeCount"
+MLJBase.input_scitype(::Type{<:EvoTreeCount}) = MLJBase.Table(MLJBase.Continuous)
+MLJBase.target_scitype(::Type{<:EvoTreeCount}) = AbstractVector{<:MLJBase.Count}
+
+MLJBase.load_path(::Type{<:EvoTreeClassifier}) = "EvoTrees.EvoTreeClassifier"
+MLJBase.input_scitype(::Type{<:EvoTreeClassifier}) = MLJBase.Table(MLJBase.Continuous)
+MLJBase.target_scitype(::Type{<:EvoTreeClassifier}) = AbstractVector{<:MLJBase.Finite}
+
+MLJBase.load_path(::Type{<:EvoTreeGaussian}) = "EvoTrees.EvoTreeGaussian"
+MLJBase.input_scitype(::Type{<:EvoTreeGaussian}) = MLJBase.Table(MLJBase.Continuous)
+MLJBase.target_scitype(::Type{<:EvoTreeGaussian}) = AbstractVector{<:MLJBase.Continuous}
 
 # function MLJ.clean!(model::EvoTreeRegressor)
 #     warning = ""
