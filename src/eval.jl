@@ -63,7 +63,7 @@ end
 # pred[i][2] = log(σ²)
 function eval_metric(::Val{:gaussian}, pred::Vector{SVector{L,T}}, Y::AbstractVector{T}, α=0.0) where {L, T <: AbstractFloat}
     eval = zero(T)
-    for i in 1:length(pred)
+    @inbounds for i in 1:length(pred)
         eval += pred[i][2]/2 + (Y[i] - pred[i][1])^2 / (2*max(1e-8, exp(pred[i][2])))
     end
     eval /= length(Y)
@@ -72,8 +72,8 @@ end
 
 function eval_metric(::Val{:quantile}, pred::Vector{SVector{1,T}}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
     eval = zero(T)
-    @inbounds for i in 1:length(pred)
-        eval += α .* max.(Y[i] - pred[i], 0) + (1-α) * max.(pred[i] - Y[i], 0)
+    for i in 1:length(pred)
+        eval += α * max(Y[i] - pred[i][1], zero(T)) + (1-α) * max(pred[i][1] - Y[i], zero(T))
     end
     eval /= length(pred)
     return eval
