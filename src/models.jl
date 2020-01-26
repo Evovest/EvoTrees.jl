@@ -55,7 +55,6 @@ function EvoTreeRegressor(;
 end
 
 
-
 mutable struct EvoTreeCount{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBase.Deterministic
     loss::U
     nrounds::S
@@ -132,7 +131,6 @@ function EvoTreeClassifier(;
 end
 
 
-
 mutable struct EvoTreeGaussian{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBase.Probabilistic
     loss::U
     nrounds::S
@@ -172,7 +170,7 @@ end
 
 
 # For R-package
-function EvoTreeRegressorR(
+function EvoTreeRModel(
     loss,
     nrounds,
     λ,
@@ -187,16 +185,22 @@ function EvoTreeRegressorR(
     metric,
     seed)
 
-    if loss == :linear model_type = Linear()
-    elseif loss == :logistic model_type = Logistic()
-    elseif loss == :poisson model_type = Poisson()
-    elseif loss == :L1 model_type = L1()
-    elseif loss == :quantile model_type = Quantile()
-    elseif loss == :softmax model_type = Softmax()
-    elseif loss == :gaussian model_type = Gaussian()
+    if loss ∈ [:linear, :L1, :logistic, :quantile]
+        if loss == :linear model_type = Linear()
+        elseif loss == :logistic model_type = Logistic()
+        elseif loss == :quantile model_type = Quantile()
+        elseif loss == :L1 model_type = L1()
+        end
+        model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+    elseif loss == :poisson
+        model = EvoTreeCount(Poisson(), nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+    elseif loss == :softmax
+        model = EvoTreeClassifier(Softmax(), nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+    elseif loss == :gaussian
+        model = EvoTreeGaussian(Gaussian(), nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+    else
+        throw("invalid loss")
     end
-
-    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
 
     return model
 end
