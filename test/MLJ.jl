@@ -74,12 +74,19 @@ tree.model.nrounds += 10
 fit!(tree, rows=train, verbosity=1)
 
 pred_train = MLJBase.predict(tree, selectrows(X,train))
-cross_entropy(pred_train, selectrows(y, train)) |> mean
 pred_train_mode = MLJBase.predict_mode(tree, selectrows(X,train))
+println(cross_entropy(pred_train, selectrows(y, train)) |> mean)
+println(sum(pred_train_mode .== y[train]))
 
 pred_test = MLJBase.predict(tree, selectrows(X,test))
 cross_entropy(pred_test, selectrows(y, test)) |> mean
 pred_test_mode = MLJBase.predict_mode(tree, selectrows(X,test))
+
+using LossFunctions, Plots
+evo_model = EvoTreeClassifier(max_depth=6, η=0.3, λ=1.0, γ=0.0, nrounds=10, nbins=256, α=0.0)
+evo = machine(evo_model, X, y)
+r = range(evo_model, :nrounds, lower=50, upper=500)
+@time curve = learning_curve!(evo, range=r, resolution=10, measure=HingeLoss())
 
 ##################################################
 ### regression - Larger data
@@ -182,7 +189,6 @@ pred = MLJ.predict(tree, MLJ.selectrows(X,train))
 pred_mean = MLJ.predict_mean(tree, MLJ.selectrows(X,train))
 pred_mode = MLJ.predict_mode(tree, MLJ.selectrows(X,train))
 pred_median = MLJ.predict_median(tree, MLJ.selectrows(X,train))
-mean(abs.(pred_train - MLJ.selectrows(Y,train)))
 
 ##################################################
 ### Gaussian - Larger data
