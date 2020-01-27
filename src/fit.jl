@@ -31,14 +31,12 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
         μ = fill(mean(Y), 1)
     end
 
-    display("initialize pred")
     # initialize preds
     pred = zeros(SVector{K,Float64}, size(X,1))
     for i in eachindex(pred)
         pred[i] += μ
     end
 
-    display("initialize evotree")
     # bias = Tree([TreeNode(SVector{1, Float64}(μ))])
     bias = Tree([TreeNode(SVector{K,Float64}(μ))])
     evotree = GBTree([bias], params, Metric(), K, levels)
@@ -49,16 +47,14 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
 
     display("initialize gradients")
     # initialize gradients and weights
-    δ, δ² = zeros(SVector{evotree.K, Float64}, X_size[1]), zeros(SVector{evotree.K, Float64}, X_size[1])
+    # δ, δ² = zeros(SVector{evotree.K, Float64}, X_size[1]), zeros(SVector{evotree.K, Float64}, X_size[1])
+    # δ, δ² = zeros(SVector{1, Float64}, X_size[1]), zeros(SVector{1, Float64}, X_size[1])
     𝑤 = zeros(SVector{1, Float64}, X_size[1]) .+ 1
-
-    display("prior binarize")
+    display("gradients initialized")
 
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
-
-    display("after binarize")
 
     # initialize train nodes
     train_nodes = Vector{TrainNode{evotree.K, Float64, Int64}}(undef, 2^params.max_depth-1)
