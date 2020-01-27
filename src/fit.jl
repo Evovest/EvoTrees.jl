@@ -4,7 +4,7 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
 
     seed!(params.seed)
 
-    println("start init")
+    display("start init")
 
     K = 1
     levels = ""
@@ -49,13 +49,13 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
     δ, δ² = zeros(SVector{evotree.K, Float64}, X_size[1]), zeros(SVector{evotree.K, Float64}, X_size[1])
     𝑤 = zeros(SVector{1, Float64}, X_size[1]) .+ 1
 
-    println("prior binarize")
+    display("prior binarize")
 
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
 
-    println("after binarize")
+    display("after binarize")
 
     # initialize train nodes
     train_nodes = Vector{TrainNode{evotree.K, Float64, Int64}}(undef, 2^params.max_depth-1)
@@ -75,7 +75,7 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
         hist_𝑤[feat] = zeros(SVector{1, Float64}, length(edges[feat]))
     end
 
-    println("before cache")
+    display("before cache")
 
     cache = (params=deepcopy(params),
         X=X, Y=Y, pred=pred,
@@ -86,7 +86,7 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
 
     cache.params.nrounds = 0
 
-    println("after cache")
+    display("after cache")
 
     return evotree, cache
 end
@@ -94,7 +94,7 @@ end
 
 function grow_evotree!(evotree::GBTree, cache; verbosity=1)
 
-    println("entering grow evotree")
+    display("entering grow evotree")
 
     # initialize from cache
     params = evotree.params
@@ -103,7 +103,7 @@ function grow_evotree!(evotree::GBTree, cache; verbosity=1)
     X_size = size(cache.X_bin)
     δnrounds = params.nrounds - cache.params.nrounds
 
-    println("start grow loop")
+    display("start grow loop")
 
     # loop over nrounds
     for i in 1:δnrounds
