@@ -45,16 +45,16 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
     𝑖_ = collect(1:X_size[1])
     𝑗_ = collect(1:X_size[2])
 
-    display("initialize gradients")
+    # display("initialize gradients")
     # initialize gradients and weights
     δ, δ² = zeros(SVector{evotree.K, Float64}, X_size[1]), zeros(SVector{evotree.K, Float64}, X_size[1])
     𝑤 = zeros(SVector{1, Float64}, X_size[1])
     # 𝑤 = zeros(SVector{1, Float64}, 10000)
-    𝑤_ini = SVector{1, Float64}(1)
+    # 𝑤_ini = SVector{1, Float64}(1)
     for i in 1:length(𝑤)
-        𝑤[i] += 𝑤_ini
+        𝑤[i][1] += 1
     end
-    display("gradients initialized")
+    # display("gradients initialized")
 
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
