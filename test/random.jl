@@ -6,7 +6,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(1.25e6), 100)
+features = rand(Int(1.25e5), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -24,7 +24,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 # train model
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:mse,
-    nrounds=10,
+    nrounds=100,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
