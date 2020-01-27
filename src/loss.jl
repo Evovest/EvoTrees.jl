@@ -1,8 +1,8 @@
 # linear
 function update_grads!(loss::Linear, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
     @inbounds for i in eachindex(δ)
-        δ[i] = 2 .* (pred[i] .- target[i]) .* 𝑤[i]
-        δ²[i] = 2 .* 𝑤[i]
+        δ[i] = 2 * (pred[i][1] - target[i]) * 𝑤[i]
+        δ²[i] = 2 * 𝑤[i]
     end
 end
 
@@ -11,7 +11,7 @@ function update_grads!(loss::Logistic, α::T, pred::Vector{SVector{L,T}}, target
     @inbounds for i in eachindex(δ)
         # δ[i] = (sigmoid.(pred[i]) .* (1 .- target[i]) .- (1 .- sigmoid.(pred[i])) .* target[i]) .* 𝑤[i]
         # δ²[i] = sigmoid.(pred[i]) .* (1 .- sigmoid.(pred[i])) .* 𝑤[i]
-        δ[i] = (sigmoid(pred[i][1]) * (1 - target[i]) - (1 - sigmoid(pred[i][1])) * target[i][1]) * 𝑤[i]
+        δ[i] = (sigmoid(pred[i][1]) * (1 - target[i]) - (1 - sigmoid(pred[i][1])) * target[i]) * 𝑤[i]
         δ²[i] = sigmoid(pred[i][1]) * (1 - sigmoid(pred[i][1])) * 𝑤[i]
     end
 end
@@ -19,8 +19,8 @@ end
 # Poisson
 function update_grads!(loss::Poisson, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
     @inbounds for i in eachindex(δ)
-        δ[i] = (exp.(pred[i]) .- target[i]) .* 𝑤[i]
-        δ²[i] = exp.(pred[i]) .* 𝑤[i]
+        δ[i] = (exp(pred[i][1]) .- target[i]) * 𝑤[i]
+        δ²[i] = exp(pred[i][1]) * 𝑤[i]
     end
 end
 

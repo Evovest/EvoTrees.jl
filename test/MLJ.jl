@@ -68,18 +68,18 @@ tree_model = EvoTreeClassifier(max_depth=5, η=0.01, λ=0.0, γ=0.0, nrounds=10)
 # @load EvoTreeRegressor
 tree = machine(tree_model, X, y)
 train, test = partition(eachindex(y), 0.7, shuffle=true); # 70:30 split
-MLJ.fit!(tree, rows=train, verbosity=1)
+fit!(tree, rows=train, verbosity=1)
 
 tree.model.nrounds += 10
-MLJ.fit!(tree, rows=train, verbosity=1)
+fit!(tree, rows=train, verbosity=1)
 
-pred_train = MLJ.predict(tree, MLJ.selectrows(X,train))
-cross_entropy(pred_train, MLJ.selectrows(y, train)) |> mean
-pred_train_mode = MLJ.predict_mode(tree, MLJ.selectrows(X,train))
+pred_train = MLJBase.predict(tree, selectrows(X,train))
+cross_entropy(pred_train, selectrows(y, train)) |> mean
+pred_train_mode = MLJBase.predict_mode(tree, selectrows(X,train))
 
-pred_test = MLJ.predict(tree, MLJ.selectrows(X,test))
-cross_entropy(pred_test, MLJ.selectrows(y, test)) |> mean
-pred_test_mode = MLJ.predict_mode(tree, MLJ.selectrows(X,test))
+pred_test = MLJBase.predict(tree, selectrows(X,test))
+cross_entropy(pred_test, selectrows(y, test)) |> mean
+pred_test_mode = MLJBase.predict_mode(tree, selectrows(X,test))
 
 ##################################################
 ### regression - Larger data
