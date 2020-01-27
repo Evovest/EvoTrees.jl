@@ -1,4 +1,3 @@
-using DataFrames
 using Statistics
 using StatsBase: sample
 using Test
