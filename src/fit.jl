@@ -47,9 +47,9 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
 
     display("initialize gradients")
     # initialize gradients and weights
-    # δ, δ² = zeros(SVector{evotree.K, Float64}, X_size[1]), zeros(SVector{evotree.K, Float64}, X_size[1])
+    δ, δ² = zeros(SVector{evotree.K, Float64}, X_size[1]), zeros(SVector{evotree.K, Float64}, X_size[1])
     # δ, δ² = zeros(SVector{1, Float64}, X_size[1]), zeros(SVector{1, Float64}, X_size[1])
-    𝑤 = zeros(SVector{1, Float64}, 10000) .+ 1
+    # 𝑤 = zeros(SVector{1, Float64}, 10000) .+ 1
     display("gradients initialized")
 
     # binarize data into quantiles
