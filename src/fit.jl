@@ -31,12 +31,14 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
         μ = fill(mean(Y), 1)
     end
 
+    display("initialize pred")
     # initialize preds
     pred = zeros(SVector{K,Float64}, size(X,1))
     for i in eachindex(pred)
         pred[i] += μ
     end
 
+    display("initialize evotree")
     # bias = Tree([TreeNode(SVector{1, Float64}(μ))])
     bias = Tree([TreeNode(SVector{K,Float64}(μ))])
     evotree = GBTree([bias], params, Metric(), K, levels)
@@ -45,6 +47,7 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
     𝑖_ = collect(1:X_size[1])
     𝑗_ = collect(1:X_size[2])
 
+    display("initialize gradients")
     # initialize gradients and weights
     δ, δ² = zeros(SVector{evotree.K, Float64}, X_size[1]), zeros(SVector{evotree.K, Float64}, X_size[1])
     𝑤 = zeros(SVector{1, Float64}, X_size[1]) .+ 1
@@ -86,15 +89,11 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
 
     cache.params.nrounds = 0
 
-    display("after cache")
-
     return evotree, cache
 end
 
 
 function grow_evotree!(evotree::GBTree, cache; verbosity=1)
-
-    display("entering grow evotree")
 
     # initialize from cache
     params = evotree.params
@@ -102,8 +101,6 @@ function grow_evotree!(evotree::GBTree, cache; verbosity=1)
     splits = cache.splits
     X_size = size(cache.X_bin)
     δnrounds = params.nrounds - cache.params.nrounds
-
-    display("start grow loop")
 
     # loop over nrounds
     for i in 1:δnrounds
