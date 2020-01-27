@@ -2,7 +2,7 @@ module EvoTrees
 
 export init_evotree, grow_evotree!, grow_tree, predict, fit_evotree,
     EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
-    EvoTreeRegressorR
+    EvoTreeRModels
 
 using DataFrames
 using Statistics

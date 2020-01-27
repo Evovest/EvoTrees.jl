@@ -170,7 +170,7 @@ end
 
 
 # For R-package
-function EvoTreeRModel(
+function EvoTreeRModels(
     loss,
     nrounds,
     λ,
