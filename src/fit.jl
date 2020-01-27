@@ -4,8 +4,6 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
 
     seed!(params.seed)
 
-    display("start init")
-
     K = 1
     levels = ""
     if typeof(params.loss) == Logistic
@@ -74,8 +72,6 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
         hist_δ²[feat] = zeros(SVector{evotree.K, Float64}, length(edges[feat]))
         hist_𝑤[feat] = zeros(SVector{1, Float64}, length(edges[feat]))
     end
-
-    display("before cache")
 
     cache = (params=deepcopy(params),
         X=X, Y=Y, pred=pred,
