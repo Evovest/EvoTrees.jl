@@ -4,7 +4,6 @@ export init_evotree, grow_evotree!, grow_tree, predict, fit_evotree,
     EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
     EvoTreeRegressorR
 
-using DataFrames
 using Statistics
 using Base.Threads: @threads
 using StatsBase: sample, quantile
@@ -12,7 +11,6 @@ using Random: seed!
 using StaticArrays
 using Distributions
 using CategoricalArrays
-using Flux: onehot
 import MLJBase
 # import MLJ
 
