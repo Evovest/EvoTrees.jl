@@ -1,3 +1,19 @@
+# utility for softmax
+struct OneHotVector <: AbstractVector{Bool}
+  ix::UInt32
+  of::UInt32
+end
+
+Base.size(xs::OneHotVector) = (Int64(xs.of),)
+Base.getindex(xs::OneHotVector, i::Integer) = i == xs.ix
+Base.getindex(xs::OneHotVector, ::Colon) = OneHotVector(xs.ix, xs.of)
+
+function onehot(l, labels)
+  i = something(findfirst(isequal(l), labels), 0)
+  i > 0 || error("Value $l is not in labels")
+  OneHotVector(i, length(labels))
+end
+
 # linear
 function update_grads!(loss::Linear, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
     @inbounds for i in eachindex(δ)
@@ -9,8 +25,6 @@ end
 # logistic - on linear predictor
 function update_grads!(loss::Logistic, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
     @inbounds for i in eachindex(δ)
-        # δ[i] = (sigmoid.(pred[i]) .* (1 .- target[i]) .- (1 .- sigmoid.(pred[i])) .* target[i]) .* 𝑤[i]
-        # δ²[i] = sigmoid.(pred[i]) .* (1 .- sigmoid.(pred[i])) .* 𝑤[i]
         δ[i] = (sigmoid(pred[i][1]) * (1 - target[i]) - (1 - sigmoid(pred[i][1])) * target[i]) * 𝑤[i]
         δ²[i] = sigmoid(pred[i][1]) * (1 - sigmoid(pred[i][1])) * 𝑤[i]
     end

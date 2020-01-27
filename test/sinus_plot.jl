@@ -60,7 +60,7 @@ params1 = EvoTreeRegressor(
 
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 # 218.040 ms (123372 allocations: 34.71 MiB)
-# @btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval)
+@btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train_logistic = predict(model, X_train)
 @time pred_eval_logistic = predict(model, X_eval)
 sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
