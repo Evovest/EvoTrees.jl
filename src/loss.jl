@@ -17,8 +17,8 @@ end
 # linear
 function update_grads!(loss::Linear, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
     @inbounds for i in eachindex(δ)
-        δ[i] = 2 * (pred[i][1] - target[i]) * 𝑤[i]
-        δ²[i] = 2 * 𝑤[i]
+        δ[i] = SVector(2 * (pred[i][1] - target[i]) * 𝑤[i][1])
+        δ²[i] = SVector(2 * 𝑤[i][1])
     end
 end
 
@@ -59,8 +59,8 @@ end
 # Quantile
 function update_grads!(loss::Quantile, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
     @inbounds for i in eachindex(δ)
-        δ[i] = target[i] > pred[i][1] ? α * 𝑤[i] : (α - 1) * 𝑤[i]
-        δ²[i] = target[i] - pred[i] # δ² serves to calculate the quantile value - hence no weighting on δ²
+        δ[i] = target[i] > pred[i][1] ? SVector(α * 𝑤[i][1]) : SVector((α - 1) * 𝑤[i][1])
+        δ²[i] = SVector(target[i] - pred[i][1]) # δ² serves to calculate the quantile value - hence no weighting on δ²
     end
 end
 

@@ -63,7 +63,7 @@ end
 
 # prediction in Leaf - QuantileRegression
 function pred_leaf(loss::S, node::TrainNode{L,T}, params::EvoTypes, δ²) where {S<:QuantileRegression,L,T}
-    SVector{1,Float64}(params.η * quantile(reinterpret(Float64, δ²[collect(node.𝑖)]), params.α) / (1 + params.λ))
+    SVector{1,Float64}(params.η * quantile(reinterpret(Float64, δ²[node.𝑖]), params.α) / (1 + params.λ))
     # pred = params.η * quantile(δ²[collect(node.𝑖)], params.α) / (1 + params.λ)
 end
 
