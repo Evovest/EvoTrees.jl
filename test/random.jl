@@ -92,13 +92,14 @@ params1 = EvoTreeGaussian(
 # softmax
 params1 = EvoTreeClassifier(
     loss=:softmax, metric=:mlogloss,
-    nrounds=10,
+    nrounds=100,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 10.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 
 Y_train_int = UInt32.(round.(Y_train*2) .+ 1)
 Y_eval_int = UInt32.(round.(Y_eval*2) .+ 1)
+Y_train_int = Int.(Y_train_int)
 @time model = fit_evotree(params1, X_train, Y_train_int);
 @time model = fit_evotree(params1, X_train, Y_train_int, X_eval = X_eval, Y_eval = Y_eval_int, print_every_n=10)
 @time pred_train = predict(model, X_train)

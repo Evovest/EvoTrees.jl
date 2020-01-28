@@ -38,7 +38,7 @@ function eval_metric(::Val{:logloss}, pred::Vector{SVector{1,T}}, Y::AbstractVec
     return eval
 end
 
-function eval_metric(::Val{:mlogloss}, pred::Vector{SVector{L,T}}, Y::Vector{UInt32}, α=0.0) where {T <: AbstractFloat, L}
+function eval_metric(::Val{:mlogloss}, pred::Vector{SVector{L,T}}, Y::Vector{S}, α=0.0) where {T <: AbstractFloat, L, S <: Integer}
     eval = zero(T)
     # pred = pred - maximum.(pred)
     @inbounds for i in 1:length(pred)

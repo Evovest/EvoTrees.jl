@@ -15,7 +15,7 @@ function onehot(l, labels)
 end
 
 # linear
-function update_grads!(loss::Linear, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+function update_grads!(loss::Linear, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L}
     @inbounds for i in eachindex(δ)
         δ[i] = SVector(2 * (pred[i][1] - target[i]) * 𝑤[i][1])
         δ²[i] = SVector(2 * 𝑤[i][1])
@@ -23,7 +23,7 @@ function update_grads!(loss::Linear, α::T, pred::Vector{SVector{L,T}}, target::
 end
 
 # logistic - on linear predictor
-function update_grads!(loss::Logistic, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+function update_grads!(loss::Logistic, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L}
     @inbounds for i in eachindex(δ)
         δ[i] = (sigmoid(pred[i][1]) * (1 - target[i]) - (1 - sigmoid(pred[i][1])) * target[i]) * 𝑤[i]
         δ²[i] = sigmoid(pred[i][1]) * (1 - sigmoid(pred[i][1])) * 𝑤[i]
@@ -31,7 +31,7 @@ function update_grads!(loss::Logistic, α::T, pred::Vector{SVector{L,T}}, target
 end
 
 # Poisson
-function update_grads!(loss::Poisson, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+function update_grads!(loss::Poisson, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L}
     @inbounds for i in eachindex(δ)
         δ[i] = (exp(pred[i][1]) .- target[i]) * 𝑤[i]
         δ²[i] = exp(pred[i][1]) * 𝑤[i]
@@ -39,14 +39,14 @@ function update_grads!(loss::Poisson, α::T, pred::Vector{SVector{L,T}}, target:
 end
 
 # L1
-function update_grads!(loss::L1, α::T, pred::Vector{SVector{L,T}}, target::AbstractArray{T, 1}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+function update_grads!(loss::L1, α::T, pred::Vector{SVector{L,T}}, target::AbstractArray{T, 1}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L}
     @inbounds for i in eachindex(δ)
         δ[i] =  (α * max(target[i] - pred[i][1], 0) - (1-α) * max(pred[i][1] - target[i], 0)) * 𝑤[i]
     end
 end
 
 # Softmax
-function update_grads!(loss::Softmax, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{UInt32}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+function update_grads!(loss::Softmax, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{S}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, S <: Integer}
     # pred = pred - maximum.(pred)
     # sums = sum(exp.(pred), dims=2)
     @inbounds for i in 1:size(pred,1)
@@ -58,7 +58,7 @@ function update_grads!(loss::Softmax, α::T, pred::Vector{SVector{L,T}}, target:
 end
 
 # Quantile
-function update_grads!(loss::Quantile, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+function update_grads!(loss::Quantile, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L}
     @inbounds for i in eachindex(δ)
         δ[i] = target[i] > pred[i][1] ? SVector(α * 𝑤[i][1]) : SVector((α - 1) * 𝑤[i][1])
         δ²[i] = SVector(target[i] - pred[i][1]) # δ² serves to calculate the quantile value - hence no weighting on δ²
@@ -68,7 +68,7 @@ end
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
 # pred[i][2] = log(σ²)
-function update_grads!(loss::Gaussian, α, pred::Vector{SVector{L,T}}, target::AbstractArray{T, 1}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L, M}
+function update_grads!(loss::Gaussian, α, pred::Vector{SVector{L,T}}, target::AbstractArray{T, 1}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L}
     @inbounds @threads for i in eachindex(δ)
         δ[i] = SVector((pred[i][1] - target[i]) / max(1e-8, exp(pred[i][2])) * 𝑤[i][1], 𝑤[i][1] / 2 * (1 - (pred[i][1] - target[i])^2 / max(1e-8, exp(pred[i][2]))))
         δ²[i] = SVector(𝑤[i][1] / max(1e-8, exp(pred[i][2])), 𝑤[i][1] / max(1e-8, exp(pred[i][2])) * (pred[i][1] - target[i])^2)
