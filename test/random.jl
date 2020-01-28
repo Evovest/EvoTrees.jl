@@ -5,7 +5,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(1.25e6), 100)
+features = rand(Int(1.25e5), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -23,7 +23,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 # train model
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:mse,
-    nrounds=10,
+    nrounds=100,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
@@ -70,7 +70,7 @@ params1 = EvoTreeRegressor(
 # Quantile
 params1 = EvoTreeRegressor(
     loss=:quantile, metric=:quantile, α=0.80,
-    nrounds=10,
+    nrounds=100,
     λ = 0.1, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
@@ -79,7 +79,7 @@ params1 = EvoTreeRegressor(
 @time pred_train = predict(model, X_train)
 
 # gaussian
-params1 = EvoTreeCount(
+params1 = EvoTreeGaussian(
     loss=:gaussian, metric=:gaussian,
     nrounds=100,
     λ = 0.0, γ=0.0, η=0.1,
@@ -87,4 +87,18 @@ params1 = EvoTreeCount(
     rowsample=0.5, colsample=0.5, nbins=32)
 @time model = fit_evotree(params1, X_train, Y_train);
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n=10)
+@time pred_train = predict(model, X_train)
+
+# softmax
+params1 = EvoTreeClassifier(
+    loss=:softmax, metric=:mlogloss,
+    nrounds=100,
+    λ = 0.0, γ=0.0, η=0.1,
+    max_depth = 6, min_weight = 10.0,
+    rowsample=0.5, colsample=0.5, nbins=32)
+
+Y_train_int = UInt32.(round.(Y_train*2) .+ 1)
+Y_eval_int = UInt32.(round.(Y_eval*2) .+ 1)
+@time model = fit_evotree(params1, X_train, Y_train_int);
+@time model = fit_evotree(params1, X_train, Y_train_int, X_eval = X_eval, Y_eval = Y_eval_int, print_every_n=10)
 @time pred_train = predict(model, X_train)

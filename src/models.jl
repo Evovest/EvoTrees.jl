@@ -86,7 +86,7 @@ function EvoTreeCount(;
     metric=:poisson,
     seed=444)
 
-    model_type = Poisson()
+    if loss == :poisson model_type = Poisson() end
     model = EvoTreeCount(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
 
     return model
@@ -110,7 +110,7 @@ mutable struct EvoTreeClassifier{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJB
 end
 
 function EvoTreeClassifier(;
-    loss=:linear,
+    loss=:softmax,
     nrounds=10,
     λ=0.0, #
     γ=0.0, # gamma: min gain to split
@@ -124,7 +124,7 @@ function EvoTreeClassifier(;
     metric=:mlogloss,
     seed=444)
 
-    model_type = Softmax()
+    if loss == :softmax model_type = Softmax() end
     model = EvoTreeClassifier(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
 
     return model
@@ -162,7 +162,7 @@ function EvoTreeGaussian(;
     metric=:gaussian,
     seed=444)
 
-    model_type = Gaussian()
+    if loss == :gaussian model_type = Gaussian() end
     model = EvoTreeGaussian(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
 
     return model

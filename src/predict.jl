@@ -53,7 +53,7 @@ end
 
 # prediction in Leaf - MultiClassRegression
 function pred_leaf(loss::S, node::TrainNode{L,T}, params::EvoTypes, δ²) where {S<:MultiClassRegression,L,T}
-    - params.η * node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤[1])
+    SVector{L,T}(- params.η * node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤[1]))
 end
 
 # prediction in Leaf - L1Regression
@@ -63,7 +63,7 @@ end
 
 # prediction in Leaf - QuantileRegression
 function pred_leaf(loss::S, node::TrainNode{L,T}, params::EvoTypes, δ²) where {S<:QuantileRegression,L,T}
-    SVector{1,Float64}(params.η * quantile(reinterpret(Float64, δ²[node.𝑖]), params.α) / (1 + params.λ))
+    SVector{1,T}(params.η * quantile(reinterpret(Float64, δ²[node.𝑖]), params.α) / (1 + params.λ))
     # pred = params.η * quantile(δ²[collect(node.𝑖)], params.α) / (1 + params.λ)
 end
 

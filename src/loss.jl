@@ -51,8 +51,8 @@ function update_grads!(loss::Softmax, α::T, pred::Vector{SVector{L,T}}, target:
     # sums = sum(exp.(pred), dims=2)
     @inbounds for i in 1:size(pred,1)
         sums = sum(exp.(pred[i]))
-        δ[i] = (exp.(pred[i]) ./ sums - (onehot(target[i], 1:L))) * 𝑤[i][1]
-        δ²[i] =  1 / sums * (1 - exp.(pred[i]) ./ sums) * 𝑤[i][1]
+        δ[i] = SVector{L,T}((exp.(pred[i]) ./ sums - (onehot(target[i], 1:L))) .* 𝑤[i][1])
+        δ²[i] =  SVector{L,T}(1 / sums .* (1 - exp.(pred[i]) ./ sums) .* 𝑤[i][1])
     end
 end
 
