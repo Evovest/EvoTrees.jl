@@ -16,7 +16,7 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
             levels = CategoricalArray(CategoricalArrays.levels(Y))
             K = length(levels)
             μ = zeros(K)
-            Y = UInt32.(Y)
+            Y = MLJBase.int.(Y)
         else
             levels = CategoricalArray(sort(unique(Y)))
             K = length(levels)
