@@ -92,7 +92,7 @@ params1 = EvoTreeGaussian(
 # softmax
 params1 = EvoTreeClassifier(
     loss=:softmax, metric=:mlogloss,
-    nrounds=100,
+    nrounds=10,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 10.0,
     rowsample=0.5, colsample=0.5, nbins=32)

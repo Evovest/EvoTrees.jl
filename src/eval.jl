@@ -40,8 +40,9 @@ end
 
 function eval_metric(::Val{:mlogloss}, pred::Vector{SVector{L,T}}, Y::Vector{UInt32}, α=0.0) where {T <: AbstractFloat, L}
     eval = zero(T)
-    pred = pred - maximum.(pred)
+    # pred = pred - maximum.(pred)
     @inbounds for i in 1:length(pred)
+        pred[i] = pred[i] .- maximum(pred[i])
         soft_pred = exp.(pred[i]) / sum(exp.(pred[i]))
         eval -= log(soft_pred[Y[i]])
     end
