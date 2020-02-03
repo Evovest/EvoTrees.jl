@@ -1,5 +1,4 @@
 using Tables
-using MLJ
 using MLJBase
 using StatsBase: sample, mean, quantile
 using Statistics
@@ -31,19 +30,18 @@ tree_model = EvoTreeRegressor(loss=:quantile, α=0.75, max_depth=5, η=0.05, nro
 
 tree = machine(tree_model, X, y)
 train, test = partition(eachindex(y), 0.7, shuffle=true); # 70:30 split
-MLJ.fit!(tree, rows=train, verbosity=1)
+fit!(tree, rows=train, verbosity=1)
 
 tree.model.nrounds += 10
-MLJ.fit!(tree, rows=train, verbosity=1)
+fit!(tree, rows=train, verbosity=1)
 
 # predict on train data
-pred_train = MLJ.predict(tree, MLJ.selectrows(X,train))
-mean(pred_train)
-mean(abs.(pred_train - MLJ.selectrows(Y,train)))
+pred_train = predict(tree, selectrows(X,train))
+println(mean(abs.(pred_train - selectrows(Y,train))))
 
 # predict on test data
-pred_test = MLJ.predict(tree, MLJ.selectrows(X,test))
-mean(abs.(pred_test - MLJ.selectrows(Y,test)))
+pred_test = predict(tree, selectrows(X,test))
+println(mean(abs.(pred_test - selectrows(Y,test))))
 
 
 ##################################################
@@ -79,18 +77,18 @@ pred_train_mode = predict_mode(tree, selectrows(X,train))
 println(cross_entropy(pred_train, selectrows(y, train)) |> mean)
 println(sum(pred_train_mode .== y[train]))
 
-pred_test = MLJBase.predict(tree, selectrows(X,test))
+pred_test = predict(tree, selectrows(X,test))
 pred_test_mode = predict_mode(tree, selectrows(X,test))
 println(cross_entropy(pred_test, selectrows(y, test)) |> mean)
 println(sum(pred_test_mode .== y[test]))
-pred_test_mode = MLJBase.predict_mode(tree, selectrows(X,test))
+pred_test_mode = predict_mode(tree, selectrows(X,test))
 
-using LossFunctions, Plots
-evo_model = EvoTreeClassifier(max_depth=6, η=0.05, λ=1.0, γ=0.0, nrounds=10, nbins=64)
-evo = machine(evo_model, X, y)
-r = range(evo_model, :nrounds, lower=1, upper=500)
-@time curve = learning_curve!(evo, range=r, resolution=10, measure=HingeLoss())
-plot(curve.parameter_values, curve.measurements)
+# using LossFunctions, Plots
+# evo_model = EvoTreeClassifier(max_depth=6, η=0.05, λ=1.0, γ=0.0, nrounds=10, nbins=64)
+# evo = machine(evo_model, X, y)
+# r = range(evo_model, :nrounds, lower=1, upper=500)
+# @time curve = learning_curve!(evo, range=r, resolution=10, measure=HingeLoss())
+# plot(curve.parameter_values, curve.measurements)
 
 ##################################################
 ### regression - Larger data
@@ -126,18 +124,18 @@ X_matrix = MLJBase.matrix(X)
 # typeof(X)
 @time tree = machine(tree_model, X, Y)
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
-@time MLJ.fit!(tree, rows=train, verbosity=1, force=true)
+@time fit!(tree, rows=train, verbosity=1, force=true)
 
 tree.model.nrounds += 10
-@time MLJBase.update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
+@time update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
 
 tree.model.nrounds += 10
-@time MLJ.fit!(tree, rows=train, verbosity=1)
+@time fit!(tree, rows=train, verbosity=1)
 # @time MLJBase.fit!(tree, rows=train, verbosity=1)
 
 # yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
-pred_train = predict(tree, MLJ.selectrows(X,train))
-mean(abs.(pred_train - MLJ.selectrows(Y,train)))
+pred_train = predict(tree, selectrows(X,train))
+mean(abs.(pred_train - selectrows(Y,train)))
 
 ##################################################
 ### count - Larger data
@@ -173,20 +171,20 @@ X_matrix = MLJBase.matrix(X)
 # typeof(X)
 @time tree = machine(tree_model, X, Y)
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
-@time MLJ.fit!(tree, rows=train, verbosity=1, force=true)
+@time fit!(tree, rows=train, verbosity=1, force=true)
 
 tree.model.nrounds += 10
 @time MLJBase.update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
 
 tree.model.nrounds += 10
-@time MLJ.fit!(tree, rows=train, verbosity=1)
+@time fit!(tree, rows=train, verbosity=1)
 # @time MLJBase.fit!(tree, rows=train, verbosity=1)
 
 # yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
-pred = predict(tree, MLJ.selectrows(X,train))
-pred_mean = predict_mean(tree, MLJ.selectrows(X,train))
-pred_mode = predict_mode(tree, MLJ.selectrows(X,train))
-pred_median = predict_median(tree, MLJ.selectrows(X,train))
+pred = predict(tree, selectrows(X,train))
+pred_mean = predict_mean(tree, selectrows(X,train))
+pred_mode = predict_mode(tree, selectrows(X,train))
+pred_median = predict_median(tree, selectrows(X,train))
 
 ##################################################
 ### Gaussian - Larger data
@@ -220,21 +218,21 @@ X_matrix = MLJBase.matrix(X)
 # typeof(X)
 @time tree = machine(tree_model, X, Y)
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
-@time MLJ.fit!(tree, rows=train, verbosity=1, force=true)
+@time fit!(tree, rows=train, verbosity=1, force=true)
 
 tree.model.nrounds += 10
 @time MLJBase.update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
 
 tree.model.nrounds += 10
-@time MLJ.fit!(tree, rows=train, verbosity=1)
+@time fit!(tree, rows=train, verbosity=1)
 # @time MLJBase.fit!(tree, rows=train, verbosity=1)
 
 # yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
-pred = predict(tree, MLJ.selectrows(X,train))
-pred_mean = predict_mean(tree, MLJ.selectrows(X,train))
-pred_mode = predict_mode(tree, MLJ.selectrows(X,train))
-pred_median = predict_median(tree, MLJ.selectrows(X,train))
-mean(abs.(pred_train - MLJ.selectrows(Y,train)))
+pred = predict(tree, selectrows(X,train))
+pred_mean = predict_mean(tree, selectrows(X,train))
+pred_mode = predict_mode(tree, selectrows(X,train))
+pred_median = predict_median(tree, selectrows(X,train))
+mean(abs.(pred_train - selectrows(Y,train)))
 
 q_20 = quantile.(pred, 0.20)
 q_20 = quantile.(pred, 0.80)
