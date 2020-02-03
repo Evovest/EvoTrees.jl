@@ -63,7 +63,7 @@ mean(abs.(pred_test - MLJ.selectrows(Y,test)))
 X, y = @load_crabs
 
 # define hyperparameters
-tree_model = EvoTreeClassifier(max_depth=5, η=0.01, λ=0.0, γ=0.0, nrounds=10)
+tree_model = EvoTreeClassifier(max_depth=4, η=0.01, λ=0.0, γ=0.0, nrounds=10)
 
 # @load EvoTreeRegressor
 tree = machine(tree_model, X, y)
@@ -79,7 +79,9 @@ println(cross_entropy(pred_train, selectrows(y, train)) |> mean)
 println(sum(pred_train_mode .== y[train]))
 
 pred_test = MLJBase.predict(tree, selectrows(X,test))
-cross_entropy(pred_test, selectrows(y, test)) |> mean
+pred_test_mode = MLJBase.predict_mode(tree, selectrows(X,test))
+println(cross_entropy(pred_test, selectrows(y, test)) |> mean)
+println(sum(pred_test_mode .== y[test]))
 pred_test_mode = MLJBase.predict_mode(tree, selectrows(X,test))
 
 using LossFunctions, Plots
@@ -87,7 +89,6 @@ evo_model = EvoTreeClassifier(max_depth=6, η=0.3, λ=1.0, γ=0.0, nrounds=10, n
 evo = machine(evo_model, X, y)
 r = range(evo_model, :nrounds, lower=50, upper=500)
 @time curve = learning_curve!(evo, range=r, resolution=10, measure=HingeLoss())
-
 ##################################################
 ### regression - Larger data
 ##################################################
