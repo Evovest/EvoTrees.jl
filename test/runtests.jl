@@ -1,7 +1,6 @@
 using Statistics
 using StatsBase: sample
 using Test
-using Revise
 using EvoTrees
 using EvoTrees: sigmoid, logit
 
@@ -30,7 +29,7 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0, seed = seed)
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-@time pred_train_linear = EvoTrees.predict(model, X_train)
+@time pred_train_linear = predict(model, X_train)
 
 @time p1 = EvoTrees.predict(model, X_eval)
 mean(abs.(p1 - Y_eval))
@@ -43,7 +42,7 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0, seed = seed)
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-@time pred_train_logistic = EvoTrees.predict(model, X_train)
+@time pred_train_logistic = predict(model, X_train)
 
 # Poisson
 params1 = EvoTreeCount(
@@ -53,7 +52,7 @@ params1 = EvoTreeCount(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0, seed = seed)
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-@time pred_train_poisson = EvoTrees.predict(model, X_train)
+@time pred_train_poisson = predict(model, X_train)
 
 # L1
 params1 = EvoTreeRegressor(
@@ -73,7 +72,7 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0, seed = seed)
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-@time pred_train_poisson = EvoTrees.predict(model, X_train)
+@time pred_train_poisson = predict(model, X_train)
 
 # Gaussian
 params1 = EvoTreeGaussian(
@@ -83,4 +82,4 @@ params1 = EvoTreeGaussian(
     max_depth = 6, min_weight = 10.0,
     rowsample=0.5, colsample=1.0, seed = seed)
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-@time pred_train_gaussian = EvoTrees.predict(model, X_train)
+@time pred_train_gaussian = predict(model, X_train)

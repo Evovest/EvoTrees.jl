@@ -2,8 +2,6 @@ using BenchmarkTools
 using Statistics
 using StatsBase: sample, quantile
 using Plots
-
-using Revise
 using EvoTrees
 using EvoTrees: sigmoid, logit
 # using ProfileView

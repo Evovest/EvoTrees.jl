@@ -55,7 +55,7 @@ function EvoTreeRegressor(;
 end
 
 
-mutable struct EvoTreeCount{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBase.Deterministic
+mutable struct EvoTreeCount{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBase.Probabilistic
     loss::U
     nrounds::S
     λ::T

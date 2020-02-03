@@ -199,9 +199,9 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[OpenBLAS_jll]]
 deps = ["Libdl", "Pkg"]
-git-tree-sha1 = "3a6e5767e8ae022871c19162cc3ecd80748bd3dc"
+git-tree-sha1 = "e2551d7c25d52f35b76d86a50917a3ba8988f519"
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.7+4"
+version = "0.3.7+5"
 
 [[OpenSpecFun_jll]]
 deps = ["Libdl", "Pkg"]
@@ -229,9 +229,9 @@ version = "0.12.0"
 
 [[Parsers]]
 deps = ["Dates", "Test"]
-git-tree-sha1 = "0139ba59ce9bc680e2925aec5b7db79065d60556"
+git-tree-sha1 = "d112c19ccca00924d5d3a38b11ae2b4b268dda39"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "0.3.10"
+version = "0.3.11"
 
 [[Pkg]]
 deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]

@@ -5,7 +5,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(1.25e5), 100)
+features = rand(Int(1.0e5), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -28,8 +28,9 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 
-# for 100k: 410.477 ms (44032 allocations: 182.68 MiB)
-# for 1.25e6: 6.964114 seconds (6.05 M allocations: 2.350 GiB, 2.82% gc time)
+# for 100k 10 rounds: 410.477 ms (44032 allocations: 182.68 MiB)
+# for 100k 100 rounds: 2.177 s (404031 allocations: 626.45 MiB)
+# for 1.25e6 10 rounds: 6.964114 seconds (6.05 M allocations: 2.350 GiB, 2.82% gc time)
 # for 1.25e6 no eval: 6.200 s (44330 allocations: 2.19 GiB)
 # for 1.25e6 mse with eval data: 6.321 s (45077 allocations: 2.19 GiB)
 params1.nrounds
@@ -37,6 +38,25 @@ params1.nrounds
 @time grow_evotree!(model, cache);
 @time model = fit_evotree(params1, X_train, Y_train);
 @btime model = fit_evotree(params1, X_train, Y_train);
+@time pred_train = predict(model, X_train)
+
+# xgboost benchmark
+using XGBoost
+num_round = 100
+param = ["max_depth" => 5,
+         "eta" => 0.05,
+         "objective" => "reg:linear",
+         "print_every_n" => 5,
+         "subsample" => 0.5,
+         "colsample_bytree" => 0.5,
+         "tree_method" => "hist",
+         "max_bin" => 32]
+metrics = ["rmse"]
+@time xgboost(X_train, num_round, label = Y_train, param = param, metrics=metrics, silent=1);
+@time dtrain = DMatrix(X_train, label = Y_train)
+@time model_xgb = xgboost(dtrain, num_round, param = param, silent=1);
+@btime model_xgb = xgboost(dtrain, num_round, param = param, silent=1);
+@time pred_train = XGBoost.predict(model_xgb, X_train)
 
 @time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=9999, early_stopping_rounds=9999);
 @btime model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=9999, early_stopping_rounds=9999);
