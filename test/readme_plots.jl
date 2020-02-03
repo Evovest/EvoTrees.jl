@@ -1,6 +1,4 @@
 using BenchmarkTools
-using DataFrames
-using CSV
 using Statistics
 using StatsBase: sample, quantile
 using Plots
@@ -8,7 +6,6 @@ using Plots
 using Revise
 using EvoTrees
 using EvoTrees: sigmoid, logit
-using Profile
 # using ProfileView
 
 # prepare a dataset
