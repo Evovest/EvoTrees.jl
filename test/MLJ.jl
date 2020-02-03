@@ -1,13 +1,67 @@
 using Tables
 using MLJ
 using MLJBase
-using StatsBase: sample
+using StatsBase: sample, mean, quantile
+using Statistics
 using CategoricalArrays
 using Distributions
 using Revise
 using EvoTrees
 using EvoTrees: logit, sigmoid
 import EvoTrees: EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian
+
+
+##################################################
+### xgboost
+##################################################
+using XGBoost
+function readlibsvm(fname::String, shape)
+    dmx = zeros(Float32, shape)
+    label = Float32[]
+    fi = open(fname, "r")
+    cnt = 1
+    for line in eachline(fi)
+        line = split(line, " ")
+        push!(label, parse(Float64, line[1]))
+        line = line[2:end]
+        for itm in line
+            itm = split(itm, ":")
+            dmx[cnt, parse(Int, itm[1]) + 1] = parse(Int, itm[2])
+        end
+        cnt += 1
+    end
+    close(fi)
+    return (dmx, label)
+end
+train_X, train_Y = readlibsvm("data/agaricus.txt.train", (6513, 126))
+test_X, test_Y   = readlibsvm("data/agaricus.txt.test", (1611, 126))
+
+num_round = 100
+param = ["max_depth" => 5,
+         "eta" => 0.05,
+         "objective" => "binary:logistic",
+         "print_every_n" => 5,
+         "subsample" => 0.5,
+         "colsample_bytree" => 0.5,
+         "tree_method" => "hist"]
+metrics = ["logloss"]
+@time xgboost(train_X, num_round, label = train_Y, param = param, metrics=metrics, silent=1);
+@time dtrain = DMatrix(train_X, label = train_Y)
+@time model_xgb = xgboost(dtrain, num_round, param = param, metrics=metrics, silent=1);
+@time XGBoost.predict(model_xgb, train_X)
+
+params1 = EvoTreeRegressor(
+    loss=:logistic, metric=:logloss,
+    nrounds=100,
+    λ = 0.0, γ=0.0, η=0.05,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=0.5, nbins=64)
+
+# binarize data into quantiles
+train_Y = Float64.(train_Y)
+train_X = Float64.(train_X)
+@time model = fit_evotree(params1, train_X, train_Y, print_every_n=999);
+@time EvoTrees.predict(model, train_X)
 
 ##################################################
 ### Regression - small data
