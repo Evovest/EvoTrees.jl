@@ -5,7 +5,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(1.25e5), 100)
+features = rand(Int(1.25e6), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -42,18 +42,15 @@ metrics = ["rmse"]
 # train model
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:mse,
-    nrounds=100,
-    λ = 0.0, γ=0.0, η=0.1,
-    max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=0.5, nbins=32)
+    nrounds=100, α=0.5f0,
+    λ=0.0f0, γ=0.0f0, η=0.1f0,
+    max_depth=6, min_weight = 1.0f0,
+    rowsample=0.5f0, colsample=0.5f0, nbins=32)
 
 # for 100k: 410.477 ms (44032 allocations: 182.68 MiB)
 # for 1.25e6: 6.964114 seconds (6.05 M allocations: 2.350 GiB, 2.82% gc time)
 # for 1.25e6 no eval: 6.200 s (44330 allocations: 2.19 GiB)
 # for 1.25e6 mse with eval data: 6.321 s (45077 allocations: 2.19 GiB)
-params1.nrounds
-@time model, cache = init_evotree(params1, X_train, Y_train);
-@time grow_evotree!(model, cache);
 @time model = fit_evotree(params1, X_train, Y_train);
 @btime model = fit_evotree(params1, X_train, Y_train);
 @time pred_train = EvoTrees.predict(model, X_train)
@@ -107,14 +104,13 @@ num_round = 100
 metrics = ["logloss"]
 @time bst = xgboost(train_X, num_round, label = train_Y, eta = 0.1, max_depth = 3, metrics = metrics, silent=0, objective = "binary:logistic")
 
-X_train = Float64.(train_X)
-Y_train = Float64.(train_Y)
 params1 = EvoTreeRegressor(
     loss=:logistic, metric=:logloss,
-    nrounds=100,
-    λ = 0.0, γ=0.0, η=0.1,
-    max_depth = 4, min_weight = 1.0,
-    rowsample=0.5, colsample=0.5, nbins=250)
+    nrounds=100, α=0.5f0,
+    λ=0.0f0, γ=0.0f0, η=0.1f0,
+    max_depth=4, min_weight=1.0f0,
+    rowsample=0.5f0, colsample=0.5f0, nbins=250)
 
-@time model = fit_evotree(params1, X_train, Y_train, print_every_n=50);
+@time model = fit_evotree(params1, train_X, train_Y, print_every_n=20);
+@time model = fit_evotree(params1, X_train, Y_train, X_eval=test_X, Y_eval=test_Y, print_every_n=20);
 @time pred_train = EvoTrees.predict(model, X_train)

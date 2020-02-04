@@ -27,7 +27,7 @@ struct TreeNode{L, T<:AbstractFloat, S<:Int, B<:Bool}
 end
 
 TreeNode(left::S, right::S, feat::S, cond::T, L::S) where {T<:AbstractFloat, S<:Int} = TreeNode{L,T,S,Bool}(left, right, feat, cond, zeros(SVector{L,T}), true)
-TreeNode(pred::SVector{L,T}) where {L,T} = TreeNode(0, 0, 0, 0.0, pred, false)
+TreeNode(pred::SVector{L,T}) where {L,T} = TreeNode(0, 0, 0, zero(T), pred, false)
 
 # single tree is made of a root node that containes nested nodes and leafs
 struct TrainNode{L, T<:AbstractFloat, S<:Int}
@@ -48,7 +48,7 @@ end
 # eval metric tracking
 mutable struct Metric
     iter::Int
-    metric::Float64
+    metric::Float32
 end
 Metric() = Metric(0, Inf)
 
