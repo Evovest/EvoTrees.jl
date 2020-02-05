@@ -22,12 +22,13 @@ struct TreeNode{L, T<:AbstractFloat, S<:Int, B<:Bool}
     right::S
     feat::S
     cond::T
+    gain::T
     pred::SVector{L,T}
     split::B
 end
 
-TreeNode(left::S, right::S, feat::S, cond::T, L::S) where {T<:AbstractFloat, S<:Int} = TreeNode{L,T,S,Bool}(left, right, feat, cond, zeros(SVector{L,T}), true)
-TreeNode(pred::SVector{L,T}) where {L,T} = TreeNode(0, 0, 0, 0.0, pred, false)
+TreeNode(left::S, right::S, feat::S, cond::T, gain::T, L::S) where {T<:AbstractFloat, S<:Int} = TreeNode{L,T,S,Bool}(left, right, feat, cond, gain, zeros(SVector{L,T}), true)
+TreeNode(pred::SVector{L,T}) where {L,T} = TreeNode(0, 0, 0, zero(T), zero(T), pred, false)
 
 # single tree is made of a root node that containes nested nodes and leafs
 struct TrainNode{L, T<:AbstractFloat, S<:Int}

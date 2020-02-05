@@ -39,6 +39,7 @@ params1.nrounds
 @time model = fit_evotree(params1, X_train, Y_train);
 @btime model = fit_evotree(params1, X_train, Y_train);
 @time pred_train = predict(model, X_train)
+@time gain = importance(model, 1:100)
 
 # xgboost benchmark
 using XGBoost

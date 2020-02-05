@@ -105,6 +105,7 @@ num_round = 100
 # by calling xgboost(data, num_round, label=label, training-parameters)
 metrics = ["logloss"]
 @time bst = xgboost(train_X, num_round, label = train_Y, eta = 0.1, max_depth = 3, metrics = metrics, silent=0, objective = "binary:logistic")
+features_xgb = XGBoost.importance(bst)
 
 X_train = Float64.(train_X)
 Y_train = Float64.(train_Y)
@@ -113,7 +114,9 @@ params1 = EvoTreeRegressor(
     nrounds=100,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 4, min_weight = 1.0,
-    rowsample=0.5, colsample=0.5, nbins=250)
+    rowsample=1.0, colsample=1.0, nbins=250)
 
 @time model = fit_evotree(params1, X_train, Y_train, print_every_n=50);
 @time pred_train = EvoTrees.predict(model, X_train)
+features_evo = importance(model, 1:size(X_train,2))
+sort(collect(values(features_evo)))

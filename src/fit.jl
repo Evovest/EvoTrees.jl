@@ -161,7 +161,7 @@ function grow_tree(δ, δ², 𝑤,
                     train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, left, node.𝑗)
                     train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, right, node.𝑗)
                     # push split Node
-                    push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond, L))
+                    push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond, best.gain-node.gain, L))
                     push!(next_active_id, leaf_count + 1)
                     push!(next_active_id, leaf_count + 2)
                     leaf_count += 2

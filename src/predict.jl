@@ -12,7 +12,6 @@ function predict!(pred, tree::Tree, X::AbstractMatrix{T}) where {T<:Real}
         end
         pred[i] += tree.nodes[id].pred
     end
-    return pred
 end
 
 # prediction from single tree - assign each observation to its final leaf

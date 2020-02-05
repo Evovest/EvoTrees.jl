@@ -340,3 +340,9 @@ uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [[Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
+
+[[XGBoost]]
+deps = ["BinaryProvider", "Libdl", "Printf", "Random", "SparseArrays", "Statistics", "Test"]
+git-tree-sha1 = "b1299fe4d279e2a5ca67406a5eb640e5f71d19ce"
+uuid = "009559a3-9522-5dbb-924b-0b6ed2b22bb9"
+version = "0.4.2"
