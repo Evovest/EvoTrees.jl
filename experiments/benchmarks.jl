@@ -5,7 +5,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(1.25e5), 100)
+features = rand(Int(1.25e6), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -43,7 +43,7 @@ metrics = ["rmse"]
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:mse,
     nrounds=100,
-    λ = 0.0, γ=0.0, η=0.1,
+    λ = 0.0, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 
@@ -51,7 +51,6 @@ params1 = EvoTreeRegressor(
 # for 1.25e6: 6.964114 seconds (6.05 M allocations: 2.350 GiB, 2.82% gc time)
 # for 1.25e6 no eval: 6.200 s (44330 allocations: 2.19 GiB)
 # for 1.25e6 mse with eval data: 6.321 s (45077 allocations: 2.19 GiB)
-params1.nrounds
 @time model, cache = init_evotree(params1, X_train, Y_train);
 @time grow_evotree!(model, cache);
 @time model = fit_evotree(params1, X_train, Y_train);
@@ -106,6 +105,7 @@ num_round = 100
 # by calling xgboost(data, num_round, label=label, training-parameters)
 metrics = ["logloss"]
 @time bst = xgboost(train_X, num_round, label = train_Y, eta = 0.1, max_depth = 3, metrics = metrics, silent=0, objective = "binary:logistic")
+features_xgb = XGBoost.importance(bst)
 
 X_train = Float64.(train_X)
 Y_train = Float64.(train_Y)
@@ -114,7 +114,9 @@ params1 = EvoTreeRegressor(
     nrounds=100,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 4, min_weight = 1.0,
-    rowsample=0.5, colsample=0.5, nbins=250)
+    rowsample=1.0, colsample=1.0, nbins=250)
 
 @time model = fit_evotree(params1, X_train, Y_train, print_every_n=50);
 @time pred_train = EvoTrees.predict(model, X_train)
+features_evo = importance(model, 1:size(X_train,2))
+sort(collect(values(features_evo)))

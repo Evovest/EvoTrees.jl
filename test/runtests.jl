@@ -83,3 +83,5 @@ params1 = EvoTreeGaussian(
     rowsample=0.5, colsample=1.0, seed = seed)
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_gaussian = predict(model, X_train)
+
+features_gain = importance(model, 1:1)
