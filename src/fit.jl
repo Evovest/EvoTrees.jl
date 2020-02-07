@@ -148,7 +148,7 @@ function grow_tree(δ, δ², 𝑤,
         # grow nodes
         for id in active_id
             node = train_nodes[id]
-            if tree_depth == params.max_depth || node.∑𝑤[1] <= params.min_weight
+            if tree_depth == params.max_depth || node.∑𝑤[1] <= params.min_weight + 1e-12
                 push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, δ²)))
             else
                 if id > 1 && id == tree.nodes[node.parent].right
@@ -169,9 +169,9 @@ function grow_tree(δ, δ², 𝑤,
                 # grow node if best split improves gain
                 if best.gain > node.gain + params.γ
                     left, right = update_set(node.𝑖, best.𝑖, view(X_bin,:,best.feat))
+                    # println("id: ∑𝑤/length(node/left/right) / ", id, " : ", node.∑𝑤, " / ", length(node.𝑖), " / ", length(left), " / ", length(right), " / ", best.𝑖)
                     train_nodes[leaf_count + 1] = TrainNode(id, node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, left, node.𝑗)
                     train_nodes[leaf_count + 2] = TrainNode(id, node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, right, node.𝑗)
-                    # push split Node
                     push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond, best.gain-node.gain, L))
                     push!(next_active_id, leaf_count + 1)
                     push!(next_active_id, leaf_count + 2)

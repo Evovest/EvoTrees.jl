@@ -100,7 +100,7 @@ savefig("regression_sinus.png")
 # q50
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.5, metric=:quantile,
-    nrounds=100, nbins = 100,
+    nrounds=200, nbins = 100,
     λ = 0.2, γ=1e-3, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
@@ -127,8 +127,9 @@ params1 = EvoTreeRegressor(
     loss=:quantile, α=0.8, metric=:quantile,
     nrounds=200, nbins = 100,
     λ = 0.2, γ=1e-3, η=0.05,
-    max_depth = 6, min_weight = 1.0,
+    max_depth = 6, min_weight = 100.0,
     rowsample=0.5, colsample=1.0)
+
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_train_q80 = predict(model, X_train)
 sum(pred_train_q80 .< Y_train) / length(Y_train)

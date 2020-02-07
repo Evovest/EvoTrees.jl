@@ -133,7 +133,7 @@ function find_split!(hist_δ::AbstractVector{SVector{L,T}}, hist_δ²::AbstractV
         gainL, gainR = get_gain(params.loss, ∑δL, ∑δ²L, ∑𝑤L, params.λ), get_gain(params.loss, ∑δR, ∑δ²R, ∑𝑤R, params.λ)
         gain = gainL + gainR
 
-        if gain > info.gain && ∑𝑤L[1] >= params.min_weight && ∑𝑤R[1] >= params.min_weight
+        if gain > info.gain && ∑𝑤L[1] >= params.min_weight + 1e-12 && ∑𝑤R[1] >= params.min_weight + 1e-12
             info.gain = gain
             info.gainL = gainL
             info.gainR = gainR

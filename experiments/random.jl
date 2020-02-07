@@ -5,7 +5,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(1.25e6), 100)
+features = rand(Int(1.25e5), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -94,7 +94,7 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 @time model = fit_evotree(params1, X_train, Y_train);
-@time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n=2)
+@time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n=10)
 @time pred_train = predict(model, X_train)
 
 # gaussian
