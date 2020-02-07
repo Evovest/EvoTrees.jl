@@ -23,7 +23,6 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 #######################
 # xgboost
 #######################
-using XGBoost
 num_round = 100
 param = ["max_depth" => 5,
          "eta" => 0.05,
@@ -41,7 +40,7 @@ metrics = ["rmse"]
 
 # train model
 params1 = EvoTreeRegressor(
-    loss=:linear, metric=:mse,
+    loss=:linear, metric=:none,
     nrounds=100,
     λ = 0.0, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 1.0,
