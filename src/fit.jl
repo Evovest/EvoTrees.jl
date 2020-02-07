@@ -56,22 +56,26 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
 
+
+    # initializde histograms
+    hist_δ = Vector{Matrix{SVector{evotree.K, Float64}}}(undef, 2^params.max_depth-1)
+    hist_δ² = Vector{Matrix{SVector{evotree.K, Float64}}}(undef, 2^params.max_depth-1)
+    hist_𝑤 = Vector{Matrix{SVector{1, Float64}}}(undef, 2^params.max_depth-1)
+
     # initialize train nodes
     train_nodes = Vector{TrainNode{evotree.K, Float64, Int64}}(undef, 2^params.max_depth-1)
+
     for node in 1:2^params.max_depth-1
-        train_nodes[node] = TrainNode(0, SVector{evotree.K, Float64}(fill(-Inf, evotree.K)), SVector{evotree.K, Float64}(fill(-Inf, evotree.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, [0], [0])
+        train_nodes[node] = TrainNode(0, 0, SVector{evotree.K, Float64}(fill(-Inf, evotree.K)), SVector{evotree.K, Float64}(fill(-Inf, evotree.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, [0], [0])
+
+        hist_δ[node] = zeros(SVector{evotree.K, Float64}, params.nbins, X_size[2])
+        hist_δ²[node] = zeros(SVector{evotree.K, Float64}, params.nbins, X_size[2])
+        hist_𝑤[node] = zeros(SVector{1, Float64}, params.nbins, X_size[2])
     end
 
-    # initializde node splits info and tracks - colsample size (𝑗)
     splits = Vector{SplitInfo{evotree.K, Float64, Int64}}(undef, X_size[2])
-    hist_δ = Vector{Vector{SVector{evotree.K, Float64}}}(undef, X_size[2])
-    hist_δ² = Vector{Vector{SVector{evotree.K, Float64}}}(undef, X_size[2])
-    hist_𝑤 = Vector{Vector{SVector{1, Float64}}}(undef, X_size[2])
     for feat in 𝑗_
         splits[feat] = SplitInfo{evotree.K, Float64, Int}(-Inf, SVector{evotree.K, Float64}(zeros(evotree.K)), SVector{evotree.K, Float64}(zeros(evotree.K)), SVector{1, Float64}(zeros(1)), SVector{evotree.K, Float64}(zeros(evotree.K)), SVector{evotree.K, Float64}(zeros(evotree.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
-        hist_δ[feat] = zeros(SVector{evotree.K, Float64}, length(edges[feat]))
-        hist_δ²[feat] = zeros(SVector{evotree.K, Float64}, length(edges[feat]))
-        hist_𝑤[feat] = zeros(SVector{1, Float64}, length(edges[feat]))
     end
 
     cache = (params=deepcopy(params),
@@ -112,7 +116,7 @@ function grow_evotree!(evotree::GBTree, cache; verbosity=1)
         ∑δ, ∑δ², ∑𝑤 = sum(cache.δ[𝑖]), sum(cache.δ²[𝑖]), sum(cache.𝑤[𝑖])
         gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # assign a root and grow tree
-        train_nodes[1] = TrainNode(1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
+        train_nodes[1] = TrainNode(0, 1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
         tree = grow_tree(cache.δ, cache.δ², cache.𝑤, cache.hist_δ, cache.hist_δ², cache.hist_𝑤, params, train_nodes, splits, cache.edges, cache.X_bin)
         push!(evotree.trees, tree)
         predict!(cache.pred, tree, cache.X)
@@ -147,19 +151,26 @@ function grow_tree(δ, δ², 𝑤,
             if tree_depth == params.max_depth || node.∑𝑤[1] <= params.min_weight
                 push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, δ²)))
             else
-                @threads for feat in node.𝑗
-                    splits[feat].gain = node.gain
-                    find_split_static!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], view(X_bin,:,feat), δ, δ², 𝑤, node.∑δ, node.∑δ², node.∑𝑤, params, splits[feat], edges[feat], node.𝑖)
-                    # update_hist!(hist_δ, hist_δ², hist_𝑤, X_bin, δ, δ², 𝑤, set, feat)
-                    # find_split!(hist_δ[feat], hist_δ²[feat], hist_𝑤[feat], node.∑δ, node.∑δ², node.∑𝑤, params, splits[feat], edges[feat], feat)
+                if id > 1 && id == tree.nodes[node.parent].right
+                    # println("id is right:", id)
+                    hist_δ[id] .= hist_δ[node.parent] .- hist_δ[id-1]
+                    hist_δ²[id] .= hist_δ²[node.parent] .- hist_δ²[id-1]
+                    hist_𝑤[id] .= hist_𝑤[node.parent] .- hist_𝑤[id-1]
+                else
+                    # println("id is left:", id)
+                    update_hist!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, node)
                 end
-                # assign best split
+                for j in node.𝑗
+                    splits[j].gain = node.gain
+                    find_split!(view(hist_δ[id],:,j), view(hist_δ²[id],:,j), view(hist_𝑤[id],:,j), params, node, splits[j], edges[j])
+                end
+
                 best = get_max_gain(splits)
-                # grow node if best split improve gain
+                # grow node if best split improves gain
                 if best.gain > node.gain + params.γ
                     left, right = update_set(node.𝑖, best.𝑖, view(X_bin,:,best.feat))
-                    train_nodes[leaf_count + 1] = TrainNode(node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, left, node.𝑗)
-                    train_nodes[leaf_count + 2] = TrainNode(node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, right, node.𝑗)
+                    train_nodes[leaf_count + 1] = TrainNode(id, node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, left, node.𝑗)
+                    train_nodes[leaf_count + 2] = TrainNode(id, node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, right, node.𝑗)
                     # push split Node
                     push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond, best.gain-node.gain, L))
                     push!(next_active_id, leaf_count + 1)

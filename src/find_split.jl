@@ -23,19 +23,24 @@ function binarize(X, edges)
     X_bin
 end
 
-function find_bags(x_bin::Vector{T}) where T <: Real
-    𝑖 = 1:length(x_bin) |> collect
-    bags = [BitSet() for _ in 1:maximum(x_bin)]
-    for bag in 1:length(bags)
-        bags[bag] = BitSet(𝑖[x_bin .== bag])
+# split row ids into left and right based on best split condition
+function update_set(set, best, x_bin)
+    left = similar(set)
+    right = similar(set)
+    left_count = 0
+    right_count = 0
+    @inbounds for i in set
+        if x_bin[i] <= best
+            left_count += 1
+            left[left_count] = i
+        else
+            right_count += 1
+            right[right_count] = i
+        end
     end
-    return bags
-end
-
-function update_bags!(bins, set)
-    for bin in bins
-        intersect!(bin, set)
-    end
+    resize!(left, left_count)
+    resize!(right, right_count)
+    return left, right
 end
 
 
@@ -89,47 +94,33 @@ function find_split_static!(hist_δ::Vector{SVector{L,T}}, hist_δ²::Vector{SVe
     return
 end
 
+function update_hist!(hist_δ::Matrix{SVector{L,T}}, hist_δ²::Matrix{SVector{L,T}}, hist_𝑤::Matrix{SVector{1,T}},
+    δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}},
+    X_bin, node::TrainNode{L,T,S}) where {L,T,S}
 
-function update_set(set, best, x_bin)
-    left = similar(set)
-    right = similar(set)
-    left_count = 0
-    right_count = 0
-    @inbounds for i in set
-        if x_bin[i] <= best
-            left_count += 1
-            left[left_count] = i
-        else
-            right_count += 1
-            right[right_count] = i
+    hist_δ .*= 0.0
+    hist_δ² .*= 0.0
+    hist_𝑤 .*= 0.0
+
+    @inbounds @threads for j in node.𝑗
+        @inbounds for i in node.𝑖
+            hist_δ[X_bin[i,j], j] += δ[i]
+            hist_δ²[X_bin[i,j], j] += δ²[i]
+            hist_𝑤[X_bin[i,j], j] += 𝑤[i]
         end
     end
-    resize!(left, left_count)
-    resize!(right, right_count)
-    return left, right
 end
 
-function update_hist!(hist_δ::Vector{Vector{SVector{L,T}}}, hist_δ²::Vector{Vector{SVector{L,T}}}, hist_𝑤::Vector{Vector{SVector{1,T}}}, X_bin, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}, set::Vector{S}, j::Int) where {L,T,S}
-    # build histogram
-    hist_δ[j] .*= 0.0
-    hist_δ²[j] .*= 0.0
-    hist_𝑤[j] .*= 0.0
-    @inbounds @simd for i in set
-        hist_δ[j][X_bin[i,j]] += δ[i]
-        hist_δ²[j][X_bin[i,j]] += δ²[i]
-        hist_𝑤[j][X_bin[i,j]] += 𝑤[i]
-    end
-end
-
-function find_split!(hist_δ::Vector{SVector{L,T}}, hist_δ²::Vector{SVector{L,T}}, hist_𝑤::Vector{SVector{1,T}}, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, params::EvoTreeRegressor, info::SplitInfo{L,T,S}, edges::Vector{T}, j::Int) where {L,T,S}
+function find_split!(hist_δ::AbstractVector{SVector{L,T}}, hist_δ²::AbstractVector{SVector{L,T}}, hist_𝑤::AbstractVector{SVector{1,T}},
+    params::EvoTypes, node::TrainNode{L,T,S}, info::SplitInfo{L,T,S}, edges::Vector{T}) where {L,T,S}
 
     # initialize tracking
-    ∑δL = ∑δ * 0
-    ∑δ²L = ∑δ² * 0
-    ∑𝑤L = ∑𝑤 * 0
-    ∑δR = ∑δ
-    ∑δ²R = ∑δ²
-    ∑𝑤R = ∑𝑤
+    ∑δL = node.∑δ * 0
+    ∑δ²L = node.∑δ² * 0
+    ∑𝑤L = node.∑𝑤 * 0
+    ∑δR = node.∑δ
+    ∑δ²R = node.∑δ²
+    ∑𝑤R = node.∑𝑤
 
     @inbounds for bin in 1:(length(hist_δ)-1)
         ∑δL += hist_δ[bin]
@@ -154,8 +145,8 @@ function find_split!(hist_δ::Vector{SVector{L,T}}, hist_δ²::Vector{SVector{L,
             info.∑𝑤R = ∑𝑤R
             info.cond = edges[bin]
             info.𝑖 = bin
-        end
-    end
+        end # info update if gain
+    end # loop on bins
 end
 
 

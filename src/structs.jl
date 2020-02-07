@@ -32,6 +32,7 @@ TreeNode(pred::SVector{L,T}) where {L,T} = TreeNode(0, 0, 0, zero(T), zero(T), p
 
 # single tree is made of a root node that containes nested nodes and leafs
 struct TrainNode{L, T<:AbstractFloat, S<:Int}
+    parent::S
     depth::S
     ∑δ::SVector{L,T}
     ∑δ²::SVector{L,T}

@@ -2,6 +2,7 @@ using BenchmarkTools
 using Statistics
 using StatsBase: sample, quantile
 using Plots
+using Revise
 using EvoTrees
 using EvoTrees: sigmoid, logit
 # using ProfileView
@@ -34,7 +35,7 @@ params1 = EvoTreeRegressor(
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 # 67.159 ms (77252 allocations: 28.06 MiB)
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 999)
-@btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval)
+# @btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval)
 # Profile.clear()  # in case we have any previous profiling data
 # @profile fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 # ProfileView.view()
@@ -55,7 +56,7 @@ params1 = EvoTreeRegressor(
 
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 # 218.040 ms (123372 allocations: 34.71 MiB)
-@btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval)
+# @btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train_logistic = predict(model, X_train)
 @time pred_eval_logistic = predict(model, X_eval)
 sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
