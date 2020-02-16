@@ -12,7 +12,7 @@ struct Quantile <: QuantileRegression end
 struct Softmax <: MultiClassRegression end
 struct Gaussian <: GaussianRegression end
 
-mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBase.Deterministic
+mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJModelInterface.Deterministic
     loss::U
     nrounds::S
     λ::T
@@ -55,7 +55,7 @@ function EvoTreeRegressor(;
 end
 
 
-mutable struct EvoTreeCount{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBase.Probabilistic
+mutable struct EvoTreeCount{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJModelInterface.Probabilistic
     loss::U
     nrounds::S
     λ::T
@@ -93,7 +93,7 @@ function EvoTreeCount(;
 end
 
 
-mutable struct EvoTreeClassifier{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBase.Probabilistic
+mutable struct EvoTreeClassifier{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJModelInterface.Probabilistic
     loss::U
     nrounds::S
     λ::T
@@ -131,7 +131,7 @@ function EvoTreeClassifier(;
 end
 
 
-mutable struct EvoTreeGaussian{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJBase.Probabilistic
+mutable struct EvoTreeGaussian{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJModelInterface.Probabilistic
     loss::U
     nrounds::S
     λ::T

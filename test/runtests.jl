@@ -3,6 +3,7 @@ using StatsBase: sample
 using Test
 using EvoTrees
 using EvoTrees: sigmoid, logit
+# using MLJBase
 
 # prepare a dataset
 features = rand(10_000) .* 5
