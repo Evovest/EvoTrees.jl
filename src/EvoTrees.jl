@@ -12,8 +12,7 @@ using Random: seed!
 using StaticArrays
 using Distributions
 using CategoricalArrays
-import MLJBase
-# import MLJ
+import MLJModelInterface
 
 include("models.jl")
 include("structs.jl")
