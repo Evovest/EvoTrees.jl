@@ -1,17 +1,17 @@
 module EvoTrees
 
-export init_evotree, grow_evotree!, grow_tree, predict, fit_evotree,
+export init_evotree, grow_evotree!, grow_tree, fit_evotree, predict,
     EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
     EvoTreeRModels, importance
 
 using Statistics
 using Base.Threads: @threads
 using StatsBase: sample, quantile
-import StatsBase: predict
 using Random: seed!
 using StaticArrays
 using Distributions
 using CategoricalArrays
+import MLJModelInterface: predict
 import MLJModelInterface
 
 include("models.jl")
