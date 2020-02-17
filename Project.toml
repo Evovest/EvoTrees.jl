@@ -17,7 +17,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
 CategoricalArrays = "0.7"
-Distributions = "0.21, 0.22"
+Distributions = "0.22"
 MLJModelInterface = "0.1"
 SortingAlgorithms = "0.3"
 StaticArrays = "0.12"
