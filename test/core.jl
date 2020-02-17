@@ -9,6 +9,7 @@ Y = logit(Y) + randn(size(Y))
 Y = sigmoid(Y)
 𝑖 = collect(1:size(X,1))
 seed = 123
+
 # train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
 train_size = 0.8
