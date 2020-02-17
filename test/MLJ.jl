@@ -21,19 +21,19 @@ tree_model = EvoTreeRegressor(loss=:logistic, max_depth=5, η=0.05, nrounds=10)
 # quantile regression
 tree_model = EvoTreeRegressor(loss=:quantile, α=0.75, max_depth=5, η=0.05, nrounds=10)
 
-tree = machine(tree_model, X, y)
+mach = machine(tree_model, X, y)
 train, test = partition(eachindex(y), 0.7, shuffle=true); # 70:30 split
-fit!(tree, rows=train, verbosity=1)
+fit!(mach, rows=train, verbosity=1)
 
-tree.model.nrounds += 10
-fit!(tree, rows=train, verbosity=1)
+mach.model.nrounds += 10
+fit!(mach, rows=train, verbosity=1)
 
 # predict on train data
-pred_train = predict(tree, selectrows(X,train))
+pred_train = predict(mach, selectrows(X,train))
 mean(abs.(pred_train - selectrows(Y,train)))
 
 # predict on test data
-pred_test = predict(tree, selectrows(X,test))
+pred_test = predict(mach, selectrows(X,test))
 mean(abs.(pred_test - selectrows(Y,test)))
 
 
@@ -46,23 +46,23 @@ X, y = @load_crabs
 tree_model = EvoTreeClassifier(max_depth=4, η=0.05, λ=0.0, γ=0.0, nrounds=10)
 
 # @load EvoTreeRegressor
-tree = machine(tree_model, X, y)
+mach = machine(tree_model, X, y)
 train, test = partition(eachindex(y), 0.7, shuffle=true); # 70:30 split
-fit!(tree, rows=train, verbosity=1)
+fit!(mach, rows=train, verbosity=1)
 
-tree.model.nrounds += 10
-fit!(tree, rows=train, verbosity=1)
+mach.model.nrounds += 10
+fit!(mach, rows=train, verbosity=1)
 
-pred_train = predict(tree, selectrows(X,train))
-pred_train_mode = predict_mode(tree, selectrows(X,train))
+pred_train = predict(mach, selectrows(X,train))
+pred_train_mode = predict_mode(mach, selectrows(X,train))
 cross_entropy(pred_train, selectrows(y, train)) |> mean
 sum(pred_train_mode .== y[train])
 
-pred_test = predict(tree, selectrows(X,test))
-pred_test_mode = predict_mode(tree, selectrows(X,test))
+pred_test = predict(mach, selectrows(X,test))
+pred_test_mode = predict_mode(mach, selectrows(X,test))
 cross_entropy(pred_test, selectrows(y, test)) |> mean
 sum(pred_test_mode .== y[test])
-pred_test_mode = predict_mode(tree, selectrows(X,test))
+pred_test_mode = predict_mode(mach, selectrows(X,test))
 
 ##################################################
 ### count
@@ -94,19 +94,20 @@ X = MLJBase.table(X)
 X_matrix = MLJBase.matrix(X)
 
 # typeof(X)
-tree = machine(tree_model, X, Y)
+mach = machine(tree_model, X, Y)
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
-fit!(tree, rows=train, verbosity=1, force=true)
+fit!(mach, rows=train, verbosity=1, force=true)
 
-tree.model.nrounds += 10
-MLJBase.update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
+mach.model.nrounds += 10
+MLJBase.update(mach.model, 0, mach.fitresult, mach.cache, X, Y)
 
-tree.model.nrounds += 10
-fit!(tree, rows=train, verbosity=1)
+mach.model.nrounds += 10
+fit!(mach, rows=train, verbosity=1)
 
-pred = predict(tree, selectrows(X,train))
-pred_mean = predict_mean(tree, selectrows(X,train))
-pred_mode = predict_mode(tree, selectrows(X,train))
+pred = predict(mach, selectrows(X,train))
+pred_mean = predict_mean(mach, selectrows(X,train))
+pred_mode = predict_mode(mach, selectrows(X,train))
+# pred_mode = predict_median(mach, selectrows(X,train))
 
 ##################################################
 ### Gaussian - Larger data
@@ -137,19 +138,17 @@ X = MLJBase.table(X)
 X_matrix = MLJBase.matrix(X)
 
 # typeof(X)
-tree = machine(tree_model, X, Y)
+mach = machine(tree_model, X, Y)
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
-fit!(tree, rows=train, verbosity=1, force=true)
+fit!(mach, rows=train, verbosity=1, force=true)
 
-tree.model.nrounds += 10
-MLJBase.update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
+mach.model.nrounds += 10
+fit!(mach, rows=train, verbosity=1)
 
-tree.model.nrounds += 10
-fit!(tree, rows=train, verbosity=1)
-
-pred = predict(tree, selectrows(X,train))
-pred_mean = predict_mean(tree, selectrows(X,train))
-pred_mode = predict_mode(tree, selectrows(X,train))
+pred = predict(mach, selectrows(X,train))
+pred_mean = predict_mean(mach, selectrows(X,train))
+pred_mode = predict_mode(mach, selectrows(X,train))
+# pred_mode = predict_median(mach, selectrows(X,train))
 mean(abs.(pred_mean - selectrows(Y,train)))
 
 q_20 = quantile.(pred, 0.20)
