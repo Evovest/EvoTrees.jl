@@ -11,8 +11,9 @@ using Random: seed!
 using StaticArrays
 using Distributions
 using CategoricalArrays
-import MLJModelInterface: predict
 import MLJModelInterface
+import MLJModelInterface: fit, update
+import MLJModelInterface: predict
 
 include("models.jl")
 include("structs.jl")

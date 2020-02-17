@@ -1,3 +1,4 @@
+using Statistics
 using StatsBase: sample
 using EvoTrees: sigmoid, logit
 
