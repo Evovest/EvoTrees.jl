@@ -214,7 +214,7 @@ function fit_evotree(params, X_train, Y_train;
     model, cache = init_evotree(params, X_train, Y_train)
     iter = 1
 
-    if params.metric != :none && !isnothing(X_eval)
+    if params.metric != :none && X_eval !== nothing
         pred_eval = predict(model.trees[1], X_eval, model.K)
     end
 
@@ -223,7 +223,7 @@ function fit_evotree(params, X_train, Y_train;
         grow_evotree!(model, cache)
         # callback function
         if params.metric != :none
-            if !isnothing(X_eval)
+            if X_eval !== nothing
                 predict!(pred_eval, model.trees[model.params.nrounds+1], X_eval)
                 metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, params.α)
             else
