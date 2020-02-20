@@ -69,30 +69,35 @@ MLJModelInterface.metadata_pkg.((EvoTreeRegressor, EvoTreeClassifier, EvoTreeCou
     uuid="f6006082-12f8-11e9-0c9c-0d5d367ab1e5",
     url="https://github.com/Evovest/EvoTrees.jl",
     julia=true,
+    license="Apache",
     is_wrapper=false)
 
 MLJModelInterface.metadata_model(EvoTreeRegressor,
     input=MLJModelInterface.Table(MLJModelInterface.Continuous),
     target=AbstractVector{<:MLJModelInterface.Continuous},
     weights=false,
+    path="EvoTrees.EvoTreeRegressor",
     descr=EvoTreeRegressor_desc)
 
 MLJModelInterface.metadata_model(EvoTreeClassifier,
         input=MLJModelInterface.Table(MLJModelInterface.Continuous),
         target=AbstractVector{<:MLJModelInterface.Finite},
         weights=false,
+        path="EvoTrees.EvoTreeClassifier",
         descr=EvoTreeClassifier_desc)
 
 MLJModelInterface.metadata_model(EvoTreeCount,
     input=MLJModelInterface.Table(MLJModelInterface.Continuous),
     target=AbstractVector{<:MLJModelInterface.Count},
     weights=false,
+    path="EvoTrees.EvoTreeCount",
     descr=EvoTreeCount_desc)
 
 MLJModelInterface.metadata_model(EvoTreeGaussian,
     input=MLJModelInterface.Table(MLJModelInterface.Continuous),
     target=AbstractVector{<:MLJModelInterface.Continuous},
     weights=false,
+    path="EvoTrees.EvoTreeGaussian",
     descr=EvoTreeGaussian_desc)
 
 # shared metadata
