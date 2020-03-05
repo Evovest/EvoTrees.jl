@@ -14,17 +14,18 @@ function hist_cpu!(hist, δ, idx)
     return
 end
 
-# GPU
-function hist_gpu!(h::CuMatrix{T}, x::CuArray{T}, id::CuArray{Int}; MAX_THREADS=256) where {T<:AbstractFloat}
-    function kernel!(h::CuDeviceArray{T}, x::CuDeviceArray{T}, id)
-        i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-        j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
-        @inbounds if i <= size(id, 1) && j <= size(h, 2)
-            k = Base._to_linear_index(h, id[i,j], j)
-            CUDAnative.atomic_add!(pointer(h, k), x[i,j])
-        end
-        return
+# GPU - naive approach
+function kernel!(h::CuDeviceMatrix{T}, x::CuDeviceMatrix{T}, id) where {T<:AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
+    @inbounds if i <= size(id, 1) && j <= size(h, 2)
+        k = Base._to_linear_index(h, id[i,j], j)
+        CUDAnative.atomic_add!(pointer(h, k), x[i,j])
     end
+    return
+end
+
+function hist_gpu!(h::CuMatrix{T}, x::CuMatrix{T}, id::CuMatrix{Int}; MAX_THREADS=256) where {T<:AbstractFloat}
     thread_i = min(MAX_THREADS, size(id, 1))
     thread_j = min(MAX_THREADS ÷ thread_i, size(h, 2))
     threads = (thread_i, thread_j)
@@ -45,4 +46,27 @@ hist_gpu = CuArray(hist)
 idx_gpu = CuArray(idx)
 
 @time hist_cpu!(hist, δ, idx)
-@CuArrays.time hist_gpu!(hist_gpu, δ_gpu, idx_gpu, MAX_THREADS=1024)
+@CuArrays.time hist_gpu!(hist_gpu, δ_gpu, idx_gpu, MAX_THREADS=512)
+
+
+# GPU - 2-step approach
+function kernel_1!(h::CuDeviceMatrix{T}, x::CuDeviceMatrix{T}, id) where {T<:AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    j = blockIdx().y * blockDim().y
+    @inbounds if i <= size(id, 1) && j <= size(h, 2)
+        k = Base._to_linear_index(h, id[i,j], j)
+        CUDAnative.atomic_add!(pointer(h, k), x[i,j])
+    end
+    return
+end
+
+function hist_gpu!(h::CuMatrix{T}, x::CuMatrix{T}, id::CuMatrix{Int}; MAX_THREADS=256) where {T<:AbstractFloat}
+    threads = min(MAX_THREADS, size(id, 1))
+    blocks = ceil(Int, size(id, 1) ./ threads), size(h, 2)
+    println("threads: ", threads)
+    println("blocks: ", blocks)
+    CuArrays.@cuda blocks=blocks threads=threads kernel_1!(h, x, id)
+    return h
+end
+
+@CuArrays.time hist_gpu!(hist_gpu, δ_gpu, idx_gpu, MAX_THREADS=500)
