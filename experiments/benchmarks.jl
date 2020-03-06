@@ -50,6 +50,7 @@ params1 = EvoTreeRegressor(
 # for 100k: 410.477 ms (44032 allocations: 182.68 MiB)
 # for 1.25e6: 6.964114 seconds (6.05 M allocations: 2.350 GiB, 2.82% gc time)
 # for 1.25e6 no eval: 6.200 s (44330 allocations: 2.19 GiB)
+# for 1.25e6 no eval iter100: 19.481940 seconds (635.33 k allocations: 6.679 GiB, 3.11% gc time)
 # for 1.25e6 mse with eval data: 6.321 s (45077 allocations: 2.19 GiB)
 @time model, cache = init_evotree(params1, X_train, Y_train);
 @time grow_evotree!(model, cache);
