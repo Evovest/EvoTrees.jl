@@ -22,23 +22,22 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # train model
 params1 = EvoTreeRegressor(
-    loss=:linear, metric=:mse,
-    nrounds=10,
-    λ = 0.0f0, γ=0.0f0, η=0.1f0, α=0.5f0,
-    max_depth = 6, min_weight = 1.0f0,
-    rowsample=0.5f0, colsample=0.5f0, nbins=32)
+    loss=:linear, metric=:none,
+    nrounds=100,
+    λ = 0.0, γ=0.0, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=0.5, nbins=32)
 
 # for 100k 10 rounds: 410.477 ms (44032 allocations: 182.68 MiB)
 # for 100k 100 rounds: 2.177 s (404031 allocations: 626.45 MiB)
-# for 1.25e6 10 rounds: 6.964114 seconds (6.05 M allocations: 2.350 GiB, 2.82% gc time)
-# for 1.25e6 no eval: 5.657 s (43230 allocations: 2.12 GiB)
-# for 1.25e6 mse with eval data: 5.734 s (43252 allocations: 2.12 GiB)
-# Y_train = Float32.(Y_train)
+# for 1.25e6 no eval: 6.244 s (73955 allocations: 2.18 GiB)
+# for 1.25e6 mse with eval data:  6.345 s (74009 allocations: 2.18 GiB)
 @time model, cache = init_evotree(params1, X_train, Y_train);
 @time grow_evotree!(model, cache);
 @time model = fit_evotree(params1, X_train, Y_train);
 @btime model = fit_evotree(params1, X_train, Y_train);
 @time pred_train = predict(model, X_train)
+@time gain = importance(model, 1:100)
 
 # xgboost benchmark
 using XGBoost

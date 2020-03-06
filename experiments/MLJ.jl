@@ -184,7 +184,6 @@ tree.model.nrounds += 10
 pred = predict(tree, selectrows(X,train))
 pred_mean = predict_mean(tree, selectrows(X,train))
 pred_mode = predict_mode(tree, selectrows(X,train))
-pred_median = predict_median(tree, selectrows(X,train))
 
 ##################################################
 ### Gaussian - Larger data
@@ -231,8 +230,7 @@ tree.model.nrounds += 10
 pred = predict(tree, selectrows(X,train))
 pred_mean = predict_mean(tree, selectrows(X,train))
 pred_mode = predict_mode(tree, selectrows(X,train))
-pred_median = predict_median(tree, selectrows(X,train))
-mean(abs.(pred_train - selectrows(Y,train)))
+mean(abs.(pred_mean - selectrows(Y,train)))
 
 q_20 = quantile.(pred, 0.20)
 q_20 = quantile.(pred, 0.80)

@@ -18,6 +18,9 @@ Currently supports:
 - multiclassification (softmax)
 - Gaussian (max likelihood)
 
+Input features is expected to be `Matrix{Float64}`. User friendly format conversion to be done.
+Next priorities: histogram subtraction for improved performance and GPU support.
+
 ## Installation
 
 Latest:
@@ -161,4 +164,12 @@ params1 = EvoTreeGaussian(
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0, seed=123)
+```
+
+## Feature importance
+
+Returns the normalized gain by feature.
+
+```julia
+features_gain = importance(model, var_names)
 ```

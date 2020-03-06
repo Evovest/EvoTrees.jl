@@ -1,6 +1,6 @@
 
-function MLJBase.fit(model::EvoTypes, verbosity::Int, X, y)
-    Xmatrix = MLJBase.matrix(X)
+function MLJModelInterface.fit(model::EvoTypes, verbosity::Int, X, y)
+    Xmatrix = MLJModelInterface.matrix(X)
     fitresult, cache = init_evotree(model, Xmatrix, y, verbosity = verbosity)
     grow_evotree!(fitresult, cache, verbosity = verbosity)
     report = nothing
@@ -21,13 +21,12 @@ function okay_to_continue(new, old)
     new.metric ==  old.metric
 end
 
-function MLJBase.update(model::EvoTypes, verbosity,
-    fitresult, cache, X, y)
+function MLJModelInterface.update(model::EvoTypes, verbosity::Integer, fitresult, cache, X, y)
 
     if okay_to_continue(model, cache.params)
         grow_evotree!(fitresult, cache, verbosity = verbosity)
     else
-        Xmatrix = MLJBase.matrix(X)
+        Xmatrix = MLJModelInterface.matrix(X)
         fitresult, cache = init_evotree(model, Xmatrix, y, verbosity = verbosity)
         grow_evotree!(fitresult, cache, verbosity = verbosity)
     end
@@ -35,60 +34,93 @@ function MLJBase.update(model::EvoTypes, verbosity,
     return fitresult, cache, report
 end
 
-function predict(model::EvoTypes, fitresult, Xnew)
-    Xnew = MLJBase.matrix(Xnew)
+function predict(model::EvoTreeRegressor, fitresult, Xnew)
+    Xnew = MLJModelInterface.matrix(Xnew)
     pred = predict(fitresult, Xnew)
     return pred
 end
 
 function predict(model::EvoTreeClassifier, fitresult, Xnew)
-    Xnew = MLJBase.matrix(Xnew)
+    Xnew = MLJModelInterface.matrix(Xnew)
     pred = predict(fitresult, Xnew)
-    return [MLJBase.UnivariateFinite(fitresult.levels, pred[i,:]) for i in 1:size(pred,1)]
+    return [MLJModelInterface.UnivariateFinite(fitresult.levels, pred[i,:]) for i in 1:size(pred,1)]
 end
 
 function predict(model::EvoTreeCount, fitresult, Xnew)
-    Xnew = MLJBase.matrix(Xnew)
+    Xnew = MLJModelInterface.matrix(Xnew)
     λ = predict(fitresult, Xnew)
     return [Distributions.Poisson(λᵢ) for λᵢ ∈ λ]
 end
 
 function predict(model::EvoTreeGaussian, fitresult, Xnew)
-    Xnew = MLJBase.matrix(Xnew)
+    Xnew = MLJModelInterface.matrix(Xnew)
     pred = predict(fitresult, Xnew)
     return [Distributions.Normal(pred[i]...) for i in 1:size(pred,1)]
 end
 
-# MLJBase.predict_mean(model::Union{EvoTreeRegressor, EvoTreeCount, EvoTreeGaussian}, fitresult, Xnew) =
-#     mean.(MLJBase.predict(model, fitresult, Xnew))
-#
-# MLJBase.predict_mode(model::Union{EvoTreeRegressor, EvoTreeClassifier,EvoTreeCount, EvoTreeGaussian}, fitresult, Xnew) =
-#     mode.(MLJBase.predict(model, fitresult, Xnew))
-#
-# MLJBase.predict_median(model::Union{EvoTreeRegressor, EvoTreeCount, EvoTreeGaussian}, fitresult, Xnew) =
-#     median.(MLJBase.predict(model, fitresult, Xnew))
+# Metadata
+const EvoTreeRegressor_desc = "Regression models with various underlying methods: least square, quantile, logistic."
+const EvoTreeClassifier_desc = "Multi-classification with softmax and cross-entropy loss."
+const EvoTreeCount_desc = "Poisson regression fitting λ with max likelihood."
+const EvoTreeGaussian_desc = "Gaussian maximum likelihood of μ and σ²."
+
+MLJModelInterface.metadata_pkg.((EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian),
+    name="EvoTrees",
+    uuid="f6006082-12f8-11e9-0c9c-0d5d367ab1e5",
+    url="https://github.com/Evovest/EvoTrees.jl",
+    julia=true,
+    license="Apache",
+    is_wrapper=false)
+
+MLJModelInterface.metadata_model(EvoTreeRegressor,
+    input=MLJModelInterface.Table(MLJModelInterface.Continuous),
+    target=AbstractVector{<:MLJModelInterface.Continuous},
+    weights=false,
+    path="EvoTrees.EvoTreeRegressor",
+    descr=EvoTreeRegressor_desc)
+
+MLJModelInterface.metadata_model(EvoTreeClassifier,
+        input=MLJModelInterface.Table(MLJModelInterface.Continuous),
+        target=AbstractVector{<:MLJModelInterface.Finite},
+        weights=false,
+        path="EvoTrees.EvoTreeClassifier",
+        descr=EvoTreeClassifier_desc)
+
+MLJModelInterface.metadata_model(EvoTreeCount,
+    input=MLJModelInterface.Table(MLJModelInterface.Continuous),
+    target=AbstractVector{<:MLJModelInterface.Count},
+    weights=false,
+    path="EvoTrees.EvoTreeCount",
+    descr=EvoTreeCount_desc)
+
+MLJModelInterface.metadata_model(EvoTreeGaussian,
+    input=MLJModelInterface.Table(MLJModelInterface.Continuous),
+    target=AbstractVector{<:MLJModelInterface.Continuous},
+    weights=false,
+    path="EvoTrees.EvoTreeGaussian",
+    descr=EvoTreeGaussian_desc)
 
 # shared metadata
-MLJBase.package_name(::Type{<:EvoTypes}) = "EvoTrees"
-MLJBase.package_uuid(::Type{<:EvoTypes}) = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
-MLJBase.package_url(::Type{<:EvoTypes}) = "https://github.com/Evovest/EvoTrees.jl"
-MLJBase.is_pure_julia(::Type{<:EvoTypes}) = true
-
-MLJBase.load_path(::Type{<:EvoTreeRegressor}) = "EvoTrees.EvoTreeRegressor"
-MLJBase.input_scitype(::Type{<:EvoTreeRegressor}) = MLJBase.Table(MLJBase.Continuous)
-MLJBase.target_scitype(::Type{<:EvoTreeRegressor}) = AbstractVector{<:MLJBase.Continuous}
-
-MLJBase.load_path(::Type{<:EvoTreeCount}) = "EvoTrees.EvoTreeCount"
-MLJBase.input_scitype(::Type{<:EvoTreeCount}) = MLJBase.Table(MLJBase.Continuous)
-MLJBase.target_scitype(::Type{<:EvoTreeCount}) = AbstractVector{<:MLJBase.Count}
-
-MLJBase.load_path(::Type{<:EvoTreeClassifier}) = "EvoTrees.EvoTreeClassifier"
-MLJBase.input_scitype(::Type{<:EvoTreeClassifier}) = MLJBase.Table(MLJBase.Continuous)
-MLJBase.target_scitype(::Type{<:EvoTreeClassifier}) = AbstractVector{<:MLJBase.Finite}
-
-MLJBase.load_path(::Type{<:EvoTreeGaussian}) = "EvoTrees.EvoTreeGaussian"
-MLJBase.input_scitype(::Type{<:EvoTreeGaussian}) = MLJBase.Table(MLJBase.Continuous)
-MLJBase.target_scitype(::Type{<:EvoTreeGaussian}) = AbstractVector{<:MLJBase.Continuous}
+# MLJModelInterface.package_name(::Type{<:EvoTypes}) = "EvoTrees"
+# MLJModelInterface.package_uuid(::Type{<:EvoTypes}) = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
+# MLJModelInterface.package_url(::Type{<:EvoTypes}) = "https://github.com/Evovest/EvoTrees.jl"
+# MLJModelInterface.is_pure_julia(::Type{<:EvoTypes}) = true
+#
+# MLJModelInterface.load_path(::Type{<:EvoTreeRegressor}) = "EvoTrees.EvoTreeRegressor"
+# MLJModelInterface.input_scitype(::Type{<:EvoTreeRegressor}) = MLJModelInterface.Table(MLJModelInterface.Continuous)
+# MLJModelInterface.target_scitype(::Type{<:EvoTreeRegressor}) = AbstractVector{<:MLJModelInterface.Continuous}
+#
+# MLJModelInterface.load_path(::Type{<:EvoTreeCount}) = "EvoTrees.EvoTreeCount"
+# MLJModelInterface.input_scitype(::Type{<:EvoTreeCount}) = MLJModelInterface.Table(MLJModelInterface.Continuous)
+# MLJModelInterface.target_scitype(::Type{<:EvoTreeCount}) = AbstractVector{<:MLJModelInterface.Count}
+#
+# MLJModelInterface.load_path(::Type{<:EvoTreeClassifier}) = "EvoTrees.EvoTreeClassifier"
+# MLJModelInterface.input_scitype(::Type{<:EvoTreeClassifier}) = MLJModelInterface.Table(MLJModelInterface.Continuous)
+# MLJModelInterface.target_scitype(::Type{<:EvoTreeClassifier}) = AbstractVector{<:MLJModelInterface.Finite}
+#
+# MLJModelInterface.load_path(::Type{<:EvoTreeGaussian}) = "EvoTrees.EvoTreeGaussian"
+# MLJModelInterface.input_scitype(::Type{<:EvoTreeGaussian}) = MLJModelInterface.Table(MLJModelInterface.Continuous)
+# MLJModelInterface.target_scitype(::Type{<:EvoTreeGaussian}) = AbstractVector{<:MLJModelInterface.Continuous}
 
 # function MLJ.clean!(model::EvoTreeRegressor)
 #     warning = ""
