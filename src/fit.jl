@@ -1,5 +1,5 @@
 # initialise evotree
-function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassifier,EvoTreeGaussian},
+function init_evotree(params::EvoTypes,
     X::AbstractMatrix{R}, Y::AbstractVector{S}; verbosity=1) where {R<:Real, S}
 
     seed!(params.seed)
@@ -68,7 +68,7 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
     train_nodes = Vector{TrainNode{evotree.K, Float32, Int64}}(undef, 2^params.max_depth-1)
 
     for node in 1:2^params.max_depth-1
-        train_nodes[node] = TrainNode(0, 0, SVector{evotree.K, Float32}(fill(-Inf32, evotree.K)), SVector{evotree.K, Float32}(fill(-Inf32, evotree.K)), SVector{1, Float32}(fill(-Inf32, 1)), -Inf32, [0], [0])
+        train_nodes[node] = TrainNode(0, 0, SVector{evotree.K, Float32}(fill(Float32(-Inf), evotree.K)), SVector{evotree.K, Float32}(fill(Float32(-Inf), evotree.K)), SVector{1, Float32}(fill(Float32(-Inf), 1)), Float32(-Inf), [0], [0])
 
         hist_δ[node] = zeros(SVector{evotree.K, Float32}, params.nbins, X_size[2])
         hist_δ²[node] = zeros(SVector{evotree.K, Float32}, params.nbins, X_size[2])
@@ -77,7 +77,7 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
 
     splits = Vector{SplitInfo{evotree.K, Float32, Int64}}(undef, X_size[2])
     for feat in 𝑗_
-        splits[feat] = SplitInfo{evotree.K, Float32, Int}(-Inf32, SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{1, Float32}(zeros(1)), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{1, Float32}(zeros(1)), -Inf32, -Inf32, 0, feat, 0.0)
+        splits[feat] = SplitInfo{evotree.K, Float32, Int}(Float32(-Inf), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{1, Float32}(zeros(1)), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{1, Float32}(zeros(1)), Float32(-Inf), Float32(-Inf), 0, feat, 0.0)
     end
 
     cache = (params=deepcopy(params),
@@ -110,7 +110,7 @@ function grow_evotree!(evotree::GBTree, cache; verbosity=1)
         𝑗 = cache.𝑗_[sample(cache.𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)]
         # reset gain to -Inf
         for feat in cache.𝑗_
-            splits[feat].gain = -Inf32
+            splits[feat].gain = Float32(-Inf)
         end
 
         # build a new tree
