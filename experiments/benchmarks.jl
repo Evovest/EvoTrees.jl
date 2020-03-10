@@ -5,7 +5,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(1.25e6), 100)
+features = rand(Int(2.25e6), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -66,6 +66,7 @@ params1 = EvoTreeRegressor(
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval);
 @time pred_train = predict(model, X_train)
 
+μσ
 
 
 
