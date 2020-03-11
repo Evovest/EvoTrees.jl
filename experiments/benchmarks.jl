@@ -5,7 +5,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(2.25e6), 100)
+features = rand(Int(1.25e5), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -39,7 +39,7 @@ metrics = ["rmse"]
 @time pred_train = XGBoost.predict(model_xgb, X_train)
 
 # train model
-params1 = EvoTreeRegressor(
+config = EvoTreeRegressor(
     loss=:linear, metric=:none,
     nrounds=100,
     λ = 0.0, γ=0.0, η=0.05,
@@ -50,24 +50,21 @@ params1 = EvoTreeRegressor(
 # for 1.25e6: 6.964114 seconds (6.05 M allocations: 2.350 GiB, 2.82% gc time)
 # for 1.25e6 no eval: 6.200 s (44330 allocations: 2.19 GiB)
 # for 1.25e6 mse with eval data: 6.321 s (45077 allocations: 2.19 GiB)
-@time model, cache = init_evotree(params1, X_train, Y_train);
+@time model, cache = init_evotree(config, X_train, Y_train);
 @time grow_evotree!(model, cache);
-@time model = fit_evotree(params1, X_train, Y_train);
-@btime model = fit_evotree(params1, X_train, Y_train);
+@time model = fit_evotree(config, X_train, Y_train);
+@btime model = fit_evotree(config, X_train, Y_train);
 @time pred_train = EvoTrees.predict(model, X_train)
 
-@time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=9999, early_stopping_rounds=9999);
-@btime model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=9999, early_stopping_rounds=9999);
+@time model = fit_evotree(config, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=9999, early_stopping_rounds=9999);
+@btime model = fit_evotree(config, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=9999, early_stopping_rounds=9999);
 
-@time model = fit_evotree(params1, X_train, Y_train, early_stopping_rounds=10);
-@time model = fit_evotree(params1, X_train, Y_train, print_every_n=2);
+@time model = fit_evotree(config, X_train, Y_train, early_stopping_rounds=10);
+@time model = fit_evotree(config, X_train, Y_train, print_every_n=2);
 
 # @time model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 5);
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval);
 @time pred_train = predict(model, X_train)
-
-μσ
-
 
 
 #############################

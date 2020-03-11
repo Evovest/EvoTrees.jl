@@ -4,9 +4,9 @@
 
 A Julia implementation of boosted trees.
 
-Provides flexibility for efficient custom objectives (notably multi-target objectives such as max likelihood methods).
+[R binding available](https://github.com/Evovest/EvoTrees)
 
-Only histogram methods is implemented at the moment, a high performant approach for large datasets.
+Provides flexibility for efficient custom objectives (notably multi-target objectives such as max likelihood methods).
 
 Currently supports:
 
@@ -19,7 +19,7 @@ Currently supports:
 - Gaussian (max likelihood)
 
 Input features is expected to be `Matrix{Float64}`. User friendly format conversion to be done.
-Next priorities: histogram subtraction for improved performance and GPU support.
+Next priority: GPU support.
 
 ## Installation
 
