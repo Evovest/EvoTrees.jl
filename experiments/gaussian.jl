@@ -49,4 +49,4 @@ plot!(X_train[:,1][x_perm], pred_train[x_perm, 1], color = "navy", linewidth = 1
 plot!(X_train[:,1][x_perm], sqrt.(pred_train[x_perm, 2]), color = "blue", linewidth = 1.5, label = "sigma")
 plot!(X_train[:,1][x_perm], pred_q10[x_perm, 1], color = "red", linewidth = 1.5, label = "q10")
 plot!(X_train[:,1][x_perm], pred_q90[x_perm, 1], color = "green", linewidth = 1.5, label = "q90")
-# savefig("regression_sinus.png")
+# savefig("regression_gaussian.png")
