@@ -38,7 +38,7 @@ julia> Pkg.add("EvoTrees")
 
 ## Performance
 
-Benchmark on randomly generated data, reproducible [here](https://github.com/Evovest/EvoTrees.jl/blob/master/blog/benchmarks.jl):
+[Benchmark](https://github.com/Evovest/EvoTrees.jl/blob/master/blog/benchmarks.jl) for 100 iterations on randomly generated data:
 
 | Dimensions / Algo | XGBoost Exact | XGBoost Hist | EvoTrees |   |
 |-------------------|:-------------:|:------------:|:--------:|---|
