@@ -5,14 +5,12 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
+X = rand(Int(2.e6), 100)
+Y = rand(size(X, 1))
 
 #######################
 # EvoTrees
 #######################
-using EvoTrees
-
-X = rand(Int(1.e6), 100)
-Y = rand(size(X, 1))
 
 config = EvoTreeRegressor(
     loss=:linear, metric=:none,
