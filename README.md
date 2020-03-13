@@ -3,10 +3,9 @@
 [![Build Status](https://travis-ci.org/Evovest/EvoTrees.jl.svg?branch=master)](https://travis-ci.org/Evovest/EvoTrees.jl)
 
 A Julia implementation of boosted trees.
+Efficient histogram based algorithm with support for conventional and extended loss (notably multi-target objectives such as max likelihood methods).
 
-Provides flexibility for efficient custom objectives (notably multi-target objectives such as max likelihood methods).
-
-Only histogram methods is implemented at the moment, a high performant approach for large datasets.
+[R binding available](https://github.com/Evovest/EvoTrees)
 
 Currently supports:
 
@@ -17,6 +16,10 @@ Currently supports:
 - Quantile
 - multiclassification (softmax)
 - Gaussian (max likelihood)
+
+
+Input features is expected to be `Matrix{Float64}`. User friendly format conversion to be done.
+Next priority: GPU support.
 
 ## Installation
 
@@ -32,6 +35,18 @@ Official Repo:
 julia> Pkg.add("EvoTrees")
 ```
 
+
+## Performance
+
+[Benchmark](https://github.com/Evovest/EvoTrees.jl/blob/master/blog/benchmarks.jl) for 100 iterations on randomly generated data:
+
+| Dimensions / Algo | XGBoost Exact | XGBoost Hist | EvoTrees |   |
+|-------------------|:-------------:|:------------:|:--------:|---|
+| 10K x 100         |     1.18s     |     2.15s    |   0.52s  |   |
+| 100K x 100        |     9.39s     |     4.25s    |   2.02s  |   |
+| 1M X 100          |     146.5s    |     20.2s    |   22.5   |   |
+
+
 ## Parameters
 
   - loss: {:linear, :logistic, :poisson, :L1, :quantile, :softmax, :gaussian}
@@ -46,7 +61,6 @@ julia> Pkg.add("EvoTrees")
   - nbins: Int, number of bins into which features will be quantilized default=64
   - α: float \[0,1\], set the quantile or bias in L1 default=0.5
   - metric: {:mse, :rmse, :mae, :logloss, :quantile},  default=:none
-  - K: number of class for softmax.
 
 ## Getting started
 
@@ -81,7 +95,7 @@ params1 = EvoTreeRegressor(
     λ = 0.5, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_eval_linear = predict(model, X_eval)
 
 # logistic / cross-entropy
@@ -91,17 +105,17 @@ params1 = EvoTreeRegressor(
     λ = 0.5, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_eval_logistic = predict(model, X_eval)
 
 # Poisson
-params1 = EvoTreeRegressor(
-    loss=:poisson, metric = :logloss,
+params1 = EvoTreeCount(
+    loss=:poisson, metric = :poisson,
     nrounds=100, nbins = 100,
     λ = 0.5, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 @time pred_eval_poisson = predict(model, X_eval)
 
 # L1
@@ -111,7 +125,7 @@ params1 = EvoTreeRegressor(
     λ = 0.5, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_eval_L1 = predict(model, X_eval)
 ```
 
@@ -127,8 +141,7 @@ params1 = EvoTreeRegressor(
     λ = 0.1, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-
-model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_q50 = predict(model, X_train)
 
 # q20
@@ -138,7 +151,7 @@ params1 = EvoTreeRegressor(
     λ = 0.1, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_q20 = predict(model, X_train)
 
 # q80
@@ -148,7 +161,7 @@ params1 = EvoTreeRegressor(
     λ = 0.1, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
-model = grow_gbtree(X_train, Y_train, params1, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_q80 = predict(model, X_train)
 ```
 
@@ -157,10 +170,18 @@ pred_train_q80 = predict(model, X_train)
 ![](gaussian_likelihood.png)
 
 ```julia
-params1 = EvoTreeRegressor(
+params1 = EvoTreeGaussian(
     loss=:gaussian, metric=:gaussian,
     nrounds=100, nbins=100,
     λ = 0.0, γ=0.0, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0, seed=123)
+```
+
+## Feature importance
+
+Returns the normalized gain by feature.
+
+```julia
+features_gain = importance(model, var_names)
 ```
