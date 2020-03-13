@@ -11,7 +11,7 @@ using BenchmarkTools
 #######################
 using EvoTrees
 
-X = rand(Int(1.e5), 100)
+X = rand(Int(1.e6), 100)
 Y = rand(size(X, 1))
 
 config = EvoTreeRegressor(
