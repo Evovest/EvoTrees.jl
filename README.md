@@ -3,10 +3,9 @@
 [![Build Status](https://travis-ci.org/Evovest/EvoTrees.jl.svg?branch=master)](https://travis-ci.org/Evovest/EvoTrees.jl)
 
 A Julia implementation of boosted trees.
+Efficient histogram based algorithm with support for conventional and extended loss (notably multi-target objectives such as max likelihood methods).
 
-Provides flexibility for efficient custom objectives (notably multi-target objectives such as max likelihood methods).
-
-Only histogram methods is implemented at the moment, a high performant approach for large datasets.
+[R binding available](https://github.com/Evovest/EvoTrees)
 
 Currently supports:
 
@@ -18,8 +17,9 @@ Currently supports:
 - multiclassification (softmax)
 - Gaussian (max likelihood)
 
+
 Input features is expected to be `Matrix{Float64}`. User friendly format conversion to be done.
-Next priorities: histogram subtraction for improved performance and GPU support.
+Next priority: GPU support.
 
 ## Installation
 
@@ -34,6 +34,18 @@ Official Repo:
 ```julia-repl
 julia> Pkg.add("EvoTrees")
 ```
+
+
+## Performance
+
+[Benchmark](https://github.com/Evovest/EvoTrees.jl/blob/master/blog/benchmarks.jl) for 100 iterations on randomly generated data:
+
+| Dimensions / Algo | XGBoost Exact | XGBoost Hist | EvoTrees |   |
+|-------------------|:-------------:|:------------:|:--------:|---|
+| 10K x 100         |     1.18s     |     2.15s    |   0.52s  |   |
+| 100K x 100        |     9.39s     |     4.25s    |   2.02s  |   |
+| 1M X 100          |     146.5s    |     20.2s    |   22.5   |   |
+
 
 ## Parameters
 
