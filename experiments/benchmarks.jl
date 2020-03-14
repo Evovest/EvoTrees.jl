@@ -6,7 +6,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(1.25e5), 100)
+features = rand(Int(2.25e6), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -41,16 +41,16 @@ metrics = ["rmse"]
 
 # train model
 config = EvoTreeRegressor(
-    loss=:linear, metric=:none,
-    nrounds=100, α = 0.5f0,
-    λ = 0.0f0, γ=0.0f0, η=0.05f0,
-    max_depth = 6, min_weight = 1.0f0,
-    rowsample=0.5f0, colsample=0.5f0, nbins=32)
+        loss=:linear, metric=:none,
+        nrounds=100, α = 0.5,
+        λ = 0.0, γ=0.0, η=0.05,
+        max_depth = 6, min_weight = 1.0,
+        rowsample=0.5, colsample=0.5, nbins=32)
 
-# for 100k: 410.477 ms (44032 allocations: 182.68 MiB)
-# for 1.25e6: 6.964114 seconds (6.05 M allocations: 2.350 GiB, 2.82% gc time)
-# for 1.25e6 no eval: 6.200 s (44330 allocations: 2.19 GiB)
-# for 1.25e6 no eval iter100: 19.481940 seconds (635.33 k allocations: 6.679 GiB, 3.11% gc time)
+# for 1.25e5 init_evotree: 2.009 s 0.322925 seconds (2.53 k allocations: 167.345 MiB)
+# for 1.25e5 no eval iter 100: 2.009 s (628514 allocations: 720.62 MiB)
+# for 1.25e6 no eval iter 10: 6.200 s (44330 allocations: 2.19 GiB)
+# for 1.25e6 no eval iter 100: 19.481940 seconds (635.33 k allocations: 6.679 GiB, 3.11% gc time)
 # for 1.25e6 mse with eval data: 6.321 s (45077 allocations: 2.19 GiB)
 @time model, cache = init_evotree(config, X_train, Y_train);
 @time grow_evotree!(model, cache);

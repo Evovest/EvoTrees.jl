@@ -49,7 +49,7 @@ function EvoTreeRegressor(;
     elseif loss == :quantile model_type = Quantile()
     end
 
-    model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+    model = EvoTreeRegressor(model_type, nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
 
     return model
 end
@@ -87,7 +87,7 @@ function EvoTreeCount(;
     seed=444)
 
     if loss == :poisson model_type = Poisson() end
-    model = EvoTreeCount(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+    model = EvoTreeCount(Poisson(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
 
     return model
 end
@@ -125,7 +125,7 @@ function EvoTreeClassifier(;
     seed=444)
 
     if loss == :softmax model_type = Softmax() end
-    model = EvoTreeClassifier(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+    model = EvoTreeClassifier(Softmax(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
 
     return model
 end
@@ -163,7 +163,7 @@ function EvoTreeGaussian(;
     seed=444)
 
     if loss == :gaussian model_type = Gaussian() end
-    model = EvoTreeGaussian(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+    model = EvoTreeGaussian(Gaussian(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
 
     return model
 end
@@ -191,13 +191,13 @@ function EvoTreeRModels(
         elseif loss == :quantile model_type = Quantile()
         elseif loss == :L1 model_type = L1()
         end
-        model = EvoTreeRegressor(model_type, nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+        model = EvoTreeRegressor(model_type, nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
     elseif loss == :poisson
-        model = EvoTreeCount(Poisson(), nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+        model = EvoTreeCount(Poisson(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
     elseif loss == :softmax
-        model = EvoTreeClassifier(Softmax(), nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+        model = EvoTreeClassifier(Softmax(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
     elseif loss == :gaussian
-        model = EvoTreeGaussian(Gaussian(), nrounds, λ, γ, η, max_depth, min_weight, rowsample, colsample, nbins, α, metric, seed)
+        model = EvoTreeGaussian(Gaussian(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
     else
         throw("invalid loss")
     end

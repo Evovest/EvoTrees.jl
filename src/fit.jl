@@ -1,6 +1,6 @@
 # initialise evotree
 function init_evotree(params::EvoTypes,
-    X::AbstractMatrix{R}, Y::AbstractVector{S}; verbosity=1) where {R<:Real, S}
+    X::AbstractMatrix{R}, Y::AbstractVector{S}; verbosity=1) where {R,S}
 
     seed!(params.seed)
 
@@ -134,7 +134,7 @@ end
 # grow a single tree
 function grow_tree(δ, δ², 𝑤,
     hist_δ, hist_δ², hist_𝑤,
-    params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassifier,EvoTreeGaussian},
+    params::EvoTypes,
     train_nodes::Vector{TrainNode{L,T,S}},
     splits::Vector{SplitInfo{L,T,Int}},
     edges, X_bin) where {R<:Real, T<:AbstractFloat, S<:Int, L}
