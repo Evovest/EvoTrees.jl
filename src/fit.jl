@@ -1,43 +1,45 @@
 # initialise evotree
-function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassifier,EvoTreeGaussian},
-    X::AbstractMatrix{R}, Y::AbstractVector{S}; verbosity=1) where {R<:Real, S}
+function init_evotree(params::EvoTypes,
+    X::AbstractMatrix{R}, Y::AbstractVector{S}; verbosity=1) where {R,S}
 
     seed!(params.seed)
 
     K = 1
     levels = ""
     if typeof(params.loss) == Logistic
+        Y = Float32.(Y)
         μ = fill(logit(mean(Y)), 1)
     elseif typeof(params.loss) == Poisson
-        Y = Float64.(Y)
+        Y = Float32.(Y)
         μ = fill(log(mean(Y)), 1)
     elseif typeof(params.loss) == Softmax
         if typeof(Y) <: AbstractCategoricalVector
             levels = CategoricalArray(CategoricalArrays.levels(Y))
             K = length(levels)
-            μ = zeros(K)
+            μ = zeros(Float32, K)
             Y = MLJModelInterface.int.(Y)
         else
             levels = CategoricalArray(sort(unique(Y)))
             K = length(levels)
-            μ = zeros(K)
+            μ = zeros(Float32, K)
             Y = UInt32.(Y)
         end
     elseif typeof(params.loss) == Gaussian
         K = 2
+        Y = Float32.(Y)
         μ = SVector{2}([mean(Y), log(var(Y))])
     else
+        Y = Float32.(Y)
         μ = fill(mean(Y), 1)
     end
 
     # initialize preds
-    pred = zeros(SVector{K,Float64}, size(X,1))
+    pred = zeros(SVector{K,Float32}, size(X,1))
     for i in eachindex(pred)
         pred[i] += μ
     end
 
-    # bias = Tree([TreeNode(SVector{1, Float64}(μ))])
-    bias = Tree([TreeNode(SVector{K,Float64}(μ))])
+    bias = Tree([TreeNode(SVector{K,Float32}(μ))])
     evotree = GBTree([bias], params, Metric(), K, levels)
 
     X_size = size(X)
@@ -45,9 +47,9 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
     𝑗_ = collect(1:X_size[2])
 
     # initialize gradients and weights
-    δ, δ² = zeros(SVector{evotree.K, Float64}, X_size[1]), zeros(SVector{evotree.K, Float64}, X_size[1])
-    𝑤 = zeros(SVector{1, Float64}, X_size[1])
-    𝑤_ini = SVector{1, Float64}(1)
+    δ, δ² = zeros(SVector{evotree.K, Float32}, X_size[1]), zeros(SVector{evotree.K, Float32}, X_size[1])
+    𝑤 = zeros(SVector{1, Float32}, X_size[1])
+    𝑤_ini = SVector{1, Float32}(1)
     for i in 1:length(𝑤)
         𝑤[i] += 𝑤_ini
     end
@@ -58,24 +60,24 @@ function init_evotree(params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassif
 
 
     # initializde histograms
-    hist_δ = Vector{Matrix{SVector{evotree.K, Float64}}}(undef, 2^params.max_depth-1)
-    hist_δ² = Vector{Matrix{SVector{evotree.K, Float64}}}(undef, 2^params.max_depth-1)
-    hist_𝑤 = Vector{Matrix{SVector{1, Float64}}}(undef, 2^params.max_depth-1)
+    hist_δ = Vector{Matrix{SVector{evotree.K, Float32}}}(undef, 2^params.max_depth-1)
+    hist_δ² = Vector{Matrix{SVector{evotree.K, Float32}}}(undef, 2^params.max_depth-1)
+    hist_𝑤 = Vector{Matrix{SVector{1, Float32}}}(undef, 2^params.max_depth-1)
 
     # initialize train nodes
-    train_nodes = Vector{TrainNode{evotree.K, Float64, Int64}}(undef, 2^params.max_depth-1)
+    train_nodes = Vector{TrainNode{evotree.K, Float32, Int64}}(undef, 2^params.max_depth-1)
 
     for node in 1:2^params.max_depth-1
-        train_nodes[node] = TrainNode(0, 0, SVector{evotree.K, Float64}(fill(-Inf, evotree.K)), SVector{evotree.K, Float64}(fill(-Inf, evotree.K)), SVector{1, Float64}(fill(-Inf, 1)), -Inf, [0], [0])
+        train_nodes[node] = TrainNode(0, 0, SVector{evotree.K, Float32}(fill(Float32(-Inf), evotree.K)), SVector{evotree.K, Float32}(fill(Float32(-Inf), evotree.K)), SVector{1, Float32}(fill(Float32(-Inf), 1)), Float32(-Inf), [0], [0])
 
-        hist_δ[node] = zeros(SVector{evotree.K, Float64}, params.nbins, X_size[2])
-        hist_δ²[node] = zeros(SVector{evotree.K, Float64}, params.nbins, X_size[2])
-        hist_𝑤[node] = zeros(SVector{1, Float64}, params.nbins, X_size[2])
+        hist_δ[node] = zeros(SVector{evotree.K, Float32}, params.nbins, X_size[2])
+        hist_δ²[node] = zeros(SVector{evotree.K, Float32}, params.nbins, X_size[2])
+        hist_𝑤[node] = zeros(SVector{1, Float32}, params.nbins, X_size[2])
     end
 
-    splits = Vector{SplitInfo{evotree.K, Float64, Int64}}(undef, X_size[2])
+    splits = Vector{SplitInfo{evotree.K, Float32, Int64}}(undef, X_size[2])
     for feat in 𝑗_
-        splits[feat] = SplitInfo{evotree.K, Float64, Int}(-Inf, SVector{evotree.K, Float64}(zeros(evotree.K)), SVector{evotree.K, Float64}(zeros(evotree.K)), SVector{1, Float64}(zeros(1)), SVector{evotree.K, Float64}(zeros(evotree.K)), SVector{evotree.K, Float64}(zeros(evotree.K)), SVector{1, Float64}(zeros(1)), -Inf, -Inf, 0, feat, 0.0)
+        splits[feat] = SplitInfo{evotree.K, Float32, Int}(Float32(-Inf), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{1, Float32}(zeros(1)), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{1, Float32}(zeros(1)), Float32(-Inf), Float32(-Inf), 0, feat, 0.0)
     end
 
     cache = (params=deepcopy(params),
@@ -108,7 +110,7 @@ function grow_evotree!(evotree::GBTree, cache; verbosity=1)
         𝑗 = cache.𝑗_[sample(cache.𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)]
         # reset gain to -Inf
         for feat in cache.𝑗_
-            splits[feat].gain = -Inf
+            splits[feat].gain = Float32(-Inf)
         end
 
         # build a new tree
@@ -132,7 +134,7 @@ end
 # grow a single tree
 function grow_tree(δ, δ², 𝑤,
     hist_δ, hist_δ², hist_𝑤,
-    params::Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassifier,EvoTreeGaussian},
+    params::EvoTypes,
     train_nodes::Vector{TrainNode{L,T,S}},
     splits::Vector{SplitInfo{L,T,Int}},
     edges, X_bin) where {R<:Real, T<:AbstractFloat, S<:Int, L}
@@ -216,6 +218,7 @@ function fit_evotree(params, X_train, Y_train;
 
     if params.metric != :none && X_eval !== nothing
         pred_eval = predict(model.trees[1], X_eval, model.K)
+        Y_eval = convert.(eltype(cache.Y), Y_eval)
     end
 
     while model.params.nrounds < nrounds_max && iter_since_best < early_stopping_rounds
@@ -227,7 +230,7 @@ function fit_evotree(params, X_train, Y_train;
                 predict!(pred_eval, model.trees[model.params.nrounds+1], X_eval)
                 metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, params.α)
             else
-                metric_track.metric = eval_metric(Val{params.metric}(), cache.pred, Y_train, params.α)
+                metric_track.metric = eval_metric(Val{params.metric}(), cache.pred, cache.Y, params.α)
             end
             if metric_track.metric < metric_best.metric
                 metric_best.metric = metric_track.metric

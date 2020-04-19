@@ -79,20 +79,20 @@ mean(abs.(pred_train .- Y_train))
 params1 = EvoTreeRegressor(
     loss=:logistic, metric=:logloss,
     nrounds=100,
-    λ = 0.0, γ=0.0, η=0.1,
-    max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=0.5, nbins=32)
+    λ = 0.0f0, γ=0.0f0, η=0.1f0,
+    max_depth = 6, min_weight = 1.0f0,
+    rowsample=0.5f0, colsample=0.5f0, α=0.5f0, nbins=32)
 @time model = fit_evotree(params1, X_train, Y_train);
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n=10)
 @time pred_train = predict(model, X_train)
 
 # Quantile
 params1 = EvoTreeRegressor(
-    loss=:quantile, metric=:quantile, α=0.80,
+    loss=:quantile, metric=:quantile, α=0.80f0,
     nrounds=100,
-    λ = 0.1, γ=0.0, η=0.1,
-    max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=0.5, nbins=32)
+    λ = 0.1f0, γ=0.0f0, η=0.1f0,
+    max_depth = 6, min_weight = 1.0f0,
+    rowsample=0.5f0, colsample=0.5f0, nbins=32)
 @time model = fit_evotree(params1, X_train, Y_train);
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n=10)
 @time pred_train = predict(model, X_train)
@@ -100,10 +100,10 @@ params1 = EvoTreeRegressor(
 # gaussian
 params1 = EvoTreeGaussian(
     loss=:gaussian, metric=:gaussian,
-    nrounds=100,
-    λ = 0.0, γ=0.0, η=0.1,
-    max_depth = 6, min_weight = 10.0,
-    rowsample=0.5, colsample=0.5, nbins=32)
+    nrounds=100, α=0.5f0,
+    λ = 0.0f0, γ=0.0f0, η=0.1f0,
+    max_depth = 6, min_weight = 10.0f0,
+    rowsample=0.5f0, colsample=0.5f0, nbins=32)
 @time model = fit_evotree(params1, X_train, Y_train);
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n=10)
 @time pred_train = predict(model, X_train)
@@ -111,14 +111,14 @@ params1 = EvoTreeGaussian(
 # softmax
 params1 = EvoTreeClassifier(
     loss=:softmax, metric=:mlogloss,
-    nrounds=100,
-    λ = 0.0, γ=0.0, η=0.1,
-    max_depth = 6, min_weight = 10.0,
-    rowsample=0.5, colsample=0.5, nbins=32)
+    nrounds=100, α=0.5f0,
+    λ=0.0f0, γ=0.0f0, η=0.1f0,
+    max_depth = 6, min_weight = 10.0f0,
+    rowsample=0.5f0, colsample=0.5f0, nbins=32)
 
 Y_train_int = UInt32.(round.(Y_train*2) .+ 1)
 Y_eval_int = UInt32.(round.(Y_eval*2) .+ 1)
 Y_train_int = Int.(Y_train_int)
-@time model = fit_evotree(params1, X_train, Y_train_int);
+@time model = fit_evotree(params1, X_train, Y_train_int, print_every_n=10);
 @time model = fit_evotree(params1, X_train, Y_train_int, X_eval = X_eval, Y_eval = Y_eval_int, print_every_n=10)
 @time pred_train = predict(model, X_train)

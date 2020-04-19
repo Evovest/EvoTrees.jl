@@ -5,14 +5,12 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
+X = rand(Int(2.e6), 100)
+Y = rand(size(X, 1))
 
 #######################
 # EvoTrees
 #######################
-using EvoTrees
-
-X = rand(Int(1.e5), 100)
-Y = rand(size(X, 1))
 
 config = EvoTreeRegressor(
     loss=:linear, metric=:none,
@@ -38,5 +36,5 @@ param = ["max_depth" => 5,
          "max_bin" => 32]
 metrics = ["rmse"]
 
-@time model_xgb = xgboost(X, num_round, label = Y, param = param, metrics=metrics, silent=1);
+@time model_xgb = xgboost(X, num_round, label = Y, param = param, silent=1);
 @time pred = XGBoost.predict(model_xgb, X)
