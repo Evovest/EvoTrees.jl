@@ -50,7 +50,7 @@ end
 # eval metric tracking
 mutable struct Metric
     iter::Int
-    metric::Float64
+    metric::Float32
 end
 Metric() = Metric(0, Inf)
 
