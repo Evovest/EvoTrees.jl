@@ -46,7 +46,7 @@ hist_gpu = CuArray(hist)
 idx_gpu = CuArray(idx)
 
 @time hist_cpu!(hist, δ, idx)
-@CuArrays.time hist_gpu!(hist_gpu, δ_gpu, idx_gpu, MAX_THREADS=512)
+@CuArrays.time hist_gpu!(hist_gpu, δ_gpu, idx_gpu, MAX_THREADS=1024)
 
 
 
@@ -63,15 +63,15 @@ function kernel_y!(h::CuDeviceMatrix{T}, x::CuDeviceMatrix{T}, id) where {T<:Abs
 end
 
 # GPU - apply along the features axis - seems not good
-function kernel_y2!(h::CuDeviceMatrix{T}, x::CuDeviceMatrix{T}, id) where {T<:AbstractFloat}
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-    j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
-    @inbounds if i <= size(id, 1) && j <= size(h, 2)
-        # k = Base._to_linear_index(h, id[i,j], j)
-        h[id[i,j],j] += x[i,j]
-    end
-    return
-end
+# function kernel_y2!(h::CuDeviceMatrix{T}, x::CuDeviceMatrix{T}, id) where {T<:AbstractFloat}
+#     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+#     j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
+#     @inbounds if i <= size(id, 1) && j <= size(h, 2)
+#         # k = Base._to_linear_index(h, id[i,j], j)
+#         h[id[i,j],j] += x[i,j]
+#     end
+#     return
+# end
 
 function hist_gpu_y!(h::CuMatrix{T}, x::CuMatrix{T}, id::CuMatrix{Int}; MAX_THREADS=256) where {T<:AbstractFloat}
     thread_j = min(MAX_THREADS, size(id, 2))
