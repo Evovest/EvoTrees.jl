@@ -1,21 +1,24 @@
 # GPU - apply along the features axis
-function kernel_v1!(h::CuDeviceMatrix{T}, x::CuDeviceMatrix{T}, id) where {T<:AbstractFloat}
+function kernel!(h::CuDeviceMatrix{T}, x::CuDeviceMatrix{T}, id, 𝑖, 𝑗) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
-    @inbounds if i <= size(id, 1) && j <= size(h, 2)
-        k = Base._to_linear_index(h, id[i,j], j)
-        CUDAnative.atomic_add!(pointer(h, k), x[i,j])
+    if i <= length(𝑖) && j <= length(𝑗)
+        @inbounds k = Base._to_linear_index(h, id[𝑖[i], 𝑗[j]], 𝑗[j])
+        @inbounds CUDAnative.atomic_add!(pointer(h, k), x[𝑖[i], 𝑗[j]])
     end
     return
 end
 
-function hist_gpu_v1!(h::CuMatrix{T}, x::CuMatrix{T}, id::CuMatrix{Int}; MAX_THREADS=512) where {T<:AbstractFloat}
-    thread_j = min(MAX_THREADS, size(id, 2))
-    thread_i = min(MAX_THREADS ÷ thread_j, size(h, 1))
+# base approach - block built along the cols first, the rows (limit collisions)
+function hist_gpu!(h::CuMatrix{T}, x::CuMatrix{T}, id, 𝑖, 𝑗; MAX_THREADS=1024) where {T<:AbstractFloat}
+    thread_j = min(MAX_THREADS, length(𝑗))
+    thread_i = min(MAX_THREADS ÷ thread_j, length(𝑖))
     threads = (thread_i, thread_j)
-    blocks = ceil.(Int, (size(id, 1), size(h, 2)) ./ threads)
-    CuArrays.@cuda blocks=blocks threads=threads kernel_v1!(h, x, id)
-    return h
+    blocks = ceil.(Int, (length(𝑖), length(𝑗)) ./ threads)
+    CuArrays.@sync begin
+        @cuda blocks=blocks threads=threads kernel!(h, x, id, 𝑖, 𝑗)
+    end
+    return
 end
 
 function update_hist_gpu!(hist_δ::Matrix{SVector{L,T}}, hist_δ²::Matrix{SVector{L,T}}, hist_𝑤::Matrix{SVector{1,T}},
@@ -29,13 +32,6 @@ function update_hist_gpu!(hist_δ::Matrix{SVector{L,T}}, hist_δ²::Matrix{SVect
     hist_gpu_v1!(hist_δ, δ, id)
     hist_gpu_v1!(hist_δ², δ², id)
     hist_gpu_v1!(hist_𝑤, 𝑤, id)
-    # @inbounds @threads for j in node.𝑗
-    #     @inbounds for i in node.𝑖
-    #         hist_δ[X_bin[i,j], j] += δ[i]
-    #         hist_δ²[X_bin[i,j], j] += δ²[i]
-    #         hist_𝑤[X_bin[i,j], j] += 𝑤[i]
-    #     end
-    # end
 end
 
 function find_split_gpu!(hist_δ::AbstractVector{SVector{L,T}}, hist_δ²::AbstractVector{SVector{L,T}}, hist_𝑤::AbstractVector{SVector{1,T}},
@@ -74,21 +70,4 @@ function find_split_gpu!(hist_δ::AbstractVector{SVector{L,T}}, hist_δ²::Abstr
             info.𝑖 = bin
         end # info update if gain
     end # loop on bins
-end
-
-
-function find_split_gpu_test!(hist_δ::Vector{SVector{L,T}}, hist_δ²::Vector{SVector{L,T}}, hist_𝑤::Vector{SVector{1,T}}, bins::Vector{BitSet}, X_bin, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, params::EvoTreeRegressor, info::SplitInfo{L,T,S}, edges::Vector{T}, set::Vector{S}) where {L,T,S}
-
-    # initialize histogram
-    hist_δ .*= 0.0
-    hist_δ² .*= 0.0
-    hist_𝑤 .*= 0.0
-
-    # build histogram
-    @inbounds for i in set
-        hist_δ[X_bin[i]] += δ[i]
-        hist_δ²[X_bin[i]] += δ²[i]
-        hist_𝑤[X_bin[i]] += 𝑤[i]
-    end
-    return
 end
