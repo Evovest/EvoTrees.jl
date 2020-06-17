@@ -16,18 +16,18 @@ end
 
 # prediction from single tree - assign each observation to its final leaf
 function predict(tree::Tree, X::AbstractMatrix{T}, K) where T<:Real
-    pred = zeros(SVector{K,T}, size(X, 1))
+    pred = zeros(SVector{K,Float32}, size(X, 1))
     predict!(pred, tree, X)
     return pred
 end
 
 # prediction from single tree - assign each observation to its final leaf
 function predict(model::GBTree, X::AbstractMatrix{T}) where T<:Real
-    pred = zeros(SVector{model.K,T}, size(X, 1))
+    pred = zeros(SVector{model.K,Float32}, size(X, 1))
     for tree in model.trees
         predict!(pred, tree, X)
     end
-    pred = reinterpret(T, pred)
+    pred = reinterpret(Float32, pred)
     if typeof(model.params.loss) == Logistic
         @. pred = sigmoid(pred)
     elseif typeof(model.params.loss) == Poisson
@@ -62,7 +62,7 @@ end
 
 # prediction in Leaf - QuantileRegression
 function pred_leaf(loss::S, node::TrainNode{L,T}, params::EvoTypes, δ²) where {S<:QuantileRegression,L,T}
-    SVector{1,T}(params.η * quantile(reinterpret(Float64, δ²[node.𝑖]), params.α) / (1 + params.λ))
+    SVector{1,T}(params.η * quantile(reinterpret(Float32, δ²[node.𝑖]), params.α) / (1 + params.λ))
     # pred = params.η * quantile(δ²[collect(node.𝑖)], params.α) / (1 + params.λ)
 end
 
