@@ -43,7 +43,7 @@ end
 function predict(model::EvoTreeClassifier, fitresult, Xnew)
     Xnew = MLJModelInterface.matrix(Xnew)
     pred = predict(fitresult, Xnew)
-    return [MLJModelInterface.UnivariateFinite(fitresult.levels, pred[i,:]) for i in 1:size(pred,1)]
+    return MLJModelInterface.UnivariateFinite(fitresult.levels, pred)
 end
 
 function predict(model::EvoTreeCount, fitresult, Xnew)
