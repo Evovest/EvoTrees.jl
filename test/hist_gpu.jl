@@ -1,6 +1,5 @@
 using Revise
-using CUDAnative
-using CuArrays
+using CUDA
 using StaticArrays
 using StatsBase: sample
 using BenchmarkTools
@@ -21,7 +20,7 @@ function kernel1!(h, x, id)
     if i <= size(id, 1) && j <= size(id, 2)
         @inbounds k = Base._to_linear_index(h, id[i,j], j)
         # @inbounds k = id[i,j] + 32 * (j-1)
-        @inbounds CUDAnative.atomic_add!(pointer(h, k), x[i,j])
+        @inbounds CUDA.atomic_add!(pointer(h, k), x[i,j])
     end
     return
 end
@@ -34,9 +33,9 @@ function hist_gpu1!(h::AbstractMatrix{T}, x::AbstractMatrix{T}, id; MAX_THREADS=
     thread_i = min(MAX_THREADS ÷ thread_j, size(id, 1))
     threads = (thread_i, thread_j)
     blocks = ceil.(Int, (size(id, 1), size(id, 2)) .÷ threads)
-    println("threads:", threads)
-    println("blocks:", blocks)
-    CuArrays.@sync begin
+    # println("threads:", threads)
+    # println("blocks:", blocks)
+    CUDA.@sync begin
         @cuda blocks=blocks threads=threads kernel1!(h, x, id)
     end
     return
@@ -56,12 +55,12 @@ idx_gpu = CuArray(idx)
 hist .- Array(hist_gpu)
 sum(hist) - sum(Array(hist_gpu))
 
-@CuArrays.time hist_gpu1!(hist_gpu, δ_gpu, idx_gpu, MAX_THREADS=1024)
+@CUDA.time hist_gpu1!(hist_gpu, δ_gpu, idx_gpu, MAX_THREADS=1024)
 @time hist_cpu!(hist, δ, idx)
 @btime hist_cpu!($hist, $δ, $idx)
 @btime hist_gpu1!($hist_gpu, $δ_gpu, $idx_gpu, MAX_THREADS=1024)
 # test on view
-@CuArrays.time hist_gpu1!(hist_gpu, view(δ_gpu, 1:items÷2, 1:ncol÷2), view(idx_gpu, 1:items÷2, 1:ncol÷2), MAX_THREADS=1024)
+@CUDA.time hist_gpu1!(hist_gpu, view(δ_gpu, 1:items÷2, 1:ncol÷2), view(idx_gpu, 1:items÷2, 1:ncol÷2), MAX_THREADS=1024)
 
 size(δ_gpu)
 size(view(δ_gpu, 1:items÷2, 1:ncol÷2))
@@ -74,7 +73,7 @@ function kernel2!(h::CuDeviceMatrix{T}, x::CuDeviceMatrix{T}, id, 𝑖, 𝑗) wh
     j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
     if i <= length(𝑖) && j <= length(𝑗)
         @inbounds k = Base._to_linear_index(h, id[𝑖[i], 𝑗[j]], 𝑗[j])
-        @inbounds CUDAnative.atomic_add!(pointer(h, k), x[𝑖[i], 𝑗[j]])
+        @inbounds CUDA.atomic_add!(pointer(h, k), x[𝑖[i], 𝑗[j]])
     end
     return
 end
@@ -87,7 +86,7 @@ function hist_gpu2!(h::CuMatrix{T}, x::CuMatrix{T}, id, 𝑖, 𝑗; MAX_THREADS=
     blocks = ceil.(Int, (length(𝑖), length(𝑗)) ./ threads)
     # println("threads:", threads)
     # println("blocks:", blocks)
-    CuArrays.@sync begin
+    CUDA.@sync begin
         @cuda blocks=blocks threads=threads kernel2!(h, x, id, 𝑖, 𝑗)
     end
     return
@@ -104,7 +103,7 @@ idx_gpu = CuArray(idx)
 𝑖_gpu = CuArray(𝑖)
 𝑗_gpu = CuArray(𝑗)
 
-@CuArrays.time hist_gpu2!(hist_gpu, δ_gpu, idx_gpu, 𝑖_gpu, 𝑗_gpu, MAX_THREADS=1024)
+@CUDA.time hist_gpu2!(hist_gpu, δ_gpu, idx_gpu, 𝑖_gpu, 𝑗_gpu, MAX_THREADS=1024)
 @btime hist_gpu2!($hist_gpu, $δ_gpu, $idx_gpu, 𝑖_gpu, 𝑗_gpu, MAX_THREADS=1024)
 
 
@@ -115,7 +114,7 @@ function kernel!(x, y)
     if i <= length(x)
         # @inbounds x[i] += y[i]
         k = Base._to_linear_index(x, i)
-        CUDAnative.atomic_add!(pointer(x, k), y[i])
+        CUDA.atomic_add!(pointer(x, k), y[i])
     end
     return
 end
@@ -125,7 +124,7 @@ function hist_gpu!(x, y; MAX_THREADS=1024)
     thread_i = min(MAX_THREADS, length(x))
     threads = (thread_i)
     blocks = ceil.(Int, length(x) .÷ threads)
-    CuArrays.@sync begin
+    CUDA.@sync begin
         @cuda blocks=blocks threads=threads kernel!(x, y)
     end
     return
@@ -165,7 +164,7 @@ function hist_gpuS2!(h, x, id; MAX_THREADS=256) where {T}
     blocks = ceil.(Int, (size(id, 1), size(id, 2)) .÷ threads)
     println("threads:", threads)
     println("blocks:", blocks)
-    CuArrays.@sync begin
+    CUDA.@sync begin
         @cuda blocks=blocks threads=threads kernelS2!(h, x, id)
     end
     return
@@ -254,13 +253,13 @@ function kernel2!(h::CuDeviceMatrix{T}, x::CuDeviceMatrix{T}, id, nbins) where {
 
         # atomic add on global hist - 3.2ms
         @inbounds k = id[i,j] + nbins * (j-1)
-        @inbounds CUDAnative.atomic_add!(pointer(h, k), x[i,j])
+        @inbounds CUDA.atomic_add!(pointer(h, k), x[i,j])
     end
     # sync_threads()
 
     # if blockIdx().x == 1
     #     if tid <= nbins
-    #         CUDAnative.atomic_add!(pointer(h,tid), shared[tid])
+    #         CUDA.atomic_add!(pointer(h,tid), shared[tid])
     #     end
     # end
     return
@@ -274,13 +273,79 @@ function hist_gpu2!(h::CuMatrix{T}, x::CuMatrix{T}, id::CuMatrix{Int}, nbins; MA
     thread_i = min(MAX_THREADS ÷ thread_j, size(id, 1))
     threads = (thread_i, thread_j)
     blocks = ceil.(Int, (size(id, 1), size(id, 2)) ./ threads)
-    CuArrays.@sync begin
+    CUDA.@sync begin
         @cuda blocks=blocks threads=threads kernel2!(h, x, id, nbins)
     end
     return h
 end
 
-hist
 @CuArrays.time hist_gpu2!(hist_gpu, δ_gpu, idx_gpu, 32, MAX_THREADS=1024)
 @btime hist_gpu2!($hist_gpu, $δ_gpu, $idx_gpu, 32, MAX_THREADS=1024)
 @device_code_warntype hist_gpu2!(hist_gpu, δ_gpu, idx_gpu, 32, MAX_THREADS=1024)
+
+
+
+
+######################################
+# Appoach 1
+######################################
+# GPU - apply along the features axis
+function kernel!(h::CuDeviceMatrix{T}, x::CuDeviceVector{T}, id, 𝑖, 𝑗) where {T<:AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
+    if i <= length(𝑖) && j <= length(𝑗)
+        @inbounds k = Base._to_linear_index(h, id[𝑖[i], 𝑗[j]], 𝑗[j])
+        @inbounds CUDA.atomic_add!(pointer(h, k), x[𝑖[i]])
+    end
+    return
+end
+
+# base approach - block built along the cols first, the rows (limit collisions)
+function hist_gpu!(h::CuMatrix{T}, x::CuVector{T}, id, 𝑖, 𝑗; MAX_THREADS=1024) where {T<:AbstractFloat}
+    thread_j = min(MAX_THREADS, length(𝑗))
+    thread_i = min(MAX_THREADS ÷ thread_j, length(𝑖))
+    threads = (thread_i, thread_j)
+    blocks = ceil.(Int, (length(𝑖), length(𝑗)) ./ threads)
+    @cuda blocks=blocks threads=threads kernel!(h, x, id, 𝑖, 𝑗)
+    return
+end
+
+hist = zeros(Float32, nbins, ncol)
+δ = rand(Float32, items)
+idx = rand(1:nbins, items, ncol)
+𝑖 = sample(1:items, items ÷ 2, replace=false, ordered=true)
+𝑗 = sample(1:ncol, ncol ÷ 2, replace=false, ordered=true)
+hist_gpu = CuArray(hist)
+δ_gpu = CuArray(δ)
+idx_gpu = CuArray(idx)
+𝑖_gpu = CuArray(𝑖)
+𝑗_gpu = CuArray(𝑗)
+
+@CUDA.time hist_gpu!(hist_gpu, δ_gpu, idx_gpu, 𝑖_gpu, 𝑗_gpu, MAX_THREADS=1024)
+@btime hist_gpu!($hist_gpu, $δ_gpu, $idx_gpu, 𝑖_gpu, 𝑗_gpu, MAX_THREADS=1024)
+
+
+######################################
+# Appoach 2 - Loop for assigning command grad to appropriate bin per column
+# Idea: exploit the fact that there's a single grad per row: take that grad and add it to each column bin
+######################################
+# GPU - apply along the features axis
+function kernel!(h::CuDeviceMatrix{T}, x::CuDeviceVector{T}, id, 𝑖, 𝑗) where {T<:AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
+    if i <= length(𝑖) && j <= length(𝑗)
+        @inbounds k = Base._to_linear_index(h, id[𝑖[i], 𝑗[j]], 𝑗[j])
+        @inbounds CUDAnative.atomic_add!(pointer(h, k), x[𝑖[i]])
+    end
+    return
+end
+
+# base approach - block built along the cols first, the rows (limit collisions)
+function hist_gpu!(h::CuMatrix{T}, x::CuVector{T}, id::CuMatrix{UInt8}, 𝑖, 𝑗; MAX_THREADS=1024) where {T<:AbstractFloat}
+    thread_j = min(MAX_THREADS, length(𝑗))
+    thread_i = min(MAX_THREADS ÷ thread_j, length(𝑖))
+    threads = (thread_i, thread_j)
+    blocks = ceil.(Int, (length(𝑖), length(𝑗)) ./ threads)
+    @cuda blocks=blocks threads=threads kernel!(h, x, id, 𝑖, 𝑗)
+    return
+end
