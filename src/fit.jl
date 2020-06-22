@@ -27,7 +27,7 @@ function init_evotree(params::EvoTypes,
     elseif typeof(params.loss) == Gaussian
         K = 2
         Y = Float32.(Y)
-        μ = SVector{2}([mean(Y), log(var(Y))])
+        μ = SVector{2}([mean(Y), log(std(Y))])
     else
         Y = Float32.(Y)
         μ = fill(mean(Y), 1)

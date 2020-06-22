@@ -15,7 +15,7 @@ Y[(X[:,1] .>= 0.4) .& (X[:,1] .< 0.6)] .*= 5
 Y[(X[:,1] .>= 0.9)] .*= 5
 𝑖 = collect(1:size(X,1))
 
-# Y .*= 0.001
+Y .*= 0.01
 
 # train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
@@ -30,7 +30,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 params1 = EvoTreeGaussian(
     loss=:gaussian, metric=:gaussian,
     nrounds=1000,
-    λ = 1.0, γ=10.0, η=0.1,
+    λ = 1.0, γ=1.0, η=0.1,
     max_depth = 7, min_weight = 50.0,
     rowsample=0.5, colsample=1.0, nbins=200)
 
