@@ -70,8 +70,8 @@ end
 # pred[i][2] = log(σ)
 function update_grads!(loss::Gaussian, α, pred::Vector{SVector{L,T}}, target::AbstractArray{T, 1}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat, L}
     @inbounds @threads for i in eachindex(δ)
-        δ[i] = SVector((pred[i][1] - target[i]) / max(1e-8, exp(pred[i][2])) * 𝑤[i][1], (1 - (pred[i][1] - target[i])^2 / max(1e-8, exp(2*pred[i][2]))) * 𝑤[i][1])
-        δ²[i] = SVector(𝑤[i][1] / max(1e-8, exp(pred[i][2])),  2*𝑤[i][1] / max(1e-8, exp(2*pred[i][2])) * (pred[i][1] - target[i])^2)
+        δ[i] = SVector((pred[i][1] - target[i]) / max(1e-8, exp(2*pred[i][2])) * 𝑤[i][1], (1 - (pred[i][1] - target[i])^2 / max(1e-8, exp(2*pred[i][2]))) * 𝑤[i][1])
+        δ²[i] = SVector(𝑤[i][1] / max(1e-8, exp(2*pred[i][2])),  2*𝑤[i][1] / max(1e-8, exp(2*pred[i][2])) * (pred[i][1] - target[i])^2)
     end
 end
 
