@@ -29,9 +29,9 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 # train model
 params1 = EvoTreeGaussian(
     loss=:gaussian, metric=:gaussian,
-    nrounds=1000,
-    λ = 1.0, γ=1.0, η=0.1,
-    max_depth = 7, min_weight = 50.0,
+    nrounds=500,
+    λ = 1.0, γ=10.0, η=0.05,
+    max_depth = 5, min_weight = 50.0,
     rowsample=0.5, colsample=1.0, nbins=200)
 
 @time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n = 10);
