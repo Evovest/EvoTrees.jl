@@ -1,8 +1,8 @@
 #############################################
 # Get the braking points
 #############################################
-function get_edges(X::Matrix{T}, nbins=250) where {T}
-    edges = Vector{Vector{Float32}}(undef, size(X,2))
+function get_edges(X::AbstractMatrix{T}, nbins=250) where {T}
+    edges = Vector{Vector{T}}(undef, size(X,2))
     @threads for i in 1:size(X, 2)
         edges[i] = quantile(view(X, :,i), (1:nbins)/nbins)
         if length(edges[i]) == 0

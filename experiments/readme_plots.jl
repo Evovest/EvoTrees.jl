@@ -87,7 +87,7 @@ params1 = EvoTreeRegressor(
 sqrt(mean((pred_train_L1 .- Y_train) .^ 2))
 
 x_perm = sortperm(X_train[:,1])
-plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "lightgray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
 plot!(X_train[:,1][x_perm], pred_train_linear[x_perm], color = "navy", linewidth = 1.5, label = "Linear")
 plot!(X_train[:,1][x_perm], pred_train_logistic[x_perm], color = "darkred", linewidth = 1.5, label = "Logistic")
 plot!(X_train[:,1][x_perm], pred_train_poisson[x_perm], color = "green", linewidth = 1.5, label = "Poisson")
@@ -135,8 +135,40 @@ params1 = EvoTreeRegressor(
 sum(pred_train_q80 .< Y_train) / length(Y_train)
 
 x_perm = sortperm(X_train[:,1])
-plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "lightgray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
 plot!(X_train[:,1][x_perm], pred_train_q50[x_perm], color = "navy", linewidth = 1.5, label = "Median")
 plot!(X_train[:,1][x_perm], pred_train_q20[x_perm], color = "darkred", linewidth = 1.5, label = "Q20")
 plot!(X_train[:,1][x_perm], pred_train_q80[x_perm], color = "green", linewidth = 1.5, label = "Q80")
 savefig("quantiles_sinus.png")
+
+
+
+###############################
+## gaussian
+###############################
+params1 = EvoTreeGaussian(
+    loss=:gaussian, metric=:gaussian,
+    nrounds=200, nbins=100,
+    λ = 0.0, γ=0.0, η=0.05,
+    max_depth = 5, min_weight = 1.0,
+    rowsample=0.8, colsample=1.0, seed=123)
+
+@time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n = 10);
+# @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
+@time pred_train = EvoTrees.predict(model, X_train)
+@time pred_train_gauss = EvoTrees.predict(params1, model, X_train)
+
+pred_gauss = [Distributions.Normal(pred_train[i,1], pred_train[i,2]) for i in 1:size(pred_train,1)]
+pred_q80 = quantile.(pred_gauss, 0.8)
+pred_q20 = quantile.(pred_gauss, 0.2)
+
+mean(Y_train .< pred_q80)
+mean(Y_train .< pred_q20)
+
+x_perm = sortperm(X_train[:,1])
+plot(X_train[:, 1], Y_train, ms = 1, mcolor = "gray", mscolor = "gray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot!(X_train[:,1][x_perm], pred_train[x_perm, 1], color = "navy", linewidth = 1.5, label = "mu")
+plot!(X_train[:,1][x_perm], pred_train[x_perm, 2], color = "red", linewidth = 1.5, label = "sigma")
+plot!(X_train[:,1][x_perm], pred_q20[x_perm, 1], color = "green", linewidth = 1.5, label = "q20")
+plot!(X_train[:,1][x_perm], pred_q80[x_perm, 1], color = "green", linewidth = 1.5, label = "q80")
+savefig("gaussian_sinus.png")

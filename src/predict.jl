@@ -1,5 +1,5 @@
 # prediction from single tree - assign each observation to its final leaf
-function predict!(pred, tree::Tree, X::AbstractMatrix{T}) where {T<:Real}
+function predict!(pred, tree::Tree{L,T,S}, X::AbstractMatrix) where {L,T,S}
     @inbounds @threads for i in 1:size(X,1)
         id = 1
         x = view(X, i, :)
@@ -15,19 +15,19 @@ function predict!(pred, tree::Tree, X::AbstractMatrix{T}) where {T<:Real}
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict(tree::Tree, X::AbstractMatrix{T}, K) where T<:Real
-    pred = zeros(SVector{K,Float32}, size(X, 1))
+function predict(tree::Tree{L,T,S}, X::AbstractMatrix, K) where {L,T,S}
+    pred = zeros(SVector{K,T}, size(X, 1))
     predict!(pred, tree, X)
     return pred
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict(model::GBTree, X::AbstractMatrix{T}) where T<:Real
-    pred = zeros(SVector{model.K,Float32}, size(X, 1))
+function predict(model::GBTree{L,T,S}, X::AbstractMatrix) where {L,T,S}
+    pred = zeros(SVector{model.K,T}, size(X, 1))
     for tree in model.trees
         predict!(pred, tree, X)
     end
-    pred = reinterpret(Float32, pred)
+    pred = reinterpret(T, pred)
     if typeof(model.params.loss) == Logistic
         @. pred = sigmoid(pred)
     elseif typeof(model.params.loss) == Poisson
