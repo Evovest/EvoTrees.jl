@@ -61,11 +61,11 @@ end
 
 # gaussian
 # pred[i][1] = μ
-# pred[i][2] = log(σ²)
+# pred[i][2] = log(σ)
 function eval_metric(::Val{:gaussian}, pred::Vector{SVector{L,T}}, Y::AbstractVector{T}, α=0.0) where {L, T <: AbstractFloat}
     eval = zero(T)
     @inbounds for i in 1:length(pred)
-        eval += pred[i][2]/2 + (Y[i] - pred[i][1])^2 / (2*max(1e-8, exp(pred[i][2])))
+        eval += pred[i][2] + (Y[i] - pred[i][1])^2 / (2*max(1e-8, exp(2*pred[i][2])))
     end
     eval /= length(Y)
     return eval

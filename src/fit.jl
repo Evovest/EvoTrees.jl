@@ -1,45 +1,58 @@
+function allo2(params::EvoTypes)
+    T = typeof(params)
+    # test = T(params.η)
+    return T
+end
+
+function allo3(params::EvoTrees.EvoTypes{T,U,S}) where {T,U,S}
+    # T = typeof(params)
+    test = T(params.η)
+    return test
+end
+
 # initialise evotree
-function init_evotree(params::EvoTypes,
-    X::AbstractMatrix{R}, Y::AbstractVector{S}; verbosity=1) where {R,S}
+function init_evotree(params::EvoTypes{T,U,S},
+    X::AbstractMatrix, Y::AbstractVector; verbosity=1) where {T,U,S}
 
     seed!(params.seed)
 
     K = 1
     levels = ""
+    X = convert(Matrix{T}, X)
     if typeof(params.loss) == Logistic
-        Y = Float32.(Y)
+        Y = T.(Y)
         μ = fill(logit(mean(Y)), 1)
     elseif typeof(params.loss) == Poisson
-        Y = Float32.(Y)
+        Y = T.(Y)
         μ = fill(log(mean(Y)), 1)
     elseif typeof(params.loss) == Softmax
         if typeof(Y) <: AbstractCategoricalVector
             levels = CategoricalArray(CategoricalArrays.levels(Y))
             K = length(levels)
-            μ = zeros(Float32, K)
+            μ = zeros(T, K)
             Y = MLJModelInterface.int.(Y)
         else
             levels = CategoricalArray(sort(unique(Y)))
             K = length(levels)
-            μ = zeros(Float32, K)
+            μ = zeros(T, K)
             Y = UInt32.(Y)
         end
     elseif typeof(params.loss) == Gaussian
         K = 2
-        Y = Float32.(Y)
-        μ = SVector{2}([mean(Y), log(var(Y))])
+        Y = T.(Y)
+        μ = SVector{2}([mean(Y), log(std(Y))])
     else
-        Y = Float32.(Y)
+        Y = T.(Y)
         μ = fill(mean(Y), 1)
     end
 
     # initialize preds
-    pred = zeros(SVector{K,Float32}, size(X,1))
+    pred = zeros(SVector{K,T}, size(X,1))
     for i in eachindex(pred)
         pred[i] += μ
     end
 
-    bias = Tree([TreeNode(SVector{K,Float32}(μ))])
+    bias = Tree([TreeNode(SVector{K,T}(μ))])
     evotree = GBTree([bias], params, Metric(), K, levels)
 
     X_size = size(X)
@@ -47,9 +60,9 @@ function init_evotree(params::EvoTypes,
     𝑗_ = collect(1:X_size[2])
 
     # initialize gradients and weights
-    δ, δ² = zeros(SVector{evotree.K, Float32}, X_size[1]), zeros(SVector{evotree.K, Float32}, X_size[1])
-    𝑤 = zeros(SVector{1, Float32}, X_size[1])
-    𝑤_ini = SVector{1, Float32}(1)
+    δ, δ² = zeros(SVector{evotree.K, T}, X_size[1]), zeros(SVector{evotree.K, T}, X_size[1])
+    𝑤 = zeros(SVector{1, T}, X_size[1])
+    𝑤_ini = SVector{1, T}(1)
     for i in 1:length(𝑤)
         𝑤[i] += 𝑤_ini
     end
@@ -60,24 +73,24 @@ function init_evotree(params::EvoTypes,
 
 
     # initializde histograms
-    hist_δ = Vector{Matrix{SVector{evotree.K, Float32}}}(undef, 2^params.max_depth-1)
-    hist_δ² = Vector{Matrix{SVector{evotree.K, Float32}}}(undef, 2^params.max_depth-1)
-    hist_𝑤 = Vector{Matrix{SVector{1, Float32}}}(undef, 2^params.max_depth-1)
+    hist_δ = Vector{Matrix{SVector{evotree.K, T}}}(undef, 2^params.max_depth-1)
+    hist_δ² = Vector{Matrix{SVector{evotree.K, T}}}(undef, 2^params.max_depth-1)
+    hist_𝑤 = Vector{Matrix{SVector{1, T}}}(undef, 2^params.max_depth-1)
 
     # initialize train nodes
-    train_nodes = Vector{TrainNode{evotree.K, Float32, Int64}}(undef, 2^params.max_depth-1)
+    train_nodes = Vector{TrainNode{evotree.K, T, Int64}}(undef, 2^params.max_depth-1)
 
     for node in 1:2^params.max_depth-1
-        train_nodes[node] = TrainNode(0, 0, SVector{evotree.K, Float32}(fill(Float32(-Inf), evotree.K)), SVector{evotree.K, Float32}(fill(Float32(-Inf), evotree.K)), SVector{1, Float32}(fill(Float32(-Inf), 1)), Float32(-Inf), [0], [0])
+        train_nodes[node] = TrainNode(0, 0, SVector{evotree.K, T}(fill(T(-Inf), evotree.K)), SVector{evotree.K, T}(fill(T(-Inf), evotree.K)), SVector{1, T}(fill(T(-Inf), 1)), T(-Inf), [0], [0])
 
-        hist_δ[node] = zeros(SVector{evotree.K, Float32}, params.nbins, X_size[2])
-        hist_δ²[node] = zeros(SVector{evotree.K, Float32}, params.nbins, X_size[2])
-        hist_𝑤[node] = zeros(SVector{1, Float32}, params.nbins, X_size[2])
+        hist_δ[node] = zeros(SVector{evotree.K, T}, params.nbins, X_size[2])
+        hist_δ²[node] = zeros(SVector{evotree.K, T}, params.nbins, X_size[2])
+        hist_𝑤[node] = zeros(SVector{1, T}, params.nbins, X_size[2])
     end
 
-    splits = Vector{SplitInfo{evotree.K, Float32, Int64}}(undef, X_size[2])
+    splits = Vector{SplitInfo{evotree.K, T, Int64}}(undef, X_size[2])
     for feat in 𝑗_
-        splits[feat] = SplitInfo{evotree.K, Float32, Int}(Float32(-Inf), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{1, Float32}(zeros(1)), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{evotree.K, Float32}(zeros(evotree.K)), SVector{1, Float32}(zeros(1)), Float32(-Inf), Float32(-Inf), 0, feat, 0.0)
+        splits[feat] = SplitInfo{evotree.K, T, Int}(T(-Inf), SVector{evotree.K, T}(zeros(evotree.K)), SVector{evotree.K, T}(zeros(evotree.K)), SVector{1, T}(zeros(1)), SVector{evotree.K, T}(zeros(evotree.K)), SVector{evotree.K, T}(zeros(evotree.K)), SVector{1, T}(zeros(1)), T(-Inf), T(-Inf), 0, feat, 0.0)
     end
 
     cache = (params=deepcopy(params),
@@ -93,7 +106,7 @@ function init_evotree(params::EvoTypes,
 end
 
 
-function grow_evotree!(evotree::GBTree, cache; verbosity=1)
+function grow_evotree!(evotree::GBTree{L,T,S}, cache; verbosity=1) where {L,T,S}
 
     # initialize from cache
     params = evotree.params
@@ -110,7 +123,7 @@ function grow_evotree!(evotree::GBTree, cache; verbosity=1)
         𝑗 = cache.𝑗_[sample(cache.𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)]
         # reset gain to -Inf
         for feat in cache.𝑗_
-            splits[feat].gain = Float32(-Inf)
+            splits[feat].gain = T(-Inf)
         end
 
         # build a new tree
@@ -134,10 +147,10 @@ end
 # grow a single tree
 function grow_tree(δ, δ², 𝑤,
     hist_δ, hist_δ², hist_𝑤,
-    params::EvoTypes,
+    params::EvoTypes{T,U,S},
     train_nodes::Vector{TrainNode{L,T,S}},
     splits::Vector{SplitInfo{L,T,Int}},
-    edges, X_bin) where {R<:Real, T<:AbstractFloat, S<:Int, L}
+    edges, X_bin) where {T<:AbstractFloat, U, S, L}
 
     active_id = ones(Int, 1)
     leaf_count = one(Int)
@@ -150,7 +163,7 @@ function grow_tree(δ, δ², 𝑤,
         # grow nodes
         for id in active_id
             node = train_nodes[id]
-            if tree_depth == params.max_depth || node.∑𝑤[1] <= params.min_weight + 1e-12
+            if tree_depth == params.max_depth || node.∑𝑤[1] <= params.min_weight + 1e-8
                 push!(tree.nodes, TreeNode(pred_leaf(params.loss, node, params, δ²)))
             else
                 if id > 1 && id == tree.nodes[node.parent].right
