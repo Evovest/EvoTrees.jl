@@ -5,7 +5,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(1.25e5), 100)
+features = rand(Int(1.25e6), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -32,8 +32,10 @@ params1 = EvoTreeRegressor(
 # for 100k 100 rounds: 2.177 s (404031 allocations: 626.45 MiB)
 # for 1.25e6 no eval: 6.244 s (73955 allocations: 2.18 GiB)
 # for 1.25e6 mse with eval data:  6.345 s (74009 allocations: 2.18 GiB)
-@time model, cache = init_evotree(params1, X_train, Y_train);
-@time grow_evotree!(model, cache);
+@time model, cache = EvoTrees.init_evotree_gpu(params1, X_train, Y_train);
+@time EvoTrees.grow_evotree_gpu!(model, cache);
+@time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
+
 @time model = fit_evotree(params1, X_train, Y_train);
 @btime model = fit_evotree(params1, X_train, Y_train);
 @time pred_train = predict(model, X_train)

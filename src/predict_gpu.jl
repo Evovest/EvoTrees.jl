@@ -16,18 +16,17 @@ end
 
 # prediction from single tree - assign each observation to its final leaf
 function predict_gpu(tree::Tree_gpu, X::AbstractMatrix{T}, K) where T<:Real
-    pred = CUDA.zeros(size(X, 1))
+    pred = zeros(size(X, 1))
     predict_gpu!(pred, tree, X)
     return pred
 end
 
 # prediction from single tree - assign each observation to its final leaf
 function predict_gpu(model::GBTree_gpu, X::AbstractMatrix{T}) where T<:Real
-    pred = zeros(SVector{model.K,Float32}, size(X, 1))
+    pred = zeros(size(X, 1))
     for tree in model.trees
         predict_gpu!(pred, tree, X)
     end
-    pred = reinterpret(Float32, pred)
     if typeof(model.params.loss) == Logistic
         @. pred = sigmoid(pred)
     elseif typeof(model.params.loss) == Poisson
