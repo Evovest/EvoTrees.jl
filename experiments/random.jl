@@ -24,7 +24,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:none,
     nrounds=100,
-    λ = 0.0, γ=0.0, η=0.1,
+    λ = 1.0, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 
@@ -34,6 +34,8 @@ params1 = EvoTreeRegressor(
 # for 1.25e6 mse with eval data:  6.345 s (74009 allocations: 2.18 GiB)
 @time model, cache = EvoTrees.init_evotree_gpu(params1, X_train, Y_train);
 @time EvoTrees.grow_evotree_gpu!(model, cache);
+@time pred_train = EvoTrees.predict_gpu(model, Float32.(X_train))
+mean(pred_train)
 @time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
 
 @time model = fit_evotree(params1, X_train, Y_train);

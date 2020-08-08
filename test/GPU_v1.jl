@@ -1,6 +1,5 @@
 # using CUDA
-using CUDAnative
-using CuArrays
+using CUDA
 # using Flux
 # using GeometricFlux
 

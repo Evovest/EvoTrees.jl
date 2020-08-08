@@ -35,19 +35,19 @@ function init_evotree_gpu(params::EvoTypes,
     end
 
     # initialize preds
-    pred_cpu = zeros(Float32, X_size[1])
-    pred = CUDA.zeros(Float32, X_size[1])
+    pred_cpu = zeros(Float32, X_size[1], K)
+    pred = CUDA.zeros(Float32, X_size[1], K)
     fill!(pred_cpu, μ)
     CUDA.fill!(pred, μ)
 
-    bias = Tree_gpu([TreeNode_gpu(Float32(μ))])
+    bias = Tree_gpu([TreeNode_gpu([Float32(μ)])])
     evotree = GBTree_gpu([bias], params, Metric(), K, levels)
 
     𝑖_ = collect(1:X_size[1])
     𝑗_ = collect(1:X_size[2])
 
     # initialize gradients and weights
-    δ, δ² = CUDA.zeros(X_size[1]), CUDA.zeros(X_size[1])
+    δ, δ² = CUDA.zeros(X_size[1], K), CUDA.zeros(X_size[1], K)
     𝑤 = CUDA.ones(X_size[1])
 
     # binarize data into quantiles
@@ -56,23 +56,23 @@ function init_evotree_gpu(params::EvoTypes,
     X_bin = CuArray(Int.(X_bin_cpu)) # CuArray indexing not supporting UInt8
 
     # initializde histograms
-    hist_δ = [CUDA.zeros(params.nbins, X_size[2]) for i in 1:2^params.max_depth-1]
-    hist_δ² = [CUDA.zeros(params.nbins, X_size[2]) for i in 1:2^params.max_depth-1]
+    hist_δ = [CUDA.zeros(params.nbins, K, X_size[2]) for i in 1:2^params.max_depth-1]
+    hist_δ² = [CUDA.zeros(params.nbins, K, X_size[2]) for i in 1:2^params.max_depth-1]
     hist_𝑤 = [CUDA.zeros(params.nbins, X_size[2]) for i in 1:2^params.max_depth-1]
 
     # initialize train nodes
     train_nodes = Vector{TrainNode_gpu{Float32, Int64}}(undef, 2^params.max_depth-1)
     for node in 1:2^params.max_depth-1
-        train_nodes[node] = TrainNode_gpu(0, 0, Float32(-Inf), Float32(-Inf), Float32(-Inf), Float32(-Inf), [0], [0])
+        train_nodes[node] = TrainNode_gpu(0, 0, zeros(Float32, K), zeros(Float32, K), Float32(-Inf), Float32(-Inf), [0], [0])
     end
 
     splits = Vector{SplitInfo_gpu{Float32, Int64}}(undef, X_size[2])
     for feat in 𝑗_
-        splits[feat] = SplitInfo_gpu{Float32, Int}(Float32(-Inf), zero(Float32), zero(Float32), zero(Float32), zero(Float32), zero(Float32), zero(Float32), Float32(-Inf), Float32(-Inf), 0, feat, 0.0)
+        splits[feat] = SplitInfo_gpu{Float32, Int}(Float32(-Inf), zeros(Float32,K), zeros(Float32,K), zero(Float32), zeros(Float32,K), zeros(Float32,K), zero(Float32), Float32(-Inf), Float32(-Inf), 0, feat, 0.0)
     end
 
     cache = (params=deepcopy(params),
-        X=X, Y=Y,
+        X=X, Y=Y, K=K,
         pred=pred, pred_cpu=pred_cpu,
         𝑖_=𝑖_, 𝑗_=𝑗_, δ=δ, δ²=δ², 𝑤=𝑤,
         edges=edges,
@@ -107,12 +107,13 @@ function grow_evotree_gpu!(evotree::GBTree_gpu, cache; verbosity=1)
         end
 
         # build a new tree
-        update_grads_gpu!(params.loss, cache.pred, cache.Y, cache.δ, cache.δ², cache.𝑤)
-        ∑δ, ∑δ², ∑𝑤 = sum(cache.δ[𝑖]), sum(cache.δ²[𝑖]), sum(cache.𝑤[𝑖])
+        update_grads_gpu!(params.loss, cache.δ, cache.δ², cache.pred, cache.Y, cache.𝑤)
+        # to be fixed for Gaussian - needs to account for K columns
+        ∑δ, ∑δ², ∑𝑤 = Array(sum(cache.δ[𝑖], dims=1)), Array(sum(cache.δ²[𝑖], dims=1)), sum(cache.𝑤[𝑖])
         gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # # assign a root and grow tree
         train_nodes[1] = TrainNode_gpu(0, 1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
-        tree = grow_tree_gpu(cache.δ, cache.δ², cache.𝑤, cache.hist_δ, cache.hist_δ², cache.hist_𝑤, params, train_nodes, splits, cache.edges, cache.X_bin, cache.X_bin_cpu)
+        tree = grow_tree_gpu(cache.δ, cache.δ², cache.𝑤, cache.hist_δ, cache.hist_δ², cache.hist_𝑤, params, cache.K, train_nodes, splits, cache.edges, cache.X_bin, cache.X_bin_cpu)
         push!(evotree.trees, tree)
         # bad GPU usage - to be imprived!
         predict_gpu!(cache.pred_cpu, tree, cache.X)
@@ -129,10 +130,10 @@ end
 # grow a single tree
 function grow_tree_gpu(δ, δ², 𝑤,
     hist_δ, hist_δ², hist_𝑤,
-    params::EvoTypes,
+    params::EvoTypes, K,
     train_nodes::Vector{TrainNode_gpu{T,S}},
     splits::Vector{SplitInfo_gpu{T,Int}},
-    edges, X_bin, X_bin_cpu) where {R<:Real, T<:AbstractFloat, S<:Int, L}
+    edges, X_bin, X_bin_cpu) where {R<:Real, T<:AbstractFloat, S<:Int}
 
     active_id = ones(Int, 1)
     leaf_count = one(Int)
@@ -149,7 +150,7 @@ function grow_tree_gpu(δ, δ², 𝑤,
         # grow nodes
         for id in active_id
             node = train_nodes[id]
-            if tree_depth == params.max_depth || node.∑𝑤[1] <= params.min_weight + 1e-12 # rounding needed from histogram substraction
+            if tree_depth == params.max_depth || node.∑𝑤 <= params.min_weight + 1e-12 # rounding needed from histogram substraction
                 push!(tree.nodes, TreeNode_gpu(pred_leaf_gpu(params.loss, node, params, δ²)))
             else
                 if id > 1 && id == tree.nodes[node.parent].right
@@ -159,24 +160,30 @@ function grow_tree_gpu(δ, δ², 𝑤,
                     hist_𝑤[id] .= hist_𝑤[node.parent] .- hist_𝑤[id-1]
                 else
                     # println("id is left:", id)
-                    update_hist_gpu!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, node)
+                    # should revisite to launch all hist update within depth once since async - and then
+                    update_hist_gpu!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, CuVector(node.𝑖), CuVector(node.𝑗), K)
                 end
                 hist_δ_cpu .= hist_δ[id]
                 hist_δ²_cpu .= hist_δ²[id]
                 hist_𝑤_cpu .= hist_𝑤[id]
                 for j in node.𝑗
                     splits[j].gain = node.gain
-                    find_split_gpu!(view(hist_δ_cpu,:,j), view(hist_δ²_cpu,:,j), view(hist_𝑤_cpu,:,j), params, node, splits[j], edges[j])
+                    find_split_gpu!(view(hist_δ_cpu,:,:,j), view(hist_δ²_cpu,:,:,j), view(hist_𝑤_cpu,:,j), params, node, splits[j], edges[j])
                 end
 
                 best = get_max_gain_gpu(splits)
+                println("tree_depth: ", tree_depth, "id: ", id)
+                println("best: ", best)
+                println("hist_𝑤_cpu: ", hist_𝑤_cpu)
+                println("sum(hist_δ_cpu): ", sum(hist_δ_cpu))
+                println("sum(hist_δ²_cpu): ", sum(hist_δ²_cpu))
                 # grow node if best split improves gain
                 if best.gain > node.gain + params.γ
                     left, right = update_set(node.𝑖, best.𝑖, view(X_bin_cpu,:,best.feat))
                     # println("id: ∑𝑤/length(node/left/right) / ", id, " : ", node.∑𝑤, " / ", length(node.𝑖), " / ", length(left), " / ", length(right), " / ", best.𝑖)
                     train_nodes[leaf_count + 1] = TrainNode_gpu(id, node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, left, node.𝑗)
                     train_nodes[leaf_count + 2] = TrainNode_gpu(id, node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, right, node.𝑗)
-                    push!(tree.nodes, TreeNode_gpu(leaf_count + 1, leaf_count + 2, best.feat, best.cond, best.gain-node.gain))
+                    push!(tree.nodes, TreeNode_gpu(leaf_count + 1, leaf_count + 2, best.feat, best.cond, best.gain-node.gain, K))
                     push!(next_active_id, leaf_count + 1)
                     push!(next_active_id, leaf_count + 2)
                     leaf_count += 2

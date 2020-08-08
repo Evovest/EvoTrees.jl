@@ -14,6 +14,9 @@ Y = sigmoid(Y)
 𝑖 = collect(1:size(X,1))
 seed = 123
 
+# linear curve
+Y = 0.2 .* X + randn(size(Y)) ./ 10
+
 # train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
 train_size = 0.8
@@ -26,16 +29,18 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 # linear
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:none,
-    nrounds=100, nbins=64,
-    λ = 0.0, γ=0.0, η=0.05,
-    max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed = seed)
+    nrounds=1, nbins=10,
+    λ = 0.0, γ=0.0, η=1.0,
+    max_depth = 3, min_weight = 1.0,
+    rowsample=1.0, colsample=1.0, seed = seed)
 
 @time model, cache = EvoTrees.init_evotree_gpu(params1, X_train, Y_train);
 @time EvoTrees.grow_evotree_gpu!(model, cache);
-
 model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+
 pred_train_linear = EvoTrees.predict_gpu(model, X_train)
+pred_train_linear = reshape(pred_train_linear, :)
+mean(pred_train_linear)
 
 using Plots
 x_perm = sortperm(X_train[:,1])

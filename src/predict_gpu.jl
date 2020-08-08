@@ -10,20 +10,20 @@ function predict_gpu!(pred, tree::Tree_gpu, X::AbstractMatrix{T}) where {T<:Real
                 id = tree.nodes[id].right
             end
         end
-        pred[i] += tree.nodes[id].pred
+        @views pred[i,:] .+= tree.nodes[id].pred
     end
 end
 
 # prediction from single tree - assign each observation to its final leaf
 function predict_gpu(tree::Tree_gpu, X::AbstractMatrix{T}, K) where T<:Real
-    pred = zeros(size(X, 1))
+    pred = zeros(Float32, size(X, 1))
     predict_gpu!(pred, tree, X)
     return pred
 end
 
 # prediction from single tree - assign each observation to its final leaf
 function predict_gpu(model::GBTree_gpu, X::AbstractMatrix{T}) where T<:Real
-    pred = zeros(size(X, 1))
+    pred = zeros(Float32, size(X, 1), 1)
     for tree in model.trees
         predict_gpu!(pred, tree, X)
     end
@@ -46,5 +46,5 @@ end
 
 # prediction in Leaf - GradientRegression
 function pred_leaf_gpu(loss::S, node::TrainNode_gpu{T}, params::EvoTypes, δ²) where {S<:GradientRegression,T}
-    - params.η * node.∑δ / (node.∑δ² + params.λ * node.∑𝑤)
+    - params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤)
 end
