@@ -163,26 +163,24 @@ function grow_tree_gpu(δ, δ², 𝑤,
                     # should revisite to launch all hist update within depth once since async - and then
                     update_hist_gpu!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, CuVector(node.𝑖), CuVector(node.𝑗), K)
                 end
+
                 hist_δ_cpu .= hist_δ[id]
                 hist_δ²_cpu .= hist_δ²[id]
                 hist_𝑤_cpu .= hist_𝑤[id]
+
                 for j in node.𝑗
                     splits[j].gain = node.gain
                     find_split_gpu!(view(hist_δ_cpu,:,:,j), view(hist_δ²_cpu,:,:,j), view(hist_𝑤_cpu,:,j), params, node, splits[j], edges[j])
                 end
 
                 best = get_max_gain_gpu(splits)
-                println("tree_depth: ", tree_depth, "id: ", id)
-                println("best: ", best)
-                println("hist_𝑤_cpu: ", hist_𝑤_cpu)
-                println("sum(hist_δ_cpu): ", sum(hist_δ_cpu))
-                println("sum(hist_δ²_cpu): ", sum(hist_δ²_cpu))
+
                 # grow node if best split improves gain
                 if best.gain > node.gain + params.γ
                     left, right = update_set(node.𝑖, best.𝑖, view(X_bin_cpu,:,best.feat))
                     # println("id: ∑𝑤/length(node/left/right) / ", id, " : ", node.∑𝑤, " / ", length(node.𝑖), " / ", length(left), " / ", length(right), " / ", best.𝑖)
-                    train_nodes[leaf_count + 1] = TrainNode_gpu(id, node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, left, node.𝑗)
-                    train_nodes[leaf_count + 2] = TrainNode_gpu(id, node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, right, node.𝑗)
+                    train_nodes[leaf_count + 1] = TrainNode_gpu(id, node.depth + 1, copy(best.∑δL), copy(best.∑δ²L), best.∑𝑤L, best.gainL, left, node.𝑗)
+                    train_nodes[leaf_count + 2] = TrainNode_gpu(id, node.depth + 1, copy(best.∑δR), copy(best.∑δ²R), best.∑𝑤R, best.gainR, right, node.𝑗)
                     push!(tree.nodes, TreeNode_gpu(leaf_count + 1, leaf_count + 2, best.feat, best.cond, best.gain-node.gain, K))
                     push!(next_active_id, leaf_count + 1)
                     push!(next_active_id, leaf_count + 2)

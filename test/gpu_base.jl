@@ -4,6 +4,7 @@ using CUDA
 using Revise
 using EvoTrees
 using EvoTrees: sigmoid, logit
+using Plots
 
 # prepare a dataset
 features = rand(10_000) .* 5
@@ -15,7 +16,7 @@ Y = sigmoid(Y)
 seed = 123
 
 # linear curve
-Y = 0.2 .* X + randn(size(Y)) ./ 10
+# Y = 0.2 .* X + randn(size(Y)) ./ 10
 
 # train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
@@ -29,10 +30,10 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 # linear
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:none,
-    nrounds=1, nbins=10,
-    λ = 0.0, γ=0.0, η=1.0,
-    max_depth = 3, min_weight = 1.0,
-    rowsample=1.0, colsample=1.0, seed = seed)
+    nrounds=100, nbins=100,
+    λ = 0.2, γ=0.1, η=0.05,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0, seed = seed)
 
 @time model, cache = EvoTrees.init_evotree_gpu(params1, X_train, Y_train);
 @time EvoTrees.grow_evotree_gpu!(model, cache);
@@ -42,7 +43,6 @@ pred_train_linear = EvoTrees.predict_gpu(model, X_train)
 pred_train_linear = reshape(pred_train_linear, :)
 mean(pred_train_linear)
 
-using Plots
 x_perm = sortperm(X_train[:,1])
 plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "lightgray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
 plot!(X_train[:,1][x_perm], pred_train_linear[x_perm], color = "navy", linewidth = 1.5, label = "Linear")
