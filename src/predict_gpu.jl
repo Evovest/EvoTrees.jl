@@ -11,7 +11,6 @@ function predict_gpu!(pred, tree::Tree_gpu, X::AbstractMatrix{T}) where {T<:Real
             end
         end
         @views pred[i,:] .+= tree.nodes[id].pred
-        # pred[i] += tree.nodes[id].pred[1]
     end
 end
 
