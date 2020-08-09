@@ -5,7 +5,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(2.5e6), 100)
+features = rand(Int(1.25e6), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -37,6 +37,7 @@ params1 = EvoTreeRegressor(
 @time pred_train = EvoTrees.predict_gpu(model, Float32.(X_train))
 mean(pred_train)
 @time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
+@time model = fit_evotree(params1, X_train, Y_train);
 
 @time model = fit_evotree(params1, X_train, Y_train);
 @btime model = fit_evotree(params1, X_train, Y_train);
@@ -48,11 +49,12 @@ using XGBoost
 num_round = 100
 param = ["max_depth" => 5,
          "eta" => 0.05,
-         "objective" => "reg:linear",
+         "objective" => "reg:squarederror",
          "print_every_n" => 5,
          "subsample" => 0.5,
          "colsample_bytree" => 0.5,
          "tree_method" => "hist",
+         "nthread" => 16,
          "max_bin" => 32]
 metrics = ["rmse"]
 @time xgboost(X_train, num_round, label = Y_train, param = param, metrics=metrics, silent=1);

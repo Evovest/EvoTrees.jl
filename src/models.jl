@@ -12,6 +12,10 @@ struct Quantile <: QuantileRegression end
 struct Softmax <: MultiClassRegression end
 struct Gaussian <: GaussianRegression end
 
+# make a Random Number Generator object
+mk_rng(rng::Random.AbstractRNG) = rng
+mk_rng(rng::T) where T <: Integer = Random.MersenneTwister(rng)
+
 mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJModelInterface.Deterministic
     loss::U
     nrounds::S
@@ -41,7 +45,7 @@ function EvoTreeRegressor(;
     nbins=64,
     α=0.5,
     metric=:mse,
-    seed=444)
+    rng=444)
 
     if loss == :linear model_type = Linear()
     elseif loss == :logistic model_type = Logistic()
@@ -49,7 +53,9 @@ function EvoTreeRegressor(;
     elseif loss == :quantile model_type = Quantile()
     end
 
-    model = EvoTreeRegressor(model_type, nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
+    rng = mk_rng(rng)::Random.AbstractRNG
+
+    model = EvoTreeRegressor(model_type, nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, rng)
 
     return model
 end
@@ -85,6 +91,8 @@ function EvoTreeCount(;
     α=0.5,
     metric=:poisson,
     seed=444)
+
+    rng = mk_rng(rng)::Random.AbstractRNG
 
     if loss == :poisson model_type = Poisson() end
     model = EvoTreeCount(Poisson(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
@@ -124,6 +132,8 @@ function EvoTreeClassifier(;
     metric=:mlogloss,
     seed=444)
 
+    rng = mk_rng(rng)::Random.AbstractRNG
+
     if loss == :softmax model_type = Softmax() end
     model = EvoTreeClassifier(Softmax(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
 
@@ -162,6 +172,8 @@ function EvoTreeGaussian(;
     metric=:gaussian,
     seed=444)
 
+    rng = mk_rng(rng)::Random.AbstractRNG
+
     if loss == :gaussian model_type = Gaussian() end
     model = EvoTreeGaussian(Gaussian(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
 
@@ -184,6 +196,8 @@ function EvoTreeRModels(
     α,
     metric,
     seed)
+
+    rng = mk_rng(rng)::Random.AbstractRNG
 
     if loss ∈ [:linear, :L1, :logistic, :quantile]
         if loss == :linear model_type = Linear()
