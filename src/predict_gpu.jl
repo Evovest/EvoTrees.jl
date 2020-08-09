@@ -1,6 +1,7 @@
 # prediction from single tree - assign each observation to its final leaf
 function predict_gpu!(pred, tree::Tree_gpu, X::AbstractMatrix{T}) where {T<:Real}
     @inbounds @threads for i in 1:size(X,1)
+        K = length(tree.nodes[1].pred)
         id = 1
         x = view(X, i, :)
         @inbounds while tree.nodes[id].split
@@ -10,7 +11,11 @@ function predict_gpu!(pred, tree::Tree_gpu, X::AbstractMatrix{T}) where {T<:Real
                 id = tree.nodes[id].right
             end
         end
-        @views pred[i,:] .+= tree.nodes[id].pred
+        @inbounds for k in 1:K
+            pred[i,k] += tree.nodes[id].pred[k]
+        end
+        # @views performance much improived in Julia 1.5
+        # @views pred[i,:] .+= tree.nodes[id].pred
     end
 end
 

@@ -7,7 +7,7 @@ export init_evotree, grow_evotree!, grow_tree, fit_evotree, predict,
 using Statistics
 using Base.Threads: @threads
 using StatsBase: sample, quantile
-using Random: seed!
+using Random
 using StaticArrays
 using Distributions
 using CategoricalArrays

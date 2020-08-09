@@ -6,7 +6,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(1.25e6), 100)
+features = rand(Int(2.25e6), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -21,31 +21,13 @@ train_size = 0.8
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
-#######################
-# xgboost
-#######################
-num_round = 100
-param = ["max_depth" => 5,
-         "eta" => 0.05,
-         "objective" => "reg:linear",
-         "print_every_n" => 5,
-         "subsample" => 0.5,
-         "colsample_bytree" => 0.5,
-         "tree_method" => "hist",
-         "max_bin" => 32]
-metrics = ["rmse"]
-@time xgboost(X_train, num_round, label = Y_train, param = param, metrics=metrics, silent=1);
-@time dtrain = DMatrix(X_train, label = Y_train)
-@time model_xgb = xgboost(dtrain, num_round, param = param, metrics=metrics, silent=1);
-@time pred_train = XGBoost.predict(model_xgb, X_train)
-
-# train model
-config = EvoTreeRegressor(
+config = EvoTrees.EvoTreeRegressor3(T=Float32,
         loss=:linear, metric=:none,
         nrounds=100, α = 0.5,
         λ = 0.0, γ=0.0, η=0.05,
         max_depth = 6, min_weight = 1.0,
         rowsample=0.5, colsample=0.5, nbins=32)
+
 
 # for 1.25e5 init_evotree: 2.009 s 0.322925 seconds (2.53 k allocations: 167.345 MiB)
 # for 1.25e5 no eval iter 100: 2.009 s (628514 allocations: 720.62 MiB)

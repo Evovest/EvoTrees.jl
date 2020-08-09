@@ -1,12 +1,10 @@
 # initialise evotree
-function init_evotree_gpu(params::EvoTypes,
-    X::AbstractMatrix{R}, Y::AbstractVector{S}; verbosity=1) where {R,S}
-
-    seed!(params.seed)
-    X_size = size(X)
+function init_evotree_gpu(params::EvoTypes{T,U,S},
+    X::AbstractMatrix, Y::AbstractVector; verbosity=1) where {T,U,S}
 
     K = 1
     levels = ""
+    X = convert(Matrix{T}, X)
     if typeof(params.loss) == Logistic
         Y = Float32.(Y)
         μ = logit(mean(Y))
@@ -35,6 +33,7 @@ function init_evotree_gpu(params::EvoTypes,
     end
 
     # initialize preds
+    X_size = size(X)
     pred_cpu = zeros(Float32, X_size[1], K)
     pred = CUDA.zeros(Float32, X_size[1], K)
     fill!(pred_cpu, μ)
@@ -99,8 +98,8 @@ function grow_evotree_gpu!(evotree::GBTree_gpu, cache; verbosity=1)
     for i in 1:δnrounds
 
         # select random rows and cols
-        𝑖 = cache.𝑖_[sample(cache.𝑖_, ceil(Int, params.rowsample * X_size[1]), replace=false, ordered=true)]
-        𝑗 = cache.𝑗_[sample(cache.𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)]
+        𝑖 = cache.𝑖_[sample(params.rng, cache.𝑖_, ceil(Int, params.rowsample * X_size[1]), replace=false, ordered=true)]
+        𝑗 = cache.𝑗_[sample(params.rng, cache.𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)]
         # reset gain to -Inf
         for feat in cache.𝑗_
             splits[feat].gain = Float32(-Inf)

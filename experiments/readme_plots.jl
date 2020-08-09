@@ -1,6 +1,7 @@
 using BenchmarkTools
 using Statistics
 using StatsBase: sample, quantile
+using Distributions
 using Plots
 using Revise
 using EvoTrees
@@ -27,8 +28,8 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 # linear
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:mse,
-    nrounds=100, nbins = 100,
-    λ = 0.5, γ=0.1, η=0.05,
+    nrounds=100, nbins = 64,
+    λ = 0.5, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
@@ -49,8 +50,8 @@ sqrt(mean((pred_train_linear .- Y_train) .^ 2))
 # logistic / cross-entropy
 params1 = EvoTreeRegressor(
     loss=:logistic, metric = :logloss,
-    nrounds=100, nbins = 32,
-    λ = 0.5, γ=0.1, η=0.05,
+    nrounds=100, nbins = 64,
+    λ = 0.5, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
@@ -64,8 +65,8 @@ sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
 # Poisson
 params1 = EvoTreeCount(
     loss=:poisson, metric = :poisson,
-    nrounds=100, nbins = 100,
-    λ = 0.5, γ=0.1, η=0.05,
+    nrounds=200, nbins = 64,
+    λ = 0.5, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
@@ -77,8 +78,8 @@ sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
 # L1
 params1 = EvoTreeRegressor(
     loss=:L1, α=0.5, metric = :mae,
-    nrounds=100, nbins=100,
-    λ = 0.5, γ=0.1, η=0.05,
+    nrounds=200, nbins=64,
+    λ = 0.5, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
@@ -87,11 +88,11 @@ params1 = EvoTreeRegressor(
 sqrt(mean((pred_train_L1 .- Y_train) .^ 2))
 
 x_perm = sortperm(X_train[:,1])
-plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "lightgray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
-plot!(X_train[:,1][x_perm], pred_train_linear[x_perm], color = "navy", linewidth = 1.5, label = "Linear")
-plot!(X_train[:,1][x_perm], pred_train_logistic[x_perm], color = "darkred", linewidth = 1.5, label = "Logistic")
-plot!(X_train[:,1][x_perm], pred_train_poisson[x_perm], color = "green", linewidth = 1.5, label = "Poisson")
-plot!(X_train[:,1][x_perm], pred_train_L1[x_perm], color = "gold", linewidth = 1.5, label = "L1")
+plot(X_train, Y_train, msize = 1, mcolor = "gray", mswidth=0, background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot!(X_train[:,1][x_perm], pred_train_linear[x_perm], color = "navy", linewidth = 1, label = "Linear")
+plot!(X_train[:,1][x_perm], pred_train_logistic[x_perm], color = "darkred", linewidth = 1, label = "Logistic")
+plot!(X_train[:,1][x_perm], pred_train_poisson[x_perm], color = "green", linewidth = 1, label = "Poisson")
+plot!(X_train[:,1][x_perm], pred_train_L1[x_perm], color = "pink", linewidth = 1, label = "L1")
 savefig("regression_sinus.png")
 
 ###############################
@@ -100,7 +101,7 @@ savefig("regression_sinus.png")
 # q50
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.5, metric=:quantile,
-    nrounds=200, nbins = 100,
+    nrounds=200, nbins = 64,
     λ = 0.2, γ=1e-3, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
@@ -114,7 +115,7 @@ sum(pred_train_q50 .< Y_train) / length(Y_train)
 # q20
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.2, metric=:quantile,
-    nrounds=200, nbins = 100,
+    nrounds=200, nbins = 64,
     λ = 0.2, γ=1e-3, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
@@ -125,9 +126,9 @@ sum(pred_train_q20 .< Y_train) / length(Y_train)
 # q80
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.8, metric=:quantile,
-    nrounds=200, nbins = 100,
+    nrounds=200, nbins = 64,
     λ = 0.2, γ=1e-3, η=0.05,
-    max_depth = 6, min_weight = 100.0,
+    max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
@@ -135,8 +136,40 @@ params1 = EvoTreeRegressor(
 sum(pred_train_q80 .< Y_train) / length(Y_train)
 
 x_perm = sortperm(X_train[:,1])
-plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "lightgray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot(X_train, Y_train, ms = 1, mcolor = "gray", mswidth=0, background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
 plot!(X_train[:,1][x_perm], pred_train_q50[x_perm], color = "navy", linewidth = 1.5, label = "Median")
 plot!(X_train[:,1][x_perm], pred_train_q20[x_perm], color = "darkred", linewidth = 1.5, label = "Q20")
 plot!(X_train[:,1][x_perm], pred_train_q80[x_perm], color = "green", linewidth = 1.5, label = "Q80")
 savefig("quantiles_sinus.png")
+
+
+
+###############################
+## gaussian
+###############################
+params1 = EvoTreeGaussian(
+    loss=:gaussian, metric=:gaussian,
+    nrounds=200, nbins=64,
+    λ = 0.1, γ=0.1, η=0.1,
+    max_depth = 5, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0, rng=123)
+
+@time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n = 10);
+# @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
+@time pred_train = EvoTrees.predict(model, X_train)
+@time pred_train_gauss = EvoTrees.predict(params1, model, X_train)
+
+pred_gauss = [Distributions.Normal(pred_train[i,1], pred_train[i,2]) for i in 1:size(pred_train,1)]
+pred_q80 = quantile.(pred_gauss, 0.8)
+pred_q20 = quantile.(pred_gauss, 0.2)
+
+mean(Y_train .< pred_q80)
+mean(Y_train .< pred_q20)
+
+x_perm = sortperm(X_train[:,1])
+plot(X_train[:, 1], Y_train, ms = 1, mcolor = "gray", mswidth=0, background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot!(X_train[:,1][x_perm], pred_train[x_perm, 1], color = "navy", linewidth = 1.5, label = "mu")
+plot!(X_train[:,1][x_perm], pred_train[x_perm, 2], color = "red", linewidth = 1.5, label = "sigma")
+plot!(X_train[:,1][x_perm], pred_q20[x_perm, 1], color = "green", linewidth = 1.5, label = "q20")
+plot!(X_train[:,1][x_perm], pred_q80[x_perm, 1], color = "green", linewidth = 1.5, label = "q80")
+savefig("gaussian_sinus.png")

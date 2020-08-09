@@ -35,9 +35,11 @@ function get_gain(loss::S, ∑δ::AbstractVector{T}, ∑δ²::AbstractVector{T},
 end
 
 
+################################################################################
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
+################################################################################
 function kernel_gauss_δ!(δ::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, t::CuDeviceVector{T}, 𝑤::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(t)
