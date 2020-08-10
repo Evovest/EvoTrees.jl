@@ -29,7 +29,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 ################################
 # linear
 ################################
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(T=Float32,
     loss=:linear, metric=:none,
     nrounds=200, nbins = 64,
     λ = 0.5, γ=0.1, η=0.1,

@@ -1,5 +1,5 @@
 # prediction from single tree - assign each observation to its final leaf
-function predict_gpu!(pred::AbstractMatrix, tree::Tree_gpu, X::AbstractMatrix{T}) where {T<:Real}
+function predict_gpu!(pred::AbstractMatrix{T}, tree::Tree_gpu{T,S}, X::AbstractMatrix) where {T,S}
     @inbounds @threads for i in 1:size(X,1)
         K = length(tree.nodes[1].pred)
         id = 1
@@ -20,16 +20,16 @@ function predict_gpu!(pred::AbstractMatrix, tree::Tree_gpu, X::AbstractMatrix{T}
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict_gpu(tree::Tree_gpu, X::AbstractMatrix{T}, K) where T<:Real
-    pred = zeros(Float32, size(X, 1), K)
+function predict_gpu(tree::Tree_gpu{T,S}, X::AbstractMatrix, K) where {T,S}
+    pred = zeros(T, size(X, 1), K)
     predict_gpu!(pred, tree, X)
     return pred
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict_gpu(model::GBTree_gpu, X::AbstractMatrix{T}) where T<:Real
+function predict_gpu(model::GBTree_gpu{T,S}, X::AbstractMatrix) where {T,S}
     K = length(model.trees[1].nodes[1].pred)
-    pred = zeros(Float32, size(X, 1), K)
+    pred = zeros(T, size(X, 1), K)
     for tree in model.trees
         predict_gpu!(pred, tree, X)
     end

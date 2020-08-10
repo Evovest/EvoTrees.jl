@@ -6,36 +6,36 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     levels = ""
     X = convert(Matrix{T}, X)
     if typeof(params.loss) == Logistic
-        Y = Float32.(Y)
+        Y = T.(Y)
         μ = logit(mean(Y))
     elseif typeof(params.loss) == Poisson
-        Y = Float32.(Y)
+        Y = T.(Y)
         μ = fill(log(mean(Y)), 1)
     elseif typeof(params.loss) == Softmax
         if typeof(Y) <: AbstractCategoricalVector
             levels = CategoricalArray(CategoricalArrays.levels(Y))
             K = length(levels)
-            μ = zeros(Float32, K)
+            μ = zeros(T, K)
             Y = MLJModelInterface.int.(Y)
         else
             levels = CategoricalArray(sort(unique(Y)))
             K = length(levels)
-            μ = zeros(Float32, K)
+            μ = zeros(T, K)
             Y = UInt32.(Y)
         end
     elseif typeof(params.loss) == Gaussian
         K = 2
-        Y = CuArray(Float32.(Y))
+        Y = CuArray(T.(Y))
         μ = [mean(Y), log(std(Y))]
     else
-        Y = CuArray(Float32.(Y))
+        Y = CuArray(T.(Y))
         μ = [mean(Y)]
     end
 
     # initialize preds
     X_size = size(X)
-    pred_cpu = zeros(Float32, X_size[1], K)
-    pred = CUDA.zeros(Float32, X_size[1], K)
+    pred_cpu = zeros(T, X_size[1], K)
+    pred = CUDA.zeros(T, X_size[1], K)
     pred_cpu .= μ'
     pred .= CuArray(μ)'
 
@@ -46,8 +46,8 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     𝑗_ = collect(1:X_size[2])
 
     # initialize gradients and weights
-    δ, δ² = CUDA.zeros(X_size[1], K), CUDA.zeros(X_size[1], K)
-    𝑤 = CUDA.ones(X_size[1])
+    δ, δ² = CUDA.zeros(T, X_size[1], K), CUDA.zeros(T, X_size[1], K)
+    𝑤 = CUDA.ones(T, X_size[1])
 
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
@@ -55,19 +55,19 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     X_bin = CuArray(Int.(X_bin_cpu)) # CuArray indexing not supporting UInt8
 
     # initializde histograms
-    hist_δ = [CUDA.zeros(params.nbins, K, X_size[2]) for i in 1:2^params.max_depth-1]
-    hist_δ² = [CUDA.zeros(params.nbins, K, X_size[2]) for i in 1:2^params.max_depth-1]
-    hist_𝑤 = [CUDA.zeros(params.nbins, X_size[2]) for i in 1:2^params.max_depth-1]
+    hist_δ = [CUDA.zeros(T, params.nbins, K, X_size[2]) for i in 1:2^params.max_depth-1]
+    hist_δ² = [CUDA.zeros(T, params.nbins, K, X_size[2]) for i in 1:2^params.max_depth-1]
+    hist_𝑤 = [CUDA.zeros(T, params.nbins, X_size[2]) for i in 1:2^params.max_depth-1]
 
     # initialize train nodes
-    train_nodes = Vector{TrainNode_gpu{Float32, Int64}}(undef, 2^params.max_depth-1)
+    train_nodes = Vector{TrainNode_gpu{T, Int64}}(undef, 2^params.max_depth-1)
     for node in 1:2^params.max_depth-1
-        train_nodes[node] = TrainNode_gpu(0, 0, zeros(Float32, K), zeros(Float32, K), Float32(-Inf), Float32(-Inf), [0], [0])
+        train_nodes[node] = TrainNode_gpu(0, 0, zeros(T, K), zeros(T, K), T(-Inf), T(-Inf), [0], [0])
     end
 
-    splits = Vector{SplitInfo_gpu{Float32, Int64}}(undef, X_size[2])
+    splits = Vector{SplitInfo_gpu{T, Int64}}(undef, X_size[2])
     for feat in 𝑗_
-        splits[feat] = SplitInfo_gpu{Float32, Int}(Float32(-Inf), zeros(Float32,K), zeros(Float32,K), zero(Float32), zeros(Float32,K), zeros(Float32,K), zero(Float32), Float32(-Inf), Float32(-Inf), 0, feat, 0.0)
+        splits[feat] = SplitInfo_gpu{T, Int}(T(-Inf), zeros(T,K), zeros(T,K), zero(T), zeros(T,K), zeros(T,K), zero(T), T(-Inf), T(-Inf), 0, feat, 0.0)
     end
 
     cache = (params=deepcopy(params),
@@ -85,7 +85,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
 end
 
 
-function grow_evotree_gpu!(evotree::GBTree_gpu, cache; verbosity=1)
+function grow_evotree_gpu!(evotree::GBTree_gpu{T,S}, cache; verbosity=1) where {T,S}
 
     # initialize from cache
     params = evotree.params
@@ -102,7 +102,7 @@ function grow_evotree_gpu!(evotree::GBTree_gpu, cache; verbosity=1)
         𝑗 = cache.𝑗_[sample(params.rng, cache.𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)]
         # reset gain to -Inf
         for feat in cache.𝑗_
-            splits[feat].gain = Float32(-Inf)
+            splits[feat].gain = T(-Inf)
         end
 
         # build a new tree
@@ -129,10 +129,10 @@ end
 # grow a single tree
 function grow_tree_gpu(δ, δ², 𝑤,
     hist_δ, hist_δ², hist_𝑤,
-    params::EvoTypes, K,
+    params::EvoTypes{T,U,S}, K,
     train_nodes::Vector{TrainNode_gpu{T,S}},
     splits::Vector{SplitInfo_gpu{T,Int}},
-    edges, X_bin, X_bin_cpu) where {R<:Real, T<:AbstractFloat, S<:Int}
+    edges, X_bin, X_bin_cpu) where {T,U,S}
 
     active_id = ones(Int, 1)
     leaf_count = one(Int)
