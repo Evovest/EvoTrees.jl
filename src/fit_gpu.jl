@@ -6,10 +6,12 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     levels = ""
     X = convert(Matrix{T}, X)
     if typeof(params.loss) == Logistic
-        Y = T.(Y)
-        μ = logit(mean(Y))
+        Y_cpu = T.(Y)
+        Y = CuArray(Y_cpu)
+        μ = [logit(mean(Y))]
     elseif typeof(params.loss) == Poisson
-        Y = T.(Y)
+        Y_cpu = T.(Y)
+        Y = CuArray(Y_cpu)
         μ = fill(log(mean(Y)), 1)
     elseif typeof(params.loss) == Softmax
         if typeof(Y) <: AbstractCategoricalVector
@@ -25,10 +27,12 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
         end
     elseif typeof(params.loss) == Gaussian
         K = 2
-        Y = CuArray(T.(Y))
+        Y_cpu = T.(Y)
+        Y = CuArray(Y_cpu)
         μ = [mean(Y), log(std(Y))]
     else
-        Y = CuArray(T.(Y))
+        Y_cpu = T.(Y)
+        Y = CuArray(Y_cpu)
         μ = [mean(Y)]
     end
 
@@ -71,7 +75,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     end
 
     cache = (params=deepcopy(params),
-        X=X, Y=Y, K=K,
+        X=X, Y=Y, Y_cpu=Y_cpu, K=K,
         pred=pred, pred_cpu=pred_cpu,
         𝑖_=𝑖_, 𝑗_=𝑗_, δ=δ, δ²=δ², 𝑤=𝑤,
         edges=edges,
@@ -236,7 +240,7 @@ function fit_evotree_gpu(params, X_train, Y_train;
                 predict_gpu!(pred_eval, model.trees[model.params.nrounds+1], X_eval)
                 metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, params.α)
             else
-                metric_track.metric = eval_metric(Val{params.metric}(), cache.pred, cache.Y, params.α)
+                metric_track.metric = eval_metric(Val{params.metric}(), cache.pred_cpu, cache.Y_cpu, params.α)
             end
             if metric_track.metric < metric_best.metric
                 metric_best.metric = metric_track.metric

@@ -80,6 +80,7 @@ params1 = EvoTreeGaussian(
     λ = 0.0, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 10.0,
     rowsample=0.5, colsample=1.0, rng = seed)
+model = fit_evotree(params1, X_train, Y_train, print_every_n = 25)
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_gaussian = predict(model, X_train)
 

@@ -26,7 +26,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 #############################
 params1 = EvoTreeRegressor(T=Float32,
     loss=:linear, metric=:none,
-    nrounds=200,
+    nrounds=100,
     λ = 1.0, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=64)
@@ -41,7 +41,19 @@ params1 = EvoTreeRegressor(T=Float32,
 @time gain = importance(model, 1:100)
 
 #############################
-# CPU - linear
+# CPU - Logistic
+#############################
+params1 = EvoTreeGaussian(T=Float32,
+    loss=:logistic, metric=:none,
+    nrounds=100,
+    λ = 1.0, γ=0.1, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=0.5, nbins=64)
+@time model = fit_evotree(params1, X_train, Y_train);
+@time pred = predict(model, X_train);
+
+#############################
+# CPU - Gaussian
 #############################
 params1 = EvoTreeGaussian(T=Float64,
     loss=:gaussian, metric=:none,
@@ -52,7 +64,7 @@ params1 = EvoTreeGaussian(T=Float64,
 @time model = fit_evotree(params1, X_train, Y_train);
 
 ################################
-# GPU
+# GPU - Linear
 ################################
 # train model
 params1 = EvoTreeRegressor(T=Float64,
@@ -69,6 +81,19 @@ params1 = EvoTreeRegressor(T=Float64,
 # X_train_32 = Float32.(X_train)
 @time pred_train = EvoTrees.predict_gpu(model, X_train)
 mean(pred_train)
+
+################################
+# GPU - Logistic
+################################
+# train model
+params1 = EvoTreeRegressor(T=Float64,
+    loss=:logistic, metric=:none,
+    nrounds=100,
+    λ = 1.0, γ=0.1, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=0.5, nbins=32)
+@time model = fit_evotree_gpu(params1, X_train, Y_train);
+@time pred_train = predict_gpu(model, X_train)
 
 ################################
 # GPU - Gaussian
