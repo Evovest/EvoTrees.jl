@@ -112,7 +112,7 @@ mean(abs.(pred_test - selectrows(Y,test)))
 
 Minimal example to fit a noisy sinus wave.
 
-![](regression_sinus.png)
+![](figures/regression_sinus.png)
 
 ```julia
 using EvoTrees
@@ -177,7 +177,7 @@ pred_eval_L1 = predict(model, X_eval)
 
 ## Quantile Regression
 
-![](quantiles_sinus.png)
+![](figures/quantiles_sinus.png)
 
 ```julia
 # q50
@@ -213,7 +213,7 @@ pred_train_q80 = predict(model, X_train)
 
 ## Gaussian Max Likelihood
 
-![](gaussian_sinus.png)
+![](figures/gaussian_sinus.png)
 
 ```julia
 params1 = EvoTreeGaussian(

@@ -1,5 +1,5 @@
 # prediction from single tree - assign each observation to its final leaf
-function predict_gpu!(pred, tree::Tree_gpu, X::AbstractMatrix{T}) where {T<:Real}
+function predict_gpu!(pred::AbstractMatrix, tree::Tree_gpu, X::AbstractMatrix{T}) where {T<:Real}
     @inbounds @threads for i in 1:size(X,1)
         K = length(tree.nodes[1].pred)
         id = 1
@@ -21,14 +21,15 @@ end
 
 # prediction from single tree - assign each observation to its final leaf
 function predict_gpu(tree::Tree_gpu, X::AbstractMatrix{T}, K) where T<:Real
-    pred = zeros(Float32, size(X, 1))
+    pred = zeros(Float32, size(X, 1), K)
     predict_gpu!(pred, tree, X)
     return pred
 end
 
 # prediction from single tree - assign each observation to its final leaf
 function predict_gpu(model::GBTree_gpu, X::AbstractMatrix{T}) where T<:Real
-    pred = zeros(Float32, size(X, 1), 1)
+    K = length(model.trees[1].nodes[1].pred)
+    pred = zeros(Float32, size(X, 1), K)
     for tree in model.trees
         predict_gpu!(pred, tree, X)
     end
@@ -37,7 +38,6 @@ function predict_gpu(model::GBTree_gpu, X::AbstractMatrix{T}) where T<:Real
     elseif typeof(model.params.loss) == Poisson
         @. pred = exp(pred)
     elseif typeof(model.params.loss) == Gaussian
-        pred = transpose(reshape(pred, 2, :))
         pred[:,2] = exp.(pred[:,2])
     elseif typeof(model.params.loss) == Softmax
         pred = transpose(reshape(pred, model.K, :))
@@ -51,5 +51,10 @@ end
 
 # prediction in Leaf - GradientRegression
 function pred_leaf_gpu(loss::S, node::TrainNode_gpu{T}, params::EvoTypes, δ²) where {S<:GradientRegression,T}
+    - params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤)
+end
+
+# prediction in Leaf - GaussianRegression
+function pred_leaf_gpu(loss::S, node::TrainNode_gpu{T}, params::EvoTypes, δ²) where {S<:GaussianRegression,T}
     - params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤)
 end

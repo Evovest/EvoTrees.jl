@@ -25,21 +25,21 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
         end
     elseif typeof(params.loss) == Gaussian
         K = 2
-        Y = Float32.(Y)
-        μ =[mean(Y), log(var(Y))]
+        Y = CuArray(Float32.(Y))
+        μ = [mean(Y), log(std(Y))]
     else
         Y = CuArray(Float32.(Y))
-        μ = mean(Y)
+        μ = [mean(Y)]
     end
 
     # initialize preds
     X_size = size(X)
     pred_cpu = zeros(Float32, X_size[1], K)
     pred = CUDA.zeros(Float32, X_size[1], K)
-    fill!(pred_cpu, μ)
-    CUDA.fill!(pred, μ)
+    pred_cpu .= μ'
+    pred .= CuArray(μ)'
 
-    bias = Tree_gpu([TreeNode_gpu([Float32(μ)])])
+    bias = Tree_gpu([TreeNode_gpu(μ)])
     evotree = GBTree_gpu([bias], params, Metric(), K, levels)
 
     𝑖_ = collect(1:X_size[1])
@@ -107,8 +107,8 @@ function grow_evotree_gpu!(evotree::GBTree_gpu, cache; verbosity=1)
 
         # build a new tree
         update_grads_gpu!(params.loss, cache.δ, cache.δ², cache.pred, cache.Y, cache.𝑤)
-        # to be fixed for Gaussian - needs to account for K columns
-        ∑δ, ∑δ², ∑𝑤 = Array(sum(cache.δ[𝑖], dims=1)), Array(sum(cache.δ²[𝑖], dims=1)), sum(cache.𝑤[𝑖])
+        # sum Gradients of each of the K parameters and bring to CPU
+        ∑δ, ∑δ², ∑𝑤 = Vector(vec(sum(cache.δ[𝑖,:], dims=1))), Vector(vec(sum(cache.δ²[𝑖,:], dims=1))), sum(cache.𝑤[𝑖])
         gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # # assign a root and grow tree
         train_nodes[1] = TrainNode_gpu(0, 1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)

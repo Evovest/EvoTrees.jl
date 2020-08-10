@@ -1,5 +1,7 @@
 using Statistics
 using StatsBase: sample
+using Distributions
+using Random
 using CUDA
 using Revise
 using EvoTrees
@@ -7,16 +9,13 @@ using EvoTrees: sigmoid, logit
 using Plots
 
 # prepare a dataset
+Random.seed!(123)
 features = rand(10_000) .* 5
 X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5
 Y = logit(Y) + randn(size(Y))
 Y = sigmoid(Y)
 𝑖 = collect(1:size(X,1))
-seed = 123
-
-# linear curve
-# Y = 0.2 .* X + randn(size(Y)) ./ 10
 
 # train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
@@ -27,77 +26,49 @@ train_size = 0.8
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
+################################
 # linear
+################################
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:none,
-    nrounds=100, nbins=100,
-    λ = 0.2, γ=0.1, η=0.05,
+    nrounds=200, nbins = 64,
+    λ = 0.5, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed = seed)
+    rowsample=0.5, colsample=1.0)
 
-@time model, cache = EvoTrees.init_evotree_gpu(params1, X_train, Y_train);
-@time EvoTrees.grow_evotree_gpu!(model, cache);
-model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-
-pred_train_linear = EvoTrees.predict_gpu(model, X_train)
-pred_train_linear = reshape(pred_train_linear, :)
-mean(pred_train_linear)
+@time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
+@time pred_train_linear = EvoTrees.predict_gpu(model, X_train)
 
 x_perm = sortperm(X_train[:,1])
-plot(X_train, Y_train, ms = 1, mcolor = "gray", mscolor = "lightgray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot(X_train, Y_train, msize = 1, mcolor = "gray", mswidth=0, background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
 plot!(X_train[:,1][x_perm], pred_train_linear[x_perm], color = "navy", linewidth = 1.5, label = "Linear")
+# savefig("figures/regression_sinus_gpu.png")
 
-p1 = EvoTrees.predict(model, X_eval)
-mean(abs.(p1 - Y_eval))
 
-# logistic / cross-entropy
-params1 = EvoTreeRegressor(
-    loss=:logistic, metric=:logloss,
-    nrounds=100,
-    λ = 0.5, γ=0.1, η=0.05,
-    max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed = seed)
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_train_logistic = predict(model, X_train)
-
-# Poisson
-params1 = EvoTreeCount(
-    loss=:poisson, metric=:poisson,
-    nrounds=100,
-    λ = 0.5, γ=0.1, η=0.05,
-    max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed = seed)
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_train_poisson = predict(model, X_train)
-
-# L1
-params1 = EvoTreeRegressor(
-    loss=:L1, α=0.5, metric=:mae,
-    nrounds=100, nbins=100,
-    λ = 0.5, γ=0.0, η=0.05,
-    max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed = seed)
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_train_L1 = predict(model, X_train)
-
-# Quantiles
-params1 = EvoTreeRegressor(
-    loss=:quantile, α=0.5, metric = :quantile,
-    nrounds=100, nbins=100,
-    λ = 0.5, γ=0.0, η=0.05,
-    max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed = seed)
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_train_poisson = predict(model, X_train)
-
+################################
 # Gaussian
-params1 = EvoTreeGaussian(
-    loss=:gaussian, α=0.5, metric = :gaussian,
-    nrounds=100, nbins=100,
-    λ = 0.0, γ=0.0, η=0.05,
-    max_depth = 6, min_weight = 10.0,
-    rowsample=0.5, colsample=1.0, seed = seed)
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_train_gaussian = predict(model, X_train)
+################################
+params1 = EvoTreeGaussian(T=Float32,
+    loss=:gaussian, metric=:none,
+    nrounds=200, nbins=64,
+    λ = 1.0, γ=0.1, η=0.1,
+    max_depth = 5, min_weight = 100.0,
+    rowsample=0.5, colsample=1.0, rng=123)
 
-features_gain = importance(model, 1:1)
+@time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
+@time pred_train_gauss = EvoTrees.predict_gpu(model, X_train)
+
+pred_gauss = [Distributions.Normal(pred_train_gauss[i,1], pred_train_gauss[i,2]) for i in 1:size(pred_train_gauss,1)]
+pred_q80 = quantile.(pred_gauss, 0.8)
+pred_q20 = quantile.(pred_gauss, 0.2)
+
+mean(Y_train .< pred_q80)
+mean(Y_train .< pred_q20)
+
+x_perm = sortperm(X_train[:,1])
+plot(X_train[:, 1], Y_train, ms = 1, mcolor = "gray", mswidth=0, background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
+plot!(X_train[:,1][x_perm], pred_train_gauss[x_perm, 1], color = "navy", linewidth = 1.5, label = "mu")
+plot!(X_train[:,1][x_perm], pred_train_gauss[x_perm, 2], color = "darkred", linewidth = 1.5, label = "sigma")
+plot!(X_train[:,1][x_perm], pred_q20[x_perm, 1], color = "green", linewidth = 1.5, label = "q20")
+plot!(X_train[:,1][x_perm], pred_q80[x_perm, 1], color = "green", linewidth = 1.5, label = "q80")
+# savefig("figures/gaussian_sinus_gpu.png")

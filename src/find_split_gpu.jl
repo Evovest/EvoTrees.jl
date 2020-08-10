@@ -11,7 +11,7 @@ function hist_kernel!(h::CuDeviceArray{T,3}, x::CuDeviceMatrix{T}, id, 𝑖, �
     return
 end
 
-# for 2D input like 𝑤
+# for 2D input: 𝑤
 function hist_kernel!(h::CuDeviceMatrix{T}, x::CuDeviceVector{T}, id, 𝑖, 𝑗) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
@@ -58,11 +58,11 @@ function find_split_gpu!(hist_δ::AbstractMatrix{T}, hist_δ²::AbstractMatrix{T
     # println("hist_δ²: ", hist_δ²)
 
     @inbounds for bin in 1:(length(hist_δ)-1)
-        ∑δL .+= hist_δ[bin,:]
-        ∑δ²L .+= hist_δ²[bin,:]
+        @views ∑δL .+= hist_δ[bin,:]
+        @views ∑δ²L .+= hist_δ²[bin,:]
         ∑𝑤L += hist_𝑤[bin]
-        ∑δR .-= hist_δ[bin,:]
-        ∑δ²R .-= hist_δ²[bin,:]
+        @views ∑δR .-= hist_δ[bin,:]
+        @views ∑δ²R .-= hist_δ²[bin,:]
         ∑𝑤R -= hist_𝑤[bin]
 
         # println("∑δ²L: ", ∑δ²L, " | ∑δ²R:", ∑δ²R, " | hist_δ²[bin,:]: ", hist_δ²[bin,:])
@@ -74,11 +74,11 @@ function find_split_gpu!(hist_δ::AbstractMatrix{T}, hist_δ²::AbstractMatrix{T
             info.gain = gain
             info.gainL = gainL
             info.gainR = gainR
-            info.∑δL .= ∑δL
-            info.∑δ²L .= ∑δ²L
+            @views info.∑δL .= ∑δL
+            @views info.∑δ²L .= ∑δ²L
             info.∑𝑤L = ∑𝑤L
-            info.∑δR .= ∑δR
-            info.∑δ²R .= ∑δ²R
+            @views info.∑δR .= ∑δR
+            @views info.∑δ²R .= ∑δ²R
             info.∑𝑤R = ∑𝑤R
             info.cond = edges[bin]
             info.𝑖 = bin
