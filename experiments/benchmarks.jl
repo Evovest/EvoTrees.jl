@@ -1,6 +1,6 @@
 using Statistics
 using StatsBase: sample
-# using XGBoost
+using XGBoost
 using Revise
 using EvoTrees
 using BenchmarkTools
@@ -27,7 +27,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 num_round = 100
 param = ["max_depth" => 5,
          "eta" => 0.05,
-         "objective" => "reg:linear",
+         "objective" => "reg:squarederror",
          "print_every_n" => 5,
          "subsample" => 0.5,
          "colsample_bytree" => 0.5,
