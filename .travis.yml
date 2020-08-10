@@ -2,7 +2,7 @@ language: julia
 julia:
   - nightly
   - 1.0
-  - 1.4
+  - 1.5
 
 matrix:
   fast_finish: true
