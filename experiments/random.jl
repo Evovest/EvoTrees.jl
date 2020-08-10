@@ -79,7 +79,10 @@ params1 = EvoTreeGaussian(T=Float32,
 
 @time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
 
-# xgboost benchmark
+
+############################
+# xgboost
+############################
 using XGBoost
 num_round = 100
 param = ["max_depth" => 5,

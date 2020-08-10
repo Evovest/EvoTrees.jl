@@ -1,7 +1,7 @@
 name = "EvoTrees"
 uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
 authors = ["jeremiedb <jeremie.db@evovest.com>"]
-version = "0.4.9"
+version = "0.5.0"
 
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
