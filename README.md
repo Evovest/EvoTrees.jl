@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/Evovest/EvoTrees.jl.svg?branch=master)](https://travis-ci.org/Evovest/EvoTrees.jl)
 
 A Julia implementation of boosted trees.
-Efficient histogram based algorithm with support for conventional and extended loss (notably multi-target objectives such as max likelihood methods).
+Efficient histogram based algorithm with support for multiple loss functions (notably multi-target objectives such as max likelihood methods).
 
 [R binding available](https://github.com/Evovest/EvoTrees)
 
@@ -17,9 +17,13 @@ Currently supports:
 - multiclassification (softmax)
 - Gaussian (max likelihood)
 
+Input features is expected to be `Matrix{Float64/Float32}`. User friendly format conversion to be done (or see integration with MLJ).
 
-Input features is expected to be `Matrix{Float64}`. User friendly format conversion to be done.
-Next priority: GPU support.
+## GPU
+
+An experimental GPU support is now provided for linear, logistic and Gaussian objective functions. Speedup compared to multi-threaded cpu histogram is modest at the moment (~25% vs 16 CPU threads on RTX2080).
+
+Simply call `fit_evotree_gpu()` instead of `fit_evotree()` and `predict_gpu()` instead of `predict()`.
 
 ## Installation
 
@@ -112,7 +116,7 @@ mean(abs.(pred_test - selectrows(Y,test)))
 
 Minimal example to fit a noisy sinus wave.
 
-![](regression_sinus.png)
+![](figures/regression_sinus.png)
 
 ```julia
 using EvoTrees
@@ -177,7 +181,7 @@ pred_eval_L1 = predict(model, X_eval)
 
 ## Quantile Regression
 
-![](quantiles_sinus.png)
+![](figures/quantiles_sinus.png)
 
 ```julia
 # q50
@@ -213,7 +217,7 @@ pred_train_q80 = predict(model, X_train)
 
 ## Gaussian Max Likelihood
 
-![](gaussian_sinus.png)
+![](figures/gaussian_sinus.png)
 
 ```julia
 params1 = EvoTreeGaussian(

@@ -26,7 +26,7 @@ params1 = EvoTreeRegressor(
     nrounds=100, nbins=100,
     λ = 0.5, γ=0.1, η=0.05,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed = seed)
+    rowsample=0.5, colsample=1.0, rng = seed)
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_linear = predict(model, X_train)
 
@@ -39,7 +39,7 @@ params1 = EvoTreeRegressor(
     nrounds=100,
     λ = 0.5, γ=0.1, η=0.05,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed = seed)
+    rowsample=0.5, colsample=1.0, rng = seed)
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_logistic = predict(model, X_train)
 
@@ -49,7 +49,7 @@ params1 = EvoTreeCount(
     nrounds=100,
     λ = 0.5, γ=0.1, η=0.05,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed = seed)
+    rowsample=0.5, colsample=1.0, rng = seed)
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_poisson = predict(model, X_train)
 
@@ -59,7 +59,7 @@ params1 = EvoTreeRegressor(
     nrounds=100, nbins=100,
     λ = 0.5, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed = seed)
+    rowsample=0.5, colsample=1.0, rng = seed)
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_L1 = predict(model, X_train)
 
@@ -69,7 +69,7 @@ params1 = EvoTreeRegressor(
     nrounds=100, nbins=100,
     λ = 0.5, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed = seed)
+    rowsample=0.5, colsample=1.0, rng = seed)
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_poisson = predict(model, X_train)
 
@@ -79,7 +79,8 @@ params1 = EvoTreeGaussian(
     nrounds=100, nbins=100,
     λ = 0.0, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 10.0,
-    rowsample=0.5, colsample=1.0, seed = seed)
+    rowsample=0.5, colsample=1.0, rng = seed)
+model = fit_evotree(params1, X_train, Y_train, print_every_n = 25)
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_gaussian = predict(model, X_train)
 

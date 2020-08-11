@@ -12,6 +12,10 @@ struct Quantile <: QuantileRegression end
 struct Softmax <: MultiClassRegression end
 struct Gaussian <: GaussianRegression end
 
+# make a Random Number Generator object
+mk_rng(rng::Random.AbstractRNG) = rng
+mk_rng(rng::T) where T <: Integer = Random.MersenneTwister(rng)
+
 mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJModelInterface.Deterministic
     loss::U
     nrounds::S
@@ -25,7 +29,7 @@ mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJMo
     nbins::S
     α::T
     metric::Symbol
-    seed::S
+    rng
 end
 
 function EvoTreeRegressor(;
@@ -42,7 +46,7 @@ function EvoTreeRegressor(;
     nbins=64,
     α=0.5,
     metric=:mse,
-    seed=444)
+    rng=444)
 
     if loss == :linear model_type = Linear()
     elseif loss == :logistic model_type = Logistic()
@@ -50,7 +54,9 @@ function EvoTreeRegressor(;
     elseif loss == :quantile model_type = Quantile()
     end
 
-    model = EvoTreeRegressor(model_type, nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, seed)
+    rng = mk_rng(rng)::Random.AbstractRNG
+
+    model = EvoTreeRegressor(model_type, nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng)
 
     return model
 end
@@ -69,7 +75,7 @@ mutable struct EvoTreeCount{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJModelI
     nbins::S
     α::T
     metric::Symbol
-    seed::S
+    rng
 end
 
 function EvoTreeCount(;
@@ -86,10 +92,12 @@ function EvoTreeCount(;
     nbins=64,
     α=0.5,
     metric=:poisson,
-    seed=444)
+    rng=444)
+
+    rng = mk_rng(rng)::Random.AbstractRNG
 
     if loss == :poisson model_type = Poisson() end
-    model = EvoTreeCount(Poisson(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, seed)
+    model = EvoTreeCount(Poisson(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng)
 
     return model
 end
@@ -108,7 +116,7 @@ mutable struct EvoTreeClassifier{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJM
     nbins::S
     α::T
     metric::Symbol
-    seed::S
+    rng
 end
 
 function EvoTreeClassifier(;
@@ -125,10 +133,12 @@ function EvoTreeClassifier(;
     nbins=64,
     α=0.5,
     metric=:mlogloss,
-    seed=444)
+    rng=444)
+
+    rng = mk_rng(rng)::Random.AbstractRNG
 
     if loss == :softmax model_type = Softmax() end
-    model = EvoTreeClassifier(Softmax(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, seed)
+    model = EvoTreeClassifier(Softmax(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng)
 
     return model
 end
@@ -147,7 +157,7 @@ mutable struct EvoTreeGaussian{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJMod
     nbins::S
     α::T
     metric::Symbol
-    seed::S
+    rng
 end
 
 function EvoTreeGaussian(;
@@ -164,10 +174,12 @@ function EvoTreeGaussian(;
     nbins=64,
     α=0.5,
     metric=:gaussian,
-    seed=444)
+    rng=444)
+
+    rng = mk_rng(rng)::Random.AbstractRNG
 
     if loss == :gaussian model_type = Gaussian() end
-    model = EvoTreeGaussian(Gaussian(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, seed)
+    model = EvoTreeGaussian(Gaussian(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng)
 
     return model
 end
@@ -187,7 +199,9 @@ function EvoTreeRModels(
     nbins,
     α,
     metric,
-    seed)
+    rng)
+
+    rng = mk_rng(rng)::Random.AbstractRNG
 
     if loss ∈ [:linear, :L1, :logistic, :quantile]
         if loss == :linear model_type = Linear()
@@ -195,13 +209,13 @@ function EvoTreeRModels(
         elseif loss == :quantile model_type = Quantile()
         elseif loss == :L1 model_type = L1()
         end
-        model = EvoTreeRegressor(model_type, nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
+        model = EvoTreeRegressor(model_type, nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, rng)
     elseif loss == :poisson
-        model = EvoTreeCount(Poisson(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
+        model = EvoTreeCount(Poisson(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, rng)
     elseif loss == :softmax
-        model = EvoTreeClassifier(Softmax(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, seed)
+        model = EvoTreeClassifier(Softmax(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, rng)
     elseif loss == :gaussian
-        model = EvoTreeGaussian(Gaussian(), nrounds, Float64(λ), Float64(γ), Float64(η), max_depth, Float64(min_weight), Float64(rowsample), Float64(colsample), nbins, Float64(α), metric, seed)
+        model = EvoTreeGaussian(Gaussian(), nrounds, Float64(λ), Float64(γ), Float64(η), max_depth, Float64(min_weight), Float64(rowsample), Float64(colsample), nbins, Float64(α), metric, rng)
     else
         throw("invalid loss")
     end

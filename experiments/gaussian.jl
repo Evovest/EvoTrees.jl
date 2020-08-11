@@ -5,7 +5,7 @@ using Distributions
 using Revise
 using EvoTrees
 
-features = rand(Int(1.25e4), 5)
+features = rand(Int(1.25e4), 1)
 # prepare a dataset
 # features = rand(100, 10)
 X = features
@@ -29,10 +29,10 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 # train model
 params1 = EvoTreeGaussian(
     loss=:gaussian, metric=:gaussian,
-    nrounds=40,
-    λ = 0.0, γ=0.0, η=0.05,
-    max_depth = 5, min_weight = 50.0,
-    rowsample=0.5, colsample=1.0, nbins=200)
+    nrounds=200,
+    λ = 1.0, γ=1.0, η=0.5,
+    max_depth = 4, min_weight = 100.0,
+    rowsample=1.0, colsample=1.0, nbins=64)
 
 @time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n = 10);
 # @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
@@ -50,9 +50,9 @@ x_perm = sortperm(X_train[:,1])
 plot(X_train[:, 1], Y_train, ms = 1, mcolor = "gray", mscolor = "lightgray", background_color = RGB(1, 1, 1), seriestype=:scatter, xaxis = ("feature"), yaxis = ("target"), legend = true, label = "")
 plot!(X_train[:,1][x_perm], pred_train[x_perm, 1], color = "navy", linewidth = 1.5, label = "mu")
 plot!(X_train[:,1][x_perm], pred_train[x_perm, 2], color = "blue", linewidth = 1.5, label = "sigma")
-plot!(X_train[:,1][x_perm], pred_q10[x_perm, 1], color = "red", linewidth = 1.5, label = "q10")
+plot!(X_train[:,1][x_perm], pred_q10[x_perm, 1], color = "darkred", linewidth = 1.5, label = "q10")
 plot!(X_train[:,1][x_perm], pred_q90[x_perm, 1], color = "green", linewidth = 1.5, label = "q90")
-savefig("regression_gaussian_v1.png")
+savefig("figures/regression_gaussian_v1.png")
 
 
 # compare with zygote
