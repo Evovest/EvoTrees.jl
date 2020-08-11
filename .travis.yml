@@ -1,7 +1,7 @@
 language: julia
 julia:
   - nightly
-  - 1.0
+  - 1.5
   - 1.4
 
 matrix:
