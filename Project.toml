@@ -1,7 +1,7 @@
 name = "EvoTrees"
 uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
 authors = ["jeremiedb <jeremie.db@evovest.com>"]
-version = "0.5.0"
+version = "0.5.1"
 
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
@@ -14,7 +14,7 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
-CUDA = "1"
+CUDA = "1,2"
 CategoricalArrays = "0.8"
 Distributions = "0.22, 0.23"
 MLJModelInterface = "0.3"
