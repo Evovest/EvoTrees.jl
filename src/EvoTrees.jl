@@ -3,19 +3,18 @@ module EvoTrees
 export init_evotree, grow_evotree!, grow_tree, fit_evotree, predict,
     fit_evotree_gpu, predict_gpu,
     EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
-    EvoTreeRModels, importance
+    EvoTreeRModels, importance, Random
 
-using Statistics
 using Base.Threads: @threads
+using Statistics
 using StatsBase: sample, quantile
 using Random
-using StaticArrays
 using Distributions
+using StaticArrays
 using CategoricalArrays
 using CUDA
 import MLJModelInterface
-import MLJModelInterface: fit, update
-import MLJModelInterface: predict
+import MLJModelInterface: fit, update, predict
 
 include("models.jl")
 include("structs.jl")

@@ -40,6 +40,11 @@ params1 = EvoTreeRegressor(T=Float32,
 @time pred_train = predict(model, X_train)
 @time gain = importance(model, 1:100)
 
+using BSON: @save, @load
+@save "model.bson" model
+@load "model.bson" model
+pred_train = predict(model, X_train)
+
 #############################
 # CPU - Logistic
 #############################
