@@ -13,6 +13,9 @@ using Distributions
 using StaticArrays
 using CategoricalArrays
 using CUDA
+using BSON: @save, @load
+using NetworkLayout
+using RecipesBase
 import MLJModelInterface
 import MLJModelInterface: fit, update, predict
 
@@ -24,6 +27,7 @@ include("predict.jl")
 include("find_split.jl")
 include("fit.jl")
 include("importance.jl")
+include("plot.jl")
 include("MLJ.jl")
 
 include("structs_gpu.jl")
