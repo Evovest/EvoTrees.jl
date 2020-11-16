@@ -235,3 +235,22 @@ Returns the normalized gain by feature.
 ```julia
 features_gain = importance(model, var_names)
 ```
+
+## Plot
+
+Plot a given tree of the model:
+
+```julia
+plot(model, 2)
+```
+
+![](figures/plot_tree.png)
+
+Note that 1st tree is used to set the bias so the first real tree is #2.
+
+## Save/Load
+
+```julia
+EvoTrees.save(model, "data/model.bson")
+model = EvoTrees.load("data/model.bson");
+```
