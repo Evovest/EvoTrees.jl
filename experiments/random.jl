@@ -48,7 +48,7 @@ pred_train = predict(model, X_train)
 #############################
 # CPU - Logistic
 #############################
-params1 = EvoTreeGaussian(T=Float32,
+params1 = EvoTreeRegressor(T=Float32,
     loss=:logistic, metric=:none,
     nrounds=100,
     λ = 1.0, γ=0.1, η=0.1,

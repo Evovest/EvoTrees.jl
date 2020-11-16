@@ -6,11 +6,14 @@ using Plots
 using Revise
 using EvoTrees
 
-@load "blog/model_linear.bson" model
-@load "data/model.bson" model
+# @load "blog/model_linear.bson" model
+# @load "data/model_linear_8.bson" model
+# @load "data/model_gaussian_5.bson" model
 
-var_names = ["var $i" for i in 1:100]
-plot(model, 3)
+model = EvoTrees.load("data/model_linear_4.bson");
+var_names = ["var_$i" for i in 1:100]
+plot(model)
+plot(model, 2)
 plot(model, 3, var_names)
 plot(model.trees[2])
 plot(model.trees[2], var_names)

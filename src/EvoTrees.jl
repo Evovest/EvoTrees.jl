@@ -30,11 +30,20 @@ include("importance.jl")
 include("plot.jl")
 include("MLJ.jl")
 
-include("structs_gpu.jl")
-include("loss_gpu.jl")
-include("eval_gpu.jl")
-include("predict_gpu.jl")
-include("find_split_gpu.jl")
-include("fit_gpu.jl")
+include("gpu/structs_gpu.jl")
+include("gpu/loss_gpu.jl")
+include("gpu/eval_gpu.jl")
+include("gpu/predict_gpu.jl")
+include("gpu/find_split_gpu.jl")
+include("gpu/fit_gpu.jl")
+
+function save(model::GBTree, path)
+    @save path model
+end
+
+function load(path)
+    @load path model
+    return model
+end
 
 end # module
