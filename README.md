@@ -251,6 +251,6 @@ Note that 1st tree is used to set the bias so the first real tree is #2.
 ## Save/Load
 
 ```julia
-EvoTrees.save(model, "data/model_linear_9_2.bson")
-model = EvoTrees.load("data/model_linear_4.bson");
+EvoTrees.save(model, "data/model.bson")
+model = EvoTrees.load("data/model.bson");
 ```
