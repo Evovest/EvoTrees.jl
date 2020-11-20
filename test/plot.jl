@@ -1,7 +1,4 @@
 using Random
-using RecipesBase
-using NetworkLayout
-using BSON: @save, @load
 using Plots
 using Revise
 using EvoTrees
