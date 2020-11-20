@@ -81,6 +81,8 @@ params1 = EvoTreeRegressor(T=Float64,
     rowsample=0.5, colsample=0.5, nbins=64)
 
 @time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
+# Asus laptop:  10.594 s (20874773 allocations: 8.68 GiB)
+@btime model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
 @time model, cache = EvoTrees.init_evotree_gpu(params1, X_train, Y_train);
 @time EvoTrees.grow_evotree_gpu!(model, cache);
 
