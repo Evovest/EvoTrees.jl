@@ -1,5 +1,5 @@
 # GPU - apply along the features axis
-function hist_kernel!(h::CuDeviceArray{T,3}, x::CuDeviceMatrix{T}, id, 𝑖, 𝑗, K) where {T<:AbstractFloat}
+function hist_kernel!(h::CuDeviceArray{T,3}, x::CuDeviceMatrix{T}, id, 𝑖, 𝑗, K) where {T <: AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
     if i <= length(𝑖) && j <= length(𝑗)
@@ -12,7 +12,7 @@ function hist_kernel!(h::CuDeviceArray{T,3}, x::CuDeviceMatrix{T}, id, 𝑖, �
 end
 
 # for 2D input: 𝑤
-function hist_kernel!(h::CuDeviceMatrix{T}, x::CuDeviceVector{T}, id, 𝑖, 𝑗) where {T<:AbstractFloat}
+function hist_kernel!(h::CuDeviceMatrix{T}, x::CuDeviceVector{T}, id, 𝑖, 𝑗) where {T <: AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
     if i <= length(𝑖) && j <= length(𝑗)
@@ -25,19 +25,19 @@ end
 # base approach - block built along the cols first, the rows (limit collisions)
 function update_hist_gpu!(hδ::CuArray{T,3}, hδ²::CuArray{T,3}, h𝑤::CuMatrix{T},
     δ::CuMatrix{T}, δ²::CuMatrix{T}, 𝑤::CuVector{T},
-    X_bin::CuMatrix{Int}, 𝑖::CuVector{Int}, 𝑗::CuVector{Int}, K; MAX_THREADS=1024) where {T<:AbstractFloat}
+    X_bin::CuMatrix{Int}, 𝑖::CuVector{Int}, 𝑗::CuVector{Int}, K; MAX_THREADS=1024) where {T <: AbstractFloat}
 
-    hδ .*= 0.0
-    hδ² .*= 0.0
-    h𝑤 .*= 0.0
+    hδ .= T(0.0)
+    hδ² .= T(0.0)
+    h𝑤 .= T(0.0)
 
     thread_j = min(MAX_THREADS, length(𝑗))
     thread_i = min(MAX_THREADS ÷ thread_j, length(𝑖))
     threads = (thread_i, thread_j)
     blocks = ceil.(Int, (length(𝑖), length(𝑗)) ./ threads)
-    @cuda blocks=blocks threads=threads hist_kernel!(hδ, δ, X_bin, 𝑖, 𝑗, K)
-    @cuda blocks=blocks threads=threads hist_kernel!(hδ², δ², X_bin, 𝑖, 𝑗, K)
-    @cuda blocks=blocks threads=threads hist_kernel!(h𝑤, 𝑤, X_bin, 𝑖, 𝑗)
+    @cuda blocks = blocks threads = threads hist_kernel!(hδ, δ, X_bin, 𝑖, 𝑗, K)
+    @cuda blocks = blocks threads = threads hist_kernel!(hδ², δ², X_bin, 𝑖, 𝑗, K)
+    @cuda blocks = blocks threads = threads hist_kernel!(h𝑤, 𝑤, X_bin, 𝑖, 𝑗)
 
     return
 end
@@ -57,7 +57,7 @@ function find_split_gpu!(hist_δ::AbstractMatrix{T}, hist_δ²::AbstractMatrix{T
     # println("∑δ²L: ", ∑δ²L, " ∑δ²R:", ∑δ²R)
     # println("hist_δ²: ", hist_δ²)
 
-    @inbounds for bin in 1:(length(hist_δ)-1)
+    @inbounds for bin in 1:(length(hist_δ) - 1)
         @views ∑δL .+= hist_δ[bin,:]
         @views ∑δ²L .+= hist_δ²[bin,:]
         ∑𝑤L += hist_𝑤[bin]
