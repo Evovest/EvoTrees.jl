@@ -19,7 +19,7 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 [compat]
 BSON = "0.2"
 CUDA = "1,2"
-CategoricalArrays = "0.8"
+CategoricalArrays = "0.8, 0.9"
 Distributions = "0.22, 0.23, 0.24"
 MLJModelInterface = "0.3"
 NetworkLayout = "0.2"
