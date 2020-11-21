@@ -35,15 +35,13 @@ function hist_gpu1!(h::AbstractMatrix{T}, x::AbstractMatrix{T}, id; MAX_THREADS=
     blocks = ceil.(Int, (size(id, 1), size(id, 2)) .÷ threads)
     # println("threads:", threads)
     # println("blocks:", blocks)
-    CUDA.@sync begin
-        @cuda blocks = blocks threads = threads kernel1!(h, x, id)
-    end
+    @cuda blocks = blocks threads = threads kernel1!(h, x, id)
     return
 end
 
 nbins = 32
 ncol = 100
-items = Int32(2^20)
+items = Int32(1e6)
 hist = zeros(Float32, nbins, ncol)
 δ = rand(Float32, items, ncol)
 idx = Int64.(rand(1:nbins, items, ncol))
@@ -58,7 +56,7 @@ sum(hist) - sum(Array(hist_gpu))
 @CUDA.time hist_gpu1!(hist_gpu, δ_gpu, idx_gpu, MAX_THREADS=1024)
 @time hist_cpu!(hist, δ, idx)
 @btime hist_cpu!($hist, $δ, $idx)
-@btime hist_gpu1!($hist_gpu, $δ_gpu, $idx_gpu, MAX_THREADS=1024)
+@btime CUDA.@sync hist_gpu1!($hist_gpu, $δ_gpu, $idx_gpu, MAX_THREADS=1024)
 # test on view
 @CUDA.time hist_gpu1!(hist_gpu, view(δ_gpu, 1:items ÷ 2, 1:ncol ÷ 2), view(idx_gpu, 1:items ÷ 2, 1:ncol ÷ 2), MAX_THREADS=1024)
 
@@ -355,11 +353,11 @@ end
 
 using CUDA
 using BenchmarkTools
-N1 = Int(1e7)
-x1 = rand(Float32, N1)
-x2 = rand(Float32, N1)
-x1g = CuArray(x1)
-x2g = CuArray(x2)
+N1 = Int(2^12)
+x1 = rand(Float32, N1);
+x2 = rand(Float32, N1);
+x1g = CuArray(x1);
+x2g = CuArray(x2);
 
 function dot_atomic!(x, y, z)
     idx = (blockIdx().x - 1) * blockDim().x + threadIdx().x
@@ -425,6 +423,7 @@ threads = 64
 numblocks = ceil(Int, N1 / threads)
 z = CUDA.zeros(1)
 @cuda threads = threads blocks = numblocks dot_share!(x1g, x2g, z)
+@time CUDA.@sync wrap_share(x1g, x2g, threads)
 @btime CUDA.@sync wrap_share($x1g, $x2g, threads)
 x = CUDA.@sync wrap_share(x1g, x2g, threads)
 x1g' * x2g
@@ -432,25 +431,26 @@ x1g' * x2g
 @btime x1' * x2
 
 
-function dot_share2!(x::CuDeviceVector{T}, y::CuDeviceVector{T}, z::CuDeviceVector{T}) where {T}
+function dot_share2!(x::CuDeviceVector{T}, z::CuDeviceVector{T}) where {T}
 
     tid = threadIdx().x
     bid = blockIdx().x
     idx = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     shared = CUDA.@cuStaticSharedMem(T, 128)
-    fill!(shared, 0)
+    fill!(shared, 0f0)
     sync_threads()
 
-    if idx <= length(x)
-        @inbounds shared[tid] = x[idx] * y[idx]
-    end
-    sync_threads()
+    # if idx <= length(x)
+    #     shared[tid] = x[idx] * y[idx]
+    # end
+    # sync_threads()
 
     i = blockDim().x ÷ 2
     while i > 0
-        if tid <= i
-            @inbounds shared[tid] += shared[tid + i] # valid non atomic operation
-            # CUDAnative.atomic_add!(pointer(shared, tid), shared[tid+i]) # invalid op - results in error
+        # if tid <= i
+        if tid == 1
+            # shared[tid] += shared[tid + i] # valid non atomic operation
+            CUDA.atomic_add!(pointer(shared, tid), shared[tid + 1]) # invalid op - results in error
         end
         sync_threads()
         i ÷= 2
@@ -461,15 +461,16 @@ function dot_share2!(x::CuDeviceVector{T}, y::CuDeviceVector{T}, z::CuDeviceVect
     return nothing
 end
 
-function bench_dot_share2!(x, y, z, threads, numblocks)
-    CUDA.@sync @cuda threads = threads blocks = numblocks dot_share2!(x, y, z)
+function bench_dot_share2!(x, z, threads, numblocks)
+    CUDA.@sync @cuda threads = threads blocks = numblocks dot_share2!(x, z)
     return sum(z)
 end
 
-function wrap_share2(x, y, threads)
+function wrap_share2(x, threads)
     numblocks = ceil(Int, N1 / threads)
     z = CUDA.zeros(numblocks)
-    x = bench_dot_share2!(x, y, z, threads, numblocks)
+    # x = bench_dot_share2!(x, z, threads, numblocks)
+    CUDA.@sync @cuda threads = threads blocks = numblocks dot_share2!(x, z)
     return(x)
 end
 
@@ -478,8 +479,134 @@ numblocks = ceil(Int, N1 / threads)
 z = CUDA.zeros(numblocks)
 sum(z)
 x1g' * x2g
-@cuda threads = threads blocks = numblocks dot_share2!(x1g, x2g, z)
+CUDA.@sync @cuda threads = threads blocks = numblocks dot_share2!(x1g, x2g, z)
 @btime CUDA.@sync wrap_share2($x1g, $x2g, threads)
 x = CUDA.@sync wrap_share2(x1g, x2g, threads)
 
 @btime x1g' * x2g
+
+
+using CUDA
+function kernel(x)
+    shared = @cuStaticSharedMem(Float32, 2)
+    fill!(shared, 1f0)
+    sync_threads()
+    # @atomic shared[threadIdx().x] += 0f0
+    tid = threadIdx().x
+    CUDA.atomic_add!(pointer(shared, tid), shared[tid + 1])
+    CUDA.atomic_add!(pointer(x, 1), shared[1])
+    return
+end
+
+x = CUDA.zeros(1)
+@cuda kernel(x)
+synchronize()
+
+
+using CUDA
+function kernel2(x, y)
+    tid = threadIdx().x
+    shared = @cuStaticSharedMem(Float32, 4)
+    fill!(shared, 1f0)
+    sync_threads()
+    i = Int32(2)
+    if i > 0
+        CUDA.atomic_add!(pointer(shared, tid), shared[tid + 1])
+        sync_threads()
+        # i ÷= 2
+    end
+    sync_threads()
+    CUDA.atomic_add!(pointer(x, 1), shared[1])
+    return
+end
+
+x = CUDA.zeros(4)
+y = CUDA.zeros(1)
+@cuda threads = 2 kernel2(x, y)
+synchronize()
+
+
+
+using CUDA
+function kernel1(x, y)
+    tid = threadIdx().x
+    shared = @cuStaticSharedMem(Float32, 4)
+    fill!(shared, 1f0)
+    sync_threads()
+    i = Int32(2)
+    if i > 0
+        CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
+        sync_threads()
+        i ÷= 2
+    end
+    CUDA.atomic_add!(pointer(x, 1), shared[1])
+    return
+end
+
+x = CUDA.zeros(4)
+y = CUDA.zeros(1)
+@cuda threads = 2 kernel1(x, y)
+x
+synchronize()
+
+
+
+using CUDA
+function kernel2(x, y)
+    tid = threadIdx().x
+    shared = @cuStaticSharedMem(Float32, 4)
+    fill!(shared, 1f0)
+    sync_threads()
+    i = Int32(2)
+    while i > 0
+        CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
+        sync_threads()
+        i ÷= 2
+    end
+    sync_threads()
+    CUDA.atomic_add!(pointer(x, 1), shared[1])
+    return
+end
+
+x = CUDA.zeros(4)
+y = CUDA.zeros(1)
+@cuda threads = 2 kernel2(x, y)
+x
+synchronize()
+
+
+using CUDA
+function kernel3(x)
+    tid = threadIdx().x
+    shared = @cuStaticSharedMem(Float32, 4)
+    fill!(shared, 1f0)
+    sync_threads()
+    CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
+    sync_threads()
+    CUDA.atomic_add!(pointer(x, 1), shared[1])
+    return
+end
+
+x = CUDA.zeros(4)
+@cuda threads = 2 kernel3(x)
+x
+synchronize()
+
+using CUDA
+function kernel4(x)
+    tid = threadIdx().x
+    shared = @cuStaticSharedMem(Float32, 4)
+    fill!(shared, 1f0)
+    sync_threads()
+    CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
+    sync_threads()
+    CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
+    sync_threads()
+    CUDA.atomic_add!(pointer(x, 1), shared[1])
+    return
+end
+
+x = CUDA.zeros(4)
+@cuda threads = 2 kernel4(x)
+x
+synchronize()
