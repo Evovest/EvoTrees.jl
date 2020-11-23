@@ -3,6 +3,7 @@ using StatsBase: sample
 using Revise
 using EvoTrees
 using BenchmarkTools
+using CUDA
 
 # prepare a dataset
 features = rand(Int(1.25e6), 100)
@@ -36,8 +37,8 @@ splits = cache_c.splits
 X_size = size(cache_c.X_bin)
 
 # select random rows and cols
-𝑖 = cache_c.𝑖_[sample(params.rng, cache_c.𝑖_, ceil(Int, params_c.rowsample * X_size[1]), replace=false, ordered=true)]
-𝑗 = cache_c.𝑗_[sample(params.rng, cache_c.𝑗_, ceil(Int, params_c.colsample * X_size[2]), replace=false, ordered=true)]
+𝑖 = cache_c.𝑖_[sample(params_c.rng, cache_c.𝑖_, ceil(Int, params_c.rowsample * X_size[1]), replace=false, ordered=true)]
+𝑗 = cache_c.𝑗_[sample(params_c.rng, cache_c.𝑗_, ceil(Int, params_c.colsample * X_size[2]), replace=false, ordered=true)]
 # reset gain to -Inf
 for feat in cache_c.𝑗_
     splits[feat].gain = -Inf
@@ -71,8 +72,9 @@ id = 1
 node = train_nodes[id]
 # 9.613 ms (81 allocations: 13.55 KiB)
 @btime EvoTrees.update_hist!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, node)
+j =1
 # 601.685 ns (6 allocations: 192 bytes) 8 100 feat ~ 60us
-@btime EvoTrees.find_split!(view(hist_δ[id], :, j), view(hist_δ²[id], :, j), view(hist_𝑤[id], :, j), params, node, splits[j], edges[j])
+@btime EvoTrees.find_split!(view(hist_δ[id], :, j), view(hist_δ²[id], :, j), view(hist_𝑤[id], :, j), params_c, node, splits[j], edges[j])
 
 ###################################################
 # GPU
@@ -134,6 +136,8 @@ id = 1
 node = train_nodes[id];
 # 7.003 ms (106 allocations: 3.09 KiB)
 @btime CUDA.@sync EvoTrees.update_hist_gpu!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, CuVector(node.𝑖), CuVector(node.𝑗), K);
+node_𝑖_g, node_𝑗_g = CuVector(node.𝑖), CuVector(node.𝑗)
+@btime CUDA.@sync EvoTrees.update_hist_gpu!($hist_δ[id], $hist_δ²[id], $hist_𝑤[id], $δ, $δ², $𝑤, $X_bin, $node_𝑖_g, $node_𝑗_g, $K);
 #  32.001 μs (2 allocations: 32 bytes) * 3 adds 100us
 @btime hist_δ_cpu .= hist_δ[id];
 j = 1

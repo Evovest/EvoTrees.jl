@@ -26,7 +26,7 @@ function kernel1!(h, x, id)
 end
 
 # base approach - block built along the cols first, the rows (limit collisions)
-function hist_gpu1!(h::AbstractMatrix{T}, x::AbstractMatrix{T}, id; MAX_THREADS=256) where {T}
+function hist_gpu1!(h::AbstractMatrix{T}, x::AbstractMatrix{T}, id::AbstractMatrix{S}; MAX_THREADS=256) where {T,S}
     # thread_i = min(MAX_THREADS, size(id, 1))
     # thread_j = min(MAX_THREADS ÷ thread_i, size(id, 2))
     thread_j = min(MAX_THREADS, size(id, 2))
@@ -44,7 +44,8 @@ ncol = 100
 items = Int32(1e6)
 hist = zeros(Float32, nbins, ncol)
 δ = rand(Float32, items, ncol)
-idx = Int64.(rand(1:nbins, items, ncol))
+idx = UInt8.(rand(1:nbins, items, ncol))
+# idx = Int64.(rand(1:nbins, items, ncol))
 
 hist_gpu = CuArray(hist)
 δ_gpu = CuArray(δ)
@@ -581,7 +582,7 @@ function kernel3(x)
     shared = @cuStaticSharedMem(Float32, 4)
     fill!(shared, 1f0)
     sync_threads()
-    CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
+    @inbounds CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
     sync_threads()
     CUDA.atomic_add!(pointer(x, 1), shared[1])
     return
@@ -598,11 +599,11 @@ function kernel4(x)
     shared = @cuStaticSharedMem(Float32, 4)
     fill!(shared, 1f0)
     sync_threads()
-    CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
+    @inbounds CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
     sync_threads()
-    CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
+    @inbounds CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
     sync_threads()
-    CUDA.atomic_add!(pointer(x, 1), shared[1])
+    @inbounds CUDA.atomic_add!(pointer(x, 1), shared[1])
     return
 end
 
