@@ -109,15 +109,15 @@ function kernel_s4!(h::CuDeviceArray{T,3}, x::CuDeviceMatrix{T}, xid::CuDeviceMa
     end
     sync_threads()
     # loop to cover cases where nbins > nthreads
-    # for iter in 1:(nbins - 1) ÷ id + 1
-    bin_id = it # + id * (iter - 1)
-    if bin_id <= nbins
-        @inbounds k = Base._to_linear_index(h, 1, bin_id, j)
-        @inbounds CUDA.atomic_add!(pointer(h, k), shared[3 * (bin_id - 1) + 1])
-        @inbounds CUDA.atomic_add!(pointer(h, k + 1), shared[3 * (bin_id - 1) + 2])
-        @inbounds CUDA.atomic_add!(pointer(h, k + 2), shared[3 * (bin_id - 1) + 3])
+    for iter in 1:(nbins - 1) ÷ id + 1
+        bin_id = it + id * (iter - 1)
+        if bin_id <= nbins
+            @inbounds k = Base._to_linear_index(h, 1, bin_id, j)
+            @inbounds CUDA.atomic_add!(pointer(h, k), shared[3 * (bin_id - 1) + 1])
+            @inbounds CUDA.atomic_add!(pointer(h, k + 1), shared[3 * (bin_id - 1) + 2])
+            @inbounds CUDA.atomic_add!(pointer(h, k + 2), shared[3 * (bin_id - 1) + 3])
+        end
     end
-    # end
     # sync_threads()
     return nothing
 end
@@ -127,7 +127,7 @@ function hist_gpu_s4!(h::AbstractArray{T,3}, x::AbstractMatrix{T}, id::AbstractM
     thread_i = min(MAX_THREADS, size(id, 1))
     thread_j = 1
     threads = (thread_i, thread_j)
-    blocks = ceil.(Int, (1, size(id, 2)))
+    blocks = ceil.(Int, (16, size(id, 2)))
     fill!(h, 0)
     @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 2) * 3 kernel_s4!(h, x, id)
     return
