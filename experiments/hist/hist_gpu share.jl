@@ -4,7 +4,7 @@ using StaticArrays
 using StatsBase: sample
 using BenchmarkTools
 
-function hist_cpu!(hist, δ, idx)
+function hist_cpu_1!(hist, δ, idx)
     Threads.@threads for j in 1:size(idx, 2)
         for i in 1:size(idx, 1)
             @inbounds hist[idx[i,j], j] += δ[i,1]
@@ -13,72 +13,31 @@ function hist_cpu!(hist, δ, idx)
     return
 end
 
-# base kernel
-function kernel_s3!(h::CuDeviceMatrix{T}, x::CuDeviceMatrix{T}, xid::CuDeviceMatrix{S}) where {T,S}
-    
-    nbins = size(h, 1)
-    it, jt = threadIdx().x, threadIdx().y
-    ib, jb = blockIdx().x, blockIdx().y
-    id, jd = blockDim().x, blockDim().y
-    j = jt + (jb - 1) * jd
-    
-    shared = @cuDynamicSharedMem(T, nbins)
-    fill!(h, 0)
-    fill!(shared, 0)
-    sync_threads()
-
-    i_tot = size(x, 1)
-    iter = 0
-    while iter * id < i_tot
-        i = it + id * iter
-        if i <= size(xid, 1) && j <= size(xid, 2)
-            # depends on shared to be assigned to a single feature
-            @inbounds CUDA.atomic_add!(pointer(shared, xid[i, j]), x[i, 1])
-        end
-        iter += 1
-    end
-    sync_threads()
-    # loop to cover cases where nbins > nthreads
-    for i in 1:(nbins - 1) ÷ id + 1
-        bin_id = it + id * (i - 1)
-        if bin_id <= nbins
-            # @inbounds h[bin_id, j] = shared[bin_id]
-            @inbounds k = Base._to_linear_index(h, bin_id, j)
-            @inbounds CUDA.atomic_add!(pointer(h, k), shared[bin_id])
+function hist_cpu_2!(h1::Matrix{T}, h2::Matrix{T}, hw::Matrix{T}, 
+        δ1::Vector{T}, δ2::Vector{T}, w::Vector{T}, idx::Matrix{UInt8}) where {T}
+    Threads.@threads for j in 1:size(idx, 2)
+        @inbounds for i in 1:size(idx, 1)
+            @inbounds h1[idx[i,j], j] += δ1[i]
+            @inbounds h2[idx[i,j], j] += δ2[i]
+            @inbounds hw[idx[i,j], j] += w[i]
         end
     end
-    return nothing
-end
-
-# base approach - block built along the cols first, the rows (limit collisions)
-function hist_gpu_s3!(h::AbstractMatrix{T}, x::AbstractMatrix{T}, id::AbstractMatrix{S}; MAX_THREADS=256) where {T,S}
-    thread_i = min(MAX_THREADS, size(id, 1))
-    thread_j = 1
-    threads = (thread_i, thread_j)
-    blocks = ceil.(Int, (1, size(id, 2)))
-    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) kernel_s3!(h, x, id)
     return
 end
 
-nbins = 64
-ncol = 100
-items = Int32(1e6)
-hist = zeros(Float32, nbins, ncol)
-δ = rand(Float32, items, 1)
-# idx = Int64.(rand(1:nbins, items, ncol))
-idx = UInt8.(rand(1:nbins, items, ncol))
 
-hist_gpu = CuArray(hist)
-δ_gpu = CuArray(δ)
-idx_gpu = CuArray(idx)
-
-@time hist_cpu!(hist, δ, idx)
-@btime hist_cpu!($hist, $δ, $idx)
-
-@CUDA.time hist_gpu_s3!(hist_gpu, δ_gpu, idx_gpu, MAX_THREADS=128)
-@btime CUDA.@sync hist_gpu_s3!($hist_gpu, $δ_gpu, $idx_gpu, MAX_THREADS=128)
-
-
+function hist_cpu_3!(h1::Matrix{T}, h2::Matrix{T}, hw::Matrix{T}, 
+    δ1::Vector{T}, δ2::Vector{T}, 𝑤::Vector{T}, idx::Matrix{UInt8}, 𝑖, 𝑗) where {T}
+    
+    @inbounds Threads.@threads for j in 𝑗
+        @inbounds for i in 𝑖
+            h1[idx[i,j], j] += δ1[i]
+            h2[idx[i,j], j] += δ2[i]
+            hw[idx[i,j], j] += 𝑤[i]
+        end
+    end
+    return
+end
 
 # base kernel
 function kernel_s4!(h::CuDeviceArray{T,3}, x::CuDeviceMatrix{T}, xid::CuDeviceMatrix{S}) where {T,S}
@@ -133,17 +92,17 @@ function hist_gpu_s4!(h::AbstractArray{T,3}, x::AbstractMatrix{T}, id::AbstractM
     return
 end
 
-function hist_cpu_2!(hist, δ, idx)
-    Threads.@threads for j in 1:size(idx, 2)
-        for i in 1:size(idx, 1)
-            bin = idx[i,j]
-            @inbounds hist[1, bin, j] += δ[i,1]
-            @inbounds hist[2, bin, j] += δ[i,2]
-            @inbounds hist[3, bin, j] += δ[i,3]
-        end
-    end
-    return
-end
+# function hist_cpu_2!(hist, δ, idx)
+#     Threads.@threads for j in 1:size(idx, 2)
+#         for i in 1:size(idx, 1)
+#             bin = idx[i,j]
+#             @inbounds hist[1, bin, j] += δ[i,1]
+#             @inbounds hist[2, bin, j] += δ[i,2]
+#             @inbounds hist[3, bin, j] += δ[i,3]
+#         end
+#     end
+#     return
+# end
 
 nbins = 64
 ncol = 100
@@ -162,6 +121,206 @@ idx_gpu = CuArray(idx)
 
 @CUDA.time hist_gpu_s4!(hist_gpu, δ_gpu, idx_gpu, MAX_THREADS=128)
 @btime CUDA.@sync hist_gpu_s4!($hist_gpu, $δ_gpu, $idx_gpu, MAX_THREADS=128)
+
+
+# base kernel
+function kernel_s5!(hδ1::CuDeviceArray{T,3}, hδ2::CuDeviceArray{T,3}, h𝑤::CuDeviceMatrix{T}, δ1::CuDeviceMatrix{T}, δ2::CuDeviceMatrix{T}, 𝑤::CuDeviceVector{T}, xid::CuDeviceMatrix{S}) where {T,S}
+    
+    nbins = size(h𝑤, 1)
+    it, jt = threadIdx().x, threadIdx().y
+    ib, jb = blockIdx().x, blockIdx().y
+    id, jd = blockDim().x, blockDim().y
+    ig, jg = gridDim().x, gridDim().y
+    j = jt + (jb - 1) * jd
+    
+    shared = @cuDynamicSharedMem(T, 3 * nbins)
+    fill!(shared, 0)
+    sync_threads()
+
+    i_tot = size(𝑤, 1)
+    iter = 0
+    while iter * id * ig < i_tot
+        i = it + id * (ib - 1) + iter * id * ig
+        if i <= size(xid, 1) && j <= size(xid, 2)
+            # depends on shared to be assigned to a single feature
+            k = 3 * (xid[i, j] - 1)
+            @inbounds CUDA.atomic_add!(pointer(shared, k + 1), δ1[i, 1])
+            @inbounds CUDA.atomic_add!(pointer(shared, k + 2), δ2[i, 1])
+            @inbounds CUDA.atomic_add!(pointer(shared, k + 3), 𝑤[i])
+        end
+        iter += 1
+    end
+    sync_threads()
+    # loop to cover cases where nbins > nthreads
+    for iter in 1:(nbins - 1) ÷ id + 1
+        bin_id = it + id * (iter - 1)
+        if bin_id <= nbins
+            @inbounds k = Base._to_linear_index(hδ1, 1, bin_id, j)
+            @inbounds CUDA.atomic_add!(pointer(hδ1, k), shared[3 * (bin_id - 1) + 1])
+            @inbounds CUDA.atomic_add!(pointer(hδ2, k), shared[3 * (bin_id - 1) + 2])
+            @inbounds CUDA.atomic_add!(pointer(h𝑤, k), shared[3 * (bin_id - 1) + 3])
+        end
+    end
+    # sync_threads()
+    return nothing
+end
+
+# base approach - block built along the cols first, the rows (limit collisions)
+function hist_gpu_s5!(hδ1::AbstractArray{T,3}, hδ2::AbstractArray{T,3}, h𝑤::AbstractMatrix{T}, 
+        δ1::AbstractMatrix{T}, δ2::AbstractMatrix{T}, 𝑤::AbstractVector{T}, 
+        id::AbstractMatrix{S}; MAX_THREADS=256) where {T,S}
+    thread_i = min(MAX_THREADS, size(id, 1))
+    thread_j = 1
+    threads = (thread_i, thread_j)
+    blocks = ceil.(Int, (16, size(id, 2)))
+    fill!(hδ1, 0)
+    fill!(hδ2, 0)
+    fill!(h𝑤, 0)
+    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h𝑤, 1) * 3 kernel_s5!(hδ1, hδ2, h𝑤, δ1, δ2, 𝑤, id)
+    return
+end
+
+nbins = 32
+ncol = 100
+items = Int32(1e6)
+
+δ1 = CUDA.rand(Float32, items, 1)
+δ2 = CUDA.rand(Float32, items, 1)
+𝑤 = CUDA.rand(Float32, items)
+idx = UInt8.(rand(1:nbins, items, ncol))
+
+hδ1 = CUDA.zeros(1, nbins, ncol)
+hδ2 = CUDA.zeros(1, nbins, ncol)
+h𝑤 =  CUDA.zeros(nbins, ncol)
+idx_gpu = CuArray(idx)
+
+@CUDA.time hist_gpu_s5!(hδ1, hδ2, h𝑤, δ1, δ2, 𝑤, idx_gpu, MAX_THREADS=128)
+@btime CUDA.@sync hist_gpu_s5!($hδ1, $hδ2, $h𝑤, $δ1, $δ2, $𝑤, $idx_gpu, MAX_THREADS=128)
+
+
+# base kernel
+function kernel_s6!(hδ1::CuDeviceArray{T,3}, hδ2::CuDeviceArray{T,3}, h𝑤::CuDeviceMatrix{T}, δ1::CuDeviceMatrix{T}, δ2::CuDeviceMatrix{T}, 𝑤::CuDeviceVector{T}, xid::CuDeviceMatrix{S}, 𝑖, 𝑗) where {T,S}
+    
+    nbins = size(h𝑤, 1)
+    it, jt = threadIdx().x, threadIdx().y
+    ib, jb = blockIdx().x, blockIdx().y
+    id, jd = blockDim().x, blockDim().y
+    ig, jg = gridDim().x, gridDim().y
+    j = jt + (jb - 1) * jd
+    
+    shared = @cuDynamicSharedMem(T, 3 * nbins)
+    fill!(shared, 0)
+    sync_threads()
+
+    i_tot = size(𝑤, 1)
+    iter = 0
+    while iter * id * ig < i_tot
+        i = it + id * (ib - 1) + iter * id * ig
+        if i <= length(𝑖) && j <= length(𝑗)
+            # depends on shared to be assigned to a single feature
+            i_idx = 𝑖[i]
+            k = 3 * (xid[i_idx, 𝑗[j]] - 1)
+            @inbounds CUDA.atomic_add!(pointer(shared, k + 1), δ1[i_idx, 1])
+            @inbounds CUDA.atomic_add!(pointer(shared, k + 2), δ2[i_idx, 1])
+            @inbounds CUDA.atomic_add!(pointer(shared, k + 3), 𝑤[i_idx])
+        end
+        iter += 1
+    end
+    sync_threads()
+    # loop to cover cases where nbins > nthreads
+    for iter in 1:(nbins - 1) ÷ id + 1
+        bin_id = it + id * (iter - 1)
+        if bin_id <= nbins
+            @inbounds k = Base._to_linear_index(hδ1, 1, bin_id, 𝑗[j])
+            @inbounds CUDA.atomic_add!(pointer(hδ1, k), shared[3 * (bin_id - 1) + 1])
+            @inbounds CUDA.atomic_add!(pointer(hδ2, k), shared[3 * (bin_id - 1) + 2])
+            @inbounds CUDA.atomic_add!(pointer(h𝑤, k), shared[3 * (bin_id - 1) + 3])
+        end
+    end
+    # sync_threads()
+    return nothing
+end
+
+# base approach - block built along the cols first, the rows (limit collisions)
+function hist_gpu_s6!(hδ1::AbstractArray{T,3}, hδ2::AbstractArray{T,3}, h𝑤::AbstractMatrix{T}, 
+        δ1::AbstractMatrix{T}, δ2::AbstractMatrix{T}, 𝑤::AbstractVector{T}, 
+        id::AbstractMatrix{S}, 𝑖, 𝑗; MAX_THREADS=256) where {T,S}
+    thread_i = min(MAX_THREADS, size(id, 1))
+    thread_j = 1
+    threads = (thread_i, thread_j)
+    blocks = ceil.(Int, (16, size(id, 2)))
+    fill!(hδ1, 0)
+    fill!(hδ2, 0)
+    fill!(h𝑤, 0)
+    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h𝑤, 1) * 3 kernel_s6!(hδ1, hδ2, h𝑤, δ1, δ2, 𝑤, id, 𝑖, 𝑗)
+    return
+end
+
+nbins = 32
+ncol = 100
+items = Int32(1e6)
+
+δ1 = CUDA.rand(Float32, items, 1)
+δ2 = CUDA.rand(Float32, items, 1)
+𝑤 = CUDA.rand(Float32, items)
+idx = UInt8.(rand(1:nbins, items, ncol))
+
+hδ1 = CUDA.zeros(1, nbins, ncol)
+hδ2 = CUDA.zeros(1, nbins, ncol)
+h𝑤 =  CUDA.zeros(nbins, ncol)
+idx_gpu = CuArray(idx)
+
+𝑖 = CuArray(UInt32.(1:items))
+𝑗 = CuArray(UInt32.(1:ncol))
+
+hδ1_cpu = reshape(Array(hδ1), size(hδ1)[2:3])
+hδ2_cpu = reshape(Array(hδ2), size(hδ2)[2:3])
+h𝑤_cpu = Array(h𝑤)
+δ1_cpu = reshape(Array(δ1), :)
+δ2_cpu = reshape(Array(δ2), :)
+𝑤_cpu = Array(𝑤)
+𝑖_cpu = Array(𝑖)
+𝑗_cpu = Array(𝑗)
+idx_cpu = Array(idx_gpu)
+
+@time hist_cpu_3!(hδ1_cpu, hδ2_cpu, h𝑤_cpu, δ1_cpu, δ2_cpu, 𝑤_cpu, idx_cpu, 𝑖_cpu, 𝑗_cpu)
+@btime hist_cpu_3!(hδ1_cpu, hδ2_cpu, h𝑤_cpu, δ1_cpu, δ2_cpu, 𝑤_cpu, idx_cpu, 𝑖_cpu, 𝑗_cpu)
+
+@CUDA.time hist_gpu_s6!(hδ1, hδ2, h𝑤, δ1, δ2, 𝑤, idx_gpu, 𝑖, 𝑗, MAX_THREADS=128)
+@btime CUDA.@sync hist_gpu_s6!($hδ1, $hδ2, $h𝑤, $δ1, $δ2, $𝑤, $idx_gpu, $𝑖, $𝑗, MAX_THREADS=128)
+
+
+
+function update_hist_cpu!(hist_δ::Matrix{SVector{L,T}}, hist_δ²::Matrix{SVector{L,T}}, hist_𝑤::Matrix{SVector{1,T}},
+    δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}},
+    X_bin, 𝑖, 𝑗) where {L,T,S}
+
+    hist_δ .*= 0.0
+    hist_δ² .*= 0.0
+    hist_𝑤 .*= 0.0
+
+    @inbounds Threads.@threads for j in 𝑗
+        @inbounds for i in 𝑖
+            hist_δ[X_bin[i,j], j] += δ[i]
+            hist_δ²[X_bin[i,j], j] += δ²[i]
+            hist_𝑤[X_bin[i,j], j] += 𝑤[i]
+        end
+    end
+end
+
+hδ1_cpu = SVector.(hδ1_cpu)
+hδ2_cpu = SVector.(hδ2_cpu)
+h𝑤_cpu = SVector.(h𝑤_cpu)
+δ1_cpu = SVector.(δ1_cpu)
+δ2_cpu = SVector.(δ2_cpu)
+𝑤_cpu = SVector.(𝑤_cpu)
+# 𝑖_cpu = Array(𝑖)
+# 𝑗_cpu = Array(𝑗)
+# idx_cpu = Array(idx_gpu)
+
+@time update_hist_cpu!(hδ1_cpu, hδ2_cpu, h𝑤_cpu, δ1_cpu, δ2_cpu, 𝑤_cpu, idx_cpu, 𝑖_cpu, 𝑗_cpu)
+@btime update_hist_cpu!(hδ1_cpu, hδ2_cpu, h𝑤_cpu, δ1_cpu, δ2_cpu, 𝑤_cpu, idx_cpu, 𝑖_cpu, 𝑗_cpu)
+@btime update_hist_cpu!($hδ1_cpu, $hδ2_cpu, $h𝑤_cpu, $δ1_cpu, $δ2_cpu, $𝑤_cpu, $idx_cpu, $𝑖_cpu, $𝑗_cpu)
 
 
 ##############################################################

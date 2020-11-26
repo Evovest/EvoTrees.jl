@@ -1,5 +1,5 @@
 # store perf info of each variable
-mutable struct SplitInfo_gpu{T<:AbstractFloat, S<:Int}
+mutable struct SplitInfo_gpu{T<:AbstractFloat, S}
     gain::T
     ∑δL::Vector{T}
     ∑δ²L::Vector{T}
@@ -14,7 +14,7 @@ mutable struct SplitInfo_gpu{T<:AbstractFloat, S<:Int}
     cond::T
 end
 
-struct TreeNode_gpu{T<:AbstractFloat, S<:Int, B<:Bool}
+struct TreeNode_gpu{T<:AbstractFloat, S, B<:Bool}
     left::S
     right::S
     feat::S
@@ -24,11 +24,11 @@ struct TreeNode_gpu{T<:AbstractFloat, S<:Int, B<:Bool}
     split::B
 end
 
-TreeNode_gpu(left::S, right::S, feat::S, cond::T, gain::T, K) where {T<:AbstractFloat, S<:Int} = TreeNode_gpu(left, right, feat, cond, gain, zeros(T,K), true)
-TreeNode_gpu(pred::Vector{T}) where {T} = TreeNode_gpu(0, 0, 0, zero(T), zero(T), pred, false)
+TreeNode_gpu(left::S, right::S, feat::S, cond::T, gain::T, K) where {T<:AbstractFloat, S} = TreeNode_gpu(left, right, feat, cond, gain, zeros(T,K), true)
+TreeNode_gpu(pred::Vector{T}) where {T} = TreeNode_gpu(UInt32(0), UInt32(0), UInt32(0), zero(T), zero(T), pred, false)
 
 # single tree is made of a root node that containes nested nodes and leafs
-struct TrainNode_gpu{T<:AbstractFloat, S<:Int}
+struct TrainNode_gpu{T<:AbstractFloat, S}
     parent::S
     depth::S
     ∑δ::Vector{T}
@@ -40,15 +40,15 @@ struct TrainNode_gpu{T<:AbstractFloat, S<:Int}
 end
 
 # single tree is made of a root node that containes nested nodes and leafs
-struct Tree_gpu{T<:AbstractFloat, S<:Int}
+struct Tree_gpu{T<:AbstractFloat, S}
     nodes::Vector{TreeNode_gpu{T,S,Bool}}
 end
 
 # gradient-boosted tree is formed by a vector of trees
-struct GBTree_gpu{T<:AbstractFloat, S<:Int}
+struct GBTree_gpu{T<:AbstractFloat, S}
     trees::Vector{Tree_gpu{T,S}}
     params::EvoTypes
     metric::Metric
-    K::Int
+    K::S
     levels
 end

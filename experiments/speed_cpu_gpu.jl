@@ -26,7 +26,7 @@ params_c = EvoTreeRegressor(T=Float32,
     nrounds=100,
     λ=1.0, γ=0.1, η=0.1,
     max_depth=6, min_weight=1.0,
-    rowsample=1.0, colsample=1.0, nbins=32);
+    rowsample=0.5, colsample=0.5, nbins=32);
 
 model_c, cache_c = EvoTrees.init_evotree(params_c, X_train, Y_train);
 
@@ -84,7 +84,7 @@ params_g = EvoTreeRegressor(T=Float32,
     nrounds=100,
     λ=1.0, γ=0.1, η=0.1,
     max_depth=6, min_weight=1.0,
-    rowsample=1.0, colsample=1.0, nbins=32);
+    rowsample=0.5, colsample=0.5, nbins=32);
 
 model_g, cache_g = EvoTrees.init_evotree_gpu(params_g, X_train, Y_train);
 
@@ -108,7 +108,7 @@ end
 ∑δ, ∑δ², ∑𝑤 = Vector(vec(sum(cache_g.δ[𝑖,:], dims=1))), Vector(vec(sum(cache_g.δ²[𝑖,:], dims=1))), sum(cache_g.𝑤[𝑖])
 gain = EvoTrees.get_gain(params_g.loss, ∑δ, ∑δ², ∑𝑤, params_g.λ)
 # assign a root and grow tree
-train_nodes[1] = EvoTrees.TrainNode_gpu(0, 1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
+train_nodes[1] = EvoTrees.TrainNode_gpu(UInt32(0), UInt32(1), ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
 # 60.736 ms (108295 allocations: 47.95 MiB) - only 15% faster than CPU
 @btime CUDA.@sync tree = EvoTrees.grow_tree_gpu(cache_g.δ, cache_g.δ², cache_g.𝑤, cache_g.hist_δ, cache_g.hist_δ², cache_g.hist_𝑤, params_g, cache_g.K, train_nodes, splits, cache_g.edges, cache_g.X_bin, cache_g.X_bin_cpu);
 push!(model_g.trees, tree);
@@ -123,16 +123,17 @@ push!(model_g.trees, tree);
 ###########################
 δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, K, edges, X_bin, X_bin_cpu = cache_g.δ, cache_g.δ², cache_g.𝑤, cache_g.hist_δ, cache_g.hist_δ², cache_g.hist_𝑤, cache_g.K, cache_g.edges, cache_g.X_bin, cache_g.X_bin_cpu;
 T = Float32
-active_id = ones(Int, 1)
-leaf_count = one(Int)
-tree_depth = one(Int)
-tree = EvoTrees.Tree_gpu(Vector{EvoTrees.TreeNode_gpu{T,Int,Bool}}())
+S = UInt32
+active_id = ones(S, 1)
+leaf_count = one(S)
+tree_depth = one(S)
+tree = EvoTrees.Tree_gpu(Vector{EvoTrees.TreeNode_gpu{T,S,Bool}}())
 
 hist_δ_cpu = zeros(T, size(hist_δ[1]));
 hist_δ²_cpu = zeros(T, size(hist_δ²[1]));
 hist_𝑤_cpu = zeros(T, size(hist_𝑤[1]));
 
-id = 1
+id = S(1)
 node = train_nodes[id];
 # 7.003 ms (106 allocations: 3.09 KiB)
 @btime CUDA.@sync EvoTrees.update_hist_gpu!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, CuVector(node.𝑖), CuVector(node.𝑗), K);
