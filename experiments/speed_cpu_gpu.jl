@@ -143,4 +143,4 @@ node_𝑖_g, node_𝑗_g = CuVector(node.𝑖), CuVector(node.𝑗)
 @btime hist_δ_cpu .= hist_δ[id];
 j = 1
 # 2.925 μs (78 allocations: 6.72 KiB) * 100 features ~ 300us
-@btime EvoTrees.find_split_gpu!(view(hist_δ_cpu, :, :, j), view(hist_δ²_cpu, :, :, j), view(hist_𝑤_cpu, :, j), params, node, splits[j], edges[j])
+@btime EvoTrees.find_split_gpu!(view(hist_δ_cpu, :, :, j), view(hist_δ²_cpu, :, :, j), view(hist_𝑤_cpu, :, j), params_g, node, splits[j], edges[j])

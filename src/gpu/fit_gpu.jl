@@ -119,7 +119,7 @@ function grow_evotree_gpu!(evotree::GBTree_gpu{T,S}, cache; verbosity=1) where {
         train_nodes[1] = TrainNode_gpu(S(0), S(1), ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
         tree = grow_tree_gpu(cache.δ, cache.δ², cache.𝑤, cache.hist_δ, cache.hist_δ², cache.hist_𝑤, params, cache.K, train_nodes, splits, cache.edges, cache.X_bin, cache.X_bin_cpu)
         push!(evotree.trees, tree)
-        # bad GPU usage - to be imprived!
+        # bad GPU usage - to be improved!
         predict_gpu!(cache.pred_cpu, tree, cache.X)
         cache.pred .= CuArray(cache.pred_cpu)
 
@@ -147,7 +147,6 @@ function grow_tree_gpu(δ, δ², 𝑤,
     hist_δ_cpu = zeros(T, size(hist_δ[1]))
     hist_δ²_cpu = zeros(T, size(hist_δ²[1]))
     hist_𝑤_cpu = zeros(T, size(hist_𝑤[1]))
-
     # println("train_nodes[1].depth: ", typeof(train_nodes[1].depth))
 
     # grow while there are remaining active nodes
