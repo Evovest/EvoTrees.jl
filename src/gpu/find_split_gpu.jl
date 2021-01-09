@@ -61,8 +61,8 @@ function hist_kernel!(hδ1::CuDeviceArray{T,3}, hδ2::CuDeviceArray{T,3}, h𝑤:
         i = it + id * (ib - 1) + iter * id * ig
         if i <= length(𝑖) && j <= length(𝑗)
             # depends on shared to be assigned to a single feature
-            i_idx = 𝑖[i]
-            k = 3 * (xid[i_idx, 𝑗[j]] - 1)
+            @inbounds i_idx = 𝑖[i]
+            @inbounds k = 3 * (xid[i_idx, 𝑗[j]] - 1)
             @inbounds CUDA.atomic_add!(pointer(shared, k + 1), δ1[i_idx, 1])
             @inbounds CUDA.atomic_add!(pointer(shared, k + 2), δ2[i_idx, 1])
             @inbounds CUDA.atomic_add!(pointer(shared, k + 3), 𝑤[i_idx])
@@ -123,6 +123,57 @@ end
 # end
 
 function find_split_gpu!(hist_δ::AbstractMatrix{T}, hist_δ²::AbstractMatrix{T}, hist_𝑤::AbstractVector{T},
+    params::EvoTypes, node::TrainNode_gpu{T,S}, info::SplitInfo_gpu{T,S}, edges::Vector{T}) where {T,S}
+
+    # initialize tracking
+    ∑δL = copy(node.∑δ) .* 0
+    ∑δ²L = copy(node.∑δ²) .* 0
+    ∑𝑤L = node.∑𝑤 * 0
+    ∑δR = copy(node.∑δ)
+    ∑δ²R = copy(node.∑δ²)
+    ∑𝑤R = node.∑𝑤
+
+    # println("∑δ²L: ", ∑δ²L, " ∑δ²R:", ∑δ²R)
+    # println("find_split_gpu! hist_𝑤: ", hist_𝑤)
+    # println("∑𝑤L: ", ∑𝑤L, " ∑𝑤R: ", ∑𝑤R)
+
+    @inbounds for bin in 1:(length(hist_δ) - 1)
+        @views ∑δL .+= hist_δ[:, bin]
+        @views ∑δ²L .+= hist_δ²[:, bin]
+        ∑𝑤L += hist_𝑤[bin]
+        @views ∑δR .-= hist_δ[:, bin]
+        @views ∑δ²R .-= hist_δ²[:, bin]
+        ∑𝑤R -= hist_𝑤[bin]
+
+        # println("∑δ²L: ", ∑δ²L, " | ∑δ²R:", ∑δ²R, " | hist_δ²[bin,:]: ", hist_δ²[bin,:])
+
+        gainL, gainR = get_gain(params.loss, ∑δL, ∑δ²L, ∑𝑤L, params.λ), get_gain(params.loss, ∑δR, ∑δ²R, ∑𝑤R, params.λ)
+        gain = gainL + gainR
+
+        # println("∑𝑤L: ", ∑𝑤L, " ∑𝑤R: ", ∑𝑤R)
+        # println("∑δL: ", ∑δL, " ∑δR: ", ∑δR)
+        # println("info.gain: ", info.gain, " gain: ", gain)
+
+        if gain > info.gain && ∑𝑤L >= params.min_weight + 0.1 && ∑𝑤R >= params.min_weight + 0.1
+            # println("there's a gain on bin: ", bin)
+            info.gain = gain
+            info.gainL = gainL
+            info.gainR = gainR
+            @views info.∑δL .= ∑δL
+            @views info.∑δ²L .= ∑δ²L
+            info.∑𝑤L = ∑𝑤L
+            @views info.∑δR .= ∑δR
+            @views info.∑δ²R .= ∑δ²R
+            info.∑𝑤R = ∑𝑤R
+            info.cond = edges[bin]
+            info.𝑖 = bin
+        end # info update if gain
+    end # loop on bins
+end
+
+
+# operate on hist_gpu
+function find_split_gpu2!(hist_δ::AbstractArray{T,3}, hist_δ²::AbstractArray{T,3}, hist_𝑤::AbstractMatrix{T},
     params::EvoTypes, node::TrainNode_gpu{T,S}, info::SplitInfo_gpu{T,S}, edges::Vector{T}) where {T,S}
 
     # initialize tracking
