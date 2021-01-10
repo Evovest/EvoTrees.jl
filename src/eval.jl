@@ -79,3 +79,30 @@ function eval_metric(::Val{:quantile}, pred::Vector{SVector{1,T}}, Y::AbstractVe
     eval /= length(pred)
     return eval
 end
+
+
+function gini_raw(labels::T, preds::S) where {T,S}
+    if length(preds) < 2 
+        return 0.0
+    end
+    random = (1:length(preds)) ./ length(preds)
+    l_sort = labels[sortperm(preds)]
+    l_cum_w = cumsum(l_sort) ./ sum(labels)
+    gini = sum(l_cum_w .- random)
+    return gini
+end
+
+function gini_norm(labels::T, preds::S) where {T,S}
+    if length(labels) < 2 
+        return 0.0
+    end
+    return gini_raw(labels, preds) / gini_raw(labels, labels)
+end
+
+function eval_metric(::Val{:gini}, pred::Vector{SVector{1,T}}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
+    return gini_norm(Y, pred)
+end
+
+function eval_metric(::Val{:gini}, pred::Vector{SVector{2,T}}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
+    return gini_norm(Y, pred)
+end
