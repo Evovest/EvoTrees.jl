@@ -44,14 +44,17 @@
 
 function hist_kernel!(hδ1::CuDeviceArray{T,3}, hδ2::CuDeviceArray{T,3}, h𝑤::CuDeviceMatrix{T}, δ1::CuDeviceMatrix{T}, δ2::CuDeviceMatrix{T}, 𝑤::CuDeviceVector{T}, xid::CuDeviceMatrix{S}, 𝑖, 𝑗) where {T,S}
     
+    K = size(hδ1, 1)
+    Ks = 2 * K + 1
     nbins = size(h𝑤, 1)
+
     it, jt = threadIdx().x, threadIdx().y
     ib, jb = blockIdx().x, blockIdx().y
     id, jd = blockDim().x, blockDim().y
     ig, jg = gridDim().x, gridDim().y
     j = jt + (jb - 1) * jd
     
-    shared = @cuDynamicSharedMem(T, 3 * nbins)
+    shared = @cuDynamicSharedMem(T, Ks * nbins)
     fill!(shared, 0)
     sync_threads()
 
@@ -62,10 +65,13 @@ function hist_kernel!(hδ1::CuDeviceArray{T,3}, hδ2::CuDeviceArray{T,3}, h𝑤:
         if i <= length(𝑖) && j <= length(𝑗)
             # depends on shared to be assigned to a single feature
             @inbounds i_idx = 𝑖[i]
-            @inbounds k = 3 * (xid[i_idx, 𝑗[j]] - 1)
-            @inbounds CUDA.atomic_add!(pointer(shared, k + 1), δ1[i_idx, 1])
-            @inbounds CUDA.atomic_add!(pointer(shared, k + 2), δ2[i_idx, 1])
-            @inbounds CUDA.atomic_add!(pointer(shared, k + 3), 𝑤[i_idx])
+            @inbounds k0 = Ks * (xid[i_idx, 𝑗[j]] - 1) # pointer to shared mem position - 1
+            for k in 1:K
+                @inbounds CUDA.atomic_add!(pointer(shared, k0 + k), δ1[i_idx, k])
+                @inbounds CUDA.atomic_add!(pointer(shared, k0 + 2 * K + k - 1), δ2[i_idx, k])
+            end
+            @inbounds CUDA.atomic_add!(pointer(shared, k0 + Ks), 𝑤[i_idx])
+        
         end
         iter += 1
     end
@@ -74,10 +80,13 @@ function hist_kernel!(hδ1::CuDeviceArray{T,3}, hδ2::CuDeviceArray{T,3}, h𝑤:
     for iter in 1:(nbins - 1) ÷ id + 1
         bin_id = it + id * (iter - 1)
         if bin_id <= nbins
-            @inbounds k = Base._to_linear_index(hδ1, 1, bin_id, 𝑗[j])
-            @inbounds CUDA.atomic_add!(pointer(hδ1, k), shared[3 * (bin_id - 1) + 1])
-            @inbounds CUDA.atomic_add!(pointer(hδ2, k), shared[3 * (bin_id - 1) + 2])
-            @inbounds CUDA.atomic_add!(pointer(h𝑤, k), shared[3 * (bin_id - 1) + 3])
+            @inbounds kδ0 = Base._to_linear_index(hδ1, 1, bin_id, 𝑗[j])
+            @inbounds k𝑤0 = Base._to_linear_index(h𝑤, bin_id, 𝑗[j])
+            for k in 1:K
+                @inbounds CUDA.atomic_add!(pointer(hδ1, kδ0 + k - 1), shared[Ks * (bin_id - 1) + k])
+                @inbounds CUDA.atomic_add!(pointer(hδ2, kδ0 + k - 1), shared[Ks * (bin_id - 1) + 2 * K + k - 1])
+            end
+            @inbounds CUDA.atomic_add!(pointer(h𝑤, k𝑤0), shared[Ks * bin_id])
         end
     end
     # sync_threads()
@@ -98,7 +107,7 @@ function update_hist_gpu!(hδ::CuArray{T,3}, hδ²::CuArray{T,3}, h𝑤::CuMatri
     threads = (thread_i, thread_j)
     blocks = (8, length(𝑗))
 
-    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h𝑤, 1) * 3 hist_kernel!(hδ, hδ², h𝑤, δ, δ², 𝑤, X_bin, 𝑖, 𝑗)
+    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h𝑤, 1) * (2 * K + 1) hist_kernel!(hδ, hδ², h𝑤, δ, δ², 𝑤, X_bin, 𝑖, 𝑗)
     return
 end
 
@@ -173,51 +182,62 @@ end
 
 
 # operate on hist_gpu
-function find_split_gpu2!(hist_δ::AbstractArray{T,3}, hist_δ²::AbstractArray{T,3}, hist_𝑤::AbstractMatrix{T},
-    params::EvoTypes, node::TrainNode_gpu{T,S}, info::SplitInfo_gpu{T,S}, edges::Vector{T}) where {T,S}
+function find_split_gpu2!(hist_δ::AbstractArray{T,3}, hist_δ²::AbstractArray{T,3}, hist_𝑤::AbstractMatrix{T}, edges::Vector{Vector{T}}, params::EvoTypes) where {T}
 
-    # initialize tracking
-    ∑δL = copy(node.∑δ) .* 0
-    ∑δ²L = copy(node.∑δ²) .* 0
-    ∑𝑤L = node.∑𝑤 * 0
-    ∑δR = copy(node.∑δ)
-    ∑δ²R = copy(node.∑δ²)
-    ∑𝑤R = node.∑𝑤
+    hist_δ_cum_L = cumsum(hist_δ, dims=2)
+    hist_δ²_cum_L = cumsum(hist_δ², dims=2)
+    hist_𝑤_cum_L = cumsum(hist_𝑤, dims=1)
 
-    # println("∑δ²L: ", ∑δ²L, " ∑δ²R:", ∑δ²R)
-    # println("find_split_gpu! hist_𝑤: ", hist_𝑤)
-    # println("∑𝑤L: ", ∑𝑤L, " ∑𝑤R: ", ∑𝑤R)
+    hist_δ_cum_R = sum(hist_δ, dims=2) .- hist_δ_cum_L
+    hist_δ²_cum_R = sum(hist_δ², dims=2) .- hist_δ²_cum_L
+    hist_𝑤_cum_R = sum(hist_𝑤, dims=1) .- hist_𝑤_cum_L
 
-    @inbounds for bin in 1:(length(hist_δ) - 1)
-        @views ∑δL .+= hist_δ[:, bin]
-        @views ∑δ²L .+= hist_δ²[:, bin]
-        ∑𝑤L += hist_𝑤[bin]
-        @views ∑δR .-= hist_δ[:, bin]
-        @views ∑δ²R .-= hist_δ²[:, bin]
-        ∑𝑤R -= hist_𝑤[bin]
+    gains_L = get_gain_gpu(hist_δ_cum_L, hist_δ²_cum_L, hist_𝑤_cum_L, params.λ)
+    gains_R = get_gain_gpu(hist_δ_cum_R, hist_δ²_cum_R, hist_𝑤_cum_R, params.λ)
+    gains = gains_L + gains_R
 
-        # println("∑δ²L: ", ∑δ²L, " | ∑δ²R:", ∑δ²R, " | hist_δ²[bin,:]: ", hist_δ²[bin,:])
+    best = findmax(gains)
+    gain, bin, feat = best[1], best[2][1], UInt32(best[2][2])
+    cond = edges[feat][bin]
+    gainL, gainR = Array(gains_L)[bin, feat], Array(gains_R)[bin, feat]
 
-        gainL, gainR = get_gain(params.loss, ∑δL, ∑δ²L, ∑𝑤L, params.λ), get_gain(params.loss, ∑δR, ∑δ²R, ∑𝑤R, params.λ)
-        gain = gainL + gainR
+    ∑δL, ∑δ²L, ∑𝑤L = Array(hist_δ_cum_L[:, bin, feat]), Array(hist_δ²_cum_L[:, bin, feat]), Array(hist_𝑤_cum_L)[bin, feat]
+    ∑δR, ∑δ²R, ∑𝑤R = Array(hist_δ_cum_R[:, bin, feat]), Array(hist_δ²_cum_R[:, bin, feat]), Array(hist_𝑤_cum_R)[bin, feat]
 
-        # println("∑𝑤L: ", ∑𝑤L, " ∑𝑤R: ", ∑𝑤R)
-        # println("∑δL: ", ∑δL, " ∑δR: ", ∑δR)
-        # println("info.gain: ", info.gain, " gain: ", gain)
+    return (gain = gain, bin = bin, feat = feat, cond = cond,
+        gainL = gainL, gainR = gainR,
+        ∑δL = ∑δL, ∑δ²L = ∑δ²L, ∑𝑤L = ∑𝑤L,
+        ∑δR = ∑δR, ∑δ²R = ∑δ²R, ∑𝑤R = ∑𝑤R)
+end
 
-        if gain > info.gain && ∑𝑤L >= params.min_weight + 0.1 && ∑𝑤R >= params.min_weight + 0.1
-            # println("there's a gain on bin: ", bin)
-            info.gain = gain
-            info.gainL = gainL
-            info.gainR = gainR
-            @views info.∑δL .= ∑δL
-            @views info.∑δ²L .= ∑δ²L
-            info.∑𝑤L = ∑𝑤L
-            @views info.∑δR .= ∑δR
-            @views info.∑δ²R .= ∑δ²R
-            info.∑𝑤R = ∑𝑤R
-            info.cond = edges[bin]
-            info.𝑖 = bin
-        end # info update if gain
-    end # loop on bins
+
+function gain_kernel!(gains::CuDeviceMatrix{T}, hδ1::CuDeviceArray{T,3}, hδ2::CuDeviceArray{T,3}, h𝑤::CuDeviceMatrix{T}, λ::T) where {T}
+    
+    nbins = size(gains, 1)
+    i, jt = threadIdx().x, threadIdx().y
+    ib, j = blockIdx().x, blockIdx().y
+    
+    𝑤 = h𝑤[i, j] 
+    @inbounds if 𝑤 > 1e-8
+        @inbounds for k in 1:size(hδ1, 1)
+            @inbounds gains[i, j] += (hδ1[k, i, j]^2 / (hδ2[k, i, j] + λ * 𝑤)) / 2
+        end
+    end
+
+    return nothing
+end
+
+# base approach - block built along the cols first, the rows (limit collisions)
+function get_gain_gpu(hδ1::CuArray{T,3}, hδ2::CuArray{T,3}, h𝑤::CuMatrix{T},
+        λ::T; MAX_THREADS=1024) where {T}
+    
+    gains = CUDA.zeros(T, size(h𝑤, 1) - 1, size(h𝑤, 2))
+
+    thread_i = min(size(gains, 1), MAX_THREADS)
+    thread_j = 1
+    threads = (thread_i, thread_j)
+    blocks = (1, size(gains, 2))
+
+    @cuda blocks = blocks threads = threads gain_kernel!(gains, hδ1, hδ2, h𝑤, λ)
+    return gains
 end

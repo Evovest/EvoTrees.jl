@@ -147,7 +147,6 @@ function grow_tree_gpu(δ, δ², 𝑤,
     hist_δ_cpu = zeros(T, size(hist_δ[1]))
     hist_δ²_cpu = zeros(T, size(hist_δ²[1]))
     hist_𝑤_cpu = zeros(T, size(hist_𝑤[1]))
-    # println("train_nodes[1].depth: ", typeof(train_nodes[1].depth))
 
     # grow while there are remaining active nodes
     while size(active_id, 1) > 0 && tree_depth <= params.max_depth
@@ -163,9 +162,9 @@ function grow_tree_gpu(δ, δ², 𝑤,
                     # println("node.∑𝑤:", node.∑𝑤)
                     # println("length(node.i):", length(node.𝑖))
                     # println("length(node.j):", length(node.𝑗))
-                    hist_δ[id] .= hist_δ[node.parent] .- hist_δ[id - 1]
-                    hist_δ²[id] .= hist_δ²[node.parent] .- hist_δ²[id - 1]
-                    hist_𝑤[id] .= hist_𝑤[node.parent] .- hist_𝑤[id - 1]
+                    hist_δ[id] = hist_δ[node.parent] .- hist_δ[id - 1]
+                    hist_δ²[id] = hist_δ²[node.parent] .- hist_δ²[id - 1]
+                    hist_𝑤[id] = hist_𝑤[node.parent] .- hist_𝑤[id - 1]
                 else
                     # println("id is left:", id)
                     # println("node.∑𝑤:", node.∑𝑤)
@@ -183,24 +182,30 @@ function grow_tree_gpu(δ, δ², 𝑤,
                 hist_δ_cpu .= hist_δ[id]
                 hist_δ²_cpu .= hist_δ²[id]
                 hist_𝑤_cpu .= hist_𝑤[id]
-                # println("hist_𝑤_cpu: ", hist_𝑤_cpu)
-
                 for j in node.𝑗
                     splits[j].gain = node.gain
                     # println("find split on feat: ", j)
                     find_split_gpu!(view(hist_δ_cpu, :, :, j), view(hist_δ²_cpu, :, :, j), view(hist_𝑤_cpu, :, j), params, node, splits[j], edges[j])
                 end
-
                 best = get_max_gain_gpu(splits)
-                # println("best feat: ", best.feat, " best 𝑖: ", best.𝑖, " best.∑𝑤L: ", best.∑𝑤L, " best.∑𝑤R: ", best.∑𝑤R)
+
+                # best = find_split_gpu2!(hist_δ[id], hist_δ²[id], hist_𝑤[id], edges, params)
 
                 # grow node if best split improves gain
                 if best.gain > node.gain + params.γ
+                # if best[:gain] > node.gain + params.γ
+
                     left, right = update_set(node.𝑖, best.𝑖, view(X_bin_cpu, :, best.feat))
                     # println("id/∑𝑤/length(node.i/left/right) : ", id, " / ", node.∑𝑤, " / ", length(node.𝑖), " / ", length(left), " / ", length(right), " / ", best.𝑖)
                     train_nodes[leaf_count + 1] = TrainNode_gpu(id, node.depth + S(1), copy(best.∑δL), copy(best.∑δ²L), best.∑𝑤L, best.gainL, left, node.𝑗)
                     train_nodes[leaf_count + 2] = TrainNode_gpu(id, node.depth + S(1), copy(best.∑δR), copy(best.∑δ²R), best.∑𝑤R, best.gainR, right, node.𝑗)
                     push!(tree.nodes, TreeNode_gpu(leaf_count + S(1), leaf_count + S(2), best.feat, best.cond, best.gain - node.gain, K))
+
+                    # left, right = update_set(node.𝑖, best[:bin], view(X_bin_cpu, :, best[:feat]))
+                    # train_nodes[leaf_count + 1] = TrainNode_gpu(id, node.depth + S(1), best[:∑δL], best[:∑δ²L], best[:∑𝑤L], best[:gainL], left, node.𝑗)
+                    # train_nodes[leaf_count + 2] = TrainNode_gpu(id, node.depth + S(1), best[:∑δR], best[:∑δ²R], best[:∑𝑤R], best[:gainR], right, node.𝑗)
+                    # push!(tree.nodes, TreeNode_gpu(leaf_count + S(1), leaf_count + S(2), best[:feat], best[:cond], best[:gain] - node.gain, K))
+
                     push!(next_active_id, leaf_count + S(1))
                     push!(next_active_id, leaf_count + S(2))
                     leaf_count += S(2)
