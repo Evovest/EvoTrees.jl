@@ -47,6 +47,8 @@ edges = EvoTrees.get_edges(X_train, params1.nbins)
 X_bin = EvoTrees.binarize(X_train, edges)
 @time model = model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
+using BSON: @save
+@save "blog/model_linear.bson" model
 
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
 @time pred_train_linear = predict(model, X_train)
@@ -191,25 +193,32 @@ tree1 = model.trees[2]
 source, target = treevec(tree1)
 nodes = nodenames(tree1)
 seed!(1)
-p1 = graphplot(source, target, method=:tree, names = nodes, linecolor=:brown, nodeshape=:hexagon, fontsize=8, fillcolor="#66ffcc")
+# p1 = graphplot(source, target, method=:tree, names = nodes, linecolor=:brown, nodeshape=:hexagon, fontsize=8, fillcolor="#66ffcc")
+p1 = graphplot(source, target, method=:buchheim, names = nodes, linecolor=:brown, nodeshape=:hexagon, fontsize=8, nodecolor="#66ffcc")
 
 tree1 = model.trees[3]
 source, target = treevec(tree1)
 nodes = nodenames(tree1)
 seed!(1)
-p2 = graphplot(source, target, method=:tree, names = nodes, linecolor=:brown, nodeshape=:hexagon, fontsize=8, fillcolor="#66ffcc")
+p2 = graphplot(source, target, method=:buchheim, names = nodes, linecolor=:brown, nodeshape=:hexagon, fontsize=8, nodecolor="#66ffcc")
 
 tree1 = model.trees[50]
 source, target = treevec(tree1)
 nodes = nodenames(tree1)
 seed!(1)
-p3 = graphplot(source, target, method=:tree, names = nodes, linecolor=:brown, nodeshape=:hexagon, fontsize=8, fillcolor="#66ffcc")
+p3 = graphplot(source, target, method=:buchheim, names = nodes, linecolor=:brown, nodeshape=:hexagon, fontsize=8, nodecolor="#66ffcc")
 
 tree1 = model.trees[90]
 source, target = treevec(tree1)
 nodes = nodenames(tree1)
 seed!(1)
-p4 = graphplot(source, target, method=:tree, names = nodes, linecolor=:brown, nodeshape=:hexagon, fontsize=8, fillcolor="#66ffcc")
+p4 = graphplot(source, target, method=:buchheim, names = nodes, edgecolor=:black, nodeshape=:hexagon, fontsize=8, nodecolor="#66ffcc")
+default(size=(1600, 1600))
+seed!(1)
+fills = sample(["#33ffcc", "#99ccff"], length(source), replace=true)
+fills = sample(["lightgray", "#33ffcc"], length(source), replace=true)
+p4 = graphplot(source, target, method=:buchheim, root=:top, names = nodes, edgecolor=:black, nodeshape=:hexagon, fontsize=9, axis_buffer=0.05, nodesize=0.025, nodecolor=fills)
+
 
 p = plot(p1,p2,p3,p4)
 savefig(p, "blog/tree_group.svg")

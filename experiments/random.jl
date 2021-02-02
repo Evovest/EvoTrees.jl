@@ -37,13 +37,23 @@ params1 = EvoTreeRegressor(T=Float32,
 # for 1.25e6 mse with eval data:  6.345 s (74009 allocations: 2.18 GiB)
 @time model = fit_evotree(params1, X_train, Y_train);
 @btime model = fit_evotree($params1, $X_train, $Y_train);
-@time pred_train = predict(model, X_train)
-@time gain = importance(model, 1:100)
+
+@time pred_train = predict(model, X_train);
+@btime pred_train = predict(model, X_train);
+gain = importance(model, 1:100)
+
+@time model, cache = EvoTrees.init_evotree(params1, X_train, Y_train);
+@time EvoTrees.grow_evotree!(model, cache);
+
+using BSON: @save, @load
+@save "model.bson" model
+@load "model.bson" model
+pred_train = predict(model, X_train)
 
 #############################
 # CPU - Logistic
 #############################
-params1 = EvoTreeGaussian(T=Float32,
+params1 = EvoTreeRegressor(T=Float32,
     loss=:logistic, metric=:none,
     nrounds=100,
     λ = 1.0, γ=0.1, η=0.1,
@@ -76,11 +86,14 @@ params1 = EvoTreeRegressor(T=Float64,
     rowsample=0.5, colsample=0.5, nbins=64)
 
 @time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
+# Asus laptop:  10.594 s (20874773 allocations: 8.68 GiB)
+@btime model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
 @time model, cache = EvoTrees.init_evotree_gpu(params1, X_train, Y_train);
 @time EvoTrees.grow_evotree_gpu!(model, cache);
 
 # X_train_32 = Float32.(X_train)
-@time pred_train = EvoTrees.predict_gpu(model, X_train)
+@time pred_train = EvoTrees.predict_gpu(model, X_train);
+@btime pred_train = EvoTrees.predict_gpu(model, X_train);
 mean(pred_train)
 
 ################################

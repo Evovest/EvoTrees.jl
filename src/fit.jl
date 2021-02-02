@@ -57,7 +57,6 @@ function init_evotree(params::EvoTypes{T,U,S},
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
 
-
     # initializde histograms
     hist_δ = Vector{Matrix{SVector{evotree.K, T}}}(undef, 2^params.max_depth-1)
     hist_δ² = Vector{Matrix{SVector{evotree.K, T}}}(undef, 2^params.max_depth-1)
