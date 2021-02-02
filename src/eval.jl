@@ -100,9 +100,17 @@ function gini_norm(labels::T, preds::S) where {T,S}
 end
 
 function eval_metric(::Val{:gini}, pred::Vector{SVector{1,T}}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
+<<<<<<< HEAD
     return -gini_norm(Y, pred)
 end
 
 function eval_metric(::Val{:gini}, pred::Vector{SVector{2,T}}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
     return -gini_norm(Y, pred)
+=======
+    return gini_norm(Y, pred)
+end
+
+function eval_metric(::Val{:gini}, pred::Vector{SVector{2,T}}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
+    return gini_norm(Y, pred)
+>>>>>>> master
 end

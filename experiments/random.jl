@@ -37,7 +37,10 @@ params1 = EvoTreeRegressor(T=Float32,
 # for 1.25e6 mse with eval data:  6.345 s (74009 allocations: 2.18 GiB)
 @time model = fit_evotree(params1, X_train, Y_train);
 @btime model = fit_evotree($params1, $X_train, $Y_train);
+<<<<<<< HEAD
 
+=======
+>>>>>>> master
 @time pred_train = predict(model, X_train);
 @btime pred_train = predict(model, X_train);
 gain = importance(model, 1:100)
@@ -83,7 +86,7 @@ params1 = EvoTreeRegressor(T=Float64,
     nrounds=100,
     λ = 1.0, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=0.5, nbins=64)
+    rowsample=0.5, colsample=0.5, nbins=32)
 
 @time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
 # Asus laptop:  10.594 s (20874773 allocations: 8.68 GiB)

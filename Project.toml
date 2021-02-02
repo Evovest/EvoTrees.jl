@@ -1,7 +1,11 @@
 name = "EvoTrees"
 uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
 authors = ["jeremiedb <jeremie.db@evovest.com>"]
+<<<<<<< HEAD
 version = "0.5.5"
+=======
+version = "0.5.4"
+>>>>>>> master
 
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
@@ -21,7 +25,11 @@ BSON = "0.2"
 CUDA = "2"
 CategoricalArrays = "0.8, 0.9"
 Distributions = "0.24"
+<<<<<<< HEAD
 MLJModelInterface = "0.3, 0.4"
+=======
+MLJModelInterface = "0.3"
+>>>>>>> master
 NetworkLayout = "0.2, 0.3"
 RecipesBase = "1"
 StaticArrays = "1.0"
