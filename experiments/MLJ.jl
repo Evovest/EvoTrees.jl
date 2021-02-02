@@ -122,15 +122,15 @@ X = Tables.columntable(X)
 X_matrix = MLJBase.matrix(X)
 
 # typeof(X)
-@time tree = machine(tree_model, X, Y)
+@time tree = machine(tree_model, X, Y);
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
 @time fit!(tree, rows=train, verbosity=1, force=true)
 
 tree.model.nrounds += 10
-@time update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
+@time update(tree.model, 0, tree.fitresult, tree.cache, X, Y);
 
 tree.model.nrounds += 10
-@time fit!(tree, rows=train, verbosity=1)
+@time fit!(tree, rows=train, verbosity=1);
 # @time MLJBase.fit!(tree, rows=train, verbosity=1)
 
 # yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
