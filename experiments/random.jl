@@ -37,10 +37,6 @@ params1 = EvoTreeRegressor(T=Float32,
 # for 1.25e6 mse with eval data:  6.345 s (74009 allocations: 2.18 GiB)
 @time model = fit_evotree(params1, X_train, Y_train);
 @btime model = fit_evotree($params1, $X_train, $Y_train);
-<<<<<<< HEAD
-
-=======
->>>>>>> master
 @time pred_train = predict(model, X_train);
 @btime pred_train = predict(model, X_train);
 gain = importance(model, 1:100)

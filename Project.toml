@@ -25,11 +25,7 @@ BSON = "0.2"
 CUDA = "2"
 CategoricalArrays = "0.8, 0.9"
 Distributions = "0.24"
-<<<<<<< HEAD
 MLJModelInterface = "0.3, 0.4"
-=======
-MLJModelInterface = "0.3"
->>>>>>> master
 NetworkLayout = "0.2, 0.3"
 RecipesBase = "1"
 StaticArrays = "1.0"
