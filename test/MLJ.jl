@@ -42,7 +42,6 @@ mean(abs.(pred_test - selectrows(Y,test)))
 ##################################################
 X, y = @load_crabs
 
-# define hyperparameters
 tree_model = EvoTreeClassifier(max_depth=4, η=0.05, λ=0.0, γ=0.0, nrounds=10)
 
 # @load EvoTreeRegressor
