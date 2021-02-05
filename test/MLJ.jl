@@ -1,6 +1,7 @@
 using StatsBase: sample
 using EvoTrees: sigmoid, logit
 using MLJBase
+using CategoricalArrays
 
 ##################################################
 ### Regression - small data
@@ -38,7 +39,7 @@ mean(abs.(pred_test - selectrows(Y,test)))
 
 
 ##################################################
-### classif
+### classif - categorical target
 ##################################################
 X, y = @load_crabs
 

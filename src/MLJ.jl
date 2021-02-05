@@ -1,7 +1,7 @@
 
-function MLJModelInterface.fit(model::EvoTypes, verbosity::Int, X, y)
-    Xmatrix = MLJModelInterface.matrix(X)
-    fitresult, cache = init_evotree(model, Xmatrix, y, verbosity = verbosity)
+function MLJModelInterface.fit(model::EvoTypes, verbosity::Int, X::AbstractMatrix, y)
+    # Xmatrix = MLJModelInterface.matrix(X)
+    fitresult, cache = init_evotree(model, X, y, verbosity = verbosity)
     grow_evotree!(fitresult, cache, verbosity = verbosity)
     report = nothing
     return fitresult, cache, report
