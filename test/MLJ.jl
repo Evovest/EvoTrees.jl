@@ -1,7 +1,6 @@
 using StatsBase: sample
 using EvoTrees: sigmoid, logit
 using MLJBase
-using CategoricalArrays
 
 ##################################################
 ### Regression - small data
