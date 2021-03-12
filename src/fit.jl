@@ -12,16 +12,17 @@ function init_evotree(params::EvoTypes{T,U,S},
         Y = T.(Y)
         μ = fill(log(mean(Y)), 1)
     elseif typeof(params.loss) == Softmax
-        if typeof(Y) <: AbstractCategoricalVector
-            levels = CategoricalArray(CategoricalArrays.levels(Y))
+        if eltype(Y) <: CategoricalValue
+            levels = CategoricalArrays.levels(Y)
             K = length(levels)
             μ = zeros(T, K)
-            Y = MLJModelInterface.int.(Y)
+            Y = UInt32.(CategoricalArrays.levelcode.(Y))
         else
-            levels = CategoricalArray(sort(unique(Y)))
+            levels = sort(unique(Y))
+            yc = CategoricalVector(Y, levels=levels)
             K = length(levels)
             μ = zeros(T, K)
-            Y = UInt32.(Y)
+            Y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
     elseif typeof(params.loss) == Gaussian
         K = 2
