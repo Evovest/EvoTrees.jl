@@ -90,7 +90,7 @@ tree_model = EvoTreeCount(
     rowsample=0.5, colsample=0.5, nbins=32)
 
 X = MLJBase.table(X)
-X_matrix = MLJBase.matrix(X)
+X = MLJBase.matrix(X)
 
 # typeof(X)
 mach = machine(tree_model, X, Y)
@@ -98,7 +98,7 @@ train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
 fit!(mach, rows=train, verbosity=1, force=true)
 
 mach.model.nrounds += 10
-MLJBase.update(mach.model, 0, mach.fitresult, mach.cache, X, Y)
+MLJBase.update(mach.model, 0, mach.fitresult, mach.cache, X, Y);
 
 mach.model.nrounds += 10
 fit!(mach, rows=train, verbosity=1)
@@ -134,7 +134,6 @@ tree_model = EvoTreeGaussian(
     rowsample=0.5, colsample=0.5, nbins=32)
 
 X = MLJBase.table(X)
-X_matrix = MLJBase.matrix(X)
 
 # typeof(X)
 mach = machine(tree_model, X, Y)
