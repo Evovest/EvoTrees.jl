@@ -163,17 +163,9 @@ function grow_tree_gpu(δ, δ², 𝑤,
                     hist_δ²[id] = hist_δ²[node.parent] .- hist_δ²[id - 1]
                     hist_𝑤[id] = hist_𝑤[node.parent] .- hist_𝑤[id - 1]
                 else
-                    # println("id is left:", id)
-                    # println("node.∑𝑤:", node.∑𝑤)
-                    # println("length(node.i):", length(node.𝑖))
-                    # println("length(node.j):", length(node.𝑗))
-                    # println("hist_𝑤[id]: ", hist_𝑤[id])
                     # should revisite to launch all hist update within depth once since async - and then
                     update_hist_gpu!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, CuVector(node.𝑖), CuVector(node.𝑗), K)
-                    # println("hist_𝑤[id]: ", hist_𝑤[id])
-                    # println("size(hist_𝑤[id]): ", size(hist_𝑤[id]))
-                    # println("hist_δ[id]: ", hist_δ[id])
-                    # println("size(hist_δ[id]): ", size(hist_δ[id]))
+
                 end
 
                 hist_δ_cpu .= hist_δ[id]
@@ -281,7 +273,7 @@ end
 
 
 # extract the gain value from the vector of best splits and return the split info associated with best split
-function get_max_gain_gpu(splits::Vector{SplitInfo_gpu{T,S}}) where {T,S}
+function get_max_gain_gpu(splits::Vector{SplitInfoGPU{T,S}}) where {T,S}
     gains = (x -> x.gain).(splits)
     feat = findmax(gains)[2]
     best = splits[feat]

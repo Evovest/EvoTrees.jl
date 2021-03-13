@@ -171,3 +171,17 @@ best = X_bin[3]
 # mask = CUDA.zeros(Bool, length(set))
 @btime EvoTrees.update_set_gpu(set, best, X_bin[:,1], MAX_THREADS=1024);
 left, right = EvoTrees.update_set_gpu(set, best, X_bin[:,1], MAX_THREADS=1024);
+
+
+###########################
+# GPU hist 2
+###########################
+# aggregate grads and weight
+X_bin = cache_g.X_bin
+δtot = cat(δ, δ², reshape(𝑤, size(𝑤)..., 1), dims=2)
+# aggregate hists
+hist = cat(hist_δ[id], hist_δ²[id], reshape(hist_𝑤[id], 1, size(hist_𝑤[id])...), dims=1)
+
+# 3.6 ms (106 allocations: 3.09 KiB)
+EvoTrees.update_hist_gpu2!(hist, δtot, X_bin, CuVector(node.𝑖), CuVector(node.𝑗), K);
+@btime CUDA.@sync EvoTrees.update_hist_gpu2!(hist, δtot, X_bin, CuVector(node.𝑖), CuVector(node.𝑗), K);
