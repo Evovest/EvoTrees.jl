@@ -1,5 +1,7 @@
-# store perf info of each variable
-mutable struct SplitInfo_gpu{T<:AbstractFloat, S}
+"""
+    store perf info of each variable - looking to drop
+"""
+mutable struct SplitInfoGPU{T<:AbstractFloat, S}
     gain::T
     ∑δL::Vector{T}
     ∑δ²L::Vector{T}
@@ -14,21 +16,10 @@ mutable struct SplitInfo_gpu{T<:AbstractFloat, S}
     cond::T
 end
 
-struct TreeNode_gpu{T<:AbstractFloat, S, B<:Bool}
-    left::S
-    right::S
-    feat::S
-    cond::T
-    gain::T
-    pred::Vector{T}
-    split::B
-end
-
-TreeNode_gpu(left::S, right::S, feat::S, cond::T, gain::T, K) where {T<:AbstractFloat, S} = TreeNode_gpu(left, right, feat, cond, gain, zeros(T,K), true)
-TreeNode_gpu(pred::Vector{T}) where {T} = TreeNode_gpu(UInt32(0), UInt32(0), UInt32(0), zero(T), zero(T), pred, false)
-
-# single tree is made of a root node that containes nested nodes and leafs
-struct TrainNode_gpu{T<:AbstractFloat, S}
+"""
+    Carries training information for a given tree node
+"""
+struct TrainNodeGPU{T<:AbstractFloat, S}
     parent::S
     depth::S
     ∑δ::Vector{T}
@@ -39,14 +30,29 @@ struct TrainNode_gpu{T<:AbstractFloat, S}
     𝑗::Vector{S}
 end
 
-# single tree is made of a root node that containes nested nodes and leafs
-struct Tree_gpu{T<:AbstractFloat, S}
-    nodes::Vector{TreeNode_gpu{T,S,Bool}}
+struct TreeNodeGPU{T<:AbstractFloat, S, B<:Bool}
+    left::S
+    right::S
+    feat::S
+    cond::T
+    gain::T
+    pred::Vector{T}
+    split::B
+end
+
+TreeNodeGPU(left::S, right::S, feat::S, cond::T, gain::T, K) where {T<:AbstractFloat, S} = TreeNodeGPU(left, right, feat, cond, gain, zeros(T,K), true)
+TreeNodeGPU(pred::Vector{T}) where {T} = TreeNodeGPU(UInt32(0), UInt32(0), UInt32(0), zero(T), zero(T), pred, false)
+
+"""
+    single tree is made of a a vector of nodes
+"""
+struct TreeGPU{T<:AbstractFloat, S}
+    nodes::Vector{TreeNodeGPU{T,S,Bool}}
 end
 
 # gradient-boosted tree is formed by a vector of trees
-struct GBTree_gpu{T<:AbstractFloat, S}
-    trees::Vector{Tree_gpu{T,S}}
+struct GBTreeGPU{T<:AbstractFloat, S}
+    trees::Vector{TreeGPU{T,S}}
     params::EvoTypes
     metric::Metric
     K::S

@@ -44,7 +44,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     pred .= CuArray(μ)'
 
     bias = Tree_gpu([TreeNode_gpu(μ)])
-    evotree = GBTree_gpu([bias], params, Metric(), UInt32(K), levels)
+    evotree = GBTreeGPU([bias], params, Metric(), UInt32(K), levels)
 
     𝑖_ = UInt32.(collect(1:X_size[1]))
     𝑗_ = UInt32.(collect(1:X_size[2]))
@@ -59,9 +59,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     X_bin = CuArray(X_bin_cpu) # CuArray indexing not supporting UInt8
 
     # initializde histograms
-    hist_δ = [CUDA.zeros(T, K, params.nbins, X_size[2]) for i in 1:2^params.max_depth - 1]
-    hist_δ² = [CUDA.zeros(T, K, params.nbins, X_size[2]) for i in 1:2^params.max_depth - 1]
-    hist_𝑤 = [CUDA.zeros(T, params.nbins, X_size[2]) for i in 1:2^params.max_depth - 1]
+    hist = [CUDA.zeros(T, 2 * K + 1, params.nbins, X_size[2]) for i in 1:2^params.max_depth - 1]
 
     # initialize train nodes
     train_nodes = Vector{TrainNode_gpu{T,UInt32}}(undef, 2^params.max_depth - 1)
@@ -77,11 +75,11 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     cache = (params = deepcopy(params),
         X = X, Y = Y, Y_cpu = Y_cpu, K = K,
         pred = pred, pred_cpu = pred_cpu,
-        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, δ = δ, δ² = δ², 𝑤 = 𝑤,
+        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, δ = δ,
         edges = edges,
-        X_bin = X_bin, X_bin_cpu = X_bin_cpu,
-        train_nodes = train_nodes, splits = splits,
-        hist_δ = hist_δ, hist_δ² = hist_δ², hist_𝑤 = hist_𝑤)
+        X_bin = X_bin,
+        train_nodes = train_nodes,
+        hist = hist)
 
     cache.params.nrounds = 0
 
@@ -89,7 +87,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
 end
 
 
-function grow_evotree_gpu!(evotree::GBTree_gpu{T,S}, cache; verbosity=1) where {T,S}
+function grow_evotree_gpu!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T,S}
 
     # initialize from cache
     params = evotree.params
@@ -117,7 +115,7 @@ function grow_evotree_gpu!(evotree::GBTree_gpu{T,S}, cache; verbosity=1) where {
         gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # # assign a root and grow tree
         train_nodes[1] = TrainNode_gpu(S(0), S(1), ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
-        tree = grow_tree_gpu(cache.δ, cache.δ², cache.𝑤, cache.hist_δ, cache.hist_δ², cache.hist_𝑤, params, cache.K, train_nodes, splits, cache.edges, cache.X_bin, cache.X_bin_cpu)
+        tree = grow_tree_gpu2(cache.δ, cache.hist, params, cache.K, train_nodes, cache.edges, cache.X_bin)
         push!(evotree.trees, tree)
         # bad GPU usage - to be improved!
         predict_gpu!(cache.pred_cpu, tree, cache.X)
@@ -126,7 +124,6 @@ function grow_evotree_gpu!(evotree::GBTree_gpu{T,S}, cache; verbosity=1) where {
     end # end of nrounds
 
     cache.params.nrounds = params.nrounds
-    # cache = (deepcopy(params), X, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, train_nodes, splits, hist_δ, hist_δ², hist_𝑤)
     # return model, cache
     return evotree
 end
@@ -188,7 +185,6 @@ function grow_tree_gpu(δ, δ², 𝑤,
                     find_split_gpu!(view(hist_δ_cpu, :, :, j), view(hist_δ²_cpu, :, :, j), view(hist_𝑤_cpu, :, j), params, node, splits[j], edges[j])
                 end
                 best = get_max_gain_gpu(splits)
-
                 # best = find_split_gpu2!(hist_δ[id], hist_δ²[id], hist_𝑤[id], edges, params)
 
                 # grow node if best split improves gain
@@ -219,6 +215,61 @@ function grow_tree_gpu(δ, δ², 𝑤,
     end # end of tree growth
     return tree
 end
+
+
+
+# grow a single tree - grow through all depth
+function grow_tree_gpu2(δ, hist, 
+    params::EvoTypes{T,U,R}, K,
+    train_nodes::Vector{TrainNode_gpu{T,S}},
+    edges, X_bin) where {T,U,S,R}
+
+    active_id = ones(S, 1)
+    leaf_count = one(S)
+    tree_depth = one(S)
+    tree = Tree_gpu(Vector{TreeNode_gpu{T,S,Bool}}())
+
+    # grow while there are remaining active nodes
+    while size(active_id, 1) > 0 && tree_depth <= params.max_depth
+        next_active_id = ones(S, 0)
+        # grow nodes
+        for id in active_id
+            node = train_nodes[id]
+            if tree_depth == params.max_depth || node.∑𝑤 <= params.min_weight + 0.1 # rounding needed from histogram substraction
+                push!(tree.nodes, TreeNode_gpu(pred_leaf_gpu(params.loss, node, params, δ²)))
+            else
+                if id > 1 && id == tree.nodes[node.parent].right
+                    hist[id] = hist[node.parent] .- hist[id - 1]
+                else
+                    update_hist_gpu2!(hist[id], δ, X_bin, CuVector(node.𝑖), CuVector(node.𝑗), K)
+                end
+        
+                best = find_split_gpu2!(hist[id], edges, params)
+                
+                # grow node if best split improves gain
+                if best.gain > node.gain + params.γ
+                    # if best[:gain] > node.gain + params.γ
+    
+                    left, right = update_set_gpu(node.𝑖, best.𝑖, view(X_bin, :, best.feat))
+                    train_nodes[leaf_count + 1] = TrainNode_gpu(id, node.depth + S(1), copy(best.∑δL), copy(best.∑δ²L), best.∑𝑤L, best.gainL, left, node.𝑗)
+                    train_nodes[leaf_count + 2] = TrainNode_gpu(id, node.depth + S(1), copy(best.∑δR), copy(best.∑δ²R), best.∑𝑤R, best.gainR, right, node.𝑗)
+                    push!(tree.nodes, TreeNode_gpu(leaf_count + S(1), leaf_count + S(2), best.feat, best.cond, best.gain - node.gain, K))
+    
+                    push!(next_active_id, leaf_count + S(1))
+                    push!(next_active_id, leaf_count + S(2))
+                    leaf_count += S(2)
+                else
+                    push!(tree.nodes, TreeNode_gpu(pred_leaf_gpu(params.loss, node, params, δ²)))
+                end # end of single node split search
+            end
+        end # end of loop over active ids for a given depth
+        active_id = next_active_id
+        tree_depth += S(1)
+    end # end of tree growth
+    return tree
+end
+
+
 
 # extract the gain value from the vector of best splits and return the split info associated with best split
 function get_max_gain_gpu(splits::Vector{SplitInfo_gpu{T,S}}) where {T,S}

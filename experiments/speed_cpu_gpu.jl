@@ -1,5 +1,5 @@
 using Statistics
-using StatsBase: sample
+using StatsBase:sample
 using Revise
 using EvoTrees
 using BenchmarkTools
@@ -26,7 +26,7 @@ params_c = EvoTreeRegressor(T=Float32,
     nrounds=100,
     λ=1.0, γ=0.1, η=0.1,
     max_depth=6, min_weight=1.0,
-    rowsample=0.5, colsample=0.5, nbins=32);
+    rowsample=0.5, colsample=0.5, nbins=64);
 
 model_c, cache_c = EvoTrees.init_evotree(params_c, X_train, Y_train);
 
@@ -72,9 +72,15 @@ id = 1
 node = train_nodes[id]
 # 9.613 ms (81 allocations: 13.55 KiB)
 @btime EvoTrees.update_hist!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, node)
-j =1
+j = 1
 # 601.685 ns (6 allocations: 192 bytes) 8 100 feat ~ 60us
 @btime EvoTrees.find_split!(view(hist_δ[id], :, j), view(hist_δ²[id], :, j), view(hist_𝑤[id], :, j), params_c, node, splits[j], edges[j])
+
+
+set = node.𝑖
+best = X_bin[3]
+@btime EvoTrees.update_set(set, best, X_bin[:,1])
+@btime EvoTrees.update_set(node.𝑖, best, view(X_bin, :, 1))
 
 ###################################################
 # GPU
@@ -84,7 +90,7 @@ params_g = EvoTreeRegressor(T=Float32,
     nrounds=100,
     λ=1.0, γ=0.1, η=0.1,
     max_depth=6, min_weight=1.0,
-    rowsample=0.5, colsample=0.5, nbins=32);
+    rowsample=0.5, colsample=0.5, nbins=64);
 
 model_g, cache_g = EvoTrees.init_evotree_gpu(params_g, X_train, Y_train);
 
@@ -135,8 +141,10 @@ hist_𝑤_cpu = zeros(T, size(hist_𝑤[1]));
 
 id = S(1)
 node = train_nodes[id];
-# 7.003 ms (106 allocations: 3.09 KiB)
+# 3.628 ms (106 allocations: 3.09 KiB)
 @btime CUDA.@sync EvoTrees.update_hist_gpu!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, CuVector(node.𝑖), CuVector(node.𝑗), K);
+hist_δ[id][1,:,:]
+
 node_𝑖_g, node_𝑗_g = CuVector(node.𝑖), CuVector(node.𝑗)
 @btime CUDA.@sync EvoTrees.update_hist_gpu!($hist_δ[id], $hist_δ²[id], $hist_𝑤[id], $δ, $δ², $𝑤, $X_bin, $node_𝑖_g, $node_𝑗_g, $K);
 #  32.001 μs (2 allocations: 32 bytes) * 3 adds 100us
@@ -144,3 +152,22 @@ node_𝑖_g, node_𝑗_g = CuVector(node.𝑖), CuVector(node.𝑗)
 j = 1
 # 2.925 μs (78 allocations: 6.72 KiB) * 100 features ~ 300us
 @btime EvoTrees.find_split_gpu!(view(hist_δ_cpu, :, :, j), view(hist_δ²_cpu, :, :, j), view(hist_𝑤_cpu, :, j), params_g, node, splits[j], edges[j])
+
+
+###########################
+# GPU hist 2
+###########################
+# aggregate grads and weight
+δtot = cat(δ, δ², reshape(𝑤, size(𝑤)..., 1), dims=2)
+# aggregate hists
+hist = cat(hist_δ[id], hist_δ²[id], reshape(hist_𝑤[id], 1, size(hist_𝑤[id])...), dims=1)
+
+# 3.6 ms (106 allocations: 3.09 KiB)
+EvoTrees.update_hist_gpu2!(hist, δtot, X_bin, CuVector(node.𝑖), CuVector(node.𝑗), K);
+@btime CUDA.@sync EvoTrees.update_hist_gpu2!(hist, δtot, X_bin, CuVector(node.𝑖), CuVector(node.𝑗), K);
+
+set = CuVector(node.𝑖)
+best = X_bin[3]
+# mask = CUDA.zeros(Bool, length(set))
+@btime EvoTrees.update_set_gpu(set, best, X_bin[:,1], MAX_THREADS=1024);
+left, right = EvoTrees.update_set_gpu(set, best, X_bin[:,1], MAX_THREADS=1024);
