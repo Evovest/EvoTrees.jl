@@ -27,7 +27,6 @@ function hist_kernel!(hδ1::CuDeviceArray{T,3}, hδ2::CuDeviceArray{T,3}, h𝑤:
                 @inbounds CUDA.atomic_add!(pointer(shared, k0 + 2 * K + k - 1), δ2[i_idx, k])
             end
             @inbounds CUDA.atomic_add!(pointer(shared, k0 + Ks), 𝑤[i_idx])
-        
         end
         iter += 1
     end
@@ -172,8 +171,7 @@ end
 #     return
 # end
 
-function find_split_gpu!(hist_δ::AbstractMatrix{T}, hist_δ²::AbstractMatrix{T}, hist_𝑤::AbstractVector{T},
-    params::EvoTypes, node::TrainNode_gpu{T,S}, info::SplitInfo_gpu{T,S}, edges::Vector{T}) where {T,S}
+function find_split_gpu!(hist::AbstractMatrix{T}, params::EvoTypes, node::TrainNode_gpu{T,S}, info::SplitInfo_gpu{T,S}, edges::Vector{T}) where {T,S}
 
     # initialize tracking
     ∑δL = copy(node.∑δ) .* 0
@@ -188,16 +186,11 @@ function find_split_gpu!(hist_δ::AbstractMatrix{T}, hist_δ²::AbstractMatrix{T
     # println("∑𝑤L: ", ∑𝑤L, " ∑𝑤R: ", ∑𝑤R)
 
     @inbounds for bin in 1:(length(hist_δ) - 1)
-        @views ∑δL .+= hist_δ[:, bin]
-        @views ∑δ²L .+= hist_δ²[:, bin]
-        ∑𝑤L += hist_𝑤[bin]
-        @views ∑δR .-= hist_δ[:, bin]
-        @views ∑δ²R .-= hist_δ²[:, bin]
-        ∑𝑤R -= hist_𝑤[bin]
+        @views ∑L .+= hist[:, bin]
+        @views ∑R .-= hist[:, bin]
 
         # println("∑δ²L: ", ∑δ²L, " | ∑δ²R:", ∑δ²R, " | hist_δ²[bin,:]: ", hist_δ²[bin,:])
-
-        gainL, gainR = get_gain(params.loss, ∑δL, ∑δ²L, ∑𝑤L, params.λ), get_gain(params.loss, ∑δR, ∑δ²R, ∑𝑤R, params.λ)
+        gainL, gainR = get_gain(params.loss, ∑L, params.λ), get_gain(params.loss, ∑R, params.λ)
         gain = gainL + gainR
 
         # println("∑𝑤L: ", ∑𝑤L, " ∑𝑤R: ", ∑𝑤R)
