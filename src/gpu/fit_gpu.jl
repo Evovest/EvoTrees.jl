@@ -56,7 +56,8 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
     X_bin_cpu = binarize(X, edges)
-    X_bin = CuArray(Int.(X_bin_cpu)) # CuArray indexing not supporting UInt8
+    X_bin = CuArray(X_bin_cpu) # CuArray indexing not supporting UInt8
+    # X_bin = CuArray(Int.(X_bin_cpu)) # CuArray indexing not supporting UInt8
 
     # initializde histograms
     hist_δ = [CUDA.zeros(T, params.nbins, K, X_size[2]) for i in 1:2^params.max_depth-1]

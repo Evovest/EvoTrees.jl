@@ -64,12 +64,14 @@ params1 = EvoTreeRegressor(T=Float32,
 #############################
 # CPU - Gaussian
 #############################
-params1 = EvoTreeGaussian(T=Float32,
+params1 = EvoTreeGaussian(T=Float64,
     loss=:gaussian, metric=:none,
     nrounds=100,
     λ = 1.0, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=0.5, nbins=64)
+    rowsample=0.5, colsample=0.5, nbins=32)
+
+# Asus laptop: 
 @time model = fit_evotree(params1, X_train, Y_train);
 @time model, cache = EvoTrees.init_evotree(params1, X_train, Y_train);
 
@@ -84,8 +86,8 @@ params1 = EvoTreeRegressor(T=Float64,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 
+# Asus laptop:  9.777636 seconds (10.91 M allocations: 7.042 GiB, 11.37% gc time)
 @time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
-# Asus laptop:  10.594 s (20874773 allocations: 8.68 GiB)
 @btime model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
 @time model, cache = EvoTrees.init_evotree_gpu(params1, X_train, Y_train);
 @time EvoTrees.grow_evotree_gpu!(model, cache);
@@ -117,7 +119,7 @@ params1 = EvoTreeGaussian(T=Float64,
     λ = 1.0, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
-
+#  8.214754 seconds (14.79 M allocations: 6.101 GiB, 12.42% gc time)
 @time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
 
 

@@ -25,7 +25,7 @@ end
 # base approach - block built along the cols first, the rows (limit collisions)
 function update_hist_gpu!(hδ::CuArray{T,3}, hδ²::CuArray{T,3}, h𝑤::CuMatrix{T},
     δ::CuMatrix{T}, δ²::CuMatrix{T}, 𝑤::CuVector{T},
-    X_bin::CuMatrix{Int}, 𝑖::CuVector{Int}, 𝑗::CuVector{Int}, K; MAX_THREADS=1024) where {T <: AbstractFloat}
+    X_bin::CuMatrix{UInt8}, 𝑖::CuVector{Int}, 𝑗::CuVector{Int}, K; MAX_THREADS=1024) where {T <: AbstractFloat}
 
     hδ .= T(0.0)
     hδ² .= T(0.0)

@@ -3,6 +3,7 @@ using StatsBase: sample
 using Revise
 using EvoTrees
 using BenchmarkTools
+using CUDA
 
 # prepare a dataset
 features = rand(Int(1.25e6), 100)
@@ -20,6 +21,10 @@ train_size = 0.8
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
+
+###########################
+# Tree CPU
+###########################
 params_c = EvoTreeRegressor(T=Float32,
     loss=:linear, metric=:none,
     nrounds=100,
@@ -55,9 +60,6 @@ train_nodes[1] = EvoTrees.TrainNode(0, 1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, �
 push!(model_c.trees, tree)
 @btime EvoTrees.predict!(cache_c.pred, tree, cache_c.X)
 
-###########################
-# Tree CPU
-###########################
 δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, edges, X_bin = cache_c.δ, cache_c.δ², cache_c.𝑤, cache_c.hist_δ, cache_c.hist_δ², cache_c.hist_𝑤, cache_c.edges, cache_c.X_bin;
 
 T = Float32
@@ -82,7 +84,7 @@ params_g = EvoTreeRegressor(T=Float32,
     nrounds=100,
     λ=1.0, γ=0.1, η=0.1,
     max_depth=6, min_weight=1.0,
-    rowsample=1.0, colsample=1.0, nbins=32);
+    rowsample=0.5, colsample=0.5, nbins=64);
 
 model_g, cache_g = EvoTrees.init_evotree_gpu(params_g, X_train, Y_train);
 
@@ -134,6 +136,7 @@ id = 1
 node = train_nodes[id];
 # 7.003 ms (106 allocations: 3.09 KiB)
 @btime CUDA.@sync EvoTrees.update_hist_gpu!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, CuVector(node.𝑖), CuVector(node.𝑗), K);
+
 #  32.001 μs (2 allocations: 32 bytes) * 3 adds 100us
 @btime hist_δ_cpu .= hist_δ[id];
 j = 1
