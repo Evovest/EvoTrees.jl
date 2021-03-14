@@ -4,6 +4,7 @@ using Base.Threads: @threads
 using BenchmarkTools
 using Revise
 using EvoTrees
+using CUDA
 
 n_obs = Int(1e6)
 n_vars = 100
@@ -16,6 +17,20 @@ n_bins = 255
 hist_δ = zeros(n_bins, n_vars);
 hist_δ² = zeros(n_bins, n_vars);
 X_bin = rand(UInt8, n_obs, n_vars);
+X_bin_g = CuArray(X_bin)
+𝑖g = CuArray(𝑖)
+
+@time EvoTrees.update_set(𝑖, 4, view(X_bin, :, 1));
+@btime EvoTrees.update_set(𝑖, 4, view(X_bin, :, 1));
+@btime EvoTrees.update_set(𝑖, 4, X_bin[:, 1]);
+
+@btime EvoTrees.update_set_gpu(𝑖g, 32, view(X_bin_g, :, 1));
+@btime EvoTrees.update_set_gpu(𝑖g, 32, X_bin_g[:, 1]);
+CUDA.@time EvoTrees.update_set_gpu(𝑖g, 4, view(X_bin_g, :, 1));
+CUDA.@time EvoTrees.update_set_gpu(𝑖g, 4, X_bin_g[:, 1]);
+
+left, right = EvoTrees.update_set(𝑖, 4, view(X_bin, :, 1))
+left, right = EvoTrees.update_set_gpu(𝑖g, 4, view(X_bin_g, :, 1))
 
 # split row ids into left and right based on best split condition
 function update_set_1(set, best, x_bin)

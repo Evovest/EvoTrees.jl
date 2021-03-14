@@ -29,12 +29,9 @@ params1 = EvoTreeRegressor(T=Float32,
     nrounds=100,
     λ = 1.0, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=0.5, nbins=32)
+    rowsample=0.5, colsample=0.5, nbins=64)
 
-# for 100k 10 rounds: 410.477 ms (44032 allocations: 182.68 MiB)
-# for 100k 100 rounds: 2.177 s (404031 allocations: 626.45 MiB)
-# for 1.25e6 no eval: 6.244 s (73955 allocations: 2.18 GiB)
-# for 1.25e6 mse with eval data:  6.345 s (74009 allocations: 2.18 GiB)
+# Asus laptop: 12.533999 seconds (197.39 k allocations: 6.670 GiB, 9.46% gc time)
 @time model = fit_evotree(params1, X_train, Y_train);
 @btime model = fit_evotree($params1, $X_train, $Y_train);
 @time pred_train = predict(model, X_train);
@@ -71,22 +68,23 @@ params1 = EvoTreeGaussian(T=Float64,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 
-# Asus laptop: 
+# Asus laptop: 22.040555 seconds (205.85 k allocations: 8.021 GiB, 6.17% gc time)
 @time model = fit_evotree(params1, X_train, Y_train);
+# Asus laptop: 1.562431 seconds (1.89 k allocations: 1.658 GiB)
 @time model, cache = EvoTrees.init_evotree(params1, X_train, Y_train);
 
 ################################
 # GPU - Linear
 ################################
 # train model
-params1 = EvoTreeRegressor(T=Float64,
+params1 = EvoTreeRegressor(T=Float32,
     loss=:linear, metric=:none,
     nrounds=100,
     λ = 1.0, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=0.5, nbins=32)
+    rowsample=0.5, colsample=0.5, nbins=64)
 
-# Asus laptop:  9.777636 seconds (10.91 M allocations: 7.042 GiB, 11.37% gc time)
+# Asus laptop:  8.898483 seconds (22.42 M allocations: 4.254 GiB, 9.09% gc time)
 @time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
 @btime model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
 @time model, cache = EvoTrees.init_evotree_gpu(params1, X_train, Y_train);
@@ -119,8 +117,10 @@ params1 = EvoTreeGaussian(T=Float64,
     λ = 1.0, γ=0.1, η=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
-#  8.214754 seconds (14.79 M allocations: 6.101 GiB, 12.42% gc time)
+#  Asus laptop: 10.557295 seconds (22.51 M allocations: 4.280 GiB, 5.53% gc time)
 @time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
+# Asus laptop: 1.577430 seconds (9.35 k allocations: 1.613 GiB)
+@time model, cache = EvoTrees.init_evotree_gpu(params1, X_train, Y_train);
 
 
 ############################

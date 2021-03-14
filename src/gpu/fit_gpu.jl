@@ -180,7 +180,7 @@ function grow_tree_gpu(δ, δ², 𝑤,
 
                 # grow node if best split improves gain
                 if best.gain > node.gain + params.γ
-                    left, right = update_set_gpu(node.𝑖, best.𝑖, view(X_bin,:,best.feat))
+                    left, right = update_set_gpu(node.𝑖, best.𝑖, X_bin[:,best.feat])
 
                     # println("id: ∑𝑤/length(node/left/right) / ", id, " : ", node.∑𝑤, " / ", length(node.𝑖), " / ", length(left), " / ", length(right), " / ", best.𝑖)
                     train_nodes[leaf_count + 1] = TrainNode_gpu(id, node.depth + 1, copy(best.∑δL), copy(best.∑δ²L), best.∑𝑤L, best.gainL, left, node.𝑗)
