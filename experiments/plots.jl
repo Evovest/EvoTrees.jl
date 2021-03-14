@@ -50,3 +50,9 @@ params1 = EvoTreeGaussian(T=Float32,
 
 @time model = fit_evotree(params1, X_train, Y_train);
 @save "data/model_gaussian_5.bson" model
+
+model = EvoTrees.load("data/model_linear_4.bson");
+var_names = ["var_$i" for i in 1:100]
+plot(model)
+plot(model, 2)
+plot(model, 3, var_names)
