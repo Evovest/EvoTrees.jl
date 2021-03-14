@@ -67,7 +67,7 @@ function init_evotree(params::EvoTypes{T,U,S},
     train_nodes = Vector{TrainNode{evotree.K, T, Int64}}(undef, 2^params.max_depth-1)
 
     for node in 1:2^params.max_depth-1
-        train_nodes[node] = TrainNode(0, 0, SVector{evotree.K, T}(fill(T(-Inf), evotree.K)), SVector{evotree.K, T}(fill(T(-Inf), evotree.K)), SVector{1, T}(fill(T(-Inf), 1)), T(-Inf), [0], [0])
+        # train_nodes[node] = TrainNode(0, 0, SVector{evotree.K, T}(fill(T(-Inf), evotree.K)), SVector{evotree.K, T}(fill(T(-Inf), evotree.K)), SVector{1, T}(fill(T(-Inf), 1)), T(-Inf), [0], [0])
 
         hist_δ[node] = zeros(SVector{evotree.K, T}, params.nbins, X_size[2])
         hist_δ²[node] = zeros(SVector{evotree.K, T}, params.nbins, X_size[2])

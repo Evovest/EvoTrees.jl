@@ -28,15 +28,15 @@ TreeNode_gpu(left::S, right::S, feat::S, cond::T, gain::T, K) where {T<:Abstract
 TreeNode_gpu(pred::Vector{T}) where {T} = TreeNode_gpu(0, 0, 0, zero(T), zero(T), pred, false)
 
 # single tree is made of a root node that containes nested nodes and leafs
-struct TrainNode_gpu{T<:AbstractFloat, S<:Int}
+struct TrainNode_gpu{T<:AbstractFloat, S<:Int, V<:AbstractVector}
     parent::S
     depth::S
     ∑δ::Vector{T}
     ∑δ²::Vector{T}
     ∑𝑤::T
     gain::T
-    𝑖::Vector{S}
-    𝑗::Vector{S}
+    𝑖::V
+    𝑗::V
 end
 
 # single tree is made of a root node that containes nested nodes and leafs

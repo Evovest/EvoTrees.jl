@@ -85,3 +85,26 @@ function find_split_gpu!(hist_δ::AbstractMatrix{T}, hist_δ²::AbstractMatrix{T
         end # info update if gain
     end # loop on bins
 end
+
+
+# update the vector of length 𝑖 pointing to associated node id
+function update_set_kernel!(mask, set, best, x_bin)
+    it = threadIdx().x
+    ibd = blockDim().x
+    ibi = blockIdx().x
+    i = it + ibd * (ibi - 1)
+    @inbounds if i <= length(set)
+        @inbounds mask[i] = x_bin[set[i]] <= best
+    end
+    return nothing
+end
+
+function update_set_gpu(set, best, x_bin; MAX_THREADS=1024)
+    mask = CUDA.zeros(Bool, length(set))
+    thread_i = min(MAX_THREADS, length(set))
+    threads = (thread_i,)
+    blocks = (length(set) ÷ thread_i + 1,)
+    @cuda blocks = blocks threads = threads update_set_kernel!(mask, set, best, x_bin)
+    left, right = set[mask], set[.!mask]
+    return left, right
+end
