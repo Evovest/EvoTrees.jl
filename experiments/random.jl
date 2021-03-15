@@ -61,7 +61,7 @@ params1 = EvoTreeRegressor(T=Float64,
 #############################
 # CPU - Gaussian
 #############################
-params1 = EvoTreeGaussian(T=Float64,
+params1 = EvoTreeGaussian(T=Float32,
     loss=:gaussian, metric=:none,
     nrounds=100,
     λ=1.0, γ=0.1, η=0.1,
@@ -83,7 +83,7 @@ params1 = EvoTreeRegressor(T=Float32,
 
 CUDA.allowscalar(false)
 @time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
-# Asus laptop:  10.594 s (20874773 allocations: 8.68 GiB)
+# Asus laptop:  7.283 s (3717801 allocations: 2.11 GiB)
 @btime model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
 @time model, cache = EvoTrees.init_evotree_gpu(params1, X_train, Y_train);
 @time EvoTrees.grow_evotree_gpu!(model, cache);
@@ -116,7 +116,6 @@ params1 = EvoTreeGaussian(T=Float64,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 @time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
-
 
 ############################
 # xgboost

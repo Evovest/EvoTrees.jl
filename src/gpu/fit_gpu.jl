@@ -61,12 +61,12 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     hist = [CUDA.zeros(T, 2 * K + 1, params.nbins, X_size[2]) for i in 1:2^params.max_depth - 1]
 
     # initialize train nodes
-    train_nodes = Vector{TrainNodeGPU{T,UInt32}}(undef, 2^params.max_depth - 1)
+    train_nodes = Vector{TrainNodeGPU{T,UInt32, CuVector{UInt32}, Vector{T}}}(undef, 2^params.max_depth - 1)
 
     # initialize splits info
-    splits = SplitInfoGPU(CUDA.zeros(X_size[2]), CUDA.zeros(X_size[2]), CUDA.zeros(X_size[2]), 
-        CUDA.zeros(2*K + 1, X_size[2]), CUDA.zeros(2*K + 1, X_size[2]),
-        CUDA.zeros(UInt8, X_size[2]))
+    # splits = SplitInfoGPU(CUDA.zeros(X_size[2]), CUDA.zeros(X_size[2]), CUDA.zeros(X_size[2]), 
+    #     CUDA.zeros(2*K + 1, X_size[2]), CUDA.zeros(2*K + 1, X_size[2]),
+    #     CUDA.zeros(UInt8, X_size[2]))
 
     cache = (params = deepcopy(params),
         X = X, Y = Y, Y_cpu = Y_cpu, K = K,
@@ -76,7 +76,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
         edges = edges,
         X_bin = X_bin,
         train_nodes = train_nodes,
-        splits = splits,
+        # splits = splits,
         hist = hist)
 
     cache.params.nrounds = 0
@@ -90,7 +90,7 @@ function grow_evotree_gpu!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T
     # initialize from cache
     params = evotree.params
     train_nodes = cache.train_nodes
-    splits = cache.splits
+    # splits = cache.splits
     X_size = size(cache.X_bin)
     δnrounds = params.nrounds - cache.params.nrounds
 
@@ -101,15 +101,14 @@ function grow_evotree_gpu!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T
         # select random rows and cols
         𝑖 = CuVector(cache.𝑖_[sample(params.rng, cache.𝑖_, ceil(Int, params.rowsample * X_size[1]), replace=false, ordered=true)])
         𝑗 = CuVector(cache.𝑗_[sample(params.rng, cache.𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)])
-        # reset gain to -Inf
-        for feat in cache.𝑗_
-            splits[feat].gain = T(-Inf)
-        end
 
         # build a new tree
         update_grads_gpu!(params.loss, cache.δ, cache.pred, cache.Y)
         # sum Gradients of each of the K parameters and bring to CPU
+        
+        # ∑ = vec(sum(cache.δ[𝑖,:], dims=1))
         ∑ = Array(vec(sum(cache.δ[𝑖,:], dims=1)))
+
         gain = get_gain_gpu(params.loss, ∑, params.λ)
         # # assign a root and grow tree
         train_nodes[1] = TrainNodeGPU(S(0), S(1), ∑, gain, 𝑖, 𝑗)
@@ -129,8 +128,8 @@ end
 # grow a single tree - grow through all depth
 function grow_tree_gpu(δ, hist, 
     params::EvoTypes{T,U,R}, K,
-    train_nodes::Vector{TrainNodeGPU{T,S,V}},
-    edges, X_bin) where {T,U,S,R,V}
+    train_nodes::Vector{TrainNodeGPU{T,S,I,V}},
+    edges, X_bin) where {T,U,R,S,I,V}
 
     active_id = ones(S, 1)
     leaf_count = one(S)
@@ -145,9 +144,10 @@ function grow_tree_gpu(δ, hist,
         # grow nodes
         for id in active_id
             node = train_nodes[id]
-            if tree_depth == params.max_depth || node.∑𝑤 <= params.min_weight + 0.1 # rounding needed from histogram substraction
-                push!(tree.nodes, TreeNodeGPU(pred_leaf_gpu(params.loss, node, params, δ²)))
+            if tree_depth == params.max_depth || node.∑[end] <= params.min_weight + 0.1 # rounding needed from histogram substraction
+                push!(tree.nodes, TreeNodeGPU(pred_leaf_gpu(params.loss, node, params)))
             else
+                
                 if id > 1 && id == tree.nodes[node.parent].right
                     hist[id] = hist[node.parent] .- hist[id - 1]
                 else
@@ -155,21 +155,20 @@ function grow_tree_gpu(δ, hist,
                 end
 
                 best = find_split_gpu!(hist[id], edges, params)
-
                 # grow node if best split improves gain
                 if best[:gain] > node.gain + params.γ
                     # if best[:gain] > node.gain + params.γ
     
-                    left, right = update_set_gpu(node.𝑖, best.𝑖, X_bin[:, best.feat])
-                    train_nodes[leaf_count + 1] = TrainNodeGPU(id, node.depth + S(1), copy(best.∑L), best.gainL, left, node.𝑗)
-                    train_nodes[leaf_count + 2] = TrainNodeGPU(id, node.depth + S(1), copy(best.∑R), best.gainR, right, node.𝑗)
-                    push!(tree.nodes, TreeNodeGPU(leaf_count + S(1), leaf_count + S(2), best.feat, best.cond, best.gain - node.gain, K))
+                    left, right = update_set_gpu(node.𝑖, best[:bin], X_bin[:, best[:feat]])
+                    train_nodes[leaf_count + 1] = TrainNodeGPU(id, node.depth + S(1), best[:∑L], best[:gainL], left, node.𝑗)
+                    train_nodes[leaf_count + 2] = TrainNodeGPU(id, node.depth + S(1), best[:∑R], best[:gainR], right, node.𝑗)
+                    push!(tree.nodes, TreeNodeGPU(leaf_count + S(1), leaf_count + S(2), best[:feat], best[:cond], best[:gain] - node.gain, K))
     
                     push!(next_active_id, leaf_count + S(1))
                     push!(next_active_id, leaf_count + S(2))
                     leaf_count += S(2)
                 else
-                    push!(tree.nodes, TreeNodeGPU(pred_leaf_gpu(params.loss, node, params, δ²)))
+                    push!(tree.nodes, TreeNodeGPU(pred_leaf_gpu(params.loss, node, params)))
                 end # end of single node split search
             end
         end # end of loop over active ids for a given depth
@@ -182,12 +181,12 @@ end
 
 
 # extract the gain value from the vector of best splits and return the split info associated with best split
-function get_max_gain_gpu(splits::Vector{SplitInfoGPU{T,S}}) where {T,S}
-    gains = (x -> x.gain).(splits)
-    feat = findmax(gains)[2]
-    best = splits[feat]
-    return best
-end
+# function get_max_gain_gpu(splits::Vector{SplitInfoGPU{T,S}}) where {T,S}
+#     gains = (x -> x.gain).(splits)
+#     feat = findmax(gains)[2]
+#     best = splits[feat]
+#     return best
+# end
 
 function fit_evotree_gpu(params, X_train, Y_train;
     X_eval=nothing, Y_eval=nothing,

@@ -50,11 +50,19 @@ end
 
 
 # prediction in Leaf - GradientRegression
-function pred_leaf_gpu(::L, node::TrainNodeGPU{T}, params::EvoTypes, δ²) where {L<:GradientRegression,T}
-    - params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤)
+function pred_leaf_gpu(::L, node::TrainNodeGPU{T}, params::EvoTypes) where {L<:GradientRegression,T}
+    [- params.η * node.∑[1] / (node.∑[2] + params.λ * node.∑[3])]
+end
+# function pred_leaf_gpu(::L, node::TrainNodeGPU{T}, params::EvoTypes) where {L<:GradientRegression,T}
+#     - params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤)
+# end
+
+# prediction in Leaf - GaussianRegression
+function pred_leaf_gpu(::L, node::TrainNodeGPU{T}, params::EvoTypes) where {L<:GaussianRegression,T}
+    [- params.η * node.∑[1] / (node.∑[3] + params.λ * node.∑[5]), - params.η * node.∑[2] / (node.∑[4] + params.λ * node.∑[5])]
 end
 
 # prediction in Leaf - GaussianRegression
-function pred_leaf_gpu(::L, node::TrainNodeGPU{T}, params::EvoTypes, δ²) where {L<:GaussianRegression,T}
-    - params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤)
-end
+# function pred_leaf_gpu(::L, node::TrainNodeGPU{T}, params::EvoTypes) where {L<:GaussianRegression,T}
+#     - params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤)
+# end
