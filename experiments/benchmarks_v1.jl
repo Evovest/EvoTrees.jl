@@ -35,13 +35,15 @@ param = ["max_depth" => 5,
          "max_bin" => 32]
 metrics = ["rmse"]
 @time xgboost(X_train, num_round, label = Y_train, param = param, metrics=metrics, silent=1);
-@time dtrain = DMatrix(X_train, label = Y_train)
-@time model_xgb = xgboost(dtrain, num_round, param = param, metrics=metrics, silent=1);
-@time pred_train = XGBoost.predict(model_xgb, X_train)
+@time xgboost(X_train, num_round, label = Y_train, param = param, metrics=metrics, silent=1);
+
+# @time dtrain = DMatrix(X_train, label = Y_train)
+# @time model_xgb = xgboost(dtrain, num_round, param = param, metrics=metrics, silent=1);
+# @time pred_train = XGBoost.predict(model_xgb, X_train)
 
 # train model
-config = EvoTreeRegressor(
-        loss=:linear, metric=:none,
+config = EvoTreeRegressor(T=Float32,
+        loss=:linear, metric=:mse,
         nrounds=100, α = 0.5,
         λ = 0.0, γ=0.0, η=0.05,
         max_depth = 6, min_weight = 1.0,

@@ -42,13 +42,23 @@ julia> Pkg.add("EvoTrees")
 
 ## Performance
 
-[Benchmark](https://github.com/Evovest/EvoTrees.jl/blob/master/blog/benchmarks.jl) for 100 iterations on randomly generated data:
 
-| Dimensions / Algo | XGBoost Exact | XGBoost Hist | EvoTrees |
-|-------------------|:-------------:|:------------:|:--------:|
-| 10K x 100         |     1.18s     |     2.15s    |   0.52s  |
-| 100K x 100        |     9.39s     |     4.25s    |   2.02s  |
-| 1M X 100          |     146.5s    |     20.2s    |   21.5   |
+Data consista of randomly generated flots. Training is performed on 200 iterations. Code to repduce is [here]([Benchmark](https://github.com/Evovest/EvoTrees.jl/blob/master/blog/benchmarks_v2.jl)). 
+
+EvoTrees: v0.7.0
+XGBoost: v1.1.1
+
+CPU: AMD Ryzen 7 4800H (16 threads)
+GPU: NVIDIA GTX 1660 (6 gb )
+
+
+| Dimensions / Algo | XGBoost Exact | XGBoost Hist  | EvoTrees CPU | EvoTrees GPU |
+|-------------------|:-------------:|:-------------:|:------------:|:------------:|
+| 10K x 100         |       -       |     0.83s     |     0.40s    |     4.18s    |
+| 100K x 100        |       -       |     1.96s     |     1.89s    |     5.19s    |
+| 500K x 100        |       -       |     7.13s     |     9.91s    |     9.44s    |
+| 1M X 100          |     215.9s    |     13.5s     |     19.9s    |     12.7s    |
+| 5M X 100          |       -       |     86.5s     |     198.6s   |     64.4s    |
 
 
 ## Parameters
