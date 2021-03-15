@@ -9,7 +9,6 @@ function hist_kernel!(h::CuDeviceArray{T,3}, δ::CuDeviceMatrix{T}, xid::CuDevic
     id, jd = blockDim().x, blockDim().y
     ib, j, k = blockIdx().x, blockIdx().y, blockIdx().z
     ig, jg = gridDim().x, gridDim().y
-    # j = 1 + (jb - 1) * jd
     
     shared = @cuDynamicSharedMem(T, nbins)
     fill!(shared, 0)
@@ -135,7 +134,6 @@ end
 
 function get_hist_gains_gpu(h::CuArray{T,3}, λ::T; MAX_THREADS=1024) where {T}
     
-    # gains = CUDA.zeros(T, size(h, 2) - 1, size(h, 3))
     gains = CUDA.fill(T(-Inf), size(h, 2) - 1, size(h, 3))
     
     thread_i = min(size(gains, 1), MAX_THREADS)
