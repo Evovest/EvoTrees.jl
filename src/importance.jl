@@ -10,11 +10,14 @@ end
 # loop importance over all trees and sort results
 function importance(model::GBTree, vars::AbstractVector)
     gain = zeros(length(vars))
+    
     for tree in model.trees
         importance!(gain, tree)
     end
+    
     gain .= gain ./ sum(gain)
-    pairs = collect(Dict(zip(string.(vars),gain)))
-    sort!(pairs, by = x -> -x[2])
+    pairs = collect(Dict(zip(string.(vars), gain)))
+    sort!(pairs, by=x -> -x[2])
+    
     return pairs
 end

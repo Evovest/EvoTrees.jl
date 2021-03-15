@@ -9,13 +9,13 @@ features = rand(Int(1.25e6), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
-𝑖 = collect(1:size(X,1))
+𝑖 = collect(1:size(X, 1))
 
 # train-eval split
-𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
+𝑖_sample = sample(𝑖, size(𝑖, 1), replace=false)
 train_size = 0.8
 𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
-𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
+𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1)) + 1:end]
 
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
@@ -49,11 +49,11 @@ pred_train = predict(model, X_train)
 #############################
 # CPU - Logistic
 #############################
-params1 = EvoTreeRegressor(T=Float32,
+params1 = EvoTreeRegressor(T=Float64,
     loss=:logistic, metric=:none,
     nrounds=100,
-    λ = 1.0, γ=0.1, η=0.1,
-    max_depth = 6, min_weight = 1.0,
+    λ=1.0, γ=0.1, η=0.1,
+    max_depth=4, min_weight=1.0,
     rowsample=0.5, colsample=0.5, nbins=64)
 @time model = fit_evotree(params1, X_train, Y_train);
 @time pred = predict(model, X_train);
@@ -99,11 +99,11 @@ mean(pred_train)
 # GPU - Logistic
 ################################
 # train model
-params1 = EvoTreeRegressor(T=Float64,
+params1 = EvoTreeRegressor(T=Float32,
     loss=:logistic, metric=:none,
     nrounds=100,
-    λ = 1.0, γ=0.1, η=0.1,
-    max_depth = 6, min_weight = 1.0,
+    λ=1.0, γ=0.1, η=0.1,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=0.5, nbins=64)
 @time model = fit_evotree_gpu(params1, X_train, Y_train);
 @time pred_train = predict_gpu(model, X_train)
@@ -114,14 +114,13 @@ params1 = EvoTreeRegressor(T=Float64,
 params1 = EvoTreeGaussian(T=Float64,
     loss=:gaussian, metric=:none,
     nrounds=100,
-    λ = 1.0, γ=0.1, η=0.1,
-    max_depth = 6, min_weight = 1.0,
+    λ=1.0, γ=0.1, η=0.1,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 # Asus laptop: 8.214754 seconds (14.79 M allocations: 6.101 GiB, 12.42% gc time)
 @time model = EvoTrees.fit_evotree_gpu(params1, X_train, Y_train);
 # Auss laptop:  1.888472 seconds (8.40 k allocations: 1.613 GiB, 14.86% gc time)
 @time model, cache = EvoTrees.init_evotree_gpu(params1, X_train, Y_train);
-
 
 ############################
 # xgboost
@@ -138,10 +137,10 @@ param = ["max_depth" => 5,
          "nthread" => 16,
          "max_bin" => 32]
 metrics = ["rmse"]
-@time xgboost(X_train, num_round, label = Y_train, param = param, metrics=metrics, silent=1);
-@time dtrain = DMatrix(X_train, label = Y_train)
-@time model_xgb = xgboost(dtrain, num_round, param = param, silent=1);
-@btime model_xgb = xgboost(dtrain, num_round, param = param, silent=1);
+@time xgboost(X_train, num_round, label=Y_train, param=param, metrics=metrics, silent=1);
+@time dtrain = DMatrix(X_train, label=Y_train)
+@time model_xgb = xgboost(dtrain, num_round, param=param, silent=1);
+@btime model_xgb = xgboost(dtrain, num_round, param=param, silent=1);
 @time pred_train = XGBoost.predict(model_xgb, X_train)
 
 @time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=9999, early_stopping_rounds=9999);
@@ -166,33 +165,33 @@ mean(abs.(pred_train .- Y_train))
 params1 = EvoTreeRegressor(
     loss=:logistic, metric=:logloss,
     nrounds=100,
-    λ = 0.0f0, γ=0.0f0, η=0.1f0,
-    max_depth = 6, min_weight = 1.0f0,
+    λ=0.0f0, γ=0.0f0, η=0.1f0,
+    max_depth=6, min_weight=1.0f0,
     rowsample=0.5f0, colsample=0.5f0, α=0.5f0, nbins=32)
 @time model = fit_evotree(params1, X_train, Y_train);
-@time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n=10)
+@time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=10)
 @time pred_train = predict(model, X_train)
 
 # Quantile
 params1 = EvoTreeRegressor(
     loss=:quantile, metric=:quantile, α=0.80f0,
     nrounds=100,
-    λ = 0.1f0, γ=0.0f0, η=0.1f0,
-    max_depth = 6, min_weight = 1.0f0,
+    λ=0.1f0, γ=0.0f0, η=0.1f0,
+    max_depth=6, min_weight=1.0f0,
     rowsample=0.5f0, colsample=0.5f0, nbins=32)
 @time model = fit_evotree(params1, X_train, Y_train);
-@time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n=10)
+@time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=10)
 @time pred_train = predict(model, X_train)
 
 # gaussian
 params1 = EvoTreeGaussian(
     loss=:gaussian, metric=:gaussian,
     nrounds=100, α=0.5f0,
-    λ = 0.0f0, γ=0.0f0, η=0.1f0,
-    max_depth = 6, min_weight = 10.0f0,
+    λ=0.0f0, γ=0.0f0, η=0.1f0,
+    max_depth=6, min_weight=10.0f0,
     rowsample=0.5f0, colsample=0.5f0, nbins=32)
 @time model = fit_evotree(params1, X_train, Y_train);
-@time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n=10)
+@time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=10)
 @time pred_train = predict(model, X_train)
 
 # softmax
@@ -200,12 +199,12 @@ params1 = EvoTreeClassifier(
     loss=:softmax, metric=:mlogloss,
     nrounds=100, α=0.5f0,
     λ=0.0f0, γ=0.0f0, η=0.1f0,
-    max_depth = 6, min_weight = 10.0f0,
+    max_depth=6, min_weight=10.0f0,
     rowsample=0.5f0, colsample=0.5f0, nbins=32)
 
-Y_train_int = UInt32.(round.(Y_train*2) .+ 1)
-Y_eval_int = UInt32.(round.(Y_eval*2) .+ 1)
+Y_train_int = UInt32.(round.(Y_train * 2) .+ 1)
+Y_eval_int = UInt32.(round.(Y_eval * 2) .+ 1)
 Y_train_int = Int.(Y_train_int)
 @time model = fit_evotree(params1, X_train, Y_train_int, print_every_n=10);
-@time model = fit_evotree(params1, X_train, Y_train_int, X_eval = X_eval, Y_eval = Y_eval_int, print_every_n=10)
+@time model = fit_evotree(params1, X_train, Y_train_int, X_eval=X_eval, Y_eval=Y_eval_int, print_every_n=10)
 @time pred_train = predict(model, X_train)

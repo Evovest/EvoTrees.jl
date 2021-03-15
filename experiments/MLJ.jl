@@ -93,7 +93,7 @@ pred_test_mode = predict_mode(tree, selectrows(X,test))
 ##################################################
 ### regression - Larger data
 ##################################################
-features = rand(100_000, 100)
+features = rand(1_000_000, 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -116,21 +116,27 @@ tree_model = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 
-X = Tables.table(X)
-X = Tables.rowtable(X)
-X = Tables.columntable(X)
-X_matrix = MLJBase.matrix(X)
+X = Tables.table(X);
+X = Tables.rowtable(X);
+# X = Tables.columntable(X)
+# X_matrix = MLJBase.matrix(X)
 
 # typeof(X)
 @time tree = machine(tree_model, X, Y);
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
 @time fit!(tree, rows=train, verbosity=1, force=true)
 
-tree.model.nrounds += 10
+using LossFunctions
+using MLJ
+r = range(tree_model, :nrounds, lower=1, upper=100)
+m = rms
+@time curve = learning_curve!(evo, range=r, resolution=100, measure=m)
+
+tree.model.nrounds += 1
 @time update(tree.model, 0, tree.fitresult, tree.cache, X, Y);
 
-tree.model.nrounds += 10
-@time fit!(tree, rows=train, verbosity=1);
+tree.model.nrounds += 1
+@time fit!(tree, rows=train, verbosity=1)
 # @time MLJBase.fit!(tree, rows=train, verbosity=1)
 
 # yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
@@ -234,3 +240,41 @@ mean(abs.(pred_mean - selectrows(Y,train)))
 
 q_20 = quantile.(pred, 0.20)
 q_20 = quantile.(pred, 0.80)
+
+
+
+#########################################
+# MLJ2 test
+#########################################
+using EvoTrees
+using MLJModelInterface
+using MLJBase
+using StatsBase: sample, mean, quantile
+using Tables
+
+X = rand(1_000_000, 100);
+Y = rand(size(X, 1))
+
+# @load EvoTreeRegressor
+tree_model = EvoTreeRegressor(
+    loss=:linear, metric=:mae,
+    nrounds=10,
+    λ = 0.0, γ=0.0, η=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=0.5, nbins=32)
+
+X = Tables.table(X);
+# X = Tables.rowtable(X);
+# X = Tables.columntable(X);
+# X_matrix = MLJBase.matrix(X);
+
+# typeof(X)
+@time tree = machine(tree_model, X, Y);
+train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
+@time fit!(tree, rows=train, verbosity=1, force=false)
+
+tree.model.nrounds += 1
+@time update(tree.model, 0, tree.fitresult, tree.cache, X, Y);
+
+tree.model.nrounds += 1
+@time fit!(tree, rows=train, verbosity=1)
