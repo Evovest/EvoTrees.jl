@@ -47,6 +47,7 @@ Y = rand(size(X, 1))
 @time pred_evo = EvoTrees.predict(m_evo, X);
 @btime EvoTrees.predict($m_evo, $X);
 
+CUDA.allowscalar(false)
 @info "evotrees train GPU:"
 @time m_evo_gpu = fit_evotree_gpu(params_evo, X, Y);
 @btime fit_evotree_gpu($params_evo, $X, $Y);

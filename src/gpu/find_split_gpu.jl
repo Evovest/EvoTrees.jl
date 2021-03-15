@@ -101,7 +101,8 @@ function find_split_gpu!(hist::AbstractArray{T,3}, edges::Vector{Vector{T}}, par
     best = findmax(gains)
     gain, bin, feat = best[1], best[2][1], UInt32(best[2][2])
     cond = edges[feat][bin]
-    gainL, gainR = gains_L[bin, feat], gains_R[bin, feat]
+    # gainL, gainR = gains_L[bin, feat], gains_R[bin, feat]
+    gainL, gainR = Array(gains_L)[bin, feat], Array(gains_R)[bin, feat]
 
     # ∑L = hist_cum_L[:, bin, feat]
     # ∑R = hist_cum_R[:, bin, feat]
@@ -120,9 +121,13 @@ function hist_gains_gpu!(gains::CuDeviceMatrix{T}, h::CuDeviceArray{T,3}, λ::T)
     K = (size(h, 1) - 1) ÷ 2
 
     @inbounds 𝑤 = h[2 * K + 1, i, j]     
-    @inbounds if 𝑤 > 1e-5
+    if 𝑤 > 1e-5
         @inbounds for k in 1:K
-            gains[i, j] += (h[k, i, j]^2 / (h[2 * K + k - 1, i, j] + λ * 𝑤)) / 2
+            if k == 1
+                gains[i, j] = (h[k, i, j]^2 / (h[2 * K + k - 1, i, j] + λ * 𝑤)) / 2
+            else
+                gains[i, j] += (h[k, i, j]^2 / (h[2 * K + k - 1, i, j] + λ * 𝑤)) / 2
+            end
         end
     end
 
@@ -131,7 +136,8 @@ end
 
 function get_hist_gains_gpu(h::CuArray{T,3}, λ::T; MAX_THREADS=1024) where {T}
     
-    gains = CUDA.zeros(T, size(h, 2) - 1, size(h, 3))
+    # gains = CUDA.zeros(T, size(h, 2) - 1, size(h, 3))
+    gains = CUDA.fill(T(-Inf), size(h, 2) - 1, size(h, 3))
     
     thread_i = min(size(gains, 1), MAX_THREADS)
     threads = thread_i

@@ -63,11 +63,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     # initialize train nodes
     train_nodes = Vector{TrainNodeGPU{T,UInt32, CuVector{UInt32}, Vector{T}}}(undef, 2^params.max_depth - 1)
 
-    # initialize splits info
-    # splits = SplitInfoGPU(CUDA.zeros(X_size[2]), CUDA.zeros(X_size[2]), CUDA.zeros(X_size[2]), 
-    #     CUDA.zeros(2*K + 1, X_size[2]), CUDA.zeros(2*K + 1, X_size[2]),
-    #     CUDA.zeros(UInt8, X_size[2]))
-
+    # store cache
     cache = (params = deepcopy(params),
         X = X, Y = Y, Y_cpu = Y_cpu, K = K,
         pred = pred, pred_cpu = pred_cpu,
@@ -104,7 +100,6 @@ function grow_evotree_gpu!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T
 
         # build a new tree
         update_grads_gpu!(params.loss, cache.δ, cache.pred, cache.Y)
-        # sum Gradients of each of the K parameters and bring to CPU
         
         # ∑ = vec(sum(cache.δ[𝑖,:], dims=1))
         ∑ = Array(vec(sum(cache.δ[𝑖,:], dims=1)))
@@ -149,7 +144,7 @@ function grow_tree_gpu(δ, hist,
             else
                 
                 if id > 1 && id == tree.nodes[node.parent].right
-                    hist[id] = hist[node.parent] .- hist[id - 1]
+                    hist[id] = hist[node.parent] - hist[id - 1]
                 else
                     update_hist_gpu!(hist[id], δ, X_bin, node.𝑖, node.𝑗, K)
                 end
@@ -178,15 +173,6 @@ function grow_tree_gpu(δ, hist,
     return tree
 end
 
-
-
-# extract the gain value from the vector of best splits and return the split info associated with best split
-# function get_max_gain_gpu(splits::Vector{SplitInfoGPU{T,S}}) where {T,S}
-#     gains = (x -> x.gain).(splits)
-#     feat = findmax(gains)[2]
-#     best = splits[feat]
-#     return best
-# end
 
 function fit_evotree_gpu(params, X_train, Y_train;
     X_eval=nothing, Y_eval=nothing,
