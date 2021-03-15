@@ -12,7 +12,6 @@ nthread = 16
 # xgboost aprams
 params_xgb = ["max_depth" => 5,
          "eta" => 0.05,
-         nthread => nthread,
          "objective" => "reg:squarederror",
          "print_every_n" => 5,
          "subsample" => 0.5,
@@ -37,7 +36,7 @@ X = rand(nobs, nnum_feat)
 Y = rand(size(X, 1))
 
 @info "xgboost train:"
-@time m_xgb = xgboost(X, nrounds, label=Y, param=params_xgb, metrics=metrics, silent=1);
+@time m_xgb = xgboost(X, nrounds, label=Y, param=params_xgb, metrics=metrics, nthread=nthread, silent=1);
 @btime xgboost($X, $nrounds, label=$Y, param=$params_xgb, metrics=$metrics, silent=1);
 @info "xgboost predict:"
 @time pred_xgb = XGBoost.predict(m_xgb, X);
