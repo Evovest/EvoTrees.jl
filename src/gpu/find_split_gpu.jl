@@ -71,6 +71,7 @@ function update_set_kernel!(mask, set, best, x_bin)
     return nothing
 end
 
+<<<<<<< HEAD
 function update_set_gpu(set, best, x_bin; MAX_THREADS=1024)
     mask = CUDA.zeros(Bool, length(set))
     thread_i = min(MAX_THREADS, length(set))
@@ -80,6 +81,24 @@ function update_set_gpu(set, best, x_bin; MAX_THREADS=1024)
     left, right = set[mask], set[.!mask]
     return left, right
 end
+=======
+# base approach - block built along the cols first, the rows (limit collisions)
+function update_hist_gpu!(hδ::CuArray{T,3}, hδ²::CuArray{T,3}, h𝑤::CuMatrix{T},
+    δ::CuMatrix{T}, δ²::CuMatrix{T}, 𝑤::CuVector{T},
+    X_bin::CuMatrix{UInt8}, 𝑖::CuVector{Int}, 𝑗::CuVector{Int}, K; MAX_THREADS=1024) where {T <: AbstractFloat}
+
+    hδ .= T(0.0)
+    hδ² .= T(0.0)
+    h𝑤 .= T(0.0)
+
+    thread_j = min(MAX_THREADS, length(𝑗))
+    thread_i = min(MAX_THREADS ÷ thread_j, length(𝑖))
+    threads = (thread_i, thread_j)
+    blocks = ceil.(Int, (length(𝑖), length(𝑗)) ./ threads)
+    @cuda blocks = blocks threads = threads hist_kernel!(hδ, δ, X_bin, 𝑖, 𝑗, K)
+    @cuda blocks = blocks threads = threads hist_kernel!(hδ², δ², X_bin, 𝑖, 𝑗, K)
+    @cuda blocks = blocks threads = threads hist_kernel!(h𝑤, 𝑤, X_bin, 𝑖, 𝑗)
+>>>>>>> dev
 
 
 # operate on hist_gpu

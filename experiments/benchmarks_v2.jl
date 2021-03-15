@@ -4,10 +4,15 @@ using XGBoost
 using Revise
 using EvoTrees
 using BenchmarkTools
+<<<<<<< HEAD
 using CUDA
 
 nrounds = 200
 nthread = 16
+=======
+
+nrounds = 200
+>>>>>>> dev
 
 # xgboost aprams
 params_xgb = ["max_depth" => 5,
@@ -36,7 +41,11 @@ X = rand(nobs, nnum_feat)
 Y = rand(size(X, 1))
 
 @info "xgboost train:"
+<<<<<<< HEAD
 @time m_xgb = xgboost(X, nrounds, label=Y, param=params_xgb, metrics=metrics, nthread=nthread, silent=1);
+=======
+@time m_xgb = xgboost(X, nrounds, label=Y, param=params_xgb, metrics=metrics, silent=1);
+>>>>>>> dev
 @btime xgboost($X, $nrounds, label=$Y, param=$params_xgb, metrics=$metrics, silent=1);
 @info "xgboost predict:"
 @time pred_xgb = XGBoost.predict(m_xgb, X);
@@ -49,7 +58,11 @@ Y = rand(size(X, 1))
 @time pred_evo = EvoTrees.predict(m_evo, X);
 @btime EvoTrees.predict($m_evo, $X);
 
+<<<<<<< HEAD
 CUDA.allowscalar(false)
+=======
+# CUDA.allowscalar(false)
+>>>>>>> dev
 @info "evotrees train GPU:"
 @time m_evo_gpu = fit_evotree_gpu(params_evo, X, Y);
 @btime fit_evotree_gpu($params_evo, $X, $Y);
