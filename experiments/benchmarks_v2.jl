@@ -4,6 +4,7 @@ using XGBoost
 using Revise
 using EvoTrees
 using BenchmarkTools
+using CUDA
 
 nrounds = 200
 
