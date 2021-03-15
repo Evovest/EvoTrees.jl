@@ -1,31 +1,25 @@
 """
-    store perf info of each variable - looking to drop
+    store perf info of each variable
 """
-mutable struct SplitInfoGPU{T<:AbstractFloat, S}
-    gain::T
-    ∑δL::Vector{T}
-    ∑δ²L::Vector{T}
-    ∑𝑤L::T
-    ∑δR::Vector{T}
-    ∑δ²R::Vector{T}
-    ∑𝑤R::T
-    gainL::T
-    gainR::T
-    𝑖::S
-    feat::S
-    cond::T
+struct SplitInfoGPU{V,M,B}
+    gains::V
+    gainsL::V
+    gainsR::V
+    ∑Ls::M
+    ∑Rs::M
+    bins::B
 end
 
 """
     Carries training information for a given tree node
 """
-struct TrainNodeGPU{T<:AbstractFloat, S, V<:AbstractVector}
+struct TrainNodeGPU{T<:AbstractFloat, S, I<:AbstractVector, V<:AbstractVector}
     parent::S
     depth::S
-    ∑δ::Vector{T}
+    ∑::V
     gain::T
-    𝑖::V
-    𝑗::V
+    𝑖::I
+    𝑗::I
 end
 
 struct TreeNodeGPU{T<:AbstractFloat, S, B<:Bool}

@@ -63,10 +63,10 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     # initialize train nodes
     train_nodes = Vector{TrainNodeGPU{T,UInt32}}(undef, 2^params.max_depth - 1)
 
-    splits = Vector{SplitInfoGPU{T,UInt32}}(undef, X_size[2])
-    for feat in 𝑗_
-        splits[feat] = SplitInfoGPU{T,UInt32}(T(-Inf), zeros(T, K), zeros(T, K), zero(T), zeros(T, K), zeros(T, K), zero(T), T(-Inf), T(-Inf), 0, feat, 0.0)
-    end
+    # initialize splits info
+    splits = SplitInfoGPU(CUDA.zeros(X_size[2]), CUDA.zeros(X_size[2]), CUDA.zeros(X_size[2]), 
+        CUDA.zeros(2*K + 1, X_size[2]), CUDA.zeros(2*K + 1, X_size[2]),
+        CUDA.zeros(UInt8, X_size[2]))
 
     cache = (params = deepcopy(params),
         X = X, Y = Y, Y_cpu = Y_cpu, K = K,
@@ -109,10 +109,10 @@ function grow_evotree_gpu!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T
         # build a new tree
         update_grads_gpu!(params.loss, cache.δ, cache.pred, cache.Y)
         # sum Gradients of each of the K parameters and bring to CPU
-        ∑δ = Array(vec(sum(cache.δ[𝑖,:], dims=1)))
-        gain = get_gain_gpu(params.loss, ∑δ, params.λ)
+        ∑ = Array(vec(sum(cache.δ[𝑖,:], dims=1)))
+        gain = get_gain_gpu(params.loss, ∑, params.λ)
         # # assign a root and grow tree
-        train_nodes[1] = TrainNodeGPU(S(0), S(1), ∑δ, gain, 𝑖, 𝑗)
+        train_nodes[1] = TrainNodeGPU(S(0), S(1), ∑, gain, 𝑖, 𝑗)
         tree = grow_tree_gpu(cache.δ, cache.hist, params, cache.K, train_nodes, cache.edges, cache.X_bin)
         push!(evotree.trees, tree)
         # bad GPU usage - to be improved!
@@ -154,7 +154,7 @@ function grow_tree_gpu(δ, hist,
                     update_hist_gpu!(hist[id], δ, X_bin, node.𝑖, node.𝑗, K)
                 end
 
-                best = find_split_gpu2!(hist[id], edges, params)
+                best = find_split_gpu!(hist[id], edges, params)
 
                 # grow node if best split improves gain
                 if best[:gain] > node.gain + params.γ
@@ -162,7 +162,7 @@ function grow_tree_gpu(δ, hist,
     
                     left, right = update_set_gpu(node.𝑖, best.𝑖, X_bin[:, best.feat])
                     train_nodes[leaf_count + 1] = TrainNodeGPU(id, node.depth + S(1), copy(best.∑L), best.gainL, left, node.𝑗)
-                    train_nodes[leaf_count + 2] = TrainNodeGPU(id, node.depth + S(1), copy(best.∑δR), best.gainR, right, node.𝑗)
+                    train_nodes[leaf_count + 2] = TrainNodeGPU(id, node.depth + S(1), copy(best.∑R), best.gainR, right, node.𝑗)
                     push!(tree.nodes, TreeNodeGPU(leaf_count + S(1), leaf_count + S(2), best.feat, best.cond, best.gain - node.gain, K))
     
                     push!(next_active_id, leaf_count + S(1))
