@@ -126,7 +126,6 @@ X = Tables.rowtable(X);
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
 @time fit!(tree, rows=train, verbosity=1, force=true)
 
-<<<<<<< HEAD
 using LossFunctions
 using MLJ
 r = range(tree_model, :nrounds, lower=1, upper=100)
@@ -138,13 +137,6 @@ tree.model.nrounds += 1
 
 tree.model.nrounds += 1
 @time fit!(tree, rows=train, verbosity=1)
-=======
-tree.model.nrounds += 10
-@time update(tree.model, 0, tree.fitresult, tree.cache, X, Y);
-
-tree.model.nrounds += 10
-@time fit!(tree, rows=train, verbosity=1);
->>>>>>> dev
 # @time MLJBase.fit!(tree, rows=train, verbosity=1)
 
 # yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
