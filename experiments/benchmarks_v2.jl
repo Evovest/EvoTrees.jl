@@ -7,10 +7,12 @@ using BenchmarkTools
 using CUDA
 
 nrounds = 200
+nthread = 16
 
 # xgboost aprams
 params_xgb = ["max_depth" => 5,
          "eta" => 0.05,
+         nthread => nthread,
          "objective" => "reg:squarederror",
          "print_every_n" => 5,
          "subsample" => 0.5,
