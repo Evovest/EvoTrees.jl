@@ -39,9 +39,9 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     # initialize preds
     X_size = size(X)
     pred_cpu = zeros(T, X_size[1], K)
-    pred = CUDA.zeros(T, X_size[1], K)
+    pred_gpu = CUDA.zeros(T, X_size[1], K)
     pred_cpu .= μ'
-    pred .= CuArray(μ)'
+    pred_gpu .= CuArray(μ)'
 
     bias = TreeGPU([TreeNodeGPU(μ)])
     evotree = GBTreeGPU([bias], params, Metric(), UInt32(K), levels)
@@ -61,12 +61,12 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     hist = [CUDA.zeros(T, 2 * K + 1, params.nbins, X_size[2]) for i in 1:2^params.max_depth - 1]
 
     # initialize train nodes
-    train_nodes = Vector{TrainNodeGPU{T,UInt32, CuVector{UInt32}, Vector{T}}}(undef, 2^params.max_depth - 1)
+    train_nodes = Vector{TrainNodeGPU{T,UInt32,CuVector{UInt32},Vector{T}}}(undef, 2^params.max_depth - 1)
 
     # store cache
     cache = (params = deepcopy(params),
         X = X, Y = Y, Y_cpu = Y_cpu, K = K,
-        pred = pred, pred_cpu = pred_cpu,
+        pred_gpu = pred_gpu, pred_cpu = pred_cpu,
         𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 
         δ = δ,
         edges = edges,
@@ -81,16 +81,14 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
 end
 
 
-function grow_evotree_gpu!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T,S}
+function grow_evotree!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T,S}
 
     # initialize from cache
     params = evotree.params
     train_nodes = cache.train_nodes
-    # splits = cache.splits
     X_size = size(cache.X_bin)
     δnrounds = params.nrounds - cache.params.nrounds
 
-    # println("start loop")
     # loop over nrounds
     for i in 1:δnrounds
 
@@ -99,19 +97,19 @@ function grow_evotree_gpu!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T
         𝑗 = CuVector(cache.𝑗_[sample(params.rng, cache.𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)])
 
         # build a new tree
-        update_grads_gpu!(params.loss, cache.δ, cache.pred, cache.Y)
-        
+        update_grads_gpu!(params.loss, cache.δ, cache.pred_gpu, cache.Y)
+
         # ∑ = vec(sum(cache.δ[𝑖,:], dims=1))
         ∑ = Array(vec(sum(cache.δ[𝑖,:], dims=1)))
 
         gain = get_gain_gpu(params.loss, ∑, params.λ)
         # # assign a root and grow tree
         train_nodes[1] = TrainNodeGPU(S(0), S(1), ∑, gain, 𝑖, 𝑗)
-        tree = grow_tree_gpu(cache.δ, cache.hist, params, cache.K, train_nodes, cache.edges, cache.X_bin)
+        tree = grow_tree(cache.δ, cache.hist, params, cache.K, train_nodes, cache.edges, cache.X_bin)
         push!(evotree.trees, tree)
         # bad GPU usage - to be improved!
-        predict_gpu!(cache.pred_cpu, tree, cache.X)
-        cache.pred .= CuArray(cache.pred_cpu)
+        predict!(cache.pred_cpu, tree, cache.X)
+        cache.pred_gpu .= CuArray(cache.pred_cpu)
 
     end # end of nrounds
 
@@ -121,7 +119,7 @@ function grow_evotree_gpu!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T
 end
 
 # grow a single tree - grow through all depth
-function grow_tree_gpu(δ, hist, 
+function grow_tree(δ, hist, 
     params::EvoTypes{T,U,R}, K,
     train_nodes::Vector{TrainNodeGPU{T,S,I,V}},
     edges, X_bin) where {T,U,R,S,I,V}
@@ -171,60 +169,4 @@ function grow_tree_gpu(δ, hist,
         tree_depth += S(1)
     end # end of tree growth
     return tree
-end
-
-
-function fit_evotree_gpu(params, X_train, Y_train;
-    X_eval=nothing, Y_eval=nothing,
-    early_stopping_rounds=9999,
-    eval_every_n=1,
-    print_every_n=9999,
-    verbosity=1)
-
-    # initialize metric
-    iter_since_best = 0
-    if params.metric != :none
-        metric_track = Metric()
-        metric_best = Metric()
-    end
-
-    nrounds_max = params.nrounds
-    params.nrounds = 0
-    model, cache = init_evotree_gpu(params, X_train, Y_train)
-    iter = 1
-
-    if params.metric != :none && X_eval !== nothing
-        pred_eval = predict_gpu(model.trees[1], X_eval, model.K)
-        Y_eval = convert.(eltype(cache.Y), Y_eval)
-    end
-
-    while model.params.nrounds < nrounds_max && iter_since_best < early_stopping_rounds
-        model.params.nrounds += 1
-        grow_evotree_gpu!(model, cache)
-        # callback function
-        if params.metric != :none
-            if X_eval !== nothing
-                predict_gpu!(pred_eval, model.trees[model.params.nrounds + 1], X_eval)
-                metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, params.α)
-            else
-                metric_track.metric = eval_metric(Val{params.metric}(), cache.pred_cpu, cache.Y_cpu, params.α)
-            end
-            if metric_track.metric < metric_best.metric
-                metric_best.metric = metric_track.metric
-                metric_best.iter =  model.params.nrounds
-                iter_since_best = 0
-            else
-                iter_since_best += 1
-            end
-            if mod(model.params.nrounds, print_every_n) == 0 && verbosity > 0
-                display(string("iter:", model.params.nrounds, ", eval: ", metric_track.metric))
-            end
-        end # end of callback
-    end
-    if params.metric != :none
-        model.metric.iter = metric_best.iter
-        model.metric.metric = metric_best.metric
-    end
-    params.nrounds = nrounds_max
-    return model
 end

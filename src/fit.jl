@@ -1,6 +1,6 @@
 # initialise evotree
 function init_evotree(params::EvoTypes{T,U,S},
-    X::AbstractMatrix, Y::AbstractVector; verbosity=1) where {T,U,S}
+    X::AbstractMatrix, Y::AbstractVector; fnames=nothing, verbosity=1) where {T,U,S}
 
     K = 1
     levels = ""
@@ -34,9 +34,9 @@ function init_evotree(params::EvoTypes{T,U,S},
     end
 
     # initialize preds
-    pred = zeros(SVector{K,T}, size(X,1))
-    for i in eachindex(pred)
-        pred[i] += μ
+    pred_cpu = zeros(SVector{K,T}, size(X, 1))
+    for i in eachindex(pred_cpu)
+        pred_cpu[i] += μ
     end
 
     bias = Tree([TreeNode(SVector{K,T}(μ))])
@@ -47,9 +47,9 @@ function init_evotree(params::EvoTypes{T,U,S},
     𝑗_ = collect(1:X_size[2])
 
     # initialize gradients and weights
-    δ, δ² = zeros(SVector{evotree.K, T}, X_size[1]), zeros(SVector{evotree.K, T}, X_size[1])
-    𝑤 = zeros(SVector{1, T}, X_size[1])
-    𝑤_ini = SVector{1, T}(1)
+    δ, δ² = zeros(SVector{evotree.K,T}, X_size[1]), zeros(SVector{evotree.K,T}, X_size[1])
+    𝑤 = zeros(SVector{1,T}, X_size[1])
+    𝑤_ini = SVector{1,T}(1)
     for i in 1:length(𝑤)
         𝑤[i] += 𝑤_ini
     end
@@ -59,32 +59,32 @@ function init_evotree(params::EvoTypes{T,U,S},
     X_bin = binarize(X, edges)
 
     # initializde histograms
-    hist_δ = Vector{Matrix{SVector{evotree.K, T}}}(undef, 2^params.max_depth-1)
-    hist_δ² = Vector{Matrix{SVector{evotree.K, T}}}(undef, 2^params.max_depth-1)
-    hist_𝑤 = Vector{Matrix{SVector{1, T}}}(undef, 2^params.max_depth-1)
+    hist_δ = Vector{Matrix{SVector{evotree.K,T}}}(undef, 2^params.max_depth - 1)
+    hist_δ² = Vector{Matrix{SVector{evotree.K,T}}}(undef, 2^params.max_depth - 1)
+    hist_𝑤 = Vector{Matrix{SVector{1,T}}}(undef, 2^params.max_depth - 1)
 
     # initialize train nodes
-    train_nodes = Vector{TrainNode{evotree.K, T, Int64}}(undef, 2^params.max_depth-1)
+    train_nodes = Vector{TrainNode{evotree.K,T,Int64}}(undef, 2^params.max_depth - 1)
 
-    for node in 1:2^params.max_depth-1
-        train_nodes[node] = TrainNode(0, 0, SVector{evotree.K, T}(fill(T(-Inf), evotree.K)), SVector{evotree.K, T}(fill(T(-Inf), evotree.K)), SVector{1, T}(fill(T(-Inf), 1)), T(-Inf), [0], [0])
+    for node in 1:2^params.max_depth - 1
+        train_nodes[node] = TrainNode(0, 0, SVector{evotree.K,T}(fill(T(-Inf), evotree.K)), SVector{evotree.K,T}(fill(T(-Inf), evotree.K)), SVector{1,T}(fill(T(-Inf), 1)), T(-Inf), [0], [0])
 
-        hist_δ[node] = zeros(SVector{evotree.K, T}, params.nbins, X_size[2])
-        hist_δ²[node] = zeros(SVector{evotree.K, T}, params.nbins, X_size[2])
-        hist_𝑤[node] = zeros(SVector{1, T}, params.nbins, X_size[2])
+        hist_δ[node] = zeros(SVector{evotree.K,T}, params.nbins, X_size[2])
+        hist_δ²[node] = zeros(SVector{evotree.K,T}, params.nbins, X_size[2])
+        hist_𝑤[node] = zeros(SVector{1,T}, params.nbins, X_size[2])
     end
 
-    splits = Vector{SplitInfo{evotree.K, T, Int64}}(undef, X_size[2])
+    splits = Vector{SplitInfo{evotree.K,T,Int64}}(undef, X_size[2])
     for feat in 𝑗_
-        splits[feat] = SplitInfo{evotree.K, T, Int}(T(-Inf), SVector{evotree.K, T}(zeros(evotree.K)), SVector{evotree.K, T}(zeros(evotree.K)), SVector{1, T}(zeros(1)), SVector{evotree.K, T}(zeros(evotree.K)), SVector{evotree.K, T}(zeros(evotree.K)), SVector{1, T}(zeros(1)), T(-Inf), T(-Inf), 0, feat, 0.0)
+        splits[feat] = SplitInfo{evotree.K,T,Int}(T(-Inf), SVector{evotree.K,T}(zeros(evotree.K)), SVector{evotree.K,T}(zeros(evotree.K)), SVector{1,T}(zeros(1)), SVector{evotree.K,T}(zeros(evotree.K)), SVector{evotree.K,T}(zeros(evotree.K)), SVector{1,T}(zeros(1)), T(-Inf), T(-Inf), 0, feat, 0.0)
     end
 
-    cache = (params=deepcopy(params),
-        X=X, Y=Y, pred=pred,
-        𝑖_=𝑖_, 𝑗_=𝑗_, δ=δ, δ²=δ², 𝑤=𝑤,
-        edges=edges, X_bin=X_bin,
-        train_nodes=train_nodes, splits=splits,
-        hist_δ=hist_δ, hist_δ²=hist_δ², hist_𝑤=hist_𝑤)
+    cache = (params = deepcopy(params),
+        X = X, Y_cpu = Y, pred_cpu = pred_cpu,
+        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, δ = δ, δ² = δ², 𝑤 = 𝑤,
+        edges = edges, X_bin = X_bin,
+        train_nodes = train_nodes, splits = splits,
+        hist_δ = hist_δ, hist_δ² = hist_δ², hist_𝑤 = hist_𝑤)
 
     cache.params.nrounds = 0
 
@@ -113,20 +113,18 @@ function grow_evotree!(evotree::GBTree{L,T,S}, cache; verbosity=1) where {L,T,S}
         end
 
         # build a new tree
-        update_grads!(params.loss, params.α, cache.pred, cache.Y, cache.δ, cache.δ², cache.𝑤)
+        update_grads!(params.loss, params.α, cache.pred_cpu, cache.Y_cpu, cache.δ, cache.δ², cache.𝑤)
         ∑δ, ∑δ², ∑𝑤 = sum(cache.δ[𝑖]), sum(cache.δ²[𝑖]), sum(cache.𝑤[𝑖])
         gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # assign a root and grow tree
         train_nodes[1] = TrainNode(0, 1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
         tree = grow_tree(cache.δ, cache.δ², cache.𝑤, cache.hist_δ, cache.hist_δ², cache.hist_𝑤, params, train_nodes, splits, cache.edges, cache.X_bin)
         push!(evotree.trees, tree)
-        predict!(cache.pred, tree, cache.X)
+        predict!(cache.pred_cpu, tree, cache.X)
 
-    end #end of nrounds
+    end # end of nrounds
 
     cache.params.nrounds = params.nrounds
-    # cache = (deepcopy(params), X, Y, pred, 𝑖_, 𝑗_, δ, δ², 𝑤, edges, X_bin, train_nodes, splits, hist_δ, hist_δ², hist_𝑤)
-    # return model, cache
     return evotree
 end
 
@@ -136,12 +134,12 @@ function grow_tree(δ, δ², 𝑤,
     params::EvoTypes{T,U,S},
     train_nodes::Vector{TrainNode{L,T,S}},
     splits::Vector{SplitInfo{L,T,Int}},
-    edges, X_bin) where {T<:AbstractFloat, U, S, L}
+    edges, X_bin) where {T <: AbstractFloat,U,S,L}
 
     active_id = ones(Int, 1)
     leaf_count = one(Int)
     tree_depth = one(Int)
-    tree = Tree(Vector{TreeNode{L, T, Int, Bool}}())
+    tree = Tree(Vector{TreeNode{L,T,Int,Bool}}())
 
     # grow while there are remaining active nodes
     while size(active_id, 1) > 0 && tree_depth <= params.max_depth
@@ -154,26 +152,26 @@ function grow_tree(δ, δ², 𝑤,
             else
                 if id > 1 && id == tree.nodes[node.parent].right
                     # println("id is right:", id)
-                    hist_δ[id] .= hist_δ[node.parent] .- hist_δ[id-1]
-                    hist_δ²[id] .= hist_δ²[node.parent] .- hist_δ²[id-1]
-                    hist_𝑤[id] .= hist_𝑤[node.parent] .- hist_𝑤[id-1]
+                    hist_δ[id] .= hist_δ[node.parent] .- hist_δ[id - 1]
+                    hist_δ²[id] .= hist_δ²[node.parent] .- hist_δ²[id - 1]
+                    hist_𝑤[id] .= hist_𝑤[node.parent] .- hist_𝑤[id - 1]
                 else
                     # println("id is left:", id)
                     update_hist!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, node)
                 end
                 for j in node.𝑗
                     splits[j].gain = node.gain
-                    find_split!(view(hist_δ[id],:,j), view(hist_δ²[id],:,j), view(hist_𝑤[id],:,j), params, node, splits[j], edges[j])
+                    find_split!(view(hist_δ[id], :, j), view(hist_δ²[id], :, j), view(hist_𝑤[id], :, j), params, node, splits[j], edges[j])
                 end
 
                 best = get_max_gain(splits)
                 # grow node if best split improves gain
                 if best.gain > node.gain + params.γ
-                    left, right = update_set(node.𝑖, best.𝑖, view(X_bin,:,best.feat))
+                    left, right = update_set(node.𝑖, best.𝑖, view(X_bin, :, best.feat))
                     # println("id: ∑𝑤/length(node/left/right) / ", id, " : ", node.∑𝑤, " / ", length(node.𝑖), " / ", length(left), " / ", length(right), " / ", best.𝑖)
                     train_nodes[leaf_count + 1] = TrainNode(id, node.depth + 1, best.∑δL, best.∑δ²L, best.∑𝑤L, best.gainL, left, node.𝑗)
                     train_nodes[leaf_count + 2] = TrainNode(id, node.depth + 1, best.∑δR, best.∑δ²R, best.∑𝑤R, best.gainR, right, node.𝑗)
-                    push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond, best.gain-node.gain, L))
+                    push!(tree.nodes, TreeNode(leaf_count + 1, leaf_count + 2, best.feat, best.cond, best.gain - node.gain, L))
                     push!(next_active_id, leaf_count + 1)
                     push!(next_active_id, leaf_count + 2)
                     leaf_count += 2
@@ -212,12 +210,16 @@ function fit_evotree(params, X_train, Y_train;
 
     nrounds_max = params.nrounds
     params.nrounds = 0
-    model, cache = init_evotree(params, X_train, Y_train)
-    iter = 1
+    if params.device == "gpu"
+        model, cache = init_evotree_gpu(params, X_train, Y_train)
+    else 
+        model, cache = init_evotree(params, X_train, Y_train)
+    end
 
+    iter = 1
     if params.metric != :none && X_eval !== nothing
         pred_eval = predict(model.trees[1], X_eval, model.K)
-        Y_eval = convert.(eltype(cache.Y), Y_eval)
+        Y_eval = convert.(eltype(cache.Y_cpu), Y_eval)
     end
 
     while model.params.nrounds < nrounds_max && iter_since_best < early_stopping_rounds
@@ -226,10 +228,10 @@ function fit_evotree(params, X_train, Y_train;
         # callback function
         if params.metric != :none
             if X_eval !== nothing
-                predict!(pred_eval, model.trees[model.params.nrounds+1], X_eval)
+                predict!(pred_eval, model.trees[model.params.nrounds + 1], X_eval)
                 metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, params.α)
             else
-                metric_track.metric = eval_metric(Val{params.metric}(), cache.pred, cache.Y, params.α)
+                metric_track.metric = eval_metric(Val{params.metric}(), cache.pred_cpu, cache.Y_cpu, params.α)
             end
             if metric_track.metric < metric_best.metric
                 metric_best.metric = metric_track.metric

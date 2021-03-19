@@ -1,8 +1,17 @@
 
+function MLJModelInterface.fit(model::EvoTypes, verbosity::Int, X, y)
+    names = [name for name ∈ schema(X).names]
+    fitresult, cache = init_evotree(model, MLJModelInterface.matrix(X), y, verbosity=verbosity)
+    grow_evotree!(fitresult, cache, verbosity=verbosity)
+    report = (feature_importances = importance(fitresult, names), )
+    return fitresult, cache, report
+end
+
 function MLJModelInterface.fit(model::EvoTypes, verbosity::Int, X::AbstractMatrix, y)
+    names = ["feat_$i" for i in 1:size(X, 2)]
     fitresult, cache = init_evotree(model, X, y, verbosity=verbosity)
     grow_evotree!(fitresult, cache, verbosity=verbosity)
-    report = (feature_importances = importance(fitresult, ["feat_$i" for i in 1:size(X, 2)]),)
+    report = (feature_importances = importance(fitresult, names), )
     return fitresult, cache, report
 end
 
@@ -20,42 +29,59 @@ function okay_to_continue(new, old)
     new.metric ==  old.metric
 end
 
-MLJModelInterface.reformat(::EvoTypes, X, y) = (MLJModelInterface.matrix(X), y)
-MLJModelInterface.reformat(::EvoTypes, X) = (MLJModelInterface.matrix(X),)
+# Base approach
+MLJModelInterface.reformat(::EvoTypes, X, y) = (X, y)
+MLJModelInterface.reformat(::EvoTypes, X) = (X,)
+# MLJModelInterface.reformat(::EvoTypes, X, y) = (MLJModelInterface.matrix(X), y)
+# MLJModelInterface.reformat(::EvoTypes, X) = (MLJModelInterface.matrix(X),)
+MLJModelInterface.selectrows(::EvoTypes, I, X, y) = (view(MLJModelInterface.matrix(X), I, :), view(y, I))
+MLJModelInterface.selectrows(::EvoTypes, I, X) = (view(MLJModelInterface.matrix(X), I, :),)
+MLJModelInterface.selectrows(::EvoTypes, I, X::AbstractMatrix, y) = (view(X, I, :), view(y, I))
+MLJModelInterface.selectrows(::EvoTypes, I, X::AbstractMatrix) = (view(X, I, :),)
 
-MLJModelInterface.selectrows(::EvoTypes, I, A, y) = (view(A, I, :), view(y, I))
-MLJModelInterface.selectrows(::EvoTypes, I, A) = (view(A, I, :),)
+# Generate names to be used by feature_importances in the report 
+# MLJModelInterface.reformat(::EvoTypes, X, y) = ((matrix = MLJModelInterface.matrix(X), names = [name for name ∈ schema(X).names]), y)
+# MLJModelInterface.reformat(::EvoTypes, X) = ((matrix = MLJModelInterface.matrix(X), names = [name for name ∈ schema(X).names]),)
+# MLJModelInterface.reformat(::EvoTypes, X::AbstractMatrix, y) = ((matrix = MLJModelInterface.matrix(X), names = ["feat_$i" for i in 1:size(X, 2)]), y)
+# MLJModelInterface.reformat(::EvoTypes, X::AbstractMatrix) = ((matrix = MLJModelInterface.matrix(X), names = ["feat_$i" for i in 1:size(X, 2)]),)
+# MLJModelInterface.selectrows(::EvoTypes, I, A, y) = ((matrix = view(A.matrix, I, :), names = A.names), view(y, I))
+# MLJModelInterface.selectrows(::EvoTypes, I, A) = ((matrix = view(A.matrix, I, :), names = A.names),)
 
-function MLJModelInterface.update(model::EvoTypes, verbosity::Integer, fitresult, cache, X, y)
+# For EarlyStopping.jl support
+MLJModelInterface.iteration_parameter(::EvoTypes) = :nrounds
+
+function MLJModelInterface.update(model::EvoTypes, verbosity::Integer, fitresult, cache, A, y)
 
     if okay_to_continue(model, cache.params)
         grow_evotree!(fitresult, cache, verbosity=verbosity)
     else
-        Xmatrix = MLJModelInterface.matrix(X)
-        fitresult, cache = init_evotree(model, Xmatrix, y, verbosity=verbosity)
+        A = MLJModelInterface.reformat(model, A, y)
+        fitresult, cache = init_evotree(model, A.matrix, y, verbosity=verbosity)
         grow_evotree!(fitresult, cache, verbosity=verbosity)
     end
-    report = (feature_importances = importance(fitresult, ["feat_$i" for i in 1:size(X, 2)]),)
+
+    report = (feature_importances = importance(fitresult, A.names),)
+
     return fitresult, cache, report
 end
 
-function predict(::EvoTreeRegressor, fitresult, Xnew)
-    pred = predict(fitresult, Xnew)
+function predict(::EvoTreeRegressor, fitresult, A)
+    pred = predict(fitresult, A.matrix)
     return pred
 end
 
-function predict(::EvoTreeClassifier, fitresult, Xnew)
-    pred = predict(fitresult, Xnew)
+function predict(::EvoTreeClassifier, fitresult, A)
+    pred = predict(fitresult, A.matrix)
     return MLJModelInterface.UnivariateFinite(fitresult.levels, pred, pool=missing)
 end
 
-function predict(::EvoTreeCount, fitresult, Xnew)
-    λ = predict(fitresult, Xnew)
+function predict(::EvoTreeCount, fitresult, A)
+    λ = predict(fitresult, A.matrix)
     return [Distributions.Poisson(λᵢ) for λᵢ ∈ λ]
 end
 
-function predict(::EvoTreeGaussian, fitresult, Xnew)
-    pred = predict(fitresult, Xnew)
+function predict(::EvoTreeGaussian, fitresult, A)
+    pred = predict(fitresult, A.matrix)
     return [Distributions.Normal(pred[i,1], pred[i,2]) for i in 1:size(pred, 1)]
 end
 

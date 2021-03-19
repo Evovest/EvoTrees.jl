@@ -1,7 +1,7 @@
 module EvoTrees
 
 export init_evotree, grow_evotree!, grow_tree, fit_evotree, predict,
-    fit_evotree_gpu, predict_gpu,
+    # fit_evotree_gpu, predict_gpu,
     EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
     EvoTreeRModels, importance, Random
 
@@ -17,7 +17,7 @@ using BSON: @save, @load
 using NetworkLayout
 using RecipesBase
 import MLJModelInterface
-import MLJModelInterface: fit, update, predict
+import MLJModelInterface: fit, update, predict, schema
 
 include("models.jl")
 include("structs.jl")

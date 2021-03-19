@@ -1,5 +1,5 @@
 # prediction from single tree - assign each observation to its final leaf
-function predict_gpu!(pred::AbstractMatrix{T}, tree::TreeGPU{T,S}, X::AbstractMatrix) where {T,S}
+function predict!(pred::AbstractMatrix{T}, tree::TreeGPU{T,S}, X::AbstractMatrix) where {T,S}
     @inbounds @threads for i in 1:size(X,1)
         K = length(tree.nodes[1].pred)
         id = 1
@@ -14,24 +14,22 @@ function predict_gpu!(pred::AbstractMatrix{T}, tree::TreeGPU{T,S}, X::AbstractMa
         @inbounds for k in 1:K
             pred[i,k] += tree.nodes[id].pred[k]
         end
-        # @views performance much improived in Julia 1.5
-        # @views pred[i,:] .+= tree.nodes[id].pred
     end
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict_gpu(tree::TreeGPU{T,S}, X::AbstractMatrix, K) where {T,S}
+function predict(tree::TreeGPU{T,S}, X::AbstractMatrix, K) where {T,S}
     pred = zeros(T, size(X, 1), K)
-    predict_gpu!(pred, tree, X)
+    predict!(pred, tree, X)
     return pred
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict_gpu(model::GBTreeGPU{T,S}, X::AbstractMatrix) where {T,S}
+function predict(model::GBTreeGPU{T,S}, X::AbstractMatrix) where {T,S}
     K = length(model.trees[1].nodes[1].pred)
     pred = zeros(T, size(X, 1), K)
     for tree in model.trees
-        predict_gpu!(pred, tree, X)
+        predict!(pred, tree, X)
     end
     if typeof(model.params.loss) == Logistic
         @. pred = sigmoid(pred)
@@ -53,16 +51,8 @@ end
 function pred_leaf_gpu(::L, node::TrainNodeGPU{T}, params::EvoTypes) where {L<:GradientRegression,T}
     [- params.η * node.∑[1] / (node.∑[2] + params.λ * node.∑[3])]
 end
-# function pred_leaf_gpu(::L, node::TrainNodeGPU{T}, params::EvoTypes) where {L<:GradientRegression,T}
-#     - params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤)
-# end
 
 # prediction in Leaf - GaussianRegression
 function pred_leaf_gpu(::L, node::TrainNodeGPU{T}, params::EvoTypes) where {L<:GaussianRegression,T}
     [- params.η * node.∑[1] / (node.∑[3] + params.λ * node.∑[5]), - params.η * node.∑[2] / (node.∑[4] + params.λ * node.∑[5])]
 end
-
-# prediction in Leaf - GaussianRegression
-# function pred_leaf_gpu(::L, node::TrainNodeGPU{T}, params::EvoTypes) where {L<:GaussianRegression,T}
-#     - params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤)
-# end

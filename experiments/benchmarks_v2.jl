@@ -43,6 +43,7 @@ Y = rand(size(X, 1))
 @btime XGBoost.predict($m_xgb, $X);
 
 @info "evotrees train CPU:"
+params_evo.device = "cpu"
 @time m_evo = fit_evotree(params_evo, X, Y);
 @btime fit_evotree($params_evo, $X, $Y);
 @info "evotrees predict CPU:"
@@ -51,7 +52,8 @@ Y = rand(size(X, 1))
 
 CUDA.allowscalar(false)
 @info "evotrees train GPU:"
-@time m_evo_gpu = fit_evotree_gpu(params_evo, X, Y);
+params_evo.device = "gpu"
+@time m_evo_gpu = fit_evotree(params_evo, X, Y);
 @btime fit_evotree_gpu($params_evo, $X, $Y);
 @info "evotrees predict GPU:"
 @time pred_evo = EvoTrees.predict_gpu(m_evo_gpu, X);
