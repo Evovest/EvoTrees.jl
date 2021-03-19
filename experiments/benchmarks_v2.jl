@@ -54,7 +54,7 @@ CUDA.allowscalar(false)
 @info "evotrees train GPU:"
 params_evo.device = "gpu"
 @time m_evo_gpu = fit_evotree(params_evo, X, Y);
-@btime fit_evotree_gpu($params_evo, $X, $Y);
+@btime fit_evotree($params_evo, $X, $Y);
 @info "evotrees predict GPU:"
-@time pred_evo = EvoTrees.predict_gpu(m_evo_gpu, X);
-@btime EvoTrees.predict_gpu($m_evo_gpu, $X);
+@time pred_evo = EvoTrees.predict(m_evo_gpu, X);
+@btime EvoTrees.predict($m_evo_gpu, $X);
