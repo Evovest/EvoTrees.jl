@@ -42,7 +42,7 @@ function MLJModelInterface.update(model::EvoTypes, verbosity::Integer, fitresult
     end
 
     report = (feature_importances = importance(fitresult, A.names),)
-
+    
     return fitresult, cache, report
 end
 
