@@ -39,12 +39,7 @@ julia> Pkg.add("EvoTrees")
 
 ## Performance
 
-
-<<<<<<< HEAD
 Data consists of randomly generated float32. Training is performed on 200 iterations. Code to reproduce is [here](https://github.com/Evovest/EvoTrees.jl/blob/master/blog/benchmarks_v2.jl). 
-=======
-Data consista of randomly generated float32. Training is performed on 200 iterations. Code to repduce is [here]([Benchmark](https://github.com/Evovest/EvoTrees.jl/blob/master/blog/benchmarks_v2.jl)). 
->>>>>>> master
 
 EvoTrees: v0.7.0
 XGBoost: v1.1.1
