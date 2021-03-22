@@ -1,17 +1,7 @@
-
-function MLJModelInterface.fit(model::EvoTypes, verbosity::Int, X, y)
-    names = [name for name ∈ schema(X).names]
-    fitresult, cache = init_evotree(model, MLJModelInterface.matrix(X), y, verbosity=verbosity)
+function MLJModelInterface.fit(model::EvoTypes, verbosity::Int, A, y)
+    fitresult, cache = init_evotree(model, A.matrix, y, verbosity=verbosity)
     grow_evotree!(fitresult, cache, verbosity=verbosity)
-    report = (feature_importances = importance(fitresult, names), )
-    return fitresult, cache, report
-end
-
-function MLJModelInterface.fit(model::EvoTypes, verbosity::Int, X::AbstractMatrix, y)
-    names = ["feat_$i" for i in 1:size(X, 2)]
-    fitresult, cache = init_evotree(model, X, y, verbosity=verbosity)
-    grow_evotree!(fitresult, cache, verbosity=verbosity)
-    report = (feature_importances = importance(fitresult, names), )
+    report = (feature_importances = importance(fitresult, A.names), )
     return fitresult, cache, report
 end
 
@@ -29,23 +19,14 @@ function okay_to_continue(new, old)
     new.metric ==  old.metric
 end
 
-# Base approach
-MLJModelInterface.reformat(::EvoTypes, X, y) = (X, y)
-MLJModelInterface.reformat(::EvoTypes, X) = (X,)
-# MLJModelInterface.reformat(::EvoTypes, X, y) = (MLJModelInterface.matrix(X), y)
-# MLJModelInterface.reformat(::EvoTypes, X) = (MLJModelInterface.matrix(X),)
-MLJModelInterface.selectrows(::EvoTypes, I, X, y) = (view(MLJModelInterface.matrix(X), I, :), view(y, I))
-MLJModelInterface.selectrows(::EvoTypes, I, X) = (view(MLJModelInterface.matrix(X), I, :),)
-MLJModelInterface.selectrows(::EvoTypes, I, X::AbstractMatrix, y) = (view(X, I, :), view(y, I))
-MLJModelInterface.selectrows(::EvoTypes, I, X::AbstractMatrix) = (view(X, I, :),)
 
 # Generate names to be used by feature_importances in the report 
-# MLJModelInterface.reformat(::EvoTypes, X, y) = ((matrix = MLJModelInterface.matrix(X), names = [name for name ∈ schema(X).names]), y)
-# MLJModelInterface.reformat(::EvoTypes, X) = ((matrix = MLJModelInterface.matrix(X), names = [name for name ∈ schema(X).names]),)
-# MLJModelInterface.reformat(::EvoTypes, X::AbstractMatrix, y) = ((matrix = MLJModelInterface.matrix(X), names = ["feat_$i" for i in 1:size(X, 2)]), y)
-# MLJModelInterface.reformat(::EvoTypes, X::AbstractMatrix) = ((matrix = MLJModelInterface.matrix(X), names = ["feat_$i" for i in 1:size(X, 2)]),)
-# MLJModelInterface.selectrows(::EvoTypes, I, A, y) = ((matrix = view(A.matrix, I, :), names = A.names), view(y, I))
-# MLJModelInterface.selectrows(::EvoTypes, I, A) = ((matrix = view(A.matrix, I, :), names = A.names),)
+MLJModelInterface.reformat(::EvoTypes, X, y) = ((matrix = MLJModelInterface.matrix(X), names = [name for name ∈ schema(X).names]), y)
+MLJModelInterface.reformat(::EvoTypes, X) = ((matrix = MLJModelInterface.matrix(X), names = [name for name ∈ schema(X).names]),)
+MLJModelInterface.reformat(::EvoTypes, X::AbstractMatrix, y) = ((matrix = X, names = ["feat_$i" for i in 1:size(X, 2)]), y)
+MLJModelInterface.reformat(::EvoTypes, X::AbstractMatrix) = ((matrix = X, names = ["feat_$i" for i in 1:size(X, 2)]),)
+MLJModelInterface.selectrows(::EvoTypes, I, A, y) = ((matrix = view(A.matrix, I, :), names = A.names), view(y, I))
+MLJModelInterface.selectrows(::EvoTypes, I, A) = ((matrix = view(A.matrix, I, :), names = A.names),)
 
 # For EarlyStopping.jl support
 MLJModelInterface.iteration_parameter(::EvoTypes) = :nrounds

@@ -75,8 +75,7 @@ tree.model.nrounds += 10
 fit!(tree, rows=train, verbosity=1)
 report(tree)[:feature_importances]
 
-pred_train = predict(tree, selectrows(tree_model, train, X))
-
+pred_train = predict(tree, selectrows(X, train))
 pred_train_mode = predict_mode(tree, selectrows(X, train))
 println(cross_entropy(pred_train, selectrows(y, train)) |> mean)
 println(sum(pred_train_mode .== y[train]))
@@ -276,9 +275,6 @@ X = Tables.table(X);
 @time tree = machine(tree_model, X, Y);
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
 @time fit!(tree, rows=train, verbosity=1, force=false)
-
-tree.model.nrounds += 1
-@time update(tree.model, 0, tree.fitresult, tree.cache, X, Y);
 
 tree.model.nrounds += 1
 @time fit!(tree, rows=train, verbosity=1)
