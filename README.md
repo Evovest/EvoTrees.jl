@@ -2,8 +2,8 @@
 
 [![Build Status](https://travis-ci.org/Evovest/EvoTrees.jl.svg?branch=master)](https://travis-ci.org/Evovest/EvoTrees.jl)
 
-A Julia implementation of boosted trees.
-Efficient histogram based algorithm with support for multiple loss functions (notably multi-target objectives such as max likelihood methods).
+A Julia implementation of boosted trees with CPU and GPU support.
+Efficient histogram based algorithms with support for multiple loss functions (notably multi-target objectives such as max likelihood methods).
 
 [R binding available](https://github.com/Evovest/EvoTrees)
 
@@ -11,19 +11,17 @@ Currently supports:
 
 - linear
 - logistic
-- Poisson
-- L1 (mae regression)
-- Quantile
-- multiclassification (softmax)
+- Poisson (cpu only)
+- L1 (mae regression) (cpu only)
+- Quantile (cpu only)
+- multiclassification (softmax) (cpu only)
 - Gaussian (max likelihood)
 
 Input features is expected to be `Matrix{Float64/Float32}`. User friendly format conversion to be done (or see integration with MLJ).
 
 ## GPU
 
-An experimental GPU support is now provided for linear, logistic and Gaussian objective functions. Speedup compared to multi-threaded cpu histogram is modest at the moment (~25% vs 16 CPU threads on RTX2080).
-
-Simply call `fit_evotree_gpu()` instead of `fit_evotree()` and `predict_gpu()` instead of `predict()`.
+GPU support is currently available for linear, logistic and Gaussian objective functions. Set paramter `device = "gpu"`.
 
 ## Installation
 
@@ -39,32 +37,50 @@ Official Repo:
 julia> Pkg.add("EvoTrees")
 ```
 
-
 ## Performance
 
-[Benchmark](https://github.com/Evovest/EvoTrees.jl/blob/master/blog/benchmarks.jl) for 100 iterations on randomly generated data:
 
-| Dimensions / Algo | XGBoost Exact | XGBoost Hist | EvoTrees |
-|-------------------|:-------------:|:------------:|:--------:|
-| 10K x 100         |     1.18s     |     2.15s    |   0.52s  |
-| 100K x 100        |     9.39s     |     4.25s    |   2.02s  |
-| 1M X 100          |     146.5s    |     20.2s    |   21.5   |
+Data consista of randomly generated float32. Training is performed on 200 iterations. Code to repduce is [here]([Benchmark](https://github.com/Evovest/EvoTrees.jl/blob/master/blog/benchmarks_v2.jl)). 
 
+EvoTrees: v0.7.0
+XGBoost: v1.1.1
+
+CPU: 16 threads on AMD Threadripper 3970X
+GPU: NVIDIA RTX 2080
+
+### Training: 
+
+| Dimensions   / Algo | XGBoost Hist | EvoTrees | EvoTrees GPU |
+|---------------------|:------------:|:--------:|:------------:|
+| 100K x 100          |     1.12s    |   1.15s  |     2.23s    |
+| 500K x 100          |     4.88s    |   4.85s  |     4.49s    |
+| 1M x 100            |     9.84s    |  12.04s  |     7.52s    |
+| 5M x 100            |     45.7s    |   103s   |     33.7s    |
+
+### Inference:
+
+| Dimensions   / Algo | XGBoost Hist | EvoTrees | EvoTrees GPU |
+|---------------------|:------------:|:--------:|:------------:|
+| 100K x 100          |    0.177s    |  0.029s  |    0.035s    |
+| 500K x 100          |    0.861s    |  0.191s  |    0.214s    |
+| 1M x 100            |     1.67s    |  0.400s  |    0.469s    |
+| 5M x 100            |     8.51s    |   2.14s  |     2.43s    |
 
 ## Parameters
 
-  - loss: {:linear, :logistic, :poisson, :L1, :quantile, :softmax, :gaussian}
-  - nrounds: 10L
-  - λ: 0.0
-  - γ: 0.0
-  - η: 0.1
-  - max\_depth: integer, default 5L
-  - min\_weight: float \>= 0 default=1.0,
-  - rowsample: float \[0,1\] default=1.0
-  - colsample: float \[0,1\] default=1.0
-  - nbins: Int, number of bins into which features will be quantilized default=64
-  - α: float \[0,1\], set the quantile or bias in L1 default=0.5
-  - metric: {:mse, :rmse, :mae, :logloss, :quantile},  default=:none
+  - **loss**: {:linear, :logistic, :poisson, :L1, :quantile, :softmax, :gaussian}
+  - **device**: {"cpu", "gpu"}
+  - **nrounds**: integer, default=10
+  - **λ**: L2 regularization, float, default=0.0
+  - **γ**: min gain for split, default=0.0
+  - **η**: learning rate, default=0.1
+  - **max\_depth**: integer, default=5
+  - **min\_weight**: float \>= 0 default=1.0,
+  - **rowsample**: float \[0,1\] default=1.0
+  - **colsample**: float \[0,1\] default=1.0
+  - **nbins**: Int, number of bins into which features will be quantilized default=64
+  - **α**: float \[0,1\], set the quantile or bias in L1 default=0.5
+  - **metric**: {:mse, :rmse, :mae, :logloss, :quantile, :gini, :gaussian, :none},  default=:none
 
 
 ## MLJ Integration
@@ -103,12 +119,12 @@ mach.model.nrounds += 10
 fit!(mach, rows=train, verbosity=1)
 
 # predict on train data
-pred_train = predict(mach, selectrows(X,train))
-mean(abs.(pred_train - selectrows(Y,train)))
+pred_train = predict(mach, selectrows(X, train))
+mean(abs.(pred_train - selectrows(Y, train)))
 
 # predict on test data
-pred_test = predict(mach, selectrows(X,test))
-mean(abs.(pred_test - selectrows(Y,test)))
+pred_test = predict(mach, selectrows(X, test))
+mean(abs.(pred_test - selectrows(Y, test)))
 ```
 
 
@@ -128,7 +144,7 @@ X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5
 Y = logit(Y) + randn(size(Y))
 Y = sigmoid(Y)
-𝑖 = collect(1:size(X,1))
+𝑖 = collect(1:size(X, 1))
 
 # train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)

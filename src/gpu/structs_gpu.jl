@@ -1,20 +1,28 @@
-# store perf info of each variable
-mutable struct SplitInfo_gpu{T<:AbstractFloat, S<:Int}
-    gain::T
-    ∑δL::Vector{T}
-    ∑δ²L::Vector{T}
-    ∑𝑤L::T
-    ∑δR::Vector{T}
-    ∑δ²R::Vector{T}
-    ∑𝑤R::T
-    gainL::T
-    gainR::T
-    𝑖::S
-    feat::S
-    cond::T
+"""
+    store perf info of each variable
+"""
+struct SplitInfoGPU{V,M,B}
+    gains::V
+    gainsL::V
+    gainsR::V
+    ∑Ls::M
+    ∑Rs::M
+    bins::B
 end
 
-struct TreeNode_gpu{T<:AbstractFloat, S<:Int, B<:Bool}
+"""
+    Carries training information for a given tree node
+"""
+struct TrainNodeGPU{T<:AbstractFloat, S, I<:AbstractVector, V<:AbstractVector}
+    parent::S
+    depth::S
+    ∑::V
+    gain::T
+    𝑖::I
+    𝑗::I
+end
+
+struct TreeNodeGPU{T<:AbstractFloat, S, B<:Bool}
     left::S
     right::S
     feat::S
@@ -24,31 +32,21 @@ struct TreeNode_gpu{T<:AbstractFloat, S<:Int, B<:Bool}
     split::B
 end
 
-TreeNode_gpu(left::S, right::S, feat::S, cond::T, gain::T, K) where {T<:AbstractFloat, S<:Int} = TreeNode_gpu(left, right, feat, cond, gain, zeros(T,K), true)
-TreeNode_gpu(pred::Vector{T}) where {T} = TreeNode_gpu(0, 0, 0, zero(T), zero(T), pred, false)
+TreeNodeGPU(left::S, right::S, feat::S, cond::T, gain::T, K) where {T<:AbstractFloat, S} = TreeNodeGPU(left, right, feat, cond, gain, zeros(T,K), true)
+TreeNodeGPU(pred::Vector{T}) where {T} = TreeNodeGPU(UInt32(0), UInt32(0), UInt32(0), zero(T), zero(T), pred, false)
 
-# single tree is made of a root node that containes nested nodes and leafs
-struct TrainNode_gpu{T<:AbstractFloat, S<:Int}
-    parent::S
-    depth::S
-    ∑δ::Vector{T}
-    ∑δ²::Vector{T}
-    ∑𝑤::T
-    gain::T
-    𝑖::Vector{S}
-    𝑗::Vector{S}
-end
-
-# single tree is made of a root node that containes nested nodes and leafs
-struct Tree_gpu{T<:AbstractFloat, S<:Int}
-    nodes::Vector{TreeNode_gpu{T,S,Bool}}
+"""
+    single tree is made of a a vector of nodes
+"""
+struct TreeGPU{T<:AbstractFloat, S}
+    nodes::Vector{TreeNodeGPU{T,S,Bool}}
 end
 
 # gradient-boosted tree is formed by a vector of trees
-struct GBTree_gpu{T<:AbstractFloat, S<:Int}
-    trees::Vector{Tree_gpu{T,S}}
+struct GBTreeGPU{T<:AbstractFloat, S}
+    trees::Vector{TreeGPU{T,S}}
     params::EvoTypes
     metric::Metric
-    K::Int
+    K::S
     levels
 end

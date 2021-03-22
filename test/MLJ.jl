@@ -98,9 +98,6 @@ train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
 fit!(mach, rows=train, verbosity=1, force=true)
 
 mach.model.nrounds += 10
-MLJBase.update(mach.model, 0, mach.fitresult, mach.cache, X, Y);
-
-mach.model.nrounds += 10
 fit!(mach, rows=train, verbosity=1)
 
 pred = predict(mach, selectrows(X,train))
@@ -151,3 +148,5 @@ mean(abs.(pred_mean - selectrows(Y,train)))
 
 q_20 = quantile.(pred, 0.20)
 q_20 = quantile.(pred, 0.80)
+
+report(mach)
