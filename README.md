@@ -21,9 +21,7 @@ Input features is expected to be `Matrix{Float64/Float32}`. User friendly format
 
 ## GPU
 
-An experimental GPU support is now provided for linear, logistic and Gaussian objective functions. Speedup compared to multi-threaded cpu histogram is modest at the moment (~25% vs 16 CPU threads on RTX2080).
-
-Simply call `fit_evotree_gpu()` instead of `fit_evotree()` and `predict_gpu()` instead of `predict()`.
+GPU support is currently available for linear, logistic and Gaussian objective functions. Set paramter `device = "gpu"`.
 
 ## Installation
 
@@ -72,11 +70,11 @@ GPU: NVIDIA RTX 2080
 
   - loss: {:linear, :logistic, :poisson, :L1, :quantile, :softmax, :gaussian}
   - device: {"cpu", "gpu"}
-  - nrounds: 10L
-  - λ: 0.0
-  - γ: 0.0
-  - η: 0.1
-  - max\_depth: integer, default 5L
+  - nrounds: integer, default=10
+  - λ: L2 regularization, float, default=0.0
+  - γ: min gain for split, default=0.0
+  - η: learning rate, default=0.1
+  - max\_depth: integer, default=5
   - min\_weight: float \>= 0 default=1.0,
   - rowsample: float \[0,1\] default=1.0
   - colsample: float \[0,1\] default=1.0
