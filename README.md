@@ -48,7 +48,7 @@ XGBoost: v1.1.1
 CPU: 16 threads on AMD Threadripper 3970X
 GPU: NVIDIA RTX 2080
 
-#### Training: 
+### Training: 
 
 | Dimensions   / Algo | XGBoost Hist | EvoTrees | EvoTrees GPU |
 |---------------------|:------------:|:--------:|:------------:|
@@ -57,7 +57,7 @@ GPU: NVIDIA RTX 2080
 | 1M x 100            |     9.84s    |  12.04s  |     7.52s    |
 | 5M x 100            |     45.7s    |   103s   |     33.7s    |
 
-#### Inference
+### Inference
 
 | Dimensions   / Algo | XGBoost Hist | EvoTrees | EvoTrees GPU |
 |---------------------|:------------:|:--------:|:------------:|
