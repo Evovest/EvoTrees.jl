@@ -92,8 +92,6 @@ function find_split_gpu!(hist::AbstractArray{T,3}, edges::Vector{Vector{T}}, �
     # hist_cum_R = sum(hist, dims=2) .- hist_cum_L
     hist_cum_R = hist_cum_L[:,end:end,:] .- hist_cum_L
     
-    # gains_L = get_hist_gains_gpu(hist_cum_L, 𝑗, params.λ)
-    # gains_R = get_hist_gains_gpu(hist_cum_R, 𝑗, params.λ)
     gains_L = get_hist_gains_gpu(hist_cum_L[:,1:(end - 1),:], 𝑗, params.λ)
     gains_R = get_hist_gains_gpu(hist_cum_R[:,1:(end - 1),:], 𝑗, params.λ)
     gains = gains_L + gains_R
