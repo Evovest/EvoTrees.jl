@@ -35,7 +35,7 @@ function hist_kernel!(h::CuDeviceArray{T,3}, δ::CuDeviceMatrix{T}, xid::CuDevic
             @inbounds CUDA.atomic_add!(pointer(h, δid), shared[bin_id])
         end
     end
-    # sync_threads()
+    sync_threads()
     return nothing
 end
 
@@ -92,6 +92,8 @@ function find_split_gpu!(hist::AbstractArray{T,3}, edges::Vector{Vector{T}}, �
     # hist_cum_R = sum(hist, dims=2) .- hist_cum_L
     hist_cum_R = hist_cum_L[:,end:end,:] .- hist_cum_L
     
+    # gains_L = get_hist_gains_gpu(hist_cum_L, 𝑗, params.λ)
+    # gains_R = get_hist_gains_gpu(hist_cum_R, 𝑗, params.λ)
     gains_L = get_hist_gains_gpu(hist_cum_L[:,1:(end - 1),:], 𝑗, params.λ)
     gains_R = get_hist_gains_gpu(hist_cum_R[:,1:(end - 1),:], 𝑗, params.λ)
     gains = gains_L + gains_R
@@ -120,7 +122,7 @@ function hist_gains_gpu!(gains::CuDeviceMatrix{T}, h::CuDeviceArray{T,3}, 𝑗::
     K = (size(h, 1) - 1) ÷ 2
 
     @inbounds 𝑤 = h[2 * K + 1, i, j]     
-    if 𝑤 > 1e-5
+    if 𝑤 > 1e-1
         @inbounds for k in 1:K
             if k == 1
                 gains[i, j] = (h[k, i, j]^2 / (h[2 * K + k - 1, i, j] + λ * 𝑤)) / 2
