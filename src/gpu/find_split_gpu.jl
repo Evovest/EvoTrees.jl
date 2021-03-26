@@ -86,14 +86,14 @@ find_split_gpu!
     Find best split over gpu histograms
 """
 
-function find_split_gpu!(hist::AbstractArray{T,3}, edges::Vector{Vector{T}}, params::EvoTypes) where {T}
+function find_split_gpu!(hist::AbstractArray{T,3}, edges::Vector{Vector{T}}, 𝑗::AbstractVector{S}, params::EvoTypes) where {T,S}
 
     hist_cum_L = cumsum(hist, dims=2)
     # hist_cum_R = sum(hist, dims=2) .- hist_cum_L
     hist_cum_R = hist_cum_L[:,end:end,:] .- hist_cum_L
     
-    gains_L = get_hist_gains_gpu(hist_cum_L[:,1:(end - 1),:], params.λ)
-    gains_R = get_hist_gains_gpu(hist_cum_R[:,1:(end - 1),:], params.λ)
+    gains_L = get_hist_gains_gpu(hist_cum_L[:,1:(end - 1),:], 𝑗, params.λ)
+    gains_R = get_hist_gains_gpu(hist_cum_R[:,1:(end - 1),:], 𝑗, params.λ)
     gains = gains_L + gains_R
 
     best = findmax(gains)
@@ -113,9 +113,10 @@ function find_split_gpu!(hist::AbstractArray{T,3}, edges::Vector{Vector{T}}, par
 end
 
 
-function hist_gains_gpu!(gains::CuDeviceMatrix{T}, h::CuDeviceArray{T,3}, λ::T) where {T}
+function hist_gains_gpu!(gains::CuDeviceMatrix{T}, h::CuDeviceArray{T,3}, 𝑗::CuDeviceVector{S}, λ::T) where {T,S}
     
-    i, j = threadIdx().x, blockIdx().x
+    i = threadIdx().x
+    j = 𝑗[blockIdx().x]
     K = (size(h, 1) - 1) ÷ 2
 
     @inbounds 𝑤 = h[2 * K + 1, i, j]     
@@ -132,14 +133,14 @@ function hist_gains_gpu!(gains::CuDeviceMatrix{T}, h::CuDeviceArray{T,3}, λ::T)
     return nothing
 end
 
-function get_hist_gains_gpu(h::CuArray{T,3}, λ::T; MAX_THREADS=1024) where {T}
+function get_hist_gains_gpu(h::CuArray{T,3}, 𝑗::CuVector{S}, λ::T; MAX_THREADS=1024) where {T,S}
     
     gains = CUDA.fill(T(-Inf), size(h, 2) - 1, size(h, 3))
     
     thread_i = min(size(gains, 1), MAX_THREADS)
     threads = thread_i
-    blocks = size(gains, 2)
+    blocks = length(𝑗)
 
-    @cuda blocks = blocks threads = threads hist_gains_gpu!(gains, h, λ)
+    @cuda blocks = blocks threads = threads hist_gains_gpu!(gains, h, 𝑗, λ)
     return gains
 end
