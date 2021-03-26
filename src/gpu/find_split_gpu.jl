@@ -35,7 +35,7 @@ function hist_kernel!(h::CuDeviceArray{T,3}, δ::CuDeviceMatrix{T}, xid::CuDevic
             @inbounds CUDA.atomic_add!(pointer(h, δid), shared[bin_id])
         end
     end
-    # sync_threads()
+    sync_threads()
     return nothing
 end
 
@@ -120,7 +120,7 @@ function hist_gains_gpu!(gains::CuDeviceMatrix{T}, h::CuDeviceArray{T,3}, 𝑗::
     K = (size(h, 1) - 1) ÷ 2
 
     @inbounds 𝑤 = h[2 * K + 1, i, j]     
-    if 𝑤 > 1e-5
+    if 𝑤 > 1e-1
         @inbounds for k in 1:K
             if k == 1
                 gains[i, j] = (h[k, i, j]^2 / (h[2 * K + k - 1, i, j] + λ * 𝑤)) / 2
