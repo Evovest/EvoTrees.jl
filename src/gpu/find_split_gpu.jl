@@ -56,7 +56,8 @@ function hist_kernel!(h::CuDeviceArray{T,4}, δ::CuDeviceMatrix{T}, xid::CuDevic
             # depends on shared to be assigned to a single feature
             @inbounds n = 𝑛[i]
             @inbounds i_idx = 𝑖[i]
-            @inbounds CUDA.atomic_add!(pointer(shared, xid[i_idx, 𝑗[j]] + n), δ[i_idx, k])
+            @inbounds CUDA.atomic_add!(pointer(shared, xid[i_idx, 𝑗[j]] + nbins * (n-1)), δ[i_idx, k])
+            # @inbounds shared[xid[i_idx, 𝑗[j]] + nbins * (n-1)] += δ[i_idx, k]
         end
         iter += 1
     end

@@ -97,7 +97,7 @@ params_g = EvoTreeRegressor(T=Float32,
     nrounds=100,
     λ=1.0, γ=0.1, η=0.1,
     max_depth=6, min_weight=1.0,
-    rowsample=0.5, colsample=1.0, nbins=64);
+    rowsample=0.5, colsample=0.5, nbins=64);
 
 model_g, cache_g = EvoTrees.init_evotree_gpu(params_g, X_train, Y_train);
 
@@ -146,8 +146,8 @@ tree = EvoTrees.TreeGPU(Vector{EvoTrees.TreeNodeGPU{T,S,Bool}}())
 id = S(1)
 node = train_nodes[id];
 # 2.930 ms (24 allocations: 656 bytes)
-@time CUDA.@sync EvoTrees.update_hist_gpu!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛, K, MAX_THREADS=128);
-@btime CUDA.@sync EvoTrees.update_hist_gpu!($hist, $δ, $X_bin, $𝑖, $𝑗, $𝑛, K, MAX_THREADS=128);
+@time CUDA.@sync EvoTrees.update_hist_gpu!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛, K, MAX_THREADS=256);
+@btime CUDA.@sync EvoTrees.update_hist_gpu!($hist, $δ, $X_bin, $𝑖, $𝑗, $𝑛, K, MAX_THREADS=256);
 
 j = 1
 # 2.925 μs (78 allocations: 6.72 KiB) * 100 features ~ 300us
