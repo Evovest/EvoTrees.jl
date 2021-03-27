@@ -1,7 +1,41 @@
 """
     build a single histogram containing all grads and weight information
 """
-function hist_kernel!(h::CuDeviceArray{T,3}, δ::CuDeviceMatrix{T}, xid::CuDeviceMatrix{S}, 𝑖, 𝑗) where {T,S}
+# GPU - apply along the features axis
+# function hist_kernel!(h::CuDeviceArray{T,4}, δ::CuDeviceMatrix{T}, idx::CuDeviceMatrix{UInt8}, 
+#     𝑖::CuDeviceVector{S}, 𝑗::CuDeviceVector{S}, 𝑛::CuDeviceVector{S}, L) where {T,S}
+
+#     it = threadIdx().x
+#     id = blockDim().x
+#     ib = blockIdx().x
+#     ig = gridDim().x
+
+#     # k = blockIdx().z
+#     # i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+
+#     j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
+
+#     i_tot = length(𝑖)
+#     iter = 0
+#     while iter * id * ig < i_tot
+#         i = it + id * (ib - 1) + iter * id * ig
+#         if i <= length(𝑖) && j <= length(𝑗)
+#             n = 𝑛[i]
+#             if n > 0
+#                 pt = Base._to_linear_index(h, 1, idx[𝑖[i], 𝑗[j]], 𝑗[j], n)
+#                 for k in 1:L
+                    # CUDA.atomic_add!(pointer(h, pt + k - 1), δ[𝑖[i], k])
+#                 end
+#             end
+#         end
+#         iter += 1
+#     end
+#     return nothing
+# end
+
+
+function hist_kernel!(h::CuDeviceArray{T,4}, δ::CuDeviceMatrix{T}, xid::CuDeviceMatrix{UInt8}, 
+    𝑖::CuDeviceVector{S}, 𝑗::CuDeviceVector{S}, 𝑛::CuDeviceVector{S}) where {T,S}
     
     nbins = size(h, 2)
 
@@ -10,7 +44,7 @@ function hist_kernel!(h::CuDeviceArray{T,3}, δ::CuDeviceMatrix{T}, xid::CuDevic
     ib, j, k = blockIdx().x, blockIdx().y, blockIdx().z
     ig, jg = gridDim().x, gridDim().y
     
-    shared = @cuDynamicSharedMem(T, nbins)
+    shared = @cuDynamicSharedMem(T, (size(h, 2), size(h, 4)))
     fill!(shared, 0)
     sync_threads()
 
@@ -20,8 +54,9 @@ function hist_kernel!(h::CuDeviceArray{T,3}, δ::CuDeviceMatrix{T}, xid::CuDevic
         i = it + id * (ib - 1) + iter * id * ig
         if i <= length(𝑖) && j <= length(𝑗)
             # depends on shared to be assigned to a single feature
+            @inbounds n = 𝑛[i]
             @inbounds i_idx = 𝑖[i]
-            @inbounds CUDA.atomic_add!(pointer(shared, xid[i_idx, 𝑗[j]]), δ[i_idx, k])   
+            @inbounds CUDA.atomic_add!(pointer(shared, xid[i_idx, 𝑗[j]] + n), δ[i_idx, k])
         end
         iter += 1
     end
@@ -29,32 +64,31 @@ function hist_kernel!(h::CuDeviceArray{T,3}, δ::CuDeviceMatrix{T}, xid::CuDevic
     # loop to cover cases where nbins > nthreads
     for iter in 1:(nbins - 1) ÷ id + 1
         bin_id = it + id * (iter - 1)
-        # bin_id = it
+        n = 1 # need to loop over nodes
         if bin_id <= nbins
-            @inbounds δid = Base._to_linear_index(h, k, bin_id, 𝑗[j])
-            @inbounds CUDA.atomic_add!(pointer(h, δid), shared[bin_id])
+            @inbounds δid = Base._to_linear_index(h, k, bin_id, 𝑗[j], 1)
+            @inbounds CUDA.atomic_add!(pointer(h, δid), shared[bin_id, 1])
         end
     end
-    sync_threads()
     return nothing
 end
 
 # base approach - block built along the cols first, the rows (limit collisions)
 function update_hist_gpu!(
-    h::CuArray{T,3}, 
+    h::CuArray{T,4}, 
     δ::CuMatrix{T}, 
     X_bin::CuMatrix{UInt8}, 
     𝑖::CuVector{S}, 
     𝑗::CuVector{S}, 
+    𝑛::CuVector{S}, 
     K; MAX_THREADS=128) where {T,S}
     
     fill!(h, 0.0)
     thread_i = min(MAX_THREADS, length(𝑖))
-    # thread_j = 1
     threads = (thread_i,)
     blocks = (1, length(𝑗), 2 * K + 1)
-
-    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 2) hist_kernel!(h, δ, X_bin, 𝑖, 𝑗)
+    # blocks = (ceil(Int, length(𝑖) / thread_i), length(𝑗))
+    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 2) * size(h, 4) hist_kernel!(h, δ, X_bin, 𝑖, 𝑗, 𝑛)
     return
 end
 
@@ -86,14 +120,14 @@ find_split_gpu!
     Find best split over gpu histograms
 """
 
-function find_split_gpu!(hist::AbstractArray{T,3}, edges::Vector{Vector{T}}, 𝑗::AbstractVector{S}, params::EvoTypes) where {T,S}
+function find_split_gpu!(hist::AbstractArray{T,4}, edges::Vector{Vector{T}}, 𝑗::AbstractVector{S}, depth, params::EvoTypes) where {T,S}
 
     hist_cum_L = cumsum(hist, dims=2)
     # hist_cum_R = sum(hist, dims=2) .- hist_cum_L
     hist_cum_R = hist_cum_L[:,end:end,:] .- hist_cum_L
     
-    gains_L = get_hist_gains_gpu(hist_cum_L[:,1:(end - 1),:], 𝑗, params.λ)
-    gains_R = get_hist_gains_gpu(hist_cum_R[:,1:(end - 1),:], 𝑗, params.λ)
+    gains_L = get_hist_gains_gpu(hist_cum_L[:,1:(end - 1),:], 𝑗, params.λ, depth)
+    gains_R = get_hist_gains_gpu(hist_cum_R[:,1:(end - 1),:], 𝑗, params.λ, depth)
     gains = gains_L + gains_R
 
     best = findmax(gains)
@@ -117,15 +151,16 @@ function hist_gains_gpu!(gains::CuDeviceMatrix{T}, h::CuDeviceArray{T,3}, 𝑗::
     
     i = threadIdx().x
     j = 𝑗[blockIdx().x]
+    n = 𝑗[blockIdx().y]
     K = (size(h, 1) - 1) ÷ 2
 
     @inbounds 𝑤 = h[2 * K + 1, i, j]     
     if 𝑤 > 1e-1
         @inbounds for k in 1:K
             if k == 1
-                gains[i, j] = (h[k, i, j]^2 / (h[2 * K + k - 1, i, j] + λ * 𝑤)) / 2
+                gains[i, j, n] = (h[k, i, j, n]^2 / (h[2 * K + k - 1, i, j, n] + λ * 𝑤)) / 2
             else
-                gains[i, j] += (h[k, i, j]^2 / (h[2 * K + k - 1, i, j] + λ * 𝑤)) / 2
+                gains[i, j, n] += (h[k, i, j, n]^2 / (h[2 * K + k - 1, i, j, n] + λ * 𝑤)) / 2
             end
         end
     end
@@ -133,13 +168,13 @@ function hist_gains_gpu!(gains::CuDeviceMatrix{T}, h::CuDeviceArray{T,3}, 𝑗::
     return nothing
 end
 
-function get_hist_gains_gpu(h::CuArray{T,3}, 𝑗::CuVector{S}, λ::T; MAX_THREADS=1024) where {T,S}
+function get_hist_gains_gpu(h::CuArray{T,4}, 𝑗::CuVector{S}, λ::T, depth; MAX_THREADS=1024) where {T,S}
     
-    gains = CUDA.fill(T(-Inf), size(h, 2) - 1, size(h, 3))
+    gains = CUDA.fill(T(-Inf), size(h, 2) - 1, size(h, 3), size(h, 4))
     
     thread_i = min(size(gains, 1), MAX_THREADS)
     threads = thread_i
-    blocks = length(𝑗)
+    blocks = length(𝑗), 2^(depth - 1)
 
     @cuda blocks = blocks threads = threads hist_gains_gpu!(gains, h, 𝑗, λ)
     return gains

@@ -13,13 +13,11 @@ end
 """
     Carries training information for a given tree node
 """
-struct TrainNodeGPU{T<:AbstractFloat, S, I<:AbstractVector, V<:AbstractVector}
+struct TrainNodeGPU{T<:AbstractFloat, S, V<:AbstractVector}
     parent::S
     depth::S
     ∑::V
     gain::T
-    𝑖::I
-    𝑗::I
 end
 
 struct TreeNodeGPU{T<:AbstractFloat, S, B<:Bool}
