@@ -30,7 +30,7 @@ params_c = EvoTreeRegressor(T=Float32,
     nrounds=100,
     λ=1.0, γ=0.1, η=0.1,
     max_depth=6, min_weight=1.0,
-    rowsample=1.0, colsample=0.5, nbins=32);
+    rowsample=0.5, colsample=0.5, nbins=32);
 
 model_c, cache_c = EvoTrees.init_evotree(params_c, X_train, Y_train);
 
@@ -99,7 +99,7 @@ params_g = EvoTreeRegressor(T=Float32,
     nrounds=100,
     λ=1.0, γ=0.1, η=0.1,
     max_depth=6, min_weight=1.0,
-    rowsample=0.125, colsample=0.5, nbins=64);
+    rowsample=0.5, colsample=0.5, nbins=32);
 
 model_g, cache_g = EvoTrees.init_evotree_gpu(params_g, X_train, Y_train);
 
