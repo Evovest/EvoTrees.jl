@@ -97,7 +97,7 @@ params_g = EvoTreeRegressor(T=Float32,
     nrounds=100,
     λ=1.0, γ=0.1, η=0.1,
     max_depth=6, min_weight=1.0,
-    rowsample=0.5, colsample=1.0, nbins=64);
+    rowsample=0.125, colsample=0.5, nbins=64);
 
 model_g, cache_g = EvoTrees.init_evotree_gpu(params_g, X_train, Y_train);
 
@@ -114,7 +114,7 @@ X_size = size(cache_g.X_bin);
 
 # build a new tree
 # 144.600 μs (23 allocations: 896 bytes) - 5-6 X time faster on GPU
-@time CUDA.@sync EvoTrees.update_grads_gpu!(params_g.loss, cache_g.δ, cache_g.pred, cache_g.Y)
+@time CUDA.@sync EvoTrees.update_grads_gpu!(params_g.loss, cache_g.δ, cache_g.pred_gpu, cache_g.Y)
 # sum Gradients of each of the K parameters and bring to CPU
 ∑δ = Array(vec(sum(cache_g.δ[𝑖,:], dims=1)))
 gain = EvoTrees.get_gain_gpu(params_g.loss, ∑δ, params_g.λ)
@@ -146,7 +146,7 @@ id = S(1)
 node = train_nodes[id];
 # 2.930 ms (24 allocations: 656 bytes)
 @time CUDA.@sync EvoTrees.update_hist_gpu!(hist[1], δ, X_bin, node.𝑖, node.𝑗, K);
-# @btime CUDA.@sync EvoTrees.update_hist_gpu!(hist[1], δ, X_bin, node.𝑖, node.𝑗, K);
+@btime CUDA.@sync EvoTrees.update_hist_gpu!($hist[1], $δ, $X_bin, $node.𝑖, $node.𝑗, $K, MAX_THREADS=128);
 
 j = 1
 # 2.925 μs (78 allocations: 6.72 KiB) * 100 features ~ 300us
