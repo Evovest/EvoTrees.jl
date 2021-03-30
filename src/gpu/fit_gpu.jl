@@ -150,7 +150,7 @@ function grow_tree(δ, hist,
 
                 best = find_split_gpu!(hist[id], edges, node.𝑗, params)
                 # grow node if best split improves gain
-                if best[:gain] > node.gain + params.γ
+                if best[:gain] > node.gain + params.γ + 1e-5 && best[:∑L][end] > 1e-5 && best[:∑R][end] > 1e-5
                     # if best[:gain] > node.gain + params.γ
     
                     left, right = update_set_gpu(node.𝑖, best[:bin], X_bin[:, best[:feat]])
