@@ -21,7 +21,7 @@ params_xgb = ["max_depth" => 5,
 metrics = ["rmse"]
 
 # EvoTrees params
-params_evo = EvoTreeRegressor(T=Float64,
+params_evo = EvoTreeRegressor(T=Float32,
         loss=:linear, metric=:mse,
         nrounds=nrounds, α=0.5,
         λ=0.0, γ=0.0, η=0.05,

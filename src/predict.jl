@@ -21,7 +21,7 @@ function predict(tree::Tree{L,T,S}, X::AbstractMatrix, K) where {L,T,S}
     return pred
 end
 
-# prediction from single tree - assign each observation to its final leaf
+# prediction from a gradient boosted tree
 function predict(model::GBTree{L,T,S}, X::AbstractMatrix) where {L,T,S}
     pred = zeros(SVector{model.K,T}, size(X, 1))
     for tree in model.trees
@@ -47,7 +47,7 @@ end
 
 # prediction in Leaf - GradientRegression
 function pred_leaf(::S, node::TrainNode{L,T}, params::EvoTypes, δ²) where {S<:GradientRegression,L,T}
-    - params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤)
+    - params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤[1])
 end
 
 # prediction in Leaf - MultiClassRegression
@@ -63,8 +63,7 @@ end
 
 # prediction in Leaf - QuantileRegression
 function pred_leaf(::S, node::TrainNode{L,T}, params::EvoTypes, δ²) where {S<:QuantileRegression,L,T}
-    SVector{1,T}(params.η * quantile(reinterpret(Float32, δ²[node.𝑖]), params.α) / (1 + params.λ))
-    # pred = params.η * quantile(δ²[collect(node.𝑖)], params.α) / (1 + params.λ)
+    SVector{1,T}(params.η * quantile(reinterpret(T, δ²[node.𝑖]), params.α) / (1 + params.λ))
 end
 
 # prediction in Leaf - GaussianRegression

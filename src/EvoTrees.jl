@@ -1,7 +1,6 @@
 module EvoTrees
 
 export init_evotree, grow_evotree!, grow_tree, fit_evotree, predict,
-    # fit_evotree_gpu, predict_gpu,
     EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
     EvoTreeRModels, importance, Random
 
