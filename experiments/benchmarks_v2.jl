@@ -21,7 +21,7 @@ params_xgb = ["max_depth" => 5,
 metrics = ["rmse"]
 
 # EvoTrees params
-params_evo = EvoTreeRegressor(T=Float32,
+params_evo = EvoTreeRegressor(T=Float64,
         loss=:linear, metric=:mse,
         nrounds=nrounds, α=0.5,
         λ=0.0, γ=0.0, η=0.05,
@@ -30,9 +30,9 @@ params_evo = EvoTreeRegressor(T=Float32,
 
 
 nobs = Int(1e6)
-nnum_feat = Int(100)
-@info "testing with: $nobs observations | $nnum_feat features."
-X = rand(nobs, nnum_feat)
+num_feat = Int(100)
+@info "testing with: $nobs observations | $num_feat features."
+X = rand(nobs, num_feat)
 Y = rand(size(X, 1))
 
 @info "xgboost train:"
