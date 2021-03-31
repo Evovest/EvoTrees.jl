@@ -31,8 +31,9 @@ end
 
 function eval_metric(::Val{:logloss}, pred::Vector{SVector{1,T}}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
     eval = zero(T)
+    ϵ = T(2e-7)
     @inbounds for i in 1:length(pred)
-        eval -= Y[i] * log(max(1e-8, sigmoid(pred[i][1]))) + (1 - Y[i]) * log(max(1e-8, 1 - sigmoid(pred[i][1])))
+        eval -= Y[i] * log(max(ϵ, sigmoid(pred[i][1]))) + (1 - Y[i]) * log(max(ϵ, 1 - sigmoid(pred[i][1])))
     end
     eval /= length(pred)
     return eval
@@ -40,10 +41,12 @@ end
 
 function eval_metric(::Val{:mlogloss}, pred::Vector{SVector{L,T}}, Y::Vector{S}, α=0.0) where {T <: AbstractFloat, L, S <: Integer}
     eval = zero(T)
-    # pred = pred - maximum.(pred)
+    ϵ = T(2e-7)
     @inbounds for i in 1:length(pred)
-        pred[i] = pred[i] .- maximum(pred[i])
-        soft_pred = exp.(pred[i]) / sum(exp.(pred[i]))
+        # pred[i] = pred[i] .- maximum(pred[i])
+        soft_pred = min.(1-ϵ, max.(ϵ, exp.(pred[i]) / sum(exp.(pred[i]))))
+        p = pred[i] .- maximum(pred[i])
+        soft_pred = min.(1-ϵ, max.(ϵ, exp.(p) / sum(exp.(p))))
         eval -= log(soft_pred[Y[i]])
     end
     eval /= length(Y)
@@ -64,8 +67,9 @@ end
 # pred[i][2] = log(σ)
 function eval_metric(::Val{:gaussian}, pred::Vector{SVector{L,T}}, Y::AbstractVector{T}, α=0.0) where {L, T <: AbstractFloat}
     eval = zero(T)
+    ϵ = T(2e-7)
     @inbounds for i in 1:length(pred)
-        eval += pred[i][2] + (Y[i] - pred[i][1])^2 / (2*max(1e-8, exp(2*pred[i][2])))
+        eval += pred[i][2] + (Y[i] - pred[i][1])^2 / (2*max(ϵ, exp(2*pred[i][2])))
     end
     eval /= length(Y)
     return eval

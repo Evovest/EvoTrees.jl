@@ -30,9 +30,9 @@ params_evo = EvoTreeRegressor(T=Float32,
 
 
 nobs = Int(1e6)
-nnum_feat = Int(100)
-@info "testing with: $nobs observations | $nnum_feat features."
-X = rand(nobs, nnum_feat)
+num_feat = Int(100)
+@info "testing with: $nobs observations | $num_feat features."
+X = rand(nobs, num_feat)
 Y = rand(size(X, 1))
 
 @info "xgboost train:"

@@ -30,7 +30,7 @@ params_c = EvoTreeRegressor(T=Float32,
     nrounds=100,
     λ=1.0, γ=0.1, η=0.1,
     max_depth=6, min_weight=1.0,
-    rowsample=0.5, colsample=1.0, nbins=64);
+    rowsample=0.5, colsample=0.5, nbins=32);
 
 model_c, cache_c = EvoTrees.init_evotree(params_c, X_train, Y_train);
 
@@ -50,7 +50,7 @@ end
 
 # build a new tree
 # 897.800 μs (6 allocations: 736 bytes)
-@time EvoTrees.update_grads!(params_c.loss, params_c.α, cache_c.pred, cache_c.Y, cache_c.δ, cache_c.δ², cache_c.𝑤)
+@time EvoTrees.update_grads!(params_c.loss, params_c.α, cache_c.pred_cpu, cache_c.Y_cpu, cache_c.δ, cache_c.δ², cache_c.𝑤)
 ∑δ, ∑δ², ∑𝑤 = sum(cache_c.δ[𝑖]), sum(cache_c.δ²[𝑖]), sum(cache_c.𝑤[𝑖])
 gain = EvoTrees.get_gain(params_c.loss, ∑δ, ∑δ², ∑𝑤, params_c.λ)
 # assign a root and grow tree
@@ -73,6 +73,8 @@ id = 1
 node = train_nodes[id]
 # 9.613 ms (81 allocations: 13.55 KiB)
 @time EvoTrees.update_hist!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, node)
+@btime EvoTrees.update_hist!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, node)
+
 j = 1
 # 601.685 ns (6 allocations: 192 bytes) 8 100 feat ~ 60us
 @btime EvoTrees.find_split!(view(hist_δ[id], :, j), view(hist_δ²[id], :, j), view(hist_𝑤[id], :, j), params_c, node, splits[j], edges[j])
@@ -97,7 +99,7 @@ params_g = EvoTreeRegressor(T=Float32,
     nrounds=100,
     λ=1.0, γ=0.1, η=0.1,
     max_depth=6, min_weight=1.0,
-    rowsample=0.5, colsample=1.0, nbins=64);
+    rowsample=0.5, colsample=0.5, nbins=32);
 
 model_g, cache_g = EvoTrees.init_evotree_gpu(params_g, X_train, Y_train);
 
@@ -114,7 +116,7 @@ X_size = size(cache_g.X_bin);
 
 # build a new tree
 # 144.600 μs (23 allocations: 896 bytes) - 5-6 X time faster on GPU
-@time CUDA.@sync EvoTrees.update_grads_gpu!(params_g.loss, cache_g.δ, cache_g.pred, cache_g.Y)
+@time CUDA.@sync EvoTrees.update_grads_gpu!(params_g.loss, cache_g.δ, cache_g.pred_gpu, cache_g.Y)
 # sum Gradients of each of the K parameters and bring to CPU
 ∑δ = Array(vec(sum(cache_g.δ[𝑖,:], dims=1)))
 gain = EvoTrees.get_gain_gpu(params_g.loss, ∑δ, params_g.λ)
@@ -146,7 +148,7 @@ id = S(1)
 node = train_nodes[id];
 # 2.930 ms (24 allocations: 656 bytes)
 @time CUDA.@sync EvoTrees.update_hist_gpu!(hist[1], δ, X_bin, node.𝑖, node.𝑗, K);
-# @btime CUDA.@sync EvoTrees.update_hist_gpu!(hist[1], δ, X_bin, node.𝑖, node.𝑗, K);
+@btime CUDA.@sync EvoTrees.update_hist_gpu!($hist[1], $δ, $X_bin, $node.𝑖, $node.𝑗, $K, MAX_THREADS=128);
 
 j = 1
 # 2.925 μs (78 allocations: 6.72 KiB) * 100 features ~ 300us
