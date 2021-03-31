@@ -56,7 +56,7 @@ function update_hist!(
     K = size(δ,2)
     @inbounds @threads for j in 𝑗
         @inbounds for i in 𝑖
-            for k in 1:3
+            @inbounds for k in 1:3
                 hist[k, X_bin[i, j], j, 𝑛[i]] += δ[i, k]
             end
         end
