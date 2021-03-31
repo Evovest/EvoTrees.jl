@@ -142,8 +142,8 @@ function grow_tree(δ, hist,
             else
                 
                 if id > 1 && id == tree.nodes[node.parent].right
-                    hist[id] = hist[node.parent] - hist[id - 1]
-                    # update_hist_gpu!(hist[id], δ, X_bin, node.𝑖, node.𝑗, K)
+                    # hist[id] = hist[node.parent] - hist[id - 1]
+                    update_hist_gpu!(hist[id], δ, X_bin, node.𝑖, node.𝑗, K)
                 else
                     update_hist_gpu!(hist[id], δ, X_bin, node.𝑖, node.𝑗, K)
                 end
