@@ -7,7 +7,7 @@ function init_evotree(params::EvoTypes{T,U,S},
     X = convert(Matrix{T}, X)
     if typeof(params.loss) == Logistic
         Y = T.(Y)
-        μ = fill(logit(mean(Y)), 1)
+        μ = [logit(mean(Y))]
     elseif typeof(params.loss) == Poisson
         Y = T.(Y)
         μ = fill(log(mean(Y)), 1)
@@ -30,61 +30,43 @@ function init_evotree(params::EvoTypes{T,U,S},
         μ = SVector{2}([mean(Y), log(std(Y))])
     else
         Y = T.(Y)
-        μ = fill(mean(Y), 1)
+        μ = [mean(Y)]
     end
 
     # initialize preds
-    pred_cpu = zeros(SVector{K,T}, size(X, 1))
-    for i in eachindex(pred_cpu)
-        pred_cpu[i] += μ
+    X_size = size(X)
+    pred_cpu = zeros(T, X_size[1], K)
+    @inbounds for i in eachindex(pred_cpu)
+        pred_cpu[i,:] .= μ
     end
 
     bias = Tree([TreeNode(SVector{K,T}(μ))])
     evotree = GBTree([bias], params, Metric(), K, levels)
 
-    X_size = size(X)
-    𝑖_ = collect(1:X_size[1])
-    𝑗_ = collect(1:X_size[2])
+    𝑖_ = UInt32.(collect(1:X_size[1]))
+    𝑗_ = UInt32.(collect(1:X_size[2]))
 
     # initialize gradients and weights
-    δ, δ² = zeros(SVector{evotree.K,T}, X_size[1]), zeros(SVector{evotree.K,T}, X_size[1])
-    𝑤 = zeros(SVector{1,T}, X_size[1])
-    𝑤_ini = SVector{1,T}(1)
-    for i in 1:length(𝑤)
-        𝑤[i] += 𝑤_ini
-    end
+    δ = ones(T, X_size[1], 2 * K + 1)
 
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
 
     # initializde histograms
-    hist_δ = Vector{Matrix{SVector{evotree.K,T}}}(undef, 2^params.max_depth - 1)
-    hist_δ² = Vector{Matrix{SVector{evotree.K,T}}}(undef, 2^params.max_depth - 1)
-    hist_𝑤 = Vector{Matrix{SVector{1,T}}}(undef, 2^params.max_depth - 1)
-
+    hist = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
+    
     # initialize train nodes
-    train_nodes = Vector{TrainNode{evotree.K,T,Int64}}(undef, 2^params.max_depth - 1)
-
-    for node in 1:2^params.max_depth - 1
-        train_nodes[node] = TrainNode(0, 0, SVector{evotree.K,T}(fill(T(-Inf), evotree.K)), SVector{evotree.K,T}(fill(T(-Inf), evotree.K)), SVector{1,T}(fill(T(-Inf), 1)), T(-Inf), [0], [0])
-
-        hist_δ[node] = zeros(SVector{evotree.K,T}, params.nbins, X_size[2])
-        hist_δ²[node] = zeros(SVector{evotree.K,T}, params.nbins, X_size[2])
-        hist_𝑤[node] = zeros(SVector{1,T}, params.nbins, X_size[2])
-    end
-
-    splits = Vector{SplitInfo{evotree.K,T,Int64}}(undef, X_size[2])
-    for feat in 𝑗_
-        splits[feat] = SplitInfo{evotree.K,T,Int}(T(-Inf), SVector{evotree.K,T}(zeros(evotree.K)), SVector{evotree.K,T}(zeros(evotree.K)), SVector{1,T}(zeros(1)), SVector{evotree.K,T}(zeros(evotree.K)), SVector{evotree.K,T}(zeros(evotree.K)), SVector{1,T}(zeros(1)), T(-Inf), T(-Inf), 0, feat, 0.0)
-    end
+    train_nodes = Vector{TrainNode{T,UInt32,Vector{T}}}(undef, 2^params.max_depth - 1)
 
     cache = (params = deepcopy(params),
-        X = X, Y_cpu = Y, pred_cpu = pred_cpu,
-        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, δ = δ, δ² = δ², 𝑤 = 𝑤,
-        edges = edges, X_bin = X_bin,
-        train_nodes = train_nodes, splits = splits,
-        hist_δ = hist_δ, hist_δ² = hist_δ², hist_𝑤 = hist_𝑤)
+        X = X, Y_cpu = Y, K = K,
+        pred_cpu = pred_cpu,
+        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, δ = δ,
+        edges = edges, 
+        X_bin = X_bin,
+        train_nodes = train_nodes,
+        hist = hist)
 
     cache.params.nrounds = 0
 

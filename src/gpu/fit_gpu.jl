@@ -130,11 +130,9 @@ function grow_tree(δ, hist,
     tree_depth = one(S)
     tree = TreeGPU(Vector{TreeNodeGPU{T,S,Bool}}())
 
-    for depth in 1:params.max_depth
-        node = train_nodes[id]
-                
-        update_hist_gpu!(hist[id], δ, X_bin, 𝑖, 𝑗, 𝑛, 2 * K + 1)        
-        # best = find_split_gpu!(hist[id], edges, node.𝑗, params)
+    for depth in 1:(params.max_depth-1)
+        update_hist_gpu!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛, K, MAX_THREADS=512)        
+        # best = find_split_gpu!(hist, edges, node.𝑗, params)
         # nodeid = update_nodeid!(nodeis, 𝑖, best)
     end # end of depth
     return tree

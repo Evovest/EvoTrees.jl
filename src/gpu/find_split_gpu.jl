@@ -71,6 +71,7 @@ function hist_kernel!(h::CuDeviceArray{T,4}, δ::CuDeviceMatrix{T}, xid::CuDevic
             @inbounds CUDA.atomic_add!(pointer(h, δid), shared[bin_id, 1])
         end
     end
+    sync_threads()
     return nothing
 end
 

@@ -2,11 +2,11 @@
 # Get the braking points
 #############################################
 function get_edges(X::AbstractMatrix{T}, nbins=250) where {T}
-    edges = Vector{Vector{T}}(undef, size(X,2))
+    edges = Vector{Vector{T}}(undef, size(X, 2))
     @threads for i in 1:size(X, 2)
-        edges[i] = quantile(view(X, :,i), (1:nbins)/nbins)
+        edges[i] = quantile(view(X, :, i), (1:nbins) / nbins)
         if length(edges[i]) == 0
-            edges[i] = [minimum(view(X, :,i))]
+            edges[i] = [minimum(view(X, :, i))]
         end
     end
     return edges
@@ -18,7 +18,7 @@ end
 function binarize(X, edges)
     X_bin = zeros(UInt8, size(X))
     @threads for i in 1:size(X, 2)
-        X_bin[:,i] = searchsortedlast.(Ref(edges[i][1:end-1]), view(X,:,i)) .+ 1
+        X_bin[:,i] = searchsortedlast.(Ref(edges[i][1:end - 1]), view(X, :, i)) .+ 1
     end
     X_bin
 end
@@ -43,7 +43,29 @@ function update_set(set, best, x_bin)
     return left, right
 end
 
-function update_hist!(hist_δ::Matrix{SVector{L,T}}, hist_δ²::Matrix{SVector{L,T}}, hist_𝑤::Matrix{SVector{1,T}},
+
+function update_hist!(
+    hist::Array{T,4}, 
+    δ::Matrix{T}, 
+    X_bin::Matrix{UInt8}, 
+    𝑖::Vector{S}, 
+    𝑗::Vector{S}, 
+    𝑛::Vector{S}, 
+    K::S) where {T,S}
+    
+    K = size(δ,2)
+    @inbounds @threads for j in 𝑗
+        @inbounds for i in 𝑖
+            for k in 1:3
+                hist[k, X_bin[i, j], j, 𝑛[i]] += δ[i, k]
+            end
+        end
+    end
+
+end
+
+
+function update_hist_ref!(hist_δ::Matrix{SVector{L,T}}, hist_δ²::Matrix{SVector{L,T}}, hist_𝑤::Matrix{SVector{1,T}},
     δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}},
     X_bin, node::TrainNode{L,T,S}) where {L,T,S}
 
@@ -71,7 +93,7 @@ function find_split!(hist_δ::AbstractVector{SVector{L,T}}, hist_δ²::AbstractV
     ∑δ²R = node.∑δ²
     ∑𝑤R = node.∑𝑤
 
-    @inbounds for bin in 1:(length(hist_δ)-1)
+    @inbounds for bin in 1:(length(hist_δ) - 1)
         ∑δL += hist_δ[bin]
         ∑δ²L += hist_δ²[bin]
         ∑𝑤L += hist_𝑤[bin]

@@ -31,15 +31,11 @@ TreeNode(left::S, right::S, feat::S, cond::T, gain::T, L::S) where {T<:AbstractF
 TreeNode(pred::SVector{L,T}) where {L,T} = TreeNode(0, 0, 0, zero(T), zero(T), pred, false)
 
 # single tree is made of a root node that containes nested nodes and leafs
-struct TrainNode{L, T<:AbstractFloat, S<:Int}
+struct TrainNode{T<:AbstractFloat, S<:Integer, V<:AbstractVector}
     parent::S
     depth::S
-    ∑δ::SVector{L,T}
-    ∑δ²::SVector{L,T}
-    ∑𝑤::SVector{1,T}
+    ∑::V
     gain::T
-    𝑖::Vector{S}
-    𝑗::Vector{S}
 end
 
 # single tree is made of a root node that containes nested nodes and leafs
