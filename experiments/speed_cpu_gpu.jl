@@ -73,7 +73,7 @@ id = 1
 node = train_nodes[id]
 # 9.613 ms (81 allocations: 13.55 KiB)
 @time EvoTrees.update_hist!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, node)
-@btime EvoTrees.update_hist!(hist_δ[id], hist_δ²[id], hist_𝑤[id], δ, δ², 𝑤, X_bin, node)
+@btime EvoTrees.update_hist!($hist_δ[id], $hist_δ²[id], $hist_𝑤[id], $δ, $δ², $𝑤, $X_bin, $node)
 
 j = 1
 # 601.685 ns (6 allocations: 192 bytes) 8 100 feat ~ 60us

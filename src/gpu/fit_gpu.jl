@@ -140,14 +140,7 @@ function grow_tree(δ, hist,
             if tree_depth == params.max_depth || node.∑[end] <= params.min_weight + 0.1 # rounding needed from histogram substraction
                 push!(tree.nodes, TreeNodeGPU(pred_leaf_gpu(params.loss, node, params)))
             else
-                
-                if id > 1 && id == tree.nodes[node.parent].right
-                    hist[id] = hist[node.parent] - hist[id - 1]
-                    # update_hist_gpu!(hist[id], δ, X_bin, node.𝑖, node.𝑗, K)
-                else
-                    update_hist_gpu!(hist[id], δ, X_bin, node.𝑖, node.𝑗, K)
-                end
-
+                update_hist_gpu!(hist[id], δ, X_bin, node.𝑖, node.𝑗, K)
                 best = find_split_gpu!(hist[id], edges, node.𝑗, params)
                 # grow node if best split improves gain
                 if best[:gain] > node.gain + params.γ + 1e-5 && best[:∑L][end] > 1e-5 && best[:∑R][end] > 1e-5
