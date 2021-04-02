@@ -36,58 +36,44 @@ model_c, cache_c = EvoTrees.init_evotree(params_c, X_train, Y_train);
 
 # initialize from cache
 params_c = model_c.params
-train_nodes = cache_c.train_nodes
 X_size = size(cache_c.X_bin)
 
 # select random rows and cols
 𝑖 = cache_c.𝑖_[sample(params_c.rng, cache_c.𝑖_, ceil(Int, params_c.rowsample * X_size[1]), replace=false, ordered=true)]
 𝑗 = cache_c.𝑗_[sample(params_c.rng, cache_c.𝑗_, ceil(Int, params_c.colsample * X_size[2]), replace=false, ordered=true)]
-𝑛 = ones(eltype(cache_c.𝑖_), length(cache_c.𝑖_))
+𝑛 = cache_c.𝑛
 
 # build a new tree
 # 897.800 μs (6 allocations: 736 bytes)
 @time EvoTrees.update_grads!(params_c.loss, cache_c.δ, cache_c.pred_cpu, cache_c.Y_cpu)
-∑ = vec(sum(cache_c.δ[𝑖,:], dims=1))
-gain = EvoTrees.get_gain(params_c.loss, ∑, params_c.λ)
+# ∑ = vec(sum(cache_c.δ[𝑖,:], dims=1))
+# gain = EvoTrees.get_gain(params_c.loss, ∑, params_c.λ)
 # assign a root and grow tree
-train_nodes[1] = EvoTrees.TrainNode(UInt32(0), UInt32(1), ∑, gain)
+# train_nodes[1] = EvoTrees.TrainNode(UInt32(0), UInt32(1), ∑, gain)
 # 69.247 ms (1852 allocations: 38.41 MiB)
 
-@time tree = grow_tree(cache_c.δ, cache_c.δ², cache_c.𝑤, cache_c.hist_δ, cache_c.hist_δ², cache_c.hist_𝑤, params_c, train_nodes, splits, cache_c.edges, cache_c.X_bin);
-@btime tree = grow_tree($cache_c.δ, $cache_c.δ², $cache_c.𝑤, $cache_c.hist_δ, $cache_c.hist_δ², $cache_c.hist_𝑤, $params_c, $train_nodes, $splits, $cache_c.edges, $cache_c.X_bin);
+@time tree = grow_tree(cache_c.δ, cache_c.hist, cache_c.histL, cache_c.histR, params_c, cache_c.gains, cache_c.nodes, cache_c.edges, 𝑖, 𝑗, 𝑛, cache_c.X_bin);
+@btime tree = grow_tree($cache_c.δ, $cache_c.hist, $cache_c.histL, $cache_c.histR, $params_c, $cache_c.gains, $cache_c.nodes, $cache_c.edges, $𝑖, $𝑗, $𝑛, $cache_c.X_bin);
+@code_warntype grow_tree(cache_c.δ, cache_c.hist, cache_c.histL, cache_c.histR, params_c, cache_c.gains, cache_c.nodes, cache_c.edges, 𝑖, 𝑗, 𝑛, cache_c.X_bin);
+
 push!(model_c.trees, tree)
 @btime EvoTrees.predict!(cache_c.pred, tree, cache_c.X)
 
-δ, hist, K, edges, X_bin = cache_c.δ, cache_c.hist, cache_c.K, cache_c.edges, cache_c.X_bin;
+δ, hist, K, edges, X_bin, histL, histR, gains, nodes = cache_c.δ, cache_c.hist, cache_c.K, cache_c.edges, cache_c.X_bin, cache_c.histL, cache_c.histR, cache_c.gains, cache_c.nodes;
 
-T = Float32
-active_id = ones(Int, 1)
-leaf_count = one(Int)
-tree_depth = one(Int)
-tree = EvoTrees.Tree(Vector{EvoTrees.TreeNode{T,Int,Bool}}())
-
-id = 1
-node = train_nodes[id]
 # 9.613 ms (81 allocations: 13.55 KiB)
-@time EvoTrees.update_hist!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛, UInt32(K))
-@btime EvoTrees.update_hist!($hist, $δ, $X_bin, $𝑖, $𝑗, $𝑛, $UInt32(K))
-@code_warntype EvoTrees.update_hist!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛, UInt32(K))
+@time EvoTrees.update_hist!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛)
+@btime EvoTrees.update_hist!($hist, $δ, $X_bin, $𝑖, $𝑗, $𝑛)
+@code_warntype EvoTrees.update_hist!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛)
 
 j = 1
-# 601.685 ns (6 allocations: 192 bytes) 8 100 feat ~ 60us
-@btime EvoTrees.find_split!(view(hist_δ[id], :, j), view(hist_δ²[id], :, j), view(hist_𝑤[id], :, j), params_c, node, splits[j], edges[j])
+# 601.685 ns (6 allocations: 192 bytes) * 100 feat ~ 60us
+nid = 1:1
+EvoTrees.update_gains!(gains, hist, histL, histR, 𝑗, params_c, nid)
+@btime EvoTrees.update_gains!($gains, $hist, $histL, $histR, $𝑗, $params_c, $nid)
+@code_warntype EvoTrees.update_gains!(gains, hist, histL, histR, 𝑗, params_c, nid)
 
-for j in node.𝑗
-    splits[j].gain = node.gain
-    EvoTrees.find_split!(view(hist_δ[id],:,j), view(hist_δ²[id],:,j), view(hist_𝑤[id],:,j), params_c, node, splits[j], edges[j])
-end
-best_cpu = EvoTrees.get_max_gain(splits)
-
-
-set = node.𝑖
-best = X_bin[3]
-@btime EvoTrees.update_set(set, best, X_bin[:,1])
-@btime EvoTrees.update_set(node.𝑖, best, view(X_bin, :, 1))
+@time EvoTrees.update_set!(𝑛, 𝑖, X_bin, nodes[:feats], nodes[:cond_bins], params_c.nbins)
 
 ###################################################
 # GPU

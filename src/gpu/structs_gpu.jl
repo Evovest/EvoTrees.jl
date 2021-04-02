@@ -1,16 +1,4 @@
 """
-    store perf info of each variable
-"""
-struct SplitInfoGPU{V,M,B}
-    gains::V
-    gainsL::V
-    gainsR::V
-    ∑Ls::M
-    ∑Rs::M
-    bins::B
-end
-
-"""
     Carries training information for a given tree node
 """
 struct TrainNodeGPU{T<:AbstractFloat, S, V<:AbstractVector}

@@ -5,6 +5,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     K = 1
     levels = ""
     X = convert(Matrix{T}, X)
+    
     if typeof(params.loss) == Logistic
         Y_cpu = T.(Y)
         Y = CuArray(Y_cpu)
@@ -48,14 +49,14 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
 
     𝑖_ = UInt32.(collect(1:X_size[1]))
     𝑗_ = UInt32.(collect(1:X_size[2]))
+    𝑛 = CUDA.ones(eltype(𝑖_), length(𝑖_))
 
     # initialize gradients and weights
     δ = CUDA.ones(T, X_size[1], 2 * K + 1)
 
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
-    X_bin_cpu = binarize(X, edges)
-    X_bin = CuArray(X_bin_cpu)
+    X_bin = CuArray(binarize(X, edges))
 
     # initializde histograms
     hist = CUDA.zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
@@ -67,7 +68,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     cache = (params = deepcopy(params),
         X = X, Y = Y, Y_cpu = Y_cpu, K = K,
         pred_gpu = pred_gpu, pred_cpu = pred_cpu,
-        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 
+        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑛 = 𝑛,
         δ = δ,
         edges = edges,
         X_bin = X_bin,
@@ -95,7 +96,6 @@ function grow_evotree!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T,S}
         # select random rows and cols
         𝑖 = CuVector(cache.𝑖_[sample(params.rng, cache.𝑖_, ceil(Int, params.rowsample * X_size[1]), replace=false, ordered=true)])
         𝑗 = CuVector(cache.𝑗_[sample(params.rng, cache.𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)])
-        𝑛 = CUDA.ones(eltype(𝑖), length(𝑖))
 
         # build a new tree
         update_grads_gpu!(params.loss, cache.δ, cache.pred_gpu, cache.Y)

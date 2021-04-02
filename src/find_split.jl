@@ -24,23 +24,20 @@ function binarize(X, edges)
 end
 
 # split row ids into left and right based on best split condition
-function update_set(set, best, x_bin)
-    left = similar(set)
-    right = similar(set)
-    left_count = 0
-    right_count = 0
-    @inbounds for i in set
-        if x_bin[i] <= best
-            left_count += 1
-            left[left_count] = i
+function update_set!(𝑛, 𝑖, X_bin, feats, bins, nbins)
+    
+    @inbounds for i in 𝑖
+        feat = feats[𝑛[i]]
+        cond = bins[𝑛[i]]
+        if cond == nbins
+            𝑛[𝑖] = 0
+        elseif X_bin[i, feat] <= cond
+            𝑛[i] = 𝑛[i] << 1 
         else
-            right_count += 1
-            right[right_count] = i
+            𝑛[i] = 𝑛[i] << 1 + 1
         end
     end
-    resize!(left, left_count)
-    resize!(right, right_count)
-    return left, right
+    return nothing
 end
 
 
@@ -50,89 +47,51 @@ function update_hist!(
     X_bin::Matrix{UInt8}, 
     𝑖::Vector{S}, 
     𝑗::Vector{S}, 
-    𝑛::Vector{S}, 
-    K::S) where {T,S}
+    𝑛::Vector{S}) where {T,S}
     
-    K = size(δ,2)
     @inbounds @threads for j in 𝑗
         @inbounds for i in 𝑖
-            @inbounds for k in 1:3
-                hist[k, X_bin[i, j], j, 𝑛[i]] += δ[i, k]
+            if 𝑛[i] != 0
+                hist[1, X_bin[i, j], j, 𝑛[i]] += δ[i, 1]
+                hist[2, X_bin[i, j], j, 𝑛[i]] += δ[i, 2]
+                hist[3, X_bin[i, j], j, 𝑛[i]] += δ[i, 3]
             end
         end
     end
-
 end
 
 
-function update_hist_ref!(hist_δ::Matrix{SVector{L,T}}, hist_δ²::Matrix{SVector{L,T}}, hist_𝑤::Matrix{SVector{1,T}},
-    δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}},
-    X_bin, node::TrainNode{L,T,S}) where {L,T,S}
+function update_gains!(
+    gains::AbstractArray{T,3},
+    hist::AbstractArray{T,4}, 
+    histL::AbstractArray{T,4}, 
+    histR::AbstractArray{T,4},
+    𝑗::Vector{S},
+    params::EvoTypes,
+    nid) where {T,S}
 
-    hist_δ .*= 0.0
-    hist_δ² .*= 0.0
-    hist_𝑤 .*= 0.0
+    cumsum!(view(histL, :, :, :, nid), view(hist, :, :, :, nid), dims=2)
+    # cumsum!(view(histR, :, :, :, nid), reverse!(view(hist, :, :, :, nid), dims=2), dims=2)
+    view(histR, :, :, :, nid) .= view(histL, :, params.nbins:params.nbins, :, nid) .- view(histL, :, :, :, nid)
+    hist_gains_cpu!(gains, histL, histR, 𝑗, params.nbins, nid, params.λ)
 
-    @inbounds @threads for j in node.𝑗
-        @inbounds for i in node.𝑖
-            hist_δ[X_bin[i,j], j] += δ[i]
-            hist_δ²[X_bin[i,j], j] += δ²[i]
-            hist_𝑤[X_bin[i,j], j] += 𝑤[i]
+    return nothing
+end
+
+
+function hist_gains_cpu!(gains::Array{T,3}, hL::Array{T,4}, hR::Array{T,4}, 𝑗::Vector{S}, nbins, nodes, λ::T) where {T,S}
+    @inbounds for n in nodes
+        @inbounds for j in 𝑗
+            @inbounds for i in 1:nbins
+                # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
+                if hL[3, i, j, n] > 1e-5 && hR[3, i, j, n] > 1e-5
+                    @inbounds gains[i, j, n] = (hL[1, i, j, n]^2 / (hL[2, i, j, n] + λ * hL[3, i, j, n]) + 
+                        hR[1, i, j, n]^2 / (hR[2, i, j, n] + λ * hR[3, i, j, n])) / 2
+                elseif i == nbins
+                    @inbounds gains[i, j, n] = hL[1, i, j, n]^2 / (hL[2, i, j, n] + λ * hL[3, i, j, n]) / 2 
+                end
+            end
         end
     end
-end
-
-function find_split!(hist_δ::AbstractVector{SVector{L,T}}, hist_δ²::AbstractVector{SVector{L,T}}, hist_𝑤::AbstractVector{SVector{1,T}},
-    params::EvoTypes, node::TrainNode{L,T,S}, info::SplitInfo{L,T,S}, edges::Vector{T}) where {L,T,S}
-
-    # initialize tracking
-    ∑δL = node.∑δ * 0
-    ∑δ²L = node.∑δ² * 0
-    ∑𝑤L = node.∑𝑤 * 0
-    ∑δR = node.∑δ
-    ∑δ²R = node.∑δ²
-    ∑𝑤R = node.∑𝑤
-
-    @inbounds for bin in 1:(length(hist_δ) - 1)
-        ∑δL += hist_δ[bin]
-        ∑δ²L += hist_δ²[bin]
-        ∑𝑤L += hist_𝑤[bin]
-        ∑δR -= hist_δ[bin]
-        ∑δ²R -= hist_δ²[bin]
-        ∑𝑤R -= hist_𝑤[bin]
-
-        gainL, gainR = get_gain(params.loss, ∑δL, ∑δ²L, ∑𝑤L, params.λ), get_gain(params.loss, ∑δR, ∑δ²R, ∑𝑤R, params.λ)
-        gain = gainL + gainR
-
-        if gain > info.gain && ∑𝑤L[1] >= params.min_weight + 1e-12 && ∑𝑤R[1] >= params.min_weight + 1e-12
-            info.gain = gain
-            info.gainL = gainL
-            info.gainR = gainR
-            info.∑δL = ∑δL
-            info.∑δ²L = ∑δ²L
-            info.∑𝑤L = ∑𝑤L
-            info.∑δR = ∑δR
-            info.∑δ²R = ∑δ²R
-            info.∑𝑤R = ∑𝑤R
-            info.cond = edges[bin]
-            info.𝑖 = bin
-        end # info update if gain
-    end # loop on bins
-end
-
-
-function find_split_narrow!(hist_δ::Vector{SVector{L,T}}, hist_δ²::Vector{SVector{L,T}}, hist_𝑤::Vector{SVector{1,T}}, bins::Vector{BitSet}, X_bin, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, params::EvoTreeRegressor, info::SplitInfo{L,T,S}, edges::Vector{T}, set::Vector{S}) where {L,T,S}
-
-    # initialize histogram
-    hist_δ .*= 0.0
-    hist_δ² .*= 0.0
-    hist_𝑤 .*= 0.0
-
-    # build histogram
-    @inbounds for i in set
-        hist_δ[X_bin[i]] += δ[i]
-        hist_δ²[X_bin[i]] += δ²[i]
-        hist_𝑤[X_bin[i]] += 𝑤[i]
-    end
-    return
+    return nothing
 end
