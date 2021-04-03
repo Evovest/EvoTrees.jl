@@ -45,6 +45,8 @@ function init_evotree(params::EvoTypes{T,U,S},
     X_size = size(X)
     𝑖_ = collect(1:X_size[1])
     𝑗_ = collect(1:X_size[2])
+    𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * X_size[1]))
+    𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * X_size[2]))
 
     # initialize gradients and weights
     δ, δ² = zeros(SVector{evotree.K,T}, X_size[1]), zeros(SVector{evotree.K,T}, X_size[1])
@@ -81,7 +83,9 @@ function init_evotree(params::EvoTypes{T,U,S},
 
     cache = (params = deepcopy(params),
         X = X, Y_cpu = Y, pred_cpu = pred_cpu,
-        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, δ = δ, δ² = δ², 𝑤 = 𝑤,
+        𝑖_ = 𝑖_, 𝑗_ = 𝑗_,
+        𝑖 = 𝑖, 𝑗 = 𝑗, 
+        δ = δ, δ² = δ², 𝑤 = 𝑤,
         edges = edges, X_bin = X_bin,
         train_nodes = train_nodes, splits = splits,
         hist_δ = hist_δ, hist_δ² = hist_δ², hist_𝑤 = hist_𝑤)
@@ -105,8 +109,8 @@ function grow_evotree!(evotree::GBTree{L,T,S}, cache; verbosity=1) where {L,T,S}
     for i in 1:δnrounds
 
         # select random rows and cols
-        𝑖 = cache.𝑖_[sample(params.rng, cache.𝑖_, ceil(Int, params.rowsample * X_size[1]), replace=false, ordered=true)]
-        𝑗 = cache.𝑗_[sample(params.rng, cache.𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)]
+        sample!(params.rng, cache.𝑖_, cache.𝑖, replace=false, ordered=true)
+        sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
         # reset gain to -Inf
         for feat in cache.𝑗_
             splits[feat].gain = T(-Inf)
@@ -114,10 +118,10 @@ function grow_evotree!(evotree::GBTree{L,T,S}, cache; verbosity=1) where {L,T,S}
 
         # build a new tree
         update_grads!(params.loss, params.α, cache.pred_cpu, cache.Y_cpu, cache.δ, cache.δ², cache.𝑤)
-        ∑δ, ∑δ², ∑𝑤 = sum(cache.δ[𝑖]), sum(cache.δ²[𝑖]), sum(cache.𝑤[𝑖])
+        ∑δ, ∑δ², ∑𝑤 = sum(cache.δ[cache.𝑖]), sum(cache.δ²[cache.𝑖]), sum(cache.𝑤[cache.𝑖])
         gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # assign a root and grow tree
-        train_nodes[1] = TrainNode(0, 1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
+        train_nodes[1] = TrainNode(0, 1, ∑δ, ∑δ², ∑𝑤, gain, cache.𝑖, cache.𝑗)
         tree = grow_tree(cache.δ, cache.δ², cache.𝑤, cache.hist_δ, cache.hist_δ², cache.hist_𝑤, params, train_nodes, splits, cache.edges, cache.X_bin)
         push!(evotree.trees, tree)
         predict!(cache.pred_cpu, tree, cache.X)
