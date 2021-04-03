@@ -24,8 +24,17 @@ struct TrainNode{T<:AbstractFloat, S<:Integer, V<:AbstractVector}
 end
 
 # single tree is made of a root node that containes nested nodes and leafs
-struct Tree{T<:AbstractFloat, S<:Int}
-    nodes::Vector{TreeNode{T,S,Bool}}
+# struct Tree{T<:AbstractFloat, S<:Int}
+#     nodes::Vector{TreeNode{T,S,Bool}}
+# end
+
+# single tree is made of a vectors of length num nodes
+struct Tree{T<:AbstractFloat, S<:Integer}
+    feat::Vector{S}
+    cond_bin::Vector{S}
+    cond_float::Vector{T}
+    gain::Vector{T}
+    pred::Matrix{T}
 end
 
 # eval metric tracking
