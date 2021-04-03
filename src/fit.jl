@@ -46,6 +46,8 @@ function init_evotree(params::EvoTypes{T,U,S},
 
     𝑖_ = UInt32.(collect(1:X_size[1]))
     𝑗_ = UInt32.(collect(1:X_size[2]))
+    𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * X_size[1]))
+    𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * X_size[2]))
     𝑛 = ones(UInt32, length(𝑖_))
 
     # initialize gradients and weights
@@ -66,12 +68,12 @@ function init_evotree(params::EvoTypes{T,U,S},
         feats = zeros(Int, 2^(params.max_depth - 1) - 1),
         cond_bins = zeros(UInt8, 2^(params.max_depth - 1) - 1),
         cond_floats = zeros(T, 2^(params.max_depth - 1) - 1),
-        preds = [zeros(T, K) for i in 1:(2^params.max_depth - 1)])
+        preds = zeros(T, K, 2^params.max_depth - 1))
 
     cache = (params = deepcopy(params),
         X = X, Y_cpu = Y, K = K,
         pred_cpu = pred_cpu,
-        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑛 = 𝑛,
+        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑖 = 𝑖, 𝑗 = 𝑗, 𝑛 = 𝑛,
         δ = δ,
         edges = edges, 
         X_bin = X_bin,
@@ -99,9 +101,8 @@ function grow_evotree!(evotree::GBTree{T,S}, cache; verbosity=1) where {L,T,S}
     for i in 1:δnrounds
 
         # select random rows and cols
-        𝑖 = cache.𝑖_[sample(params.rng, cache.𝑖_, ceil(Int, params.rowsample * X_size[1]), replace=false, ordered=true)]
-        𝑗 = cache.𝑗_[sample(params.rng, cache.𝑗_, ceil(Int, params.colsample * X_size[2]), replace=false, ordered=true)]
-        # reset gain to -Inf
+        sample!(params.rng, cache.𝑖_, cache.𝑖, replace=false, ordered=true)
+        sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
 
         # build a new tree
         update_grads!(params.loss, params.α, cache.pred_cpu, cache.Y_cpu, cache.δ, cache.δ², cache.𝑤)
