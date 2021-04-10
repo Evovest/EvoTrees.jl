@@ -158,7 +158,6 @@ params1 = EvoTreeGaussian(T=Float32,
 @time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n = 10);
 # @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
 @time pred_train = EvoTrees.predict(model, X_train)
-@time pred_train_gauss = EvoTrees.predict(params1, model, X_train)
 
 pred_gauss = [Distributions.Normal(pred_train[i,1], pred_train[i,2]) for i in 1:size(pred_train,1)]
 pred_q80 = quantile.(pred_gauss, 0.8)

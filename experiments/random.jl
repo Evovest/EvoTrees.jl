@@ -31,7 +31,7 @@ params1 = EvoTreeRegressor(T=Float32,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=0.5, nbins=64)
 
-# asus laptopt: for 1.25e6 no eval: 14.246292 seconds (198.09 k allocations: 6.670 GiB, 7.87% gc time)
+# asus laptopt: for 1.25e6 no eval: 12.805 s (196419 allocations: 5.92 GiB)
 @time model = fit_evotree(params1, X_train, Y_train);
 @btime model = fit_evotree($params1, $X_train, $Y_train);
 @time pred_train = predict(model, X_train);

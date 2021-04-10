@@ -58,7 +58,7 @@ train_nodes[1] = EvoTrees.TrainNode(0, 1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, �
 # 69.247 ms (1852 allocations: 38.41 MiB)
 @btime tree = grow_tree(cache_c.δ, cache_c.δ², cache_c.𝑤, cache_c.hist_δ, cache_c.hist_δ², cache_c.hist_𝑤, params_c, train_nodes, splits, cache_c.edges, cache_c.X_bin);
 push!(model_c.trees, tree)
-@btime EvoTrees.predict!(cache_c.pred, tree, cache_c.X)
+@btime EvoTrees.predict!(cache_c.pred_cpu, tree, cache_c.X)
 
 δ, δ², 𝑤, hist_δ, hist_δ², hist_𝑤, edges, X_bin = cache_c.δ, cache_c.δ², cache_c.𝑤, cache_c.hist_δ, cache_c.hist_δ², cache_c.hist_𝑤, cache_c.edges, cache_c.X_bin;
 
