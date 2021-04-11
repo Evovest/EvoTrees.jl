@@ -56,7 +56,8 @@ gain = EvoTrees.get_gain(params_c.loss, ∑δ, ∑δ², ∑𝑤, params_c.λ)
 # assign a root and grow tree
 train_nodes[1] = EvoTrees.TrainNode(0, 1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
 # 69.247 ms (1852 allocations: 38.41 MiB)
-@btime tree = grow_tree(cache_c.δ, cache_c.δ², cache_c.𝑤, cache_c.hist_δ, cache_c.hist_δ², cache_c.hist_𝑤, params_c, train_nodes, splits, cache_c.edges, cache_c.X_bin);
+@time tree = grow_tree(cache_c.δ, cache_c.δ², cache_c.𝑤, cache_c.hist_δ, cache_c.hist_δ², cache_c.hist_𝑤, params_c, train_nodes, splits, cache_c.edges, cache_c.X_bin);
+@btime tree = grow_tree($cache_c.δ, $cache_c.δ², $cache_c.𝑤, $cache_c.hist_δ, $cache_c.hist_δ², $cache_c.hist_𝑤, $params_c, $train_nodes, $splits, $cache_c.edges, $cache_c.X_bin);
 push!(model_c.trees, tree)
 @btime EvoTrees.predict!(cache_c.pred_cpu, tree, cache_c.X)
 
