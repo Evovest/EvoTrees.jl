@@ -1,5 +1,5 @@
 using Statistics
-using StatsBase:sample
+using StatsBase:sample, sample!
 using Revise
 using EvoTrees
 using BenchmarkTools
@@ -39,8 +39,10 @@ params_c = model_c.params
 X_size = size(cache_c.X_bin)
 
 # select random rows and cols
-𝑖 = cache_c.𝑖_[sample(params_c.rng, cache_c.𝑖_, ceil(Int, params_c.rowsample * X_size[1]), replace=false, ordered=true)]
-𝑗 = cache_c.𝑗_[sample(params_c.rng, cache_c.𝑗_, ceil(Int, params_c.colsample * X_size[2]), replace=false, ordered=true)]
+sample!(params_c.rng, cache_c.𝑖_, cache_c.𝑖, replace=false, ordered=true)
+sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true)
+𝑖 = cache_c.𝑖
+𝑗 = cache_c.𝑗
 𝑛 = cache_c.𝑛
 
 # build a new tree
@@ -51,10 +53,9 @@ X_size = size(cache_c.X_bin)
 # assign a root and grow tree
 # train_nodes[1] = EvoTrees.TrainNode(UInt32(0), UInt32(1), ∑, gain)
 # 69.247 ms (1852 allocations: 38.41 MiB)
-
-@time tree = grow_tree(cache_c.δ, cache_c.hist, cache_c.histL, cache_c.histR, params_c, cache_c.gains, cache_c.nodes, cache_c.edges, 𝑖, 𝑗, 𝑛, cache_c.X_bin);
-@btime tree = grow_tree($cache_c.δ, $cache_c.hist, $cache_c.histL, $cache_c.histR, $params_c, $cache_c.gains, $cache_c.nodes, $cache_c.edges, $𝑖, $𝑗, $𝑛, $cache_c.X_bin);
-@code_warntype grow_tree(cache_c.δ, cache_c.hist, cache_c.histL, cache_c.histR, params_c, cache_c.gains, cache_c.nodes, cache_c.edges, 𝑖, 𝑗, 𝑛, cache_c.X_bin);
+@time EvoTrees.grow_tree!(EvoTrees.Tree(params_c.max_depth, model_c.K, params_c.λ), params_c, cache_c.δ, cache_c.hist, cache_c.histL, cache_c.histR, cache_c.gains, cache_c.edges, 𝑖, 𝑗, 𝑛, cache_c.X_bin);
+@btime EvoTrees.grow_tree!(EvoTrees.Tree($params_c.max_depth, $model_c.K, $params_c.λ), $params_c, $cache_c.δ, $cache_c.hist, $cache_c.histL, $cache_c.histR, $cache_c.gains, $cache_c.edges, $𝑖, $𝑗, $𝑛, $cache_c.X_bin);
+@code_warntype EvoTrees.grow_tree!(EvoTrees.Tree(params_c.max_depth, model_c.K, params_c.λ), params_c, cache_c.δ, cache_c.hist, cache_c.histL, cache_c.histR, cache_c.gains, cache_c.edges, 𝑖, 𝑗, 𝑛, cache_c.X_bin);
 
 push!(model_c.trees, tree)
 @btime EvoTrees.predict!(cache_c.pred, tree, cache_c.X)

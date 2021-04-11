@@ -29,13 +29,17 @@ end
 # end
 
 # single tree is made of a vectors of length num nodes
-struct Tree{T<:AbstractFloat, S<:Integer}
-    feat::Vector{S}
-    cond_bin::Vector{S}
+struct Tree{T<:AbstractFloat}
+    feat::Vector{Int}
+    cond_bin::Vector{UInt8}
     cond_float::Vector{T}
     gain::Vector{T}
     pred::Matrix{T}
+    split::Vector{Bool}
 end
+
+Tree(x::Vector{T}) where T <: AbstractFloat = Tree(zeros(Int, 1), zeros(UInt8, 1), zeros(T, 1), zeros(T, 1), reshape(x, :, 1), zeros(Bool, 1))
+Tree(depth::S, K::S, ::T) where {S <: Integer, T <: AbstractFloat} = Tree(zeros(Int, 2^depth-1), zeros(UInt8, 2^depth-1), zeros(T, 2^depth-1), zeros(T, 2^depth-1), zeros(T, K, 2^depth-1), zeros(Bool, 2^depth-1))
 
 # eval metric tracking
 mutable struct Metric
@@ -45,8 +49,8 @@ end
 Metric() = Metric(0, Inf)
 
 # gradient-boosted tree is formed by a vector of trees
-struct GBTree{T<:AbstractFloat, S<:Int}
-    trees::Vector{Tree{T,S}}
+struct GBTree{T<:AbstractFloat}
+    trees::Vector{Tree{T}}
     params::EvoTypes
     metric::Metric
     K::Int

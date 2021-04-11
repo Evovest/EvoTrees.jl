@@ -41,7 +41,7 @@ function init_evotree(params::EvoTypes{T,U,S},
         pred_cpu[i,:] .= μ
     end
 
-    bias = Tree([TreeNode(μ)])
+    bias = Tree(μ)
     evotree = GBTree([bias], params, Metric(), K, levels)
 
     𝑖_ = UInt32.(collect(1:X_size[1]))
@@ -88,7 +88,7 @@ function init_evotree(params::EvoTypes{T,U,S},
 end
 
 
-function grow_evotree!(evotree::GBTree{T,S}, cache; verbosity=1) where {L,T,S}
+function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
 
     # initialize from cache
     params = evotree.params
@@ -109,8 +109,8 @@ function grow_evotree!(evotree::GBTree{T,S}, cache; verbosity=1) where {L,T,S}
         # ∑δ, ∑δ², ∑𝑤 = sum(cache.δ[𝑖]), sum(cache.δ²[𝑖]), sum(cache.𝑤[𝑖])
         # gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # assign a root and grow tree
-        # train_nodes[1] = TrainNode(0, 1, ∑δ, ∑δ², ∑𝑤, gain, 𝑖, 𝑗)
-        tree = grow_tree(cache.δ, cache.hist, cache.histL, cache.histR, params, cache.gains, cache.nodes, cache.edges, cache.X_bin)
+        tree = Tree(params.max_depth, evotree.K, zero(T))
+        grow_tree!(tree, params, cache.δ, cache.hist, cache.histL, cache.histR, cache.gains, cache.edges, cache.𝑖, cache.𝑗, cache.𝑛, cache.X_bin)
         push!(evotree.trees, tree)
         predict!(cache.pred_cpu, tree, cache.X)
 
@@ -121,12 +121,12 @@ function grow_evotree!(evotree::GBTree{T,S}, cache; verbosity=1) where {L,T,S}
 end
 
 # grow a single tree
-function grow_tree(
+function grow_tree!(
+    tree::Tree{T},
+    params::EvoTypes{T,U,S},
     δ::Matrix{T},
     hist::AbstractArray{T,4}, histL::AbstractArray{T,4}, histR::AbstractArray{T,4},
-    params::EvoTypes{T,U,S},
     gains::AbstractArray{T,3},
-    nodes,
     edges,
     𝑖, 𝑗, 𝑛,
     X_bin::AbstractMatrix) where {T,U,S}
@@ -149,15 +149,16 @@ function grow_tree(
         @inbounds for n in nid
             best = findmax(view(gains, :,:,n))
             # println("best: ", best)
-            nodes[:gains][n] = best[1]
-            nodes[:feats][n] = best[2][2]
-            nodes[:cond_bins][n] = best[2][1]
+            tree.gain[n] = best[1]
+            tree.feat[n] = best[2][2]
+            tree.cond_bin[n] = best[2][1]
+            tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
             # findmax!(bval, bidx, view(gains, :,:,n))
-            # nodes[:gains][n] = bval[1]
-            # nodes[:feats][n] = bidx[2]
-            # nodes[:cond_bins][n] = bidx[1]
+            # nodes[:gain][n] = bval[1]
+            # nodes[:feat][n] = bidx[2]
+            # nodes[:cond_bin][n] = bidx[1]
         end
-        update_set!(𝑛, 𝑖, X_bin, nodes[:feats], nodes[:cond_bins], params.nbins)
+        update_set!(𝑛, 𝑖, X_bin, tree.feat, tree.cond_bin, params.nbins)
     end # end of loop over active ids for a given depth
     return nothing
 end
