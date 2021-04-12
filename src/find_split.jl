@@ -30,7 +30,7 @@ function update_set!(𝑛, 𝑖, X_bin, feats, bins, nbins)
         feat = feats[𝑛[i]]
         cond = bins[𝑛[i]]
         if cond == nbins
-            𝑛[𝑖] = 0
+            𝑛[i] = 0
         elseif X_bin[i, feat] <= cond
             𝑛[i] = 𝑛[i] << 1 
         else

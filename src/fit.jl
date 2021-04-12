@@ -48,7 +48,7 @@ function init_evotree(params::EvoTypes{T,U,S},
     𝑗_ = UInt32.(collect(1:X_size[2]))
     𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * X_size[1]))
     𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * X_size[2]))
-    𝑛 = ones(UInt32, length(𝑖_))
+    𝑛 = ones(eltype(𝑖_), length(𝑖_))
 
     # initialize gradients and weights
     δ = ones(T, X_size[1], 2 * K + 1)
@@ -62,13 +62,6 @@ function init_evotree(params::EvoTypes{T,U,S},
     histL = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
     histR = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
     gains = fill(T(-Inf), params.nbins, X_size[2], 2^params.max_depth - 1)
-    
-    # initialize train nodes
-    nodes = (gains = fill(T(-Inf), 2^(params.max_depth - 1) - 1),
-        feats = zeros(Int, 2^(params.max_depth - 1) - 1),
-        cond_bins = zeros(UInt8, 2^(params.max_depth - 1) - 1),
-        cond_floats = zeros(T, 2^(params.max_depth - 1) - 1),
-        preds = zeros(T, K, 2^params.max_depth - 1))
 
     cache = (params = deepcopy(params),
         X = X, Y_cpu = Y, K = K,
@@ -78,8 +71,6 @@ function init_evotree(params::EvoTypes{T,U,S},
         edges = edges, 
         X_bin = X_bin,
         gains = gains,
-        nodes = nodes,
-        # train_nodes = train_nodes,
         hist = hist, histL = histL, histR = histR)
 
     cache.params.nrounds = 0
@@ -93,7 +84,6 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
     # initialize from cache
     params = evotree.params
     train_nodes = cache.train_nodes
-    splits = cache.splits
     X_size = size(cache.X_bin)
     δnrounds = params.nrounds - cache.params.nrounds
 
@@ -105,7 +95,7 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
         sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
 
         # build a new tree
-        update_grads!(params.loss, params.α, cache.pred_cpu, cache.Y_cpu, cache.δ, cache.δ², cache.𝑤)
+        update_grads!(params.loss, cache.δ, cache.pred_gpu, cache.Y)
         # ∑δ, ∑δ², ∑𝑤 = sum(cache.δ[𝑖]), sum(cache.δ²[𝑖]), sum(cache.𝑤[𝑖])
         # gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # assign a root and grow tree

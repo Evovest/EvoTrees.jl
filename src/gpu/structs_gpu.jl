@@ -24,13 +24,21 @@ TreeNodeGPU(pred::Vector{T}) where {T} = TreeNodeGPU(UInt32(0), UInt32(0), UInt3
 """
     single tree is made of a a vector of nodes
 """
-struct TreeGPU{T<:AbstractFloat, S}
-    nodes::Vector{TreeNodeGPU{T,S,Bool}}
+struct TreeGPU{T<:AbstractFloat}
+    feat::CuVector{Int}
+    cond_bin::CuVector{UInt8}
+    cond_float::CuVector{T}
+    gain::CuVector{T}
+    pred::CuMatrix{T}
+    split::CuVector{Bool}
 end
 
+TreeGPU(x::CuVector{T}) where T <: AbstractFloat = TreeGPU(CUDA.zeros(Int, 1), CUDA.zeros(UInt8, 1), CUDA.zeros(T, 1), CUDA.zeros(T, 1), reshape(x, :, 1), CUDA.zeros(Bool, 1))
+TreeGPU(depth::S, K::S, ::T) where {S <: Integer, T <: AbstractFloat} = TreeGPU(CUDA.zeros(Int, 2^depth-1), CUDA.zeros(UInt8, 2^depth-1), CUDA.zeros(T, 2^depth-1), CUDA.zeros(T, 2^depth-1), CUDA.zeros(T, K, 2^depth-1), CUDA.zeros(Bool, 2^depth-1))
+
 # gradient-boosted tree is formed by a vector of trees
-struct GBTreeGPU{T<:AbstractFloat, S}
-    trees::Vector{TreeGPU{T,S}}
+struct GBTreeGPU{T<:AbstractFloat, S<:Integer}
+    trees::Vector{TreeGPU{T}}
     params::EvoTypes
     metric::Metric
     K::S
