@@ -36,7 +36,6 @@ function MLJModelInterface.update(model::EvoTypes, verbosity::Integer, fitresult
     if okay_to_continue(model, cache.params)
         grow_evotree!(fitresult, cache, verbosity=verbosity)
     else
-        A = MLJModelInterface.reformat(model, A, y)
         fitresult, cache = init_evotree(model, A.matrix, y, verbosity=verbosity)
         grow_evotree!(fitresult, cache, verbosity=verbosity)
     end
