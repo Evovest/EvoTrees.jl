@@ -13,4 +13,5 @@ matrix:
 branches:
   only:
     - master
+    - dev
     - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
