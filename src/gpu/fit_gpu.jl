@@ -92,28 +92,18 @@ function grow_evotree!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T,S}
 
     # loop over nrounds
     for i in 1:δnrounds
-
         # select random rows and cols
         sample!(params.rng, cache.𝑖_, cache.𝑖, replace=false, ordered=true)
         sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
-
         # build a new tree
         update_grads_gpu!(params.loss, cache.δ, cache.pred_gpu, cache.Y)
-
-        # ∑ = vec(sum(cache.δ[𝑖,:], dims=1))
-        ∑ = Array(vec(sum(cache.δ[𝑖,:], dims=1)))
-
-        gain = get_gain_gpu(params.loss, ∑, params.λ)
         # # assign a root and grow tree
-        train_nodes[1] = TrainNodeGPU(S(0), S(1), ∑, gain)
-        tree = grow_tree(cache.δ, cache.hist, params, cache.K, train_nodes, cache.edges, cache.X_bin, 𝑖, 𝑗, 𝑛)
+        tree = TreeGPU(UInt32(params.max_depth), evotree.K, params.λ)
+        grow_tree_gpu!(tree, params, cache.δ, cache.hist, cache.histL, cache.histR, cache.gains, cache.edges, CuVector(cache.𝑖), CuVector(cache.𝑗), cache.𝑛, cache.X_bin);
         push!(evotree.trees, tree)
         # bad GPU usage - to be improved!
-        predict!(cache.pred_cpu, tree, cache.X)
-        cache.pred_gpu .= CuArray(cache.pred_cpu)
-
+        predict_gpu!(cache.pred_gpu, tree, cache.X_bin)
     end # end of nrounds
-
     cache.params.nrounds = params.nrounds
     # return model, cache
     return evotree
@@ -141,6 +131,7 @@ function grow_tree_gpu!(
     # grow while there are remaining active nodes
     for depth in 1:(params.max_depth - 1)
         nid = 2^(depth - 1):2^(depth) - 1
+        # println("sum hist: ", sum(hist[3,:,:,1]))
         update_hist_gpu!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛, depth, MAX_THREADS=512)
         update_gains_gpu!(gains, hist, histL, histR, 𝑗, params, nid, depth)
         @inbounds for n in nid
@@ -162,8 +153,15 @@ function grow_tree_gpu!(
 
     # loop on final depth to assign preds
     for n in 2^(params.max_depth-1):2^params.max_depth-1
-        
+        # check that parent is a split node
+        pid = n >> 1 # parent id
+        if tree.split[pid]
+            if n % 2 == 0
+                tree.pred[1, n] = pred_leaf_gpu(params, histL, tree.feat[pid], pid, tree.cond_bin[pid])
+            else
+                tree.pred[1, n] = pred_leaf_gpu(params, histR, tree.feat[pid], pid, tree.cond_bin[pid])
+            end
+        end
     end
-
     return nothing
 end

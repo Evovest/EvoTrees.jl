@@ -112,9 +112,8 @@ CUDA.@time EvoTrees.grow_tree_gpu!(tree, params_g, cache_g.δ, cache_g.hist, cac
 
 push!(model_g.trees, tree);
 # 2.736 ms (93 allocations: 13.98 KiB)
-@btime CUDA.@sync EvoTrees.predict_gpu!(cache_g.pred_cpu, tree, cache_g.X)
-# 1.013 ms (37 allocations: 1.19 KiB)
-@btime CUDA.@sync cache_g.pred .= CuArray(cache_g.pred_cpu);
+@time CUDA.@sync EvoTrees.predict_gpu!(cache_g.pred_gpu, tree, cache_g.X_bin)
+@btime CUDA.@sync EvoTrees.predict_gpu!($cache_g.pred_gpu, $tree, $cache_g.X_bin)
 
 ###########################
 # Tree GPU

@@ -84,9 +84,9 @@ function update_hist_gpu!(
     𝑖::CuVector{S}, 
     𝑗::CuVector{S}, 
     𝑛::CuVector{S}, depth; 
-    MAX_THREADS=256) where {T,S}
+    MAX_THREADS=512) where {T,S}
     
-    fill!(h, 0.0)
+    # fill!(h, 0.0)
     thread_i = min(MAX_THREADS, length(𝑖))
     threads = (thread_i,)
     blocks = (1, length(𝑗), 3)
@@ -117,7 +117,7 @@ function update_set_kernel!(𝑛, 𝑖, X_bin, feats, bins, nbins)
     return nothing
 end
 
-function update_set_gpu!(𝑛, 𝑖, X_bin, feats, bins, nbins; MAX_THREADS=1024)
+function update_set_gpu!(𝑛, 𝑖, X_bin, feats, bins, nbins; MAX_THREADS=512)
     thread_i = min(MAX_THREADS, length(𝑖))
     threads = thread_i
     blocks = length(𝑖) ÷ thread_i + 1
@@ -126,21 +126,21 @@ function update_set_gpu!(𝑛, 𝑖, X_bin, feats, bins, nbins; MAX_THREADS=1024
 end
 
 # split row ids into left and right based on best split condition
-function update_set!(𝑛, 𝑖, X_bin, feats, bins, nbins)
+# function update_set!(𝑛, 𝑖, X_bin, feats, bins, nbins)
     
-    @inbounds for i in 𝑖
-        feat = feats[𝑛[i]]
-        cond = bins[𝑛[i]]
-        if cond == nbins
-            𝑛[𝑖] = 0
-        elseif X_bin[i, feat] <= cond
-            𝑛[i] = 𝑛[i] << 1 
-        else
-            𝑛[i] = 𝑛[i] << 1 + 1
-        end
-    end
-    return nothing
-end
+#     @inbounds for i in 𝑖
+#         feat = feats[𝑛[i]]
+#         cond = bins[𝑛[i]]
+#         if cond == nbins
+#             𝑛[𝑖] = 0
+#         elseif X_bin[i, feat] <= cond
+#             𝑛[i] = 𝑛[i] << 1 
+#         else
+#             𝑛[i] = 𝑛[i] << 1 + 1
+#         end
+#     end
+#     return nothing
+# end
 
 
 # operate on hist_gpu
@@ -182,7 +182,7 @@ function hist_gains_gpu_kernel!(gains::CuDeviceArray{T,3}, hL::CuDeviceArray{T,4
     return nothing
 end
 
-function hist_gains_gpu!(gains::CuArray{T,3}, hL::CuArray{T,4}, hR::CuArray{T,4}, 𝑗::CuVector{S}, nbins, depth, λ::T; MAX_THREADS=256) where {T,S}
+function hist_gains_gpu!(gains::CuArray{T,3}, hL::CuArray{T,4}, hR::CuArray{T,4}, 𝑗::CuVector{S}, nbins, depth, λ::T; MAX_THREADS=512) where {T,S}
     thread_i = min(nbins, MAX_THREADS)
     threads = thread_i
     blocks = length(𝑗), 2^(depth - 1)
