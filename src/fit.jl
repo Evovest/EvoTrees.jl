@@ -51,16 +51,23 @@ function init_evotree(params::EvoTypes{T,U,S},
     𝑛 = ones(eltype(𝑖_), length(𝑖_))
 
     # initialize gradients and weights
-    δ = ones(T, X_size[1], 2 * K + 1)
-
+    δ = ones(T, X_size[1] * 2 * K + 1)
+    
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
 
     # initializde histograms
-    hist = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
-    histL = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
-    histR = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
+    hist = [[zeros(T, (2 * K + 1) * params.nbins) for j in 1:X_size[2]] for n in 1:2^params.max_depth - 1]
+    histL = [[zeros(T, (2 * K + 1) * params.nbins) for j in 1:X_size[2]] for n in 1:2^params.max_depth - 1]
+    histR = [[zeros(T, (2 * K + 1) * params.nbins) for j in 1:X_size[2]] for n in 1:2^params.max_depth - 1]
+    # histL = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
+    # histR = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
+    
+    # hist = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
+    # histL = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
+    # histR = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
+    
     gains = fill(T(-Inf), params.nbins, X_size[2], 2^params.max_depth - 1)
 
     cache = (params = deepcopy(params),

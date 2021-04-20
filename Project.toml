@@ -1,7 +1,7 @@
 name = "EvoTrees"
 uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
 authors = ["jeremiedb <jeremie.db@evovest.com>"]
-version = "0.7.1"
+version = "0.8.0"
 
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
@@ -12,6 +12,7 @@ MLJModelInterface = "e80e1ace-859a-464e-9ed9-23947d8ae3ea"
 NetworkLayout = "46757867-2c16-5918-afeb-47bfcb05e46a"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
+SIMD = "fdea26ae-647d-5447-a871-4b548cad5224"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"

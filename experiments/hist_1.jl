@@ -1,21 +1,23 @@
 using Statistics
-using StatsBase: sample
-using Base.Threads: @threads
+using StatsBase:sample
+using Base.Threads:@threads
 using BenchmarkTools
-using Revise
 using EvoTrees
+using SIMD
 
-n_obs = Int(1e6)
-n_vars = 100
-n_bins = 255
-𝑖 = collect(1:n_obs)
-𝑗 = collect(1:n_vars)
-δ = rand(n_obs)
-δ² = rand(n_obs)
+n = Int(1e6)
+nvars = 100
+nbins = 64
+𝑖 = collect(1:n)
+𝑗 = collect(1:nvars)
+δ = rand(n)
+δ² = rand(n)
+𝑤 = rand(n)
 
-hist_δ = zeros(n_bins, n_vars)
-hist_δ² = zeros(n_bins, n_vars)
-X_bin = rand(UInt8, n_obs, n_vars)
+hist_δ = zeros(nbins, nvars)
+hist_δ² = zeros(nbins, nvars)
+hist_𝑤 = zeros(nbins, nvars)
+X_bin = reshape(sample(UInt8.(1:nbins), n * nvars), n, nvars)
 
 function iter_1(X_bin, hist_δ, δ, 𝑖, 𝑗)
     # hist_δ .*= 0.0
@@ -27,62 +29,146 @@ function iter_1(X_bin, hist_δ, δ, 𝑖, 𝑗)
 end
 
 @time iter_1(X_bin, hist_δ, δ, 𝑖, 𝑗)
+@btime iter_1(X_bin, hist_δ, δ, 𝑖, 𝑗)
 
-# takeaway : significant speedup from depth 3 if building all hit simultaneously
-𝑖_4 = sample(𝑖, Int(n_obs/4), ordered=true)
-@btime iter_1($X_bin, $hist_δ, $δ, $𝑖, $𝑗)
-@btime iter_1($X_bin, $hist_δ, $δ, $𝑖_4, $𝑗)
-
-
-# try adding all info on single array rather than seperate vectors
-function iter_1B(X_bin, hist_δ, hist_δ², δ, δ², 𝑖, 𝑗)
-    # hist_δ .*= 0.0
+### 3 features in seperate hists
+function iter_1B(X_bin, hist_δ, hist_δ², hist_𝑤, δ, δ², 𝑤, 𝑖, 𝑗)
+    hist_δ .= 0.0
+    hist_δ² .= 0.0
+    hist_𝑤 .= 0.0
     @inbounds @threads for j in 𝑗
         @inbounds for i in 𝑖
-            @inbounds hist_δ[X_bin[i,j], j] += δ[i]
-            @inbounds hist_δ²[X_bin[i,j], j] += δ²[i]
+            hist_δ[X_bin[i,j], j] += δ[i]
+            hist_δ²[X_bin[i,j], j] += δ²[i]
+            hist_𝑤[X_bin[i,j], j] += 𝑤[i]
         end
     end
 end
 
-@btime iter_1B($X_bin, $hist_δ, $hist_δ², $δ, $δ², $𝑖, $𝑗)
+@time iter_1B(X_bin, hist_δ, hist_δ², hist_𝑤, δ, δ², 𝑤, 𝑖, 𝑗)
+@btime iter_1B($X_bin, $hist_δ, $hist_δ², $hist_𝑤, $δ, $δ², $𝑤, $𝑖, $𝑗)
 
-# try adding all info on single array rather than seperate vectors
-δ2 = rand(2, n_obs)
-hist_δ2 = zeros(n_bins, 2, n_vars)
-function iter_2(X_bin, hist_δ2, δ2, 𝑖, 𝑗)
-    # hist_δ .*= 0.0
+
+### 3 features in common hists
+hist_δ𝑤 = zeros(3, nbins, nvars)
+function iter_2(X_bin, hist_δ𝑤, δ, δ², 𝑤, 𝑖, 𝑗)
+    hist_δ𝑤 .= 0.0
     @inbounds @threads for j in 𝑗
-        @inbounds for i in 𝑖
-            # view(hist_δ2, X_bin[i,j], j, :) .+= view(δ2, i, :)
-            @inbounds for k in 1:2
-                hist_δ2[X_bin[i,j], k, j] += δ2[k, i]
-                # @inbounds hist_δ2[X_bin[i,j], 1, j] += δ2[i, 1]
-                # @inbounds hist_δ2[X_bin[i,j], 2, j] += δ2[i, 2]
+        @inbounds @simd for i in 𝑖
+            hist_δ𝑤[1, X_bin[i,j], j] += δ[i]
+            hist_δ𝑤[2, X_bin[i,j], j] += δ²[i]
+            hist_δ𝑤[3, X_bin[i,j], j] += 𝑤[i]
+        end
+    end
+end
+
+@time iter_2(X_bin, hist_δ𝑤, δ, δ², 𝑤, 𝑖, 𝑗)
+@btime iter_2($X_bin, $hist_δ𝑤, $δ, $δ², $𝑤, $𝑖, $𝑗)
+
+### 3 features in common hists - gradients/weight in single matrix
+hist_δ𝑤 = zeros(3, nbins, nvars)
+δ𝑤 = rand(3, n)
+
+function iter_3(X_bin, hist_δ𝑤, δ𝑤, 𝑖, 𝑗)
+    hist_δ𝑤 .= 0.0
+    @inbounds @threads for j in 𝑗
+        @inbounds @simd for i in 𝑖
+            hist_δ𝑤[1, X_bin[i,j], j] += δ𝑤[1,i]
+            hist_δ𝑤[2, X_bin[i,j], j] += δ𝑤[2,i]
+            hist_δ𝑤[3, X_bin[i,j], j] += δ𝑤[3,i]
+        end
+    end
+end
+
+@time iter_3(X_bin, hist_δ𝑤, δ𝑤, 𝑖, 𝑗)
+@btime iter_3($X_bin, $hist_δ𝑤, $δ𝑤, $𝑖, $𝑗)
+
+
+### 3 features in common hists - vector of matrix hists - gradients/weight in single matrix
+hist_δ𝑤_vec = [zeros(3, nbins) for j in 1:nvars]
+δ𝑤 = rand(3, n)
+
+function iter_4(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)    
+    [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
+    @inbounds @threads for j in 𝑗
+        @inbounds @simd for i in 𝑖
+            hist_δ𝑤_vec[j][1, X_bin[i,j]] += δ𝑤[1,i]
+            hist_δ𝑤_vec[j][2, X_bin[i,j]] += δ𝑤[2,i]
+            hist_δ𝑤_vec[j][3, X_bin[i,j]] += δ𝑤[3,i]
+        end
+    end
+end
+
+@time iter_4(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
+@btime iter_4($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖, $𝑗)
+
+
+### 3 features in common hists - vector of vec hists - gradients/weight in single vector
+hist_δ𝑤_vec = [zeros(3 * nbins) for j in 1:nvars]
+δ𝑤 = rand(3 * n)
+
+function iter_5(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
+    [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
+    @inbounds @threads for j in 𝑗
+        @inbounds @simd for i in 𝑖
+            id = 3 * i - 2
+            hid = 3 * X_bin[i,j] - 2
+            hist_δ𝑤_vec[j][hid] += δ𝑤[id]
+            hist_δ𝑤_vec[j][hid + 1] += δ𝑤[id + 1]
+            hist_δ𝑤_vec[j][hid + 2] += δ𝑤[id + 2]
+        end
+    end
+end
+
+@time iter_5(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
+@btime iter_5($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖, $𝑗)
+
+
+### 3 features in common hists - vector of vec hists - gradients/weight in single vector - explicit loop
+hist_δ𝑤_vec = [zeros(3 * nbins) for j in 1:nvars]
+δ𝑤 = rand(3 * n)
+
+function iter_6(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
+    [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
+    @inbounds @threads for j in 𝑗
+        @inbounds @simd for i in 𝑖
+            id = 3 * i - 2
+            hid = 3 * X_bin[i,j] - 3
+            for k in 1:3
+                hist_δ𝑤_vec[j][hid + k] += δ𝑤[id + k]
             end
         end
     end
 end
-@time iter_2(X_bin, hist_δ2, δ2, 𝑖_4, 𝑗)
-@btime iter_2($X_bin, $hist_δ2, $δ2, $𝑖, $𝑗)
+
+@time iter_6(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
+@btime iter_6($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖, $𝑗)
 
 
-# integrate a leaf id
-hist_δ2 = zeros(n_bins, 2, n_vars, 8);
-@time hist_δ2 .= 0;
-@time hist_δ2 .* 0;
-function iter_3(X_bin, hist, δ2, 𝑖, 𝑗, leaf)
-    # hist_δ .*= 0.0
+### 3 features in common hists - vector of vec hists - gradients/weight in single vector - with node assignations
+# hist_δ𝑤_vec = [[zeros(3 * nbins) for j in 1:nvars] for n in 1:16]
+hist_δ𝑤_vec = [[zeros(3 * nbins) for n in 1:16] for j in 1:nvars]
+δ𝑤 = rand(3 * n)
+𝑛 = sample(1:16, n)
+
+function iter_7(X_bin, hist_δ𝑤_vec::Vector{Vector{Vector{T}}}, δ𝑤::Vector{T}, 𝑖, 𝑗, 𝑛) where T
+    # [hist_δ𝑤_vec[j][n] .= 0.0 for n in 𝑛]
     @inbounds @threads for j in 𝑗
-        @inbounds for i in 𝑖
-            @inbounds for k in 1:2
-                # view(hist_δ2, X_bin[i,j], j, :) .+= view(δ2, i, :)
-                @inbounds hist[X_bin[i,j], k, j, leaf[i]] += δ2[k, i]
-            end
+        @inbounds @simd for i in 𝑖
+            id = 3 * i - 2
+            hid = 3 * X_bin[i,j] - 2
+            n = 𝑛[i]
+
+            # hist_δ𝑤_vec[n][j][hid] += δ𝑤[id]
+            # hist_δ𝑤_vec[n][j][hid + 1] += δ𝑤[id + 1]
+            # hist_δ𝑤_vec[n][j][hid + 2] += δ𝑤[id + 2]
+
+            hist_δ𝑤_vec[j][n][hid] += δ𝑤[id]
+            hist_δ𝑤_vec[j][n][hid + 1] += δ𝑤[id + 1]
+            hist_δ𝑤_vec[j][n][hid + 2] += δ𝑤[id + 2]
         end
     end
 end
 
-leaf_vec = ones(UInt8, n_obs)
-@time iter_3(X_bin, hist_δ2, δ2, 𝑖_4, 𝑗, leaf_vec);
-@btime iter_3($X_bin, $hist_δ2, $δ2, $𝑖, $𝑗, $leaf_vec);
+@time iter_7(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗, 𝑛)
+@btime iter_7($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖, $𝑗, $𝑛)
