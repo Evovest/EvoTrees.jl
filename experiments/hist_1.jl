@@ -88,8 +88,8 @@ end
 hist_δ𝑤_vec = [zeros(3, nbins) for j in 1:nvars]
 δ𝑤 = rand(3, n)
 
-function iter_4(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)    
-    [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
+function iter_4(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
+    # [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
     @inbounds @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
             hist_δ𝑤_vec[j][1, X_bin[i,j]] += δ𝑤[1,i]
@@ -108,7 +108,7 @@ hist_δ𝑤_vec = [zeros(3 * nbins) for j in 1:nvars]
 δ𝑤 = rand(3 * n)
 
 function iter_5(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
-    [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
+    # [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
     @inbounds @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
             id = 3 * i - 2
@@ -123,30 +123,28 @@ end
 @time iter_5(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
 @btime iter_5($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖, $𝑗)
 
-
 ### 3 features in common hists - vector of vec hists - gradients/weight in single vector - explicit loop
 hist_δ𝑤_vec = [zeros(3 * nbins) for j in 1:nvars]
 δ𝑤 = rand(3 * n)
 
-function iter_6(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
-    [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
+function iter_6(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗, K)
+    # [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
     @inbounds @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
             id = 3 * i - 2
             hid = 3 * X_bin[i,j] - 3
-            for k in 1:3
+            for k in 1:K
                 hist_δ𝑤_vec[j][hid + k] += δ𝑤[id + k]
             end
         end
     end
 end
 
-@time iter_6(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
-@btime iter_6($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖, $𝑗)
-
+K = 3
+@time iter_6(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗, K)
+@btime iter_6($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖, $𝑗, $K)
 
 ### 3 features in common hists - vector of vec hists - gradients/weight in single vector - with node assignations
-# hist_δ𝑤_vec = [[zeros(3 * nbins) for j in 1:nvars] for n in 1:16]
 hist_δ𝑤_vec = [[zeros(3 * nbins) for n in 1:16] for j in 1:nvars]
 δ𝑤 = rand(3 * n)
 𝑛 = sample(1:16, n)
@@ -158,10 +156,6 @@ function iter_7(X_bin, hist_δ𝑤_vec::Vector{Vector{Vector{T}}}, δ𝑤::Vecto
             id = 3 * i - 2
             hid = 3 * X_bin[i,j] - 2
             n = 𝑛[i]
-
-            # hist_δ𝑤_vec[n][j][hid] += δ𝑤[id]
-            # hist_δ𝑤_vec[n][j][hid + 1] += δ𝑤[id + 1]
-            # hist_δ𝑤_vec[n][j][hid + 2] += δ𝑤[id + 2]
 
             hist_δ𝑤_vec[j][n][hid] += δ𝑤[id]
             hist_δ𝑤_vec[j][n][hid + 1] += δ𝑤[id + 1]
