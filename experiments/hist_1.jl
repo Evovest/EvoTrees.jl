@@ -48,6 +48,10 @@ end
 @time iter_1B(X_bin, hist_δ, hist_δ², hist_𝑤, δ, δ², 𝑤, 𝑖, 𝑗)
 @btime iter_1B($X_bin, $hist_δ, $hist_δ², $hist_𝑤, $δ, $δ², $𝑤, $𝑖, $𝑗)
 
+𝑖2 = sample(𝑖, 500000, replace=false, ordered=true)
+𝑗2 = sample(𝑗, 50, replace=false, ordered=true)
+@time iter_1B(X_bin, hist_δ, hist_δ², hist_𝑤, δ, δ², 𝑤, 𝑖2, 𝑗2)
+@btime iter_1B($X_bin, $hist_δ, $hist_δ², $hist_𝑤, $δ, $δ², $𝑤, $𝑖2, $𝑗2)
 
 ### 3 features in common hists
 hist_δ𝑤 = zeros(3, nbins, nvars)
@@ -127,7 +131,6 @@ end
 using Random
 𝑖2 = sample(𝑖, 500000, replace=false, ordered=true)
 𝑗2 = sample(𝑗, 50, replace=false, ordered=true)
-mask = rand(Bool, 1000000)
 @time iter_5(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖2, 𝑗2)
 @btime iter_5($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖2, $𝑗2)
 
