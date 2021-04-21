@@ -111,17 +111,25 @@ function iter_5(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
     # [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
     @inbounds @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
-            id = 3 * i - 2
-            hid = 3 * X_bin[i,j] - 2
-            hist_δ𝑤_vec[j][hid] += δ𝑤[id]
-            hist_δ𝑤_vec[j][hid + 1] += δ𝑤[id + 1]
-            hist_δ𝑤_vec[j][hid + 2] += δ𝑤[id + 2]
+            # @inbounds if mask[i]
+                id = 3 * i - 2
+                hid = 3 * X_bin[i,j] - 2
+                hist_δ𝑤_vec[j][hid] += δ𝑤[id]
+                hist_δ𝑤_vec[j][hid + 1] += δ𝑤[id + 1]
+                hist_δ𝑤_vec[j][hid + 2] += δ𝑤[id + 2]
+            # end
         end
     end
 end
 
-@time iter_5(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
-@btime iter_5($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖, $𝑗)
+# 𝑖2 = sample(𝑖, 900000, replace=false, ordered=true)
+# 𝑖3 = view(𝑖2, 100001:650000)
+using Random
+𝑖2 = sample(𝑖, 500000, replace=false, ordered=true)
+𝑗2 = sample(𝑗, 50, replace=false, ordered=true)
+mask = rand(Bool, 1000000)
+@time iter_5(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖2, 𝑗2)
+@btime iter_5($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖2, $𝑗2)
 
 ### 3 features in common hists - vector of vec hists - gradients/weight in single vector - explicit loop
 hist_δ𝑤_vec = [zeros(3 * nbins) for j in 1:nvars]

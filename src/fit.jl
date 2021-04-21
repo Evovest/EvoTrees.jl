@@ -44,41 +44,29 @@ function init_evotree(params::EvoTypes{T,U,S},
     bias = Tree(μ)
     evotree = GBTree([bias], params, Metric(), K, levels)
 
-    𝑖_ = UInt32.(collect(1:X_size[1]))
-    𝑗_ = UInt32.(collect(1:X_size[2]))
-    𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * X_size[1]))
-    𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * X_size[2]))
-    𝑛 = ones(eltype(𝑖_), length(𝑖_))
-
     # initialize gradients and weights
-    δ = ones(T, X_size[1] * 2 * K + 1)
+    δ𝑤 = ones(T, X_size[1] * (2 * K + 1))
     
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
+    
+    𝑖_ = UInt32.(collect(1:X_size[1]))
+    𝑗_ = UInt32.(collect(1:X_size[2]))
+    𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * X_size[2]))
 
     # initializde histograms
-    hist = [[zeros(T, (2 * K + 1) * params.nbins) for j in 1:X_size[2]] for n in 1:2^params.max_depth - 1]
-    histL = [[zeros(T, (2 * K + 1) * params.nbins) for j in 1:X_size[2]] for n in 1:2^params.max_depth - 1]
-    histR = [[zeros(T, (2 * K + 1) * params.nbins) for j in 1:X_size[2]] for n in 1:2^params.max_depth - 1]
-    # histL = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
-    # histR = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
-    
-    # hist = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
-    # histL = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
-    # histR = zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
-    
-    gains = fill(T(-Inf), params.nbins, X_size[2], 2^params.max_depth - 1)
+    nodes = [TrainNode(X_size[2], params.nbins, K, T) for n in 1:2^params.max_depth - 1]
+    nodes[1].𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * X_size[1]))
 
     cache = (params = deepcopy(params),
         X = X, Y_cpu = Y, K = K,
+        nodes = nodes,
         pred_cpu = pred_cpu,
-        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑖 = 𝑖, 𝑗 = 𝑗, 𝑛 = 𝑛,
-        δ = δ,
+        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑗 = 𝑗,
+        δ𝑤 = δ𝑤,
         edges = edges, 
-        X_bin = X_bin,
-        gains = gains,
-        hist = hist, histL = histL, histR = histR)
+        X_bin = X_bin)
 
     cache.params.nrounds = 0
 
@@ -90,7 +78,7 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
 
     # initialize from cache
     params = evotree.params
-    train_nodes = cache.train_nodes
+    nodes = cache.nodes
     X_size = size(cache.X_bin)
     δnrounds = params.nrounds - cache.params.nrounds
 
@@ -98,8 +86,14 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
     for i in 1:δnrounds
 
         # select random rows and cols
-        sample!(params.rng, cache.𝑖_, cache.𝑖, replace=false, ordered=true)
+        sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace=false, ordered=true)
         sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
+
+        # reset nodes - To Do: zeroise over all nodes and features
+        # h .= 0
+        # hL .= 0
+        # hR .= 0
+        # gains .= -Inf
 
         # build a new tree
         update_grads!(params.loss, cache.δ, cache.pred_gpu, cache.Y)
@@ -107,12 +101,11 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
         # gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # assign a root and grow tree
         tree = Tree(params.max_depth, evotree.K, zero(T))
-        grow_tree!(tree, params, cache.δ, cache.hist, cache.histL, cache.histR, cache.gains, cache.edges, cache.𝑖, cache.𝑗, cache.𝑛, cache.X_bin)
+        grow_tree!(tree, nodes, params, cache.δ𝑤, cache.edges, cache.𝑗, cache.X_bin)
         push!(evotree.trees, tree)
         predict!(cache.pred_cpu, tree, cache.X)
 
     end # end of nrounds
-
     cache.params.nrounds = params.nrounds
     return evotree
 end
@@ -120,42 +113,39 @@ end
 # grow a single tree
 function grow_tree!(
     tree::Tree{T},
+    nodes::TrainNode{T},
     params::EvoTypes{T,U,S},
-    δ::Matrix{T},
-    hist::AbstractArray{T,4}, histL::AbstractArray{T,4}, histR::AbstractArray{T,4},
-    gains::AbstractArray{T,3},
+    δ𝑤::Vector{T},
     edges,
-    𝑖, 𝑗, 𝑛,
+    𝑗,
     X_bin::AbstractMatrix) where {T,U,S}
 
     # reset
     # bval, bidx = [zero(T)], [(0,0)]
-    hist .= 0
-    histL .= 0
-    histR .= 0
-    gains .= -Inf
-    𝑛 .= 1
+    active_n = 1
 
     # grow while there are remaining active nodes
     for depth in 1:(params.max_depth - 1)
-        nid = 2^(depth - 1):2^(depth) - 1
-        update_hist!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛)
-        update_gains!(gains, hist, histL, histR, 𝑗, params, nid)
-        # best = findmax(view(gains, :,:,nid))
-        # println("best: ", best)
-        @inbounds for n in nid
-            best = findmax(view(gains, :,:,n))
+        for n ∈ active_n
+            update_hist!(nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗)
+            update_gains!(nodes[n], 𝑗, params, params.nbins)
+            best = findmax(view(gains, :, :, n))
             # println("best: ", best)
-            tree.gain[n] = best[1]
-            tree.feat[n] = best[2][2]
-            tree.cond_bin[n] = best[2][1]
-            tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
-            # findmax!(bval, bidx, view(gains, :,:,n))
-            # nodes[:gain][n] = bval[1]
-            # nodes[:feat][n] = bidx[2]
-            # nodes[:cond_bin][n] = bidx[1]
+            if best[2][1] != params.nbins && best[1] > -Inf
+                tree.gain[n] = best[1]
+                tree.feat[n] = best[2][2]
+                tree.cond_bin[n] = best[2][1]
+                tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
+            end
+            tree.split[n] = tree.cond_bin[n] != 0
+            if !tree.split[n]
+                tree.pred[1, n] = pred_leaf_cpu(params, histL, 𝑗[1], n)
+            else
+                split_set!(left, right, 𝑖, X_bin, tree.feat, tree.cond_bin) # likely need to set a starting point so that remaining split_set withing depth don't override the view
+                node[n << 1].𝑖 = left
+                node[n << 1 + 1].𝑖 = right
+            end
         end
-        update_set!(𝑛, 𝑖, X_bin, tree.feat, tree.cond_bin, params.nbins)
     end # end of loop over active ids for a given depth
     return nothing
 end

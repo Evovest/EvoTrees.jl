@@ -24,72 +24,82 @@ function binarize(X, edges)
 end
 
 # split row ids into left and right based on best split condition
-function update_set!(𝑛, 𝑖, X_bin, feats, bins, nbins)
+function split_set!(left, right, 𝑖, X_bin, feat, cond_bin)
     
-    @inbounds for i in 𝑖
-        feat = feats[𝑛[i]]
-        cond = bins[𝑛[i]]
-        if cond == nbins
-            𝑛[i] = 0
-        elseif X_bin[i, feat] <= cond
-            𝑛[i] = 𝑛[i] << 1 
+    left_count = 0 
+    right_count = 0
+
+    @inbounds for i in 1:length(𝑖)
+        if X_bin[i, feat] <= cond_bin
+            left_count += 1
+            left[left_count] = 𝑖[i]
         else
-            𝑛[i] = 𝑛[i] << 1 + 1
+            right_count += 1
+            right[right_count] = 𝑖[i]
         end
     end
-    return nothing
+    return (view(left, 1:left_count), view(right, 1:right_count))
 end
 
 
 function update_hist!(
-    hist::Array{T,4}, 
-    δ::Matrix{T}, 
+    hist::Vector{Vector{T}}, 
+    δ𝑤::Vector{T}, 
     X_bin::Matrix{UInt8}, 
-    𝑖::Vector{S}, 
-    𝑗::Vector{S}, 
-    𝑛::Vector{S}) where {T,S}
+    𝑖::AbstractVector{S}, 
+    𝑗::AbstractVector{S}) where {T,S}
     
     @inbounds @threads for j in 𝑗
-        @inbounds for i in 𝑖
-            if 𝑛[i] != 0
-                hist[1, X_bin[i, j], j, 𝑛[i]] += δ[i, 1]
-                hist[2, X_bin[i, j], j, 𝑛[i]] += δ[i, 2]
-                hist[3, X_bin[i, j], j, 𝑛[i]] += δ[i, 3]
-            end
+        @inbounds @simd for i in 𝑖
+            id = 3 * i - 2
+            hid = 3 * X_bin[i,j] - 2
+            hist[j][hid] += δ𝑤[id]
+            hist[j][hid + 1] += δ𝑤[id + 1]
+            hist[j][hid + 2] += δ𝑤[id + 2]
         end
     end
-end
-
-
-function update_gains!(
-    gains::AbstractArray{T,3},
-    hist::AbstractArray{T,4}, 
-    histL::AbstractArray{T,4}, 
-    histR::AbstractArray{T,4},
-    𝑗::Vector{S},
-    params::EvoTypes,
-    nid) where {T,S}
-
-    cumsum!(view(histL, :, :, :, nid), view(hist, :, :, :, nid), dims=2)
-    # cumsum!(view(histR, :, :, :, nid), reverse!(view(hist, :, :, :, nid), dims=2), dims=2)
-    view(histR, :, :, :, nid) .= view(histL, :, params.nbins:params.nbins, :, nid) .- view(histL, :, :, :, nid)
-    hist_gains_cpu!(gains, histL, histR, 𝑗, params.nbins, nid, params.λ)
-
     return nothing
 end
 
 
-function hist_gains_cpu!(gains::Array{T,3}, hL::Array{T,4}, hR::Array{T,4}, 𝑗::Vector{S}, nbins, nodes, λ::T) where {T,S}
-    @inbounds for n in nodes
-        @inbounds for j in 𝑗
-            @inbounds for i in 1:nbins
-                # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
-                if hL[3, i, j, n] > 1e-5 && hR[3, i, j, n] > 1e-5
-                    @inbounds gains[i, j, n] = (hL[1, i, j, n]^2 / (hL[2, i, j, n] + λ * hL[3, i, j, n]) + 
-                        hR[1, i, j, n]^2 / (hR[2, i, j, n] + λ * hR[3, i, j, n])) / 2
-                elseif i == nbins
-                    @inbounds gains[i, j, n] = hL[1, i, j, n]^2 / (hL[2, i, j, n] + λ * hL[3, i, j, n]) / 2 
-                end
+function update_gains!(
+    node::TrainNode{T},
+    # hist::Vector{AbstractVector{T}}, 
+    # histL::Vector{AbstractVector{T}}, 
+    # histR::Vector{AbstractVector{T}},
+    𝑗::Vector{S},
+    params::EvoTypes, nbins) where {T,S}
+
+    @inbounds @threads for j in 𝑗
+        node.hR[j][binid] -= node.∑[1]
+        node.hR[j][binid + 1] -= node.∑[2]
+        node.hR[j][binid + 2] -= node.∑[3]
+        @inbounds for bin in 2:nbins
+            binid = 3 * bin - 2
+            node.hL[j][binid] = node.hL[j][binid - 3] + hist[j][binid]
+            node.hL[j][binid + 1] = node.hL[j][binid - 2] + hist[j][binid + 1]
+            node.hL[j][binid + 2] = node.hL[j][binid - 1] + hist[j][binid + 2]
+
+            node.hR[j][binid] = node.hR[j][binid - 3] - hist[j][binid]
+            node.hR[j][binid + 1] = node.hR[j][binid - 2] - hist[j][binid + 1]
+            node.hR[j][binid + 2] = node.hR[j][binid - 1] - hist[j][binid + 2]
+
+            hist_gains_cpu!(node.gains[j], node.hL[j], node.hR[j], 𝑗, params.nbins, params.λ)
+        end
+    end
+    return nothing
+end
+
+
+function hist_gains_cpu!(gains::Matrix{T}, hL::Array{T,3}, hR::Array{T,3}, 𝑗::Vector{S}, nbins, λ::T) where {T,S}
+    @inbounds for j in 𝑗
+        @inbounds for i in 1:nbins
+            # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
+            if hL[3, i, j, n] > 1e-5 && hR[3, i, j] > 1e-5
+                @inbounds gains[i, j] = (hL[1, i, j]^2 / (hL[2, i, j] + λ * hL[3, i, j]) + 
+                        hR[1, i, j]^2 / (hR[2, i, j] + λ * hR[3, i, j])) / 2
+            elseif i == nbins
+                    @inbounds gains[i, j] = hL[1, i, j]^2 / (hL[2, i, j] + λ * hL[3, i, j]) / 2 
             end
         end
     end

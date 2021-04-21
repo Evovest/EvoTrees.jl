@@ -2,31 +2,42 @@
 abstract type Node{T<:AbstractFloat} end
 
 
-struct TreeNode{T<:AbstractFloat, S<:Integer, B<:Bool}
-    left::S
-    right::S
-    feat::S
-    cond::T
-    gain::T
-    pred::Vector{T}
-    split::B
-end
-
-TreeNode(left::S, right::S, feat::S, cond::T, gain::T, L::S) where {T<:AbstractFloat, S<:Integer} = TreeNode{L,T,S,Bool}(left, right, feat, cond, gain, zeros(T, L), true)
-TreeNode(pred::Vector{T}) where {T} = TreeNode(0, 0, 0, zero(T), zero(T), pred, false)
-
-# single tree is made of a root node that containes nested nodes and leafs
-struct TrainNode{T<:AbstractFloat, S<:Integer, V<:AbstractVector}
-    parent::S
-    depth::S
-    ∑::V
-    gain::T
-end
-
-# single tree is made of a root node that containes nested nodes and leafs
-# struct Tree{T<:AbstractFloat, S<:Int}
-#     nodes::Vector{TreeNode{T,S,Bool}}
+# struct TreeNode{T<:AbstractFloat, S<:Integer, B<:Bool}
+#     left::S
+#     right::S
+#     feat::S
+#     cond::T
+#     gain::T
+#     pred::Vector{T}
+#     split::B
 # end
+
+# TreeNode(left::S, right::S, feat::S, cond::T, gain::T, L::S) where {T<:AbstractFloat, S<:Integer} = TreeNode{L,T,S,Bool}(left, right, feat, cond, gain, zeros(T, L), true)
+# TreeNode(pred::Vector{T}) where {T} = TreeNode(0, 0, 0, zero(T), zero(T), pred, false)
+
+# single tree is made of a root node that containes nested nodes and leafs
+mutable struct TrainNode{T<:AbstractFloat}
+    gain::T
+    𝑖::Union{Nothing, AbstractVector{UInt32}}
+    ∑::Vector{T}
+    h::Vector{Vector{T}}
+    hL::Vector{Vector{T}}
+    hR::Vector{Vector{T}}
+    gains::Vector{Vector{T}}
+end
+
+function TrainNode(nvars, nbins, K, T)
+    node = TrainNode{T}(
+            zero(T),
+            nothing,
+            zeros(T, 2*K+1), 
+            [zeros(T, (2*K+1) * nbins) for j in 1:nvars], 
+            [zeros(T, (2*K+1) * nbins) for j in 1:nvars], 
+            [zeros(T, (2*K+1) * nbins) for j in 1:nvars], 
+            [zeros(T, nbins) for j in 1:nvars])
+    
+    return node
+end
 
 # single tree is made of a vectors of length num nodes
 struct Tree{T<:AbstractFloat}
@@ -39,7 +50,7 @@ struct Tree{T<:AbstractFloat}
 end
 
 Tree(x::Vector{T}) where T <: AbstractFloat = Tree(zeros(Int, 1), zeros(UInt8, 1), zeros(T, 1), zeros(T, 1), reshape(x, :, 1), zeros(Bool, 1))
-Tree(depth::S, K::S, ::T) where {S <: Integer, T <: AbstractFloat} = Tree(zeros(Int, 2^depth-1), zeros(UInt8, 2^depth-1), zeros(T, 2^depth-1), zeros(T, 2^depth-1), zeros(T, K, 2^depth-1), zeros(Bool, 2^depth-1))
+Tree(depth, K, ::T) where {T <: AbstractFloat} = Tree(zeros(Int, 2^depth-1), zeros(UInt8, 2^depth-1), zeros(T, 2^depth-1), zeros(T, 2^depth-1), zeros(T, K, 2^depth-1), zeros(Bool, 2^depth-1))
 
 # eval metric tracking
 mutable struct Metric

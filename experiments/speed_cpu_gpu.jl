@@ -1,6 +1,5 @@
 using Statistics
 using StatsBase:sample, sample!
-using Revise
 using EvoTrees
 using BenchmarkTools
 using CUDA
@@ -39,11 +38,10 @@ params_c = model_c.params
 X_size = size(cache_c.X_bin)
 
 # select random rows and cols
-sample!(params_c.rng, cache_c.𝑖_, cache_c.𝑖, replace=false, ordered=true)
+sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace=false, ordered=true)
 sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true)
-𝑖 = cache_c.𝑖
+𝑖 = cache_c.nodes[1].𝑖
 𝑗 = cache_c.𝑗
-𝑛 = cache_c.𝑛
 
 # build a new tree
 # 897.800 μs (6 allocations: 736 bytes)
@@ -60,11 +58,11 @@ sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true)
 push!(model_c.trees, tree)
 @btime EvoTrees.predict!(cache_c.pred, tree, cache_c.X)
 
-δ, hist, K, edges, X_bin, histL, histR, gains, nodes = cache_c.δ, cache_c.hist, cache_c.K, cache_c.edges, cache_c.X_bin, cache_c.histL, cache_c.histR, cache_c.gains, cache_c.nodes;
+δ𝑤, K, edges, X_bin, nodes = cache_c.δ𝑤, cache_c.K, cache_c.edges, cache_c.X_bin, cache_c.nodes;
 
 # 9.613 ms (81 allocations: 13.55 KiB)
-@time EvoTrees.update_hist!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛)
-@btime EvoTrees.update_hist!($hist, $δ, $X_bin, $𝑖, $𝑗, $𝑛)
+@time EvoTrees.update_hist!(nodes[1].h, δ𝑤, X_bin, nodes[1].𝑖, 𝑗)
+@btime EvoTrees.update_hist!($nodes[1].h, $δ𝑤, $X_bin, $nodes[1].𝑖, $𝑗)
 @code_warntype EvoTrees.update_hist!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛)
 
 j = 1

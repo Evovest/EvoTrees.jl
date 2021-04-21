@@ -62,3 +62,72 @@ best_cond = rand(UInt16, 100000);
 @time update_set_2!(leaf_vec, 𝑖, best_feat, best_cond, X_bin, depth);
 @btime update_set_2!($leaf_vec, $𝑖, $best_feat, $best_cond, $X_bin, $depth);
 Int.(leaf_vec)
+
+
+
+
+# split row ids into left and right based on best split condition
+function split_set_1!(left, right, 𝑖, X_bin, feat, cond_bin)
+    
+    left_count = 0 
+    right_count = 0
+
+    @inbounds for i in 1:length(𝑖)
+        if X_bin[i, feat] <= cond_bin
+            left_count += 1
+            left[left_count] = 𝑖[i]
+        else
+            right_count += 1
+            right[right_count] = 𝑖[i]
+        end
+    end
+    return (view(left,1:left_count), view(right, 1:right_count))
+end
+
+n = Int(1e6)
+nvars = 100
+nbins = 64
+𝑖 = collect(1:n)
+𝑗 = collect(1:nvars)
+X_bin = reshape(sample(UInt8.(1:nbins), n * nvars), n, nvars)
+left = similar(𝑖)
+right = similar(𝑖)
+
+feat = 15
+cond_bin=25
+@time left, right = split_set_1!(left, right, 𝑖, X_bin, feat, cond_bin)
+@btime split_set_1!($left, $right, $𝑖, $X_bin, $feat, $cond_bin)
+
+
+# split row ids into left and right based on best split condition
+function split_set_2!(left, right, 𝑖, x_bin, feat, cond_bin)
+    
+    left_count = 0 
+    right_count = 0
+
+    @inbounds for i in 1:length(𝑖)
+        if x_bin[i] <= cond_bin
+            left_count += 1
+            left[left_count] = 𝑖[i]
+        else
+            right_count += 1
+            right[right_count] = 𝑖[i]
+        end
+    end
+    return (view(left,1:left_count), view(right, 1:right_count))
+end
+
+n = Int(1e6)
+nvars = 100
+nbins = 64
+𝑖 = collect(1:n)
+𝑗 = collect(1:nvars)
+X_bin = reshape(sample(UInt8.(1:nbins), n * nvars), n, nvars)
+left = similar(𝑖)
+right = similar(𝑖)
+
+feat = 15
+cond_bin=25
+@time left, right = split_set_2!(left, right, 𝑖, X_bin[:,feat], feat, cond_bin)
+@btime split_set_2!($left, $right, $𝑖, $X_bin[:,feat], $feat, $cond_bin)
+@btime split_set_2!($left, $right, $𝑖, $view(X_bin, :,feat), $feat, $cond_bin)
