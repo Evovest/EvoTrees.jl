@@ -22,7 +22,7 @@ function predict_kernel!(pred::AbstractMatrix{T}, split, feat, cond_bin, leaf_pr
     nid = 1
     @inbounds if idx <= size(pred, 1)
         while split[nid]
-            X[idx, feat[nid]] < cond_bin[nid] ? nid = nid << 1 : nid = nid << 1 + 1
+            X[idx, feat[nid]] < cond_feat[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
         # @inbounds for k in 1:K
         pred[idx,1] += leaf_pred[1, nid]

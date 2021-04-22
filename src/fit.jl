@@ -55,12 +55,15 @@ function init_evotree(params::EvoTypes{T,U,S},
     # initializde histograms
     nodes = [TrainNode(X_size[2], params.nbins, K, T) for n in 1:2^params.max_depth - 1]
     nodes[1].𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * X_size[1]))
+    left = zeros(UInt32, length(nodes[1].𝑖))
+    right = zeros(UInt32, length(nodes[1].𝑖))
 
     cache = (params = deepcopy(params),
         X = X, Y_cpu = Y, K = K,
         nodes = nodes,
         pred_cpu = pred_cpu,
         𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑗 = 𝑗,
+        left = left, right = right,
         δ𝑤 = δ𝑤,
         edges = edges, 
         X_bin = X_bin)
@@ -85,19 +88,13 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
         sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace=false, ordered=true)
         sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
 
-        # reset nodes - To Do: zeroise hist/gains over all nodes and features
-        # h .= 0
-        # hL .= 0
-        # hR .= 0
-        # gains .= -Inf
-
         # build a new tree
-        update_grads!(params.loss, cache.δ, cache.pred_gpu, cache.Y)
+        update_grads!(params.loss, cache.δ𝑤, cache.pred_cpu, cache.Y_cpu)
         # ∑δ, ∑δ², ∑𝑤 = sum(cache.δ[𝑖]), sum(cache.δ²[𝑖]), sum(cache.𝑤[𝑖])
         # gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # assign a root and grow tree
         tree = Tree(params.max_depth, evotree.K, zero(T))
-        grow_tree!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, cache.𝑗, cache.X_bin)
+        grow_tree!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, cache.𝑗, cache.left, cache.right, cache.X_bin)
         push!(evotree.trees, tree)
         predict!(cache.pred_cpu, tree, cache.X)
 
@@ -113,41 +110,84 @@ function grow_tree!(
     params::EvoTypes{T,U,S},
     δ𝑤::Matrix{T},
     edges,
-    𝑗,
+    𝑗, left, right,
     X_bin::AbstractMatrix) where {T,U,S}
+
+    # reset nodes
+    for n in eachindex(nodes)
+        [nodes[n].h[j] .= 0 for j in eachindex(nodes[n].h)]
+        [nodes[n].hL[j] .= 0 for j in eachindex(nodes[n].hL)]
+        [nodes[n].hR[j] .= 0 for j in eachindex(nodes[n].hR)]
+        nodes[n].∑ .= 0
+        nodes[n].gain = 0
+        fill!(nodes[n].gains, -Inf)
+    end
 
     # reset
     # bval, bidx = [zero(T)], [(0,0)]
-    active_n = [1]
+    n_next = [1]
+    n_current = copy(n_next)
     depth = 1
 
+    # initialize summary stats
     nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims=2))
+    nodes[1].gain = get_gain(params.loss, nodes[1].∑, params.λ)
     # grow while there are remaining active nodes
-    while length(active_n) > 0 && depth < params.max_depth
+    while length(n_current) > 0 && depth <= params.max_depth
     # for depth in 1:(params.max_depth - 1)
-        for n ∈ active_n
-            update_hist!(nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗)
-            update_gains!(nodes[n], 𝑗, params, params.nbins)
-            best = findmax(nodes[n].gains)
-            println("best: ", best)
-            if best[2][1] != params.nbins && best[1] > -Inf
-                tree.gain[n] = best[1]
-                tree.feat[n] = best[2][2]
-                tree.cond_bin[n] = best[2][1]
-                tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
-            end
-            tree.split[n] = tree.cond_bin[n] != 0
-            if !tree.split[n]
-                tree.pred[1, n] = pred_leaf_cpu(params.loss, nodes[n].∑, params)
+        for n ∈ n_current
+
+            # println("n: ", n)
+            if depth == params.max_depth
+                # tree.pred[1, n] = pred_leaf_cpu(params.loss, nodes[n].∑, params)
+                pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params)
             else
-                split_set!(left, right, 𝑖, X_bin, tree.feat, tree.cond_bin) # likely need to set a starting point so that remaining split_set withing depth don't override the view
-                node[n << 1].𝑖 = left
-                node[n << 1 + 1].𝑖 = right
-                push!(active_n, n << 1)
-                push!(active_n, n << 1 + 1)
+                # println("n_current: ", n, " | ", n_current)
+                # println("depth: ", depth)
+                # histogram subtraction
+                if n > 1 && n % 2 == 1
+                    nodes[n].h .= nodes[n >> 1].h .- nodes[n - 1].h
+                else
+                    update_hist!(params.loss, nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗)
+                end
+                update_gains!(params.loss, nodes[n], 𝑗, params)
+                best = findmax(nodes[n].gains)
+                # println("best: ", best)
+                # println("nodes[n].gain: ", nodes[n].gain)
+                if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.γ
+                    tree.gain[n] = best[1]
+                    tree.cond_bin[n] = best[2][1]
+                    tree.feat[n] = best[2][2]
+                    tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
+                end
+                tree.split[n] = tree.cond_bin[n] != 0
+                if !tree.split[n]
+                    # tree.pred[1, n] = pred_leaf_cpu(params.loss, nodes[n].∑, params)
+                    pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params)
+                    popfirst!(n_next)
+                    # println("n_next leaf post: ", n, " | ", n_next)
+                else
+                    _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n]) # likely need to set a starting point so that remaining split_set withing depth don't override the view
+                    nodes[n << 1].𝑖 = _left
+                    nodes[n << 1 + 1].𝑖 = _right
+
+                    # println("length(_left): ", length(_left))
+                    # println("length(_right): ", length(_right))
+                    # set ∑ stats for child nodes
+                    nodes[n << 1].∑ .= nodes[n].hL[best[2][2]][(3 * best[2][1] - 2):(3 * best[2][1])]
+                    nodes[n << 1 + 1].∑ .= nodes[n].hR[best[2][2]][(3 * best[2][1] - 2):(3 * best[2][1])]
+
+                    nodes[n << 1].gain = get_gain(params.loss, nodes[n << 1].∑, params.λ)
+                    nodes[n << 1 + 1].gain = get_gain(params.loss, nodes[n << 1 + 1].∑, params.λ)
+
+                    push!(n_next, n << 1)
+                    push!(n_next, n << 1 + 1)
+                    popfirst!(n_next)
+                    # println("n_next split post: ", n, " | ", n_next)
+                end
             end
-            popfirst!(active_n)
         end
+        n_current = copy(n_next)
         depth += 1
     end # end of loop over active ids for a given depth
     return nothing
