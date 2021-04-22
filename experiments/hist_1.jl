@@ -56,7 +56,7 @@ end
 ### 3 features in common hists
 hist_δ𝑤 = zeros(3, nbins, nvars)
 function iter_2(X_bin, hist_δ𝑤, δ, δ², 𝑤, 𝑖, 𝑗)
-    hist_δ𝑤 .= 0.0
+    # hist_δ𝑤 .= 0.0
     @inbounds @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
             hist_δ𝑤[1, X_bin[i,j], j] += δ[i]
@@ -74,7 +74,7 @@ hist_δ𝑤 = zeros(3, nbins, nvars)
 δ𝑤 = rand(3, n)
 
 function iter_3(X_bin, hist_δ𝑤, δ𝑤, 𝑖, 𝑗)
-    hist_δ𝑤 .= 0.0
+    # hist_δ𝑤 .= 0.0
     @inbounds @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
             hist_δ𝑤[1, X_bin[i,j], j] += δ𝑤[1,i]
@@ -126,6 +126,9 @@ function iter_5(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
     end
 end
 
+@time iter_5(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
+@btime iter_5($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖, $𝑗)
+
 # 𝑖2 = sample(𝑖, 900000, replace=false, ordered=true)
 # 𝑖3 = view(𝑖2, 100001:650000)
 using Random
@@ -137,6 +140,24 @@ using Random
 ### 3 features in common hists - vector of vec hists - gradients/weight in single vector - explicit loop
 hist_δ𝑤_vec = [zeros(3 * nbins) for j in 1:nvars]
 δ𝑤 = rand(3 * n)
+
+function iter_5B(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
+    # [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
+    @sync @inbounds for j in 𝑗
+        Threads.@spawn @inbounds @simd for i in 𝑖
+            # @inbounds if mask[i]
+                id = 3 * i - 2
+                hid = 3 * X_bin[i,j] - 2
+                hist_δ𝑤_vec[j][hid] += δ𝑤[id]
+                hist_δ𝑤_vec[j][hid + 1] += δ𝑤[id + 1]
+                hist_δ𝑤_vec[j][hid + 2] += δ𝑤[id + 2]
+            # end
+        end
+    end
+end
+
+@time iter_5B(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
+@btime iter_5B($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖, $𝑗)
 
 function iter_6(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗, K)
     # [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
