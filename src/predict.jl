@@ -46,6 +46,11 @@ end
 
 
 # prediction in Leaf - GradientRegression
+function pred_leaf_cpu(::S, ∑::Vector{T}, params::EvoTypes) where {S<:GradientRegression,T}
+    - params.η .* ∑[1] ./ (∑[2] .+ params.λ .* ∑[2])
+end
+
+# prediction in Leaf - GradientRegression
 function pred_leaf(::S, node::TrainNode{T}, params::EvoTypes, δ²) where {S<:GradientRegression,T}
     - params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤)
 end

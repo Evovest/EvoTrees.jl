@@ -6,10 +6,7 @@ function init_evotree(params::EvoTypes{T,U,S},
     levels = ""
     X = convert(Matrix{T}, X)
 
-    if typeof(params.loss) == Logistic
-        Y = T.(Y)
-        μ = [logit(mean(Y))]
-    elseif typeof(params.loss) == Poisson
+    if typeof(params.loss) == Poisson
         Y = T.(Y)
         μ = fill(log(mean(Y)), 1)
     elseif typeof(params.loss) == Softmax
@@ -36,16 +33,16 @@ function init_evotree(params::EvoTypes{T,U,S},
 
     # initialize preds
     X_size = size(X)
-    pred_cpu = zeros(T, X_size[1], K)
+    pred_cpu = zeros(T, K, X_size[1])
     @inbounds for i in eachindex(pred_cpu)
-        pred_cpu[i,:] .= μ
+        pred_cpu[:,i] .= μ
     end
 
     bias = Tree(μ)
     evotree = GBTree([bias], params, Metric(), K, levels)
 
     # initialize gradients and weights
-    δ𝑤 = ones(T, X_size[1] * (2 * K + 1))
+    δ𝑤 = ones(T, 2 * K + 1, X_size[1])
     
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
@@ -78,7 +75,6 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
 
     # initialize from cache
     params = evotree.params
-    nodes = cache.nodes
     X_size = size(cache.X_bin)
     δnrounds = params.nrounds - cache.params.nrounds
 
@@ -89,7 +85,7 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
         sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace=false, ordered=true)
         sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
 
-        # reset nodes - To Do: zeroise over all nodes and features
+        # reset nodes - To Do: zeroise hist/gains over all nodes and features
         # h .= 0
         # hL .= 0
         # hR .= 0
@@ -101,7 +97,7 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
         # gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # assign a root and grow tree
         tree = Tree(params.max_depth, evotree.K, zero(T))
-        grow_tree!(tree, nodes, params, cache.δ𝑤, cache.edges, cache.𝑗, cache.X_bin)
+        grow_tree!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, cache.𝑗, cache.X_bin)
         push!(evotree.trees, tree)
         predict!(cache.pred_cpu, tree, cache.X)
 
@@ -113,24 +109,27 @@ end
 # grow a single tree
 function grow_tree!(
     tree::Tree{T},
-    nodes::TrainNode{T},
+    nodes::Vector{TrainNode{T}},
     params::EvoTypes{T,U,S},
-    δ𝑤::Vector{T},
+    δ𝑤::Matrix{T},
     edges,
     𝑗,
     X_bin::AbstractMatrix) where {T,U,S}
 
     # reset
     # bval, bidx = [zero(T)], [(0,0)]
-    active_n = 1
+    active_n = [1]
+    depth = 1
 
+    nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims=2))
     # grow while there are remaining active nodes
-    for depth in 1:(params.max_depth - 1)
+    while length(active_n) > 0 && depth < params.max_depth
+    # for depth in 1:(params.max_depth - 1)
         for n ∈ active_n
             update_hist!(nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗)
             update_gains!(nodes[n], 𝑗, params, params.nbins)
-            best = findmax(view(gains, :, :, n))
-            # println("best: ", best)
+            best = findmax(nodes[n].gains)
+            println("best: ", best)
             if best[2][1] != params.nbins && best[1] > -Inf
                 tree.gain[n] = best[1]
                 tree.feat[n] = best[2][2]
@@ -139,13 +138,17 @@ function grow_tree!(
             end
             tree.split[n] = tree.cond_bin[n] != 0
             if !tree.split[n]
-                tree.pred[1, n] = pred_leaf_cpu(params, histL, 𝑗[1], n)
+                tree.pred[1, n] = pred_leaf_cpu(params.loss, nodes[n].∑, params)
             else
                 split_set!(left, right, 𝑖, X_bin, tree.feat, tree.cond_bin) # likely need to set a starting point so that remaining split_set withing depth don't override the view
                 node[n << 1].𝑖 = left
                 node[n << 1 + 1].𝑖 = right
+                push!(active_n, n << 1)
+                push!(active_n, n << 1 + 1)
             end
+            popfirst!(active_n)
         end
+        depth += 1
     end # end of loop over active ids for a given depth
     return nothing
 end

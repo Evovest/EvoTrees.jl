@@ -45,12 +45,18 @@ sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true)
 
 # build a new tree
 # 897.800 μs (6 allocations: 736 bytes)
-@time EvoTrees.update_grads!(params_c.loss, cache_c.δ, cache_c.pred_cpu, cache_c.Y_cpu)
+@time EvoTrees.update_grads!(params_c.loss, cache_c.δ𝑤, cache_c.pred_cpu, cache_c.Y_cpu)
+# @btime EvoTrees.update_grads!($params_c.loss, $cache_c.δ𝑤, $cache_c.pred_cpu, $cache_c.Y_cpu)
 # ∑ = vec(sum(cache_c.δ[𝑖,:], dims=1))
 # gain = EvoTrees.get_gain(params_c.loss, ∑, params_c.λ)
 # assign a root and grow tree
 # train_nodes[1] = EvoTrees.TrainNode(UInt32(0), UInt32(1), ∑, gain)
 # 69.247 ms (1852 allocations: 38.41 MiB)
+
+tree = EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ)))
+@time EvoTrees.grow_tree!(tree, cache_c.nodes, params_c, cache_c.δ𝑤, cache_c.edges, cache_c.𝑗, cache_c.X_bin)
+@btime EvoTrees.grow_tree!(EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ))), cache_c.nodes, params_c, cache_c.δ𝑤, cache_c.edges, cache_c.𝑗, cache_c.X_bin)
+
 @time EvoTrees.grow_tree!(EvoTrees.Tree(params_c.max_depth, model_c.K, params_c.λ), params_c, cache_c.δ, cache_c.hist, cache_c.histL, cache_c.histR, cache_c.gains, cache_c.edges, 𝑖, 𝑗, 𝑛, cache_c.X_bin);
 @btime EvoTrees.grow_tree!(EvoTrees.Tree($params_c.max_depth, $model_c.K, $params_c.λ), $params_c, $cache_c.δ, $cache_c.hist, $cache_c.histL, $cache_c.histR, $cache_c.gains, $cache_c.edges, $𝑖, $𝑗, $𝑛, $cache_c.X_bin);
 @code_warntype EvoTrees.grow_tree!(EvoTrees.Tree(params_c.max_depth, model_c.K, params_c.λ), params_c, cache_c.δ, cache_c.hist, cache_c.histL, cache_c.histR, cache_c.gains, cache_c.edges, 𝑖, 𝑗, 𝑛, cache_c.X_bin);
@@ -68,9 +74,9 @@ push!(model_c.trees, tree)
 j = 1
 # 601.685 ns (6 allocations: 192 bytes) * 100 feat ~ 60us
 nid = 1:1
-EvoTrees.update_gains!(gains, hist, histL, histR, 𝑗, params_c, nid)
-@btime EvoTrees.update_gains!($gains, $hist, $histL, $histR, $𝑗, $params_c, $nid)
-@code_warntype EvoTrees.update_gains!(gains, hist, histL, histR, 𝑗, params_c, nid)
+EvoTrees.update_gains!(gains, hist, histL, histR, 𝑗, params_c)
+@btime EvoTrees.update_gains!($gains, $hist, $histL, $histR, $𝑗, $params_c)
+@code_warntype EvoTrees.update_gains!(gains, hist, histL, histR, 𝑗, params_c)
 
 @time EvoTrees.update_set!(𝑛, 𝑖, X_bin, nodes[:feats], nodes[:cond_bins], params_c.nbins)
 
