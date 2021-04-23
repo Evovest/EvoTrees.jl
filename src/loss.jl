@@ -127,7 +127,6 @@ end
 #     gain = sum((∑δ.^2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
 # return gain
 # end
-
 # MultiClassRegression
 function get_gain(::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: MultiClassRegression,T <: AbstractFloat,L}
     gain = sum((∑δ.^2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
@@ -151,3 +150,15 @@ end
 #     gain = sum((∑δ.^2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
 #     return gain
 # end
+
+function update_childs_∑!(::L, nodes, n, bin, feat) where {L <: GradientRegression}
+    nodes[n << 1].∑ .= nodes[n].hL[feat][(3 * bin - 2):(3 * bin)]
+    nodes[n << 1 + 1].∑ .= nodes[n].hR[feat][(3 * bin - 2):(3 * bin)]
+    return nothing
+end
+
+function update_childs_∑!(::L, nodes, n, bin, feat) where {L <: GaussianRegression}
+    nodes[n << 1].∑ .= nodes[n].hL[feat][(5 * bin - 4):(5 * bin)]
+    nodes[n << 1 + 1].∑ .= nodes[n].hR[feat][(5 * bin - 4):(5 * bin)]
+    return nothing
+end

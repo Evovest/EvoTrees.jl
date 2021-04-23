@@ -34,7 +34,7 @@ function init_evotree(params::EvoTypes{T,U,S},
     # initialize preds
     X_size = size(X)
     pred_cpu = zeros(T, K, X_size[1])
-    @inbounds for i in eachindex(pred_cpu)
+    @inbounds for i in 1:X_size[1]
         pred_cpu[:,i] .= μ
     end
 
@@ -96,7 +96,7 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
         tree = Tree(params.max_depth, evotree.K, zero(T))
         grow_tree!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, cache.𝑗, cache.left, cache.right, cache.X_bin)
         push!(evotree.trees, tree)
-        predict!(cache.pred_cpu, tree, cache.X)
+        predict!(params.loss, cache.pred_cpu, tree, cache.X)
 
     end # end of nrounds
     cache.params.nrounds = params.nrounds
@@ -136,10 +136,10 @@ function grow_tree!(
     while length(n_current) > 0 && depth <= params.max_depth
     # for depth in 1:(params.max_depth - 1)
         for n ∈ n_current
-
             # println("n: ", n)
             if depth == params.max_depth
                 # tree.pred[1, n] = pred_leaf_cpu(params.loss, nodes[n].∑, params)
+                # println("n leaf pred max depth: ", n,)
                 pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params)
             else
                 # println("n_current: ", n, " | ", n_current)
@@ -153,7 +153,7 @@ function grow_tree!(
                 update_gains!(params.loss, nodes[n], 𝑗, params)
                 best = findmax(nodes[n].gains)
                 # println("best: ", best)
-                # println("nodes[n].gain: ", nodes[n].gain)
+                # println("n nodes[n].gain: ", n, " | ", nodes[n].gain)
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.γ
                     tree.gain[n] = best[1]
                     tree.cond_bin[n] = best[2][1]
@@ -165,7 +165,7 @@ function grow_tree!(
                     # tree.pred[1, n] = pred_leaf_cpu(params.loss, nodes[n].∑, params)
                     pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params)
                     popfirst!(n_next)
-                    # println("n_next leaf post: ", n, " | ", n_next)
+                    # println("n_next pred leaf: ", n, " | ", n_next)
                 else
                     _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n]) # likely need to set a starting point so that remaining split_set withing depth don't override the view
                     nodes[n << 1].𝑖 = _left
@@ -174,8 +174,9 @@ function grow_tree!(
                     # println("length(_left): ", length(_left))
                     # println("length(_right): ", length(_right))
                     # set ∑ stats for child nodes
-                    nodes[n << 1].∑ .= nodes[n].hL[best[2][2]][(3 * best[2][1] - 2):(3 * best[2][1])]
-                    nodes[n << 1 + 1].∑ .= nodes[n].hR[best[2][2]][(3 * best[2][1] - 2):(3 * best[2][1])]
+                    update_childs_∑!(params.loss, nodes, n, best[2][1], best[2][2])
+                    # nodes[n << 1].∑ .= nodes[n].hL[best[2][2]][(3 * best[2][1] - 2):(3 * best[2][1])]
+                    # nodes[n << 1 + 1].∑ .= nodes[n].hR[best[2][2]][(3 * best[2][1] - 2):(3 * best[2][1])]
 
                     nodes[n << 1].gain = get_gain(params.loss, nodes[n << 1].∑, params.λ)
                     nodes[n << 1 + 1].gain = get_gain(params.loss, nodes[n << 1 + 1].∑, params.λ)
@@ -218,7 +219,7 @@ function fit_evotree(params, X_train, Y_train;
 
     iter = 1
     if params.metric != :none && X_eval !== nothing
-        pred_eval = predict(model.trees[1], X_eval, model.K)
+        pred_eval = predict(params.loss, model.trees[1], X_eval, model.K)
         Y_eval = convert.(eltype(cache.Y_cpu), Y_eval)
     end
 
@@ -228,7 +229,8 @@ function fit_evotree(params, X_train, Y_train;
         # callback function
         if params.metric != :none
             if X_eval !== nothing
-                predict!(pred_eval, model.trees[model.params.nrounds + 1], X_eval)
+                predict!(params.loss, pred_eval, model.trees[model.params.nrounds + 1], X_eval)
+                # println("typeof(pred_eval): ", typeof(pred_eval), " | ", size(pred_eval))
                 metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, params.α)
             else
                 metric_track.metric = eval_metric(Val{params.metric}(), cache.pred_cpu, cache.Y_cpu, params.α)

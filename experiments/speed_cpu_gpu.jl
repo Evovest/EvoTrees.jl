@@ -31,6 +31,13 @@ params_c = EvoTreeRegressor(T=Float32,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=0.5, nbins=64);
 
+params_c = EvoTreeGaussian(T=Float32,
+    loss=:gaussian, metric=:none,
+    nrounds=100,
+    λ=1.0, γ=0.1, η=0.1,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=0.5, nbins=64);
+
 model_c, cache_c = EvoTrees.init_evotree(params_c, X_train, Y_train);
 
 # initialize from cache
@@ -63,7 +70,7 @@ tree = EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ)))
 
 # push!(model_c.trees, tree)
 # 1.883 ms (83 allocations: 13.77 KiB)
-@btime EvoTrees.predict!(cache_c.pred_cpu, tree, cache_c.X)
+@btime EvoTrees.predict!(model_c.params.loss, cache_c.pred_cpu, tree, cache_c.X)
 
 δ𝑤, K, edges, X_bin, nodes, left, right = cache_c.δ𝑤, cache_c.K, cache_c.edges, cache_c.X_bin, cache_c.nodes, cache_c.left, cache_c.right;
 
