@@ -29,7 +29,7 @@ MLJModelInterface.selectrows(::EvoTypes, I, A, y) = ((matrix = view(A.matrix, I,
 MLJModelInterface.selectrows(::EvoTypes, I, A) = ((matrix = view(A.matrix, I, :), names = A.names),)
 
 # For EarlyStopping.jl support
-MLJModelInterface.iteration_parameter(::EvoTypes) = :nrounds
+MLJModelInterface.iteration_parameter(::Type{<:EvoTypes}) = :nrounds
 
 function MLJModelInterface.update(model::EvoTypes, verbosity::Integer, fitresult, cache, A, y)
 

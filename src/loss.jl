@@ -16,7 +16,7 @@ end
 
 # linear
 function update_grads!(::Linear, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}) where {T <: AbstractFloat}
-    @inbounds @simd for i in 1:size(δ𝑤, 2)
+    @inbounds for i in 1:size(δ𝑤, 2)
         δ𝑤[1,i] = 2 * (p[1,i] - y[i]) * δ𝑤[3,i]
         δ𝑤[2,i] = 2 * δ𝑤[3,i]
     end
@@ -24,17 +24,17 @@ end
 
 # logistic - on linear predictor
 function update_grads!(::Logistic, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}) where {T <: AbstractFloat}
-    @inbounds @simd for i in 1:size(δ𝑤, 2)
+    @inbounds for i in 1:size(δ𝑤, 2)
         δ𝑤[1,i] = (p[1,i] * (1 - y[i]) - (1 - p[1,i]) * y[i]) * δ𝑤[3,i]
         δ𝑤[2,i] = p[1,i] * (1 - p[1,i]) * δ𝑤[3,i]
     end
 end
 
 # Poisson
-function update_grads!(::Poisson, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{T}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat,L}
+function update_grads!(::Poisson, α::T, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}) where {T <: AbstractFloat,L}
     @inbounds for i in eachindex(δ)
-        δ[i] = (exp(pred[i][1]) .- target[i]) * 𝑤[i]
-        δ²[i] = exp(pred[i][1]) * 𝑤[i]
+        δ𝑤[1,i] = (exp(p[1, i]) .- y[i]) * δ𝑤[3,i]
+        δ𝑤[2,i] = exp(p[1, i]) * δ𝑤[3,i]
     end
 end
 
@@ -46,14 +46,20 @@ end
 # end
 
 # Softmax
-function update_grads!(::Softmax, α::T, pred::Vector{SVector{L,T}}, target::AbstractVector{S}, δ::Vector{SVector{L,T}}, δ²::Vector{SVector{L,T}}, 𝑤::Vector{SVector{1,T}}) where {T <: AbstractFloat,L,S <: Integer}
-    # pred = pred - maximum.(pred)
-    # sums = sum(exp.(pred), dims=2)
-    @inbounds for i in 1:size(pred, 1)
-        pred[i] = SVector{L,T}(pred[i] .- maximum(pred[i]))
-        sums = sum(exp.(pred[i]))
-        δ[i] = SVector{L,T}((exp.(pred[i]) / sums - (onehot(target[i], 1:L))) .* 𝑤[i][1])
-        δ²[i] = SVector{L,T}(1 / sums .* (1 .- exp.(pred[i]) / sums) .* 𝑤[i][1])
+function update_grads!(::Softmax, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{S}) where {T <: AbstractFloat,S}
+    p .= p .- maximum(p, dims=1)
+    sums = sum(exp.(p), dims=1)
+    K = (size(δ𝑤, 1) - 1) ÷ 2
+    for i in 1:size(δ𝑤, 2)
+        for k in 1:K
+            # δ𝑤[k, i] = (exp(p[k, i]) / sums[i] - (onehot(y[i], 1:K))) * δ𝑤[2 * K + 1, i]
+            if k == y[i]
+                δ𝑤[k, i] = (exp(p[k, i]) / sums[i] - 1) * δ𝑤[2 * K + 1, i]
+            else
+                δ𝑤[k, i] = (exp(p[k, i]) / sums[i]) * δ𝑤[2 * K + 1, i]
+            end
+            δ𝑤[k + K, i] = 1 / sums[i] * (1 - exp(p[k, i]) / sums[i]) * δ𝑤[2 * K + 1, i]
+        end
     end
 end
 
@@ -113,25 +119,29 @@ end
 # get the gain metric
 ##############################
 # GradientRegression
-function get_gain(::S, ∑::Vector{T}, λ::T) where {S <: GradientRegression,T <: AbstractFloat}
+function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S <: GradientRegression,T <: AbstractFloat}
     ∑[1]^2 / (∑[2] + λ * ∑[3]) / 2
 end
 
 # GaussianRegression
-function get_gain(::S, ∑::Vector{T}, λ::T) where {S <: GaussianRegression,T <: AbstractFloat}
+function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S <: GaussianRegression,T <: AbstractFloat}
     (∑[1]^2 / (∑[3] + λ * ∑[5]) + ∑[2]^2 / (∑[4] + λ * ∑[5])) / 2
 end
 
-# GradientRegression
-# function get_gain(loss::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: GradientRegression,T <: AbstractFloat,L}
-#     gain = sum((∑δ.^2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
-# return gain
-# end
 # MultiClassRegression
-function get_gain(::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: MultiClassRegression,T <: AbstractFloat,L}
-    gain = sum((∑δ.^2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
+function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S <: MultiClassRegression,T <: AbstractFloat,L}
+    gain = zero(T)
+    @inbounds for k in 1:K
+        gain += ∑[k]^2 / (∑[k + K] + λ * ∑[2 * K + 1]) / 2
+    end
     return gain
 end
+
+# MultiClassRegression
+# function get_gain(::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: MultiClassRegression,T <: AbstractFloat,L}
+#     gain = sum((∑δ.^2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
+#     return gain
+# end
 
 # L1 Regression
 function get_gain(::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: L1Regression,T <: AbstractFloat,L}
@@ -145,20 +155,21 @@ function get_gain(::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVec
     return gain
 end
 
-# GaussianRegression
-# function get_gain(::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: GaussianRegression,T <: AbstractFloat,L}
-#     gain = sum((∑δ.^2 ./ (∑δ² .+ λ .* ∑𝑤)) ./ 2)
-#     return gain
-# end
-
-function update_childs_∑!(::L, nodes, n, bin, feat) where {L <: GradientRegression}
+function update_childs_∑!(::L, nodes, n, bin, feat, K) where {L <: GradientRegression}
     nodes[n << 1].∑ .= nodes[n].hL[feat][(3 * bin - 2):(3 * bin)]
     nodes[n << 1 + 1].∑ .= nodes[n].hR[feat][(3 * bin - 2):(3 * bin)]
     return nothing
 end
 
-function update_childs_∑!(::L, nodes, n, bin, feat) where {L <: GaussianRegression}
+function update_childs_∑!(::L, nodes, n, bin, feat, K) where {L <: GaussianRegression}
     nodes[n << 1].∑ .= nodes[n].hL[feat][(5 * bin - 4):(5 * bin)]
     nodes[n << 1 + 1].∑ .= nodes[n].hR[feat][(5 * bin - 4):(5 * bin)]
+    return nothing
+end
+
+function update_childs_∑!(::L, nodes, n, bin, feat, K) where {L <: MultiClassRegression}
+    KK = 2 * K + 1
+    nodes[n << 1].∑ .= nodes[n].hL[feat][(KK * (bin - 1) + 1):(KK * bin)]
+    nodes[n << 1 + 1].∑ .= nodes[n].hR[feat][(KK * (bin - 1) + 1):(KK * bin)]
     return nothing
 end

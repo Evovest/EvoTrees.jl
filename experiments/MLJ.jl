@@ -4,7 +4,6 @@ using StatsBase: sample, mean, quantile
 using Statistics
 using CategoricalArrays
 using Distributions
-using Revise
 using EvoTrees
 using EvoTrees: logit, sigmoid
 # import EvoTrees: EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian
@@ -60,10 +59,15 @@ println(mean(abs.(pred_test - selectrows(Y, test))))
 # X_matrix = MLJBase.matrix(X)
 
 X, y = @load_crabs
-# X = matrix(X)
+X_matrix = matrix(X)
 
 # define hyperparameters
-tree_model = EvoTreeClassifier(max_depth=4, η=0.05, λ=0.0, γ=0.0, nrounds=10)
+tree_model = EvoTreeClassifier(max_depth=4, η=0.05, λ=0.0, γ=0.0, nbins=32, nrounds=20, metric=:none)
+model = fit_evotree(tree_model, X_matrix, y);
+pred = predict(model, X_matrix)
+pred_cat = pred .> 0.5
+sum((y .== "B") .== pred_cat[:,1]) / length(y)
+println(sum(pred_train_mode .== y[train]))
 
 # @load EvoTreeRegressor
 tree = machine(tree_model, X, y)

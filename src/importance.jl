@@ -1,8 +1,16 @@
 # importance from single tree
+# function importance!(gain::AbstractVector, tree::Tree)
+#     @inbounds for node in tree.nodes
+#         if node.split
+#             gain[node.feat] += node.gain
+#         end
+#     end
+# end
+
 function importance!(gain::AbstractVector, tree::Tree)
-    @inbounds for node in tree.nodes
-        if node.split
-            gain[node.feat] += node.gain
+    @inbounds for n in eachindex(tree.split)
+        if tree.split[n]
+            gain[tree.feat[n]] += tree.gain[n]
         end
     end
 end
