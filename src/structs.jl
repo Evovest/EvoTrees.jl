@@ -1,21 +1,6 @@
-# define an abstrat tree node type - concrete types are TreeSplit and TreeLeaf
-abstract type Node{T<:AbstractFloat} end
-
-
-# struct TreeNode{T<:AbstractFloat, S<:Integer, B<:Bool}
-#     left::S
-#     right::S
-#     feat::S
-#     cond::T
-#     gain::T
-#     pred::Vector{T}
-#     split::B
-# end
-
-# TreeNode(left::S, right::S, feat::S, cond::T, gain::T, L::S) where {T<:AbstractFloat, S<:Integer} = TreeNode{L,T,S,Bool}(left, right, feat, cond, gain, zeros(T, L), true)
-# TreeNode(pred::Vector{T}) where {T} = TreeNode(0, 0, 0, zero(T), zero(T), pred, false)
-
-# single tree is made of a root node that containes nested nodes and leafs
+"""
+    Carries training information for a given tree node
+"""
 mutable struct TrainNode{T<:AbstractFloat}
     gain::T
     𝑖::Union{Nothing, AbstractVector{UInt32}}

@@ -17,7 +17,7 @@
 #     end
 # end
 
-function predict_kernel!(pred::AbstractMatrix{T}, split, feat, cond_bin, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix) where {T}
+function predict_kernel!(pred::AbstractMatrix{T}, split, feat, cond_feat, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix) where {T}
     idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if idx <= size(pred, 1)

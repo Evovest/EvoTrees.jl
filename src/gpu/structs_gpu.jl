@@ -1,12 +1,28 @@
 """
     Carries training information for a given tree node
 """
-struct TrainNodeGPU{T<:AbstractFloat, S, V<:AbstractVector}
-    parent::S
-    depth::S
-    ∑::V
+mutable struct TrainNodeGPU{T<:AbstractFloat}
     gain::T
+    𝑖::Union{Nothing, AbstractVector{UInt32}}
+    ∑::Vector{T}
+    h::Matrix{T}
+    hL::Matrix{T}
+    hR::Matrix{T}
+    gains::Matrix{T}
 end
+
+function TrainNodeGPU(nvars, nbins, K, T)
+    node = TrainNode{T}(
+            zero(T),
+            nothing,
+            CUDA.zeros(T, 2*K+1), 
+            CUDA.zeros(T, (2*K+1) * nbins, nvars), 
+            CUDA.zeros(T, (2*K+1) * nbins, nvars), 
+            CUDA.zeros(T, (2*K+1) * nbins, nvars), 
+            CUDA.zeros(T, nbins, nvars))
+    return node
+end
+
 
 struct TreeNodeGPU{T<:AbstractFloat, S, B<:Bool}
     left::S
