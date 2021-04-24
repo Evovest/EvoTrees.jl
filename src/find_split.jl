@@ -27,7 +27,7 @@ end
     split_set!
         Split row ids into left and right based on best split condition
 """
-function split_set!(left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S, offset = 0) where S
+function split_set!(left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S, offset=0) where S
     
     left_count = 0
     right_count = 0
@@ -245,6 +245,10 @@ function update_gains!(
 end
 
 
+"""
+    hist_gains_cpu!
+        GradientRegression
+"""
 function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, K) where {L <: GradientRegression,T}
     @inbounds for bin in 1:nbins
         i = 3 * bin - 2
@@ -254,6 +258,23 @@ function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vecto
         elseif hL[i + 2] > 1e-5 && hR[i + 2] > 1e-5
             @inbounds gains[bin] = (hL[i]^2 / (hL[i + 1] + λ * hL[i + 2]) + 
                 hR[i]^2 / (hR[i + 1] + λ * hR[i + 2])) / 2
+        end
+    end
+    return nothing
+end
+
+"""
+    hist_gains_cpu!
+        QuantileRegression
+"""
+function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, K) where {L <: Union{QuantileRegression,L1Regression},T}
+    @inbounds for bin in 1:nbins
+        i = 3 * bin - 2
+        # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
+        if bin == nbins
+            @inbounds gains[bin] = abs(hL[i]) 
+        elseif hL[i + 2] > 1e-5 && hR[i + 2] > 1e-5
+            @inbounds gains[bin] = abs(hL[i]) + abs(hR[i])
         end
     end
     return nothing

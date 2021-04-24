@@ -69,30 +69,31 @@ end
 #     - params.η .* ∑[1] ./ (∑[2] .+ params.λ .* ∑[3])
 # end
 
-function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K) where {S <: GradientRegression,T}
+function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S <: GradientRegression,T}
     pred[1,n] = - params.η * ∑[1] / (∑[2] + params.λ * ∑[3])
 end
 
 # prediction in Leaf - GaussianRegression
-function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K) where {S <: GaussianRegression,T}
+function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S <: GaussianRegression,T}
     pred[1,n] = - params.η * ∑[1] / (∑[3] + params.λ * ∑[5])
     pred[2,n] = - params.η * ∑[2] / (∑[4] + params.λ * ∑[5])
 end
 
 # prediction in Leaf - MultiClassRegression
-function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K) where {S <: MultiClassRegression,T}
+function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S <: MultiClassRegression,T}
     @inbounds for k in 1:K
         pred[k,n] = - params.η * ∑[k] / (∑[k + K] + params.λ * ∑[2 * K + 1])
     end
 end
 
 # prediction in Leaf - QuantileRegression
-function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K) where {S <: QuantileRegression,T}
-    pred[1,n]  = params.η * quantile(view(δ𝑤, 2, 𝑖), params.α) / (1 + params.λ)
+function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S <: QuantileRegression,T}
+    pred[1,n] = params.η * quantile(δ𝑤[2, 𝑖], params.α) / (1 + params.λ)
+    # pred[1,n] = params.η * quantile(view(δ𝑤, 2, 𝑖), params.α) / (1 + params.λ)
 end
 
 # prediction in Leaf - L1Regression
-function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K) where {S <: L1Regression,T}
+function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S <: L1Regression,T}
     pred[1,n] = params.η * ∑[1] / (∑[3] * (1 + params.λ))
 end
 

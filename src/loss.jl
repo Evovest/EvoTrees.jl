@@ -1,18 +1,18 @@
-# utility for softmax
-struct OneHotVector <: AbstractVector{Bool}
-    ix::UInt32
-    of::UInt32
-end
+# # utility for softmax
+# struct OneHotVector <: AbstractVector{Bool}
+#     ix::UInt32
+#     of::UInt32
+# end
 
-Base.size(xs::OneHotVector) = (Int64(xs.of),)
-Base.getindex(xs::OneHotVector, i::Integer) = i == xs.ix
-Base.getindex(xs::OneHotVector, ::Colon) = OneHotVector(xs.ix, xs.of)
+# Base.size(xs::OneHotVector) = (Int64(xs.of),)
+# Base.getindex(xs::OneHotVector, i::Integer) = i == xs.ix
+# Base.getindex(xs::OneHotVector, ::Colon) = OneHotVector(xs.ix, xs.of)
 
-function onehot(l, labels)
-    i = something(findfirst(isequal(l), labels), 0)
-    i > 0 || error("Value $l is not in labels")
-    OneHotVector(i, length(labels))
-end
+# function onehot(l, labels)
+#     i = something(findfirst(isequal(l), labels), 0)
+#     i > 0 || error("Value $l is not in labels")
+#     OneHotVector(i, length(labels))
+# end
 
 # linear
 function update_grads!(::Linear, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, α::T) where {T <: AbstractFloat}
@@ -40,8 +40,8 @@ end
 
 # L1
 function update_grads!(::L1, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, α::T) where {T <: AbstractFloat}
-    @inbounds for i in eachindex(δ)
-        δ𝑤[1, i] =  (α * max(y[i] - p[1,i], 0) - (1 - α) * max(p[1,i] - y[i], 0)) * δ𝑤[3, i]
+    @inbounds for i in eachindex(y)
+        δ𝑤[1, i] = (α * max(y[i] - p[1,i], 0) - (1 - α) * max(p[1,i] - y[i], 0)) * δ𝑤[3, i]
     end
 end
 
@@ -127,7 +127,7 @@ function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S <: GaussianRegression,
 end
 
 # MultiClassRegression
-function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S <: MultiClassRegression,T <: AbstractFloat,L}
+function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S <: MultiClassRegression,T <: AbstractFloat}
     gain = zero(T)
     @inbounds for k in 1:K
         gain += ∑[k]^2 / (∑[k + K] + λ * ∑[2 * K + 1]) / 2
@@ -136,13 +136,13 @@ function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S <: MultiClassRegressio
 end
 
 # QuantileRegression
-function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S <: QuantileRegression,T <: AbstractFloat,L}
-    abs(∑[1]) / (1 + λ)
+function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S <: QuantileRegression,T <: AbstractFloat}
+    abs(∑[1])
 end
 
 # L1 Regression
-function get_gain(::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: L1Regression,T <: AbstractFloat,L}
-    abs(∑[1]) / (1 + λ)
+function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S <: L1Regression,T <: AbstractFloat}
+    abs(∑[1])
 end
 
 # QuantileRegression
@@ -151,7 +151,7 @@ end
 #     return gain
 # end
 
-function update_childs_∑!(::L, nodes, n, bin, feat, K) where {L <: Union{GradientRegression,QuantileRegression}}
+function update_childs_∑!(::L, nodes, n, bin, feat, K) where {L <: Union{GradientRegression,QuantileRegression,L1Regression}}
     nodes[n << 1].∑ .= nodes[n].hL[feat][(3 * bin - 2):(3 * bin)]
     nodes[n << 1 + 1].∑ .= nodes[n].hR[feat][(3 * bin - 2):(3 * bin)]
     return nothing

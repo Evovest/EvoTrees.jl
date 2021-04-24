@@ -135,6 +135,24 @@ end
 @btime iter_4($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖, $𝑗)
 
 
+### 3 features in common hists - vector of matrix hists - gradients/weight in single matrix
+hist_δ𝑤_vec = [zeros(3, nbins) for j in 1:nvars]
+δ𝑤 = rand(n,3)
+
+function iter_4B(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
+    # [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
+    @inbounds @threads for j in 𝑗
+        @inbounds @simd for i in 𝑖
+            hist_δ𝑤_vec[j][1, X_bin[i,j]] += δ𝑤[i,1]
+            hist_δ𝑤_vec[j][2, X_bin[i,j]] += δ𝑤[i,2]
+            hist_δ𝑤_vec[j][3, X_bin[i,j]] += δ𝑤[i,3]
+        end
+    end
+end
+
+@time iter_4B(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗);
+@btime iter_4B($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖, $𝑗);
+
 ### 3 features in common hists - vector of vec hists - gradients/weight in single vector
 hist_δ𝑤_vec = [zeros(3 * nbins) for j in 1:nvars]
 δ𝑤 = rand(3 * n)
@@ -172,7 +190,6 @@ hist_δ𝑤_vec = [zeros(3 * nbins) for j in 1:nvars]
 function iter_5B(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
     @inbounds @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
-            id = 3 * i - 2
             hid = 3 * X_bin[i,j] - 2
             hist_δ𝑤_vec[j][hid] += δ𝑤[1, i]
             hist_δ𝑤_vec[j][hid + 1] += δ𝑤[2, i]
@@ -191,7 +208,6 @@ hist_δ𝑤_vec = [zeros(3 * nbins) for j in 1:nvars]
 function iter_5C(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
     @inbounds @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
-            id = 3 * i - 2
             hid = 3 * X_bin[i,j] - 2
             hist_δ𝑤_vec[j][hid] += δ𝑤[i,1]
             hist_δ𝑤_vec[j][hid + 1] += δ𝑤[i,2]
@@ -242,3 +258,30 @@ end
 
 @time iter_7(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗, 𝑛)
 @btime iter_7($X_bin, $hist_δ𝑤_vec, $δ𝑤, $𝑖, $𝑗, $𝑛)
+
+
+
+using StatsBase:sample
+using BenchmarkTools
+
+n_obs = Int(1e6)
+n_vars = 100
+n_bins = 64
+K = 3
+𝑖 = collect(1:n_obs)
+δ = rand(K, n_obs)
+hist = zeros(K, n_bins, n_vars);
+X_bin = sample(UInt8.(1:n_bins), n_obs * n_vars);
+X_bin = reshape(X_bin, n_obs, n_vars);
+𝑖_sample = sample(𝑖, Int(n_obs / 2), ordered=true)
+
+function iter_1(X_bin, hist, δ, 𝑖)
+    hist .= 0.0
+    @inbounds @simd for i in 𝑖
+        @inbounds for k in 1:3
+            hist[k, X_bin[i,1], 1] += δ[k, i]
+        end
+    end
+end
+
+@btime iter_1($X_bin, $hist, $δ, $𝑖_sample)

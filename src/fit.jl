@@ -141,7 +141,7 @@ function grow_tree!(
             if depth == params.max_depth
                 # tree.pred[1, n] = pred_leaf_cpu(params.loss, nodes[n].∑, params)
                 # println("n leaf pred max depth: ", n,)
-                pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params, K)
+                pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params, K, δ𝑤, nodes[n].𝑖)
             else
                 # histogram subtraction
                 if n > 1 && n % 2 == 1
@@ -161,7 +161,7 @@ function grow_tree!(
                 end
                 tree.split[n] = tree.cond_bin[n] != 0
                 if !tree.split[n]
-                    pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params, K)
+                    pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params, K, δ𝑤, nodes[n].𝑖)
                     popfirst!(n_next)
                     # println("n_next pred leaf: ", n, " | ", n_next)
                 else
