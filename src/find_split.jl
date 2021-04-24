@@ -27,43 +27,43 @@ end
     split_set!
         Split row ids into left and right based on best split condition
 """
-function split_set!(left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S, offset=0) where S
+# function split_set!(left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S, offset=0) where S
     
-    left_count = 0
-    right_count = 0
+#     left_count = 0
+#     right_count = 0
 
-    @inbounds for i in 1:length(𝑖)
-        id = 𝑖[i]
-        @inbounds if X_bin[id, feat] <= cond_bin
-            left_count += 1
-            left[offset + left_count] = id
-        else
-            right_count += 1
-            right[offset + right_count] = id
-        end
-    end
-    return (left[1:left_count], right[1:right_count])
-end
+#     @inbounds for i in 1:length(𝑖)
+#         id = 𝑖[i]
+#         @inbounds if X_bin[id, feat] <= cond_bin
+#             left_count += 1
+#             left[offset + left_count] = id
+#         else
+#             right_count += 1
+#             right[offset + right_count] = id
+#         end
+#     end
+#     return (left[1:left_count], right[1:right_count])
+# end
 
 """
     Non Allocating split_set!
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
         Not working with if rowsample < 0 or depth > 3
 """
-# function split_set!(left::V, right::V, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S, offset) where {S,V}    
-#     left_count = 0 
-#     right_count = 0
-#     @inbounds for i in 1:length(𝑖)
-#         @inbounds if X_bin[i, feat] <= cond_bin
-#             left_count += 1
-#             left[offset + left_count] = 𝑖[i]
-#         else
-#             right[offset + length(𝑖) - right_count] = 𝑖[i]
-#             right_count += 1
-#         end
-#     end
-#     return (view(left, (offset + 1):(offset + left_count)), view(right, (offset + length(𝑖)):-1:(offset + left_count + 1)))
-# end
+function split_set!(left::V, right::V, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S, offset) where {S,V}    
+    left_count = 0 
+    right_count = 0
+    @inbounds for i in 1:length(𝑖)
+        @inbounds if X_bin[𝑖[i], feat] <= cond_bin
+            left_count += 1
+            left[offset + left_count] = 𝑖[i]
+        else
+            right[offset + length(𝑖) - right_count] = 𝑖[i]
+            right_count += 1
+        end
+    end
+    return (view(left, (offset + 1):(offset + left_count)), view(right, (offset + length(𝑖)):-1:(offset + left_count + 1)))
+end
 
 """
     update_hist!

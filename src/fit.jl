@@ -166,8 +166,9 @@ function grow_tree!(
                     # println("n_next pred leaf: ", n, " | ", n_next)
                 else
                     # println("typeof(nodes[n].𝑖): ", typeof(nodes[n].𝑖))
-                    nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n])
-                    # offset += length(nodes[n].𝑖)
+                    # nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n])
+                    nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
+                    offset += length(nodes[n].𝑖)
                     # println("length(_left): ", length(_left))
                     # println("length(_right): ", length(_right))
                     # set ∑ stats for child nodes
