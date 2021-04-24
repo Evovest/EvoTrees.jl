@@ -89,7 +89,7 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
         sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
 
         # build a new tree
-        update_grads!(params.loss, cache.δ𝑤, cache.pred_cpu, cache.Y_cpu)
+        update_grads!(params.loss, cache.δ𝑤, cache.pred_cpu, cache.Y_cpu, params.α)
         # ∑δ, ∑δ², ∑𝑤 = sum(cache.δ[𝑖]), sum(cache.δ²[𝑖]), sum(cache.𝑤[𝑖])
         # gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # assign a root and grow tree
@@ -135,6 +135,7 @@ function grow_tree!(
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
     # for depth in 1:(params.max_depth - 1)
+        offset = 0 # identifies breakpoint for each node set within a depth
         for n ∈ n_current
             # println("n: ", n)
             if depth == params.max_depth
@@ -142,8 +143,6 @@ function grow_tree!(
                 # println("n leaf pred max depth: ", n,)
                 pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params, K)
             else
-                # println("n_current: ", n, " | ", n_current)
-                # println("depth: ", depth)
                 # histogram subtraction
                 if n > 1 && n % 2 == 1
                     nodes[n].h .= nodes[n >> 1].h .- nodes[n - 1].h
@@ -162,15 +161,13 @@ function grow_tree!(
                 end
                 tree.split[n] = tree.cond_bin[n] != 0
                 if !tree.split[n]
-                    # tree.pred[1, n] = pred_leaf_cpu(params.loss, nodes[n].∑, params)
                     pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params, K)
                     popfirst!(n_next)
                     # println("n_next pred leaf: ", n, " | ", n_next)
                 else
-                    _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n]) # likely need to set a starting point so that remaining split_set withing depth don't override the view
-                    nodes[n << 1].𝑖 = _left
-                    nodes[n << 1 + 1].𝑖 = _right
-
+                    # println("typeof(nodes[n].𝑖): ", typeof(nodes[n].𝑖))
+                    nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n])
+                    # offset += length(nodes[n].𝑖)
                     # println("length(_left): ", length(_left))
                     # println("length(_right): ", length(_right))
                     # set ∑ stats for child nodes

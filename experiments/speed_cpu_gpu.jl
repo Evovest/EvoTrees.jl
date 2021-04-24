@@ -31,12 +31,12 @@ params_c = EvoTreeRegressor(T=Float32,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=0.5, nbins=64);
 
-params_c = EvoTreeGaussian(T=Float32,
-    loss=:gaussian, metric=:none,
-    nrounds=100,
-    λ=1.0, γ=0.1, η=0.1,
-    max_depth=6, min_weight=1.0,
-    rowsample=0.5, colsample=0.5, nbins=64);
+# params_c = EvoTreeGaussian(T=Float32,
+#     loss=:gaussian, metric=:none,
+#     nrounds=100,
+#     λ=1.0, γ=0.1, η=0.1,
+#     max_depth=6, min_weight=1.0,
+#     rowsample=0.5, colsample=0.5, nbins=64);
 
 model_c, cache_c = EvoTrees.init_evotree(params_c, X_train, Y_train);
 
@@ -61,8 +61,8 @@ sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true)
 
 # 62.530 ms (7229 allocations: 17.43 MiB)
 tree = EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ)))
-@time EvoTrees.grow_tree!(tree, cache_c.nodes, params_c, cache_c.δ𝑤, cache_c.edges, cache_c.𝑗, cache_c.left, cache_c.right, cache_c.X_bin)
-@btime EvoTrees.grow_tree!(EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ))), $cache_c.nodes, $params_c, $cache_c.δ𝑤, $cache_c.edges, $cache_c.𝑗, $cache_c.left, $cache_c.right, $cache_c.X_bin)
+@time EvoTrees.grow_tree!(tree, cache_c.nodes, params_c, cache_c.δ𝑤, cache_c.edges, cache_c.𝑗, cache_c.left, cache_c.right, cache_c.X_bin, cache_c.K)
+@btime EvoTrees.grow_tree!(EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ))), $cache_c.nodes, $params_c, $cache_c.δ𝑤, $cache_c.edges, $cache_c.𝑗, $cache_c.left, $cache_c.right, $cache_c.X_bin, $cache_c.K)
 
 @time EvoTrees.grow_tree!(EvoTrees.Tree(params_c.max_depth, model_c.K, params_c.λ), params_c, cache_c.δ, cache_c.hist, cache_c.histL, cache_c.histR, cache_c.gains, cache_c.edges, 𝑖, 𝑗, 𝑛, cache_c.X_bin);
 @btime EvoTrees.grow_tree!(EvoTrees.Tree($params_c.max_depth, $model_c.K, $params_c.λ), $params_c, $cache_c.δ, $cache_c.hist, $cache_c.histL, $cache_c.histR, $cache_c.gains, $cache_c.edges, $𝑖, $𝑗, $𝑛, $cache_c.X_bin);
@@ -75,8 +75,9 @@ tree = EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ)))
 δ𝑤, K, edges, X_bin, nodes, left, right = cache_c.δ𝑤, cache_c.K, cache_c.edges, cache_c.X_bin, cache_c.nodes, cache_c.left, cache_c.right;
 
 # 9.613 ms (81 allocations: 13.55 KiB)
-@time EvoTrees.update_hist!(params_c.loss, nodes[1].h, δ𝑤, X_bin, nodes[1].𝑖, 𝑗)
-@btime EvoTrees.update_hist!($params_c.loss, $nodes[1].h, $δ𝑤, $X_bin, $nodes[1].𝑖, $𝑗)
+@time EvoTrees.update_hist!(params_c.loss, nodes[1].h, δ𝑤, X_bin, nodes[1].𝑖, 𝑗, K)
+@btime EvoTrees.update_hist!($params_c.loss, $nodes[1].h, $δ𝑤, $X_bin, $nodes[1].𝑖, $𝑗, $K)
+@btime EvoTrees.update_hist!($nodes[1].h, $δ𝑤, $X_bin, $nodes[1].𝑖, $𝑗)
 @code_warntype EvoTrees.update_hist!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛)
 
 j = 1

@@ -70,44 +70,39 @@ end
 # end
 
 function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K) where {S <: GradientRegression,T}
-    pred[1,n] = - params.η .* ∑[1] ./ (∑[2] .+ params.λ .* ∑[3])
+    pred[1,n] = - params.η * ∑[1] / (∑[2] + params.λ * ∑[3])
 end
 
 # prediction in Leaf - GaussianRegression
 function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K) where {S <: GaussianRegression,T}
-    pred[1,n] = - params.η .* ∑[1] ./ (∑[3] .+ params.λ .* ∑[5])
-    pred[2,n] = - params.η .* ∑[2] ./ (∑[4] .+ params.λ .* ∑[5])
+    pred[1,n] = - params.η * ∑[1] / (∑[3] + params.λ * ∑[5])
+    pred[2,n] = - params.η * ∑[2] / (∑[4] + params.λ * ∑[5])
 end
 
 # prediction in Leaf - MultiClassRegression
 function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K) where {S <: MultiClassRegression,T}
     @inbounds for k in 1:K
-        pred[k,n] = - params.η .* ∑[k] ./ (∑[k + K] .+ params.λ .* ∑[2 * K + 1])
+        pred[k,n] = - params.η * ∑[k] / (∑[k + K] + params.λ * ∑[2 * K + 1])
     end
 end
 
-# prediction in Leaf - GradientRegression
-function pred_leaf(::S, node::TrainNode{T}, params::EvoTypes, δ²) where {S <: GradientRegression,T}
-    - params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤)
-end
-
-# prediction in Leaf - MultiClassRegression
-function pred_leaf(::S, node::TrainNode{T}, params::EvoTypes, δ²) where {S <: MultiClassRegression,T}
-    SVector{L,T}(-params.η .* node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤[1]))
+# prediction in Leaf - QuantileRegression
+function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K) where {S <: QuantileRegression,T}
+    pred[1,n]  = params.η * quantile(view(δ𝑤, 2, 𝑖), params.α) / (1 + params.λ)
 end
 
 # prediction in Leaf - L1Regression
-function pred_leaf(::S, node::TrainNode{T}, params::EvoTypes, δ²) where {S <: L1Regression,T}
-    params.η .* node.∑δ ./ (node.∑𝑤 .* (1 .+ params.λ))
+function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K) where {S <: L1Regression,T}
+    pred[1,n] = params.η * ∑[1] / (∑[3] * (1 + params.λ))
 end
 
-# prediction in Leaf - QuantileRegression
-function pred_leaf(::S, node::TrainNode{T}, params::EvoTypes, δ²) where {S <: QuantileRegression,L,T}
-    SVector{1,T}(params.η * quantile(reinterpret(Float32, δ²[node.𝑖]), params.α) / (1 + params.λ))
-    # pred = params.η * quantile(δ²[collect(node.𝑖)], params.α) / (1 + params.λ)
-end
+# prediction in Leaf - L1Regression
+# function pred_leaf(::S, node::TrainNode{T}, params::EvoTypes, δ²) where {S <: L1Regression,T}
+#     params.η .* node.∑δ ./ (node.∑𝑤 .* (1 .+ params.λ))
+# end
 
-# prediction in Leaf - GaussianRegression
-# function pred_leaf(::S, node::TrainNode{T}, params::EvoTypes, δ²) where {S <: GaussianRegression,T}
-#     - params.η * node.∑δ ./ (node.∑δ² .+ params.λ .* node.∑𝑤[1])
+# # prediction in Leaf - QuantileRegression
+# function pred_leaf(::S, node::TrainNode{T}, params::EvoTypes, δ²) where {S <: QuantileRegression,L,T}
+#     SVector{1,T}(params.η * quantile(reinterpret(Float32, δ²[node.𝑖]), params.α) / (1 + params.λ))
+#     # pred = params.η * quantile(δ²[collect(node.𝑖)], params.α) / (1 + params.λ)
 # end

@@ -4,6 +4,7 @@ using Base.Threads:@threads
 using BenchmarkTools
 using EvoTrees
 using SIMD
+using LoopVectorization
 
 n = Int(1e6)
 nvars = 100
@@ -76,7 +77,7 @@ hist_δ𝑤 = zeros(3, nbins, nvars)
 function iter_3(X_bin, hist_δ𝑤, δ𝑤, 𝑖, 𝑗)
     # hist_δ𝑤 .= 0.0
     @inbounds @threads for j in 𝑗
-        @inbounds @simd for i in 𝑖
+        @inbounds for i in 𝑖
             hist_δ𝑤[1, X_bin[i,j], j] += δ𝑤[1,i]
             hist_δ𝑤[2, X_bin[i,j], j] += δ𝑤[2,i]
             hist_δ𝑤[3, X_bin[i,j], j] += δ𝑤[3,i]
@@ -86,6 +87,33 @@ end
 
 @time iter_3(X_bin, hist_δ𝑤, δ𝑤, 𝑖, 𝑗)
 @btime iter_3($X_bin, $hist_δ𝑤, $δ𝑤, $𝑖, $𝑗)
+
+function iter_3B(X_bin, hist_δ𝑤, δ𝑤, 𝑖, 𝑗)
+    @inbounds @threads for j in 𝑗
+        @inbounds @simd for i in 𝑖
+            hist_δ𝑤[1, X_bin[i,j], j] += δ𝑤[1,i]
+            hist_δ𝑤[2, X_bin[i,j], j] += δ𝑤[2,i]
+            hist_δ𝑤[3, X_bin[i,j], j] += δ𝑤[3,i]
+        end
+    end
+end
+
+@time iter_3B(X_bin, hist_δ𝑤, δ𝑤, 𝑖, 𝑗)
+@btime iter_3B($X_bin, $hist_δ𝑤, $δ𝑤, $𝑖, $𝑗)
+
+function iter_3C(X_bin, hist_δ𝑤, δ𝑤, 𝑖, 𝑗)
+    @inbounds @threads for j in 𝑗
+        @inbounds @simd for id in eachindex(𝑖)
+            i = 𝑖[id]
+            hist_δ𝑤[1, X_bin[i,j], j] += δ𝑤[1,i]
+            hist_δ𝑤[2, X_bin[i,j], j] += δ𝑤[2,i]
+            hist_δ𝑤[3, X_bin[i,j], j] += δ𝑤[3,i]
+        end
+    end
+end
+
+@time iter_3C(X_bin, hist_δ𝑤, δ𝑤, 𝑖, 𝑗)
+@btime iter_3C($X_bin, $hist_δ𝑤, $δ𝑤, $𝑖, $𝑗)
 
 
 ### 3 features in common hists - vector of matrix hists - gradients/weight in single matrix

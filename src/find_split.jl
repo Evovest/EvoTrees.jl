@@ -23,12 +23,12 @@ function binarize(X, edges)
     X_bin
 end
 
-# split row ids into left and right based on best split condition
-function split_set!(left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S) where S
+"""
+    split_set!
+        Split row ids into left and right based on best split condition
+"""
+function split_set!(left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S, offset = 0) where S
     
-    left_init = 0
-    right_init = 0
-
     left_count = 0
     right_count = 0
 
@@ -36,16 +36,34 @@ function split_set!(left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S) wher
         id = 𝑖[i]
         @inbounds if X_bin[id, feat] <= cond_bin
             left_count += 1
-            left[left_init + left_count] = id
+            left[offset + left_count] = id
         else
             right_count += 1
-            right[right_init + right_count] = id
+            right[offset + right_count] = id
         end
     end
     return (left[1:left_count], right[1:right_count])
-    # return (view(left, 1:left_count), view(right, 1:right_count))
-    # return nothing
 end
+
+"""
+    Non Allocating split_set!
+        Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
+        Not working with if rowsample < 0 or depth > 3
+"""
+# function split_set!(left::V, right::V, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S, offset) where {S,V}    
+#     left_count = 0 
+#     right_count = 0
+#     @inbounds for i in 1:length(𝑖)
+#         @inbounds if X_bin[i, feat] <= cond_bin
+#             left_count += 1
+#             left[offset + left_count] = 𝑖[i]
+#         else
+#             right[offset + length(𝑖) - right_count] = 𝑖[i]
+#             right_count += 1
+#         end
+#     end
+#     return (view(left, (offset + 1):(offset + left_count)), view(right, (offset + length(𝑖)):-1:(offset + left_count + 1)))
+# end
 
 """
     update_hist!
@@ -70,6 +88,10 @@ function update_hist!(
     return nothing
 end
 
+"""
+    update_hist!
+        GaussianRegression
+"""
 function update_hist!(
     ::L,
     hist::Vector{Vector{T}}, 
@@ -106,7 +128,7 @@ function update_hist!(
     @inbounds @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
             hid = (2 * K + 1) * (X_bin[i,j] - 1)
-            for k in 1:2 * K + 1
+            for k in 1:(2 * K + 1)
                 hist[j][hid + k] += δ𝑤[k, i]
             end
         end
@@ -117,6 +139,7 @@ end
 
 """
     update_gains!
+    GradientRegression
 """
 function update_gains!(
     loss::L,
@@ -148,7 +171,10 @@ function update_gains!(
     return nothing
 end
 
-
+"""
+    update_gains!
+    GaussianRegression
+"""
 function update_gains!(
     loss::L,
     node::TrainNode{T},
