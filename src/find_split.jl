@@ -67,6 +67,7 @@ end
 """
     Multi-threads split_set!
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
+        Buggy at the moment: inconsistent splits - likely some corruption of the views.
 """
 function split_set_chunk!(left, right, block, bid, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights, bsizes)
     left_count = 0
@@ -115,9 +116,7 @@ function split_set_threads!(left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin,
         right_cum += rights[bid]
     end
 
-    return (view(left, offset + 1:offset + sum(lefts)), view(right, offset + sum(lefts) + 1:offset + length(𝑖)))
-    # return (view(left, offset + 1:offset + sum(lefts)), view(right, offset + 1:offset + sum(rights)))
-    # return (left[offset + 1:offset + sum(lefts)], right[offset + 1:offset + sum(rights)])
+    return (view(left, offset + 1:offset + sum(lefts)), view(right, offset + length(𝑖):-1:offset + sum(lefts) + 1))
 end
 
 """

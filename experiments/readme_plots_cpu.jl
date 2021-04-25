@@ -31,7 +31,7 @@ params1 = EvoTreeRegressor(
     loss=:linear, metric=:mse,
     nrounds=200, nbins = 64,
     λ = 0.5, γ=0.1, η=0.1,
-    max_depth = 4, min_weight = 1.0,
+    max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0,
     rng = 123)
 

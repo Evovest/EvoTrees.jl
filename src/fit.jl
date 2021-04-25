@@ -166,8 +166,8 @@ function grow_tree!(
                 else
                     # println("typeof(nodes[n].𝑖): ", typeof(nodes[n].𝑖))
                     # _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n])
-                    # _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
-                    _left, _right = split_set_threads!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
+                    _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
+                    # _left, _right = split_set_threads!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
                     nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = _left, _right
                     offset += length(nodes[n].𝑖)
                     # println("offset: ", offset)

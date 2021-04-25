@@ -51,7 +51,9 @@ function predict(model::GBTree{T}, X::AbstractMatrix) where {T}
     for tree in model.trees
         predict!(model.params.loss, pred, tree, X, model.K)
     end
-    if typeof(model.params.loss) == Poisson
+    if typeof(model.params.loss) == Logistic
+        # @. pred = exp(pred)
+    elseif typeof(model.params.loss) == Poisson
         @. pred = exp(pred)
     elseif typeof(model.params.loss) == Gaussian
         pred[2,:] .= exp.(pred[2,:])
@@ -63,11 +65,6 @@ function predict(model::GBTree{T}, X::AbstractMatrix) where {T}
     return Array(transpose(pred))
 end
 
-
-# prediction in Leaf - GradientRegression
-# function pred_leaf_cpu(::S, ∑::Vector{T}, params::EvoTypes) where {S <: GradientRegression,T}
-#     - params.η .* ∑[1] ./ (∑[2] .+ params.λ .* ∑[3])
-# end
 
 function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S <: GradientRegression,T}
     pred[1,n] = - params.η * ∑[1] / (∑[2] + params.λ * ∑[3])
