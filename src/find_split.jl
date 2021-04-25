@@ -48,10 +48,9 @@ end
 """
     Non Allocating split_set!
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
-        Not working with if rowsample < 0 or depth > 3
 """
 function split_set!(left::V, right::V, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S, offset) where {S,V}    
-    left_count = 0 
+    left_count = 0
     right_count = 0
     @inbounds for i in 1:length(𝑖)
         @inbounds if X_bin[𝑖[i], feat] <= cond_bin
@@ -63,6 +62,62 @@ function split_set!(left::V, right::V, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S
         end
     end
     return (view(left, (offset + 1):(offset + left_count)), view(right, (offset + length(𝑖)):-1:(offset + left_count + 1)))
+end
+
+"""
+    Multi-threads split_set!
+        Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
+"""
+function split_set_chunk!(left, right, block, bid, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights, bsizes)
+    left_count = 0
+    right_count = 0
+    @inbounds for i in eachindex(block)
+        @inbounds if X_bin[block[i], feat] <= cond_bin
+            left_count += 1
+            left[offset + chunk_size * (bid - 1) + left_count] = block[i]
+        else
+            right[offset + chunk_size * (bid - 1) + length(block) - right_count] = block[i]
+            right_count += 1
+        end
+    end
+    lefts[bid] = left_count
+    rights[bid] = right_count
+    bsizes[bid] = length(block)
+    return nothing
+end
+
+function split_set_threads!(left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin, offset, chunk_size=2^14) where {S}    
+
+    left_count = 0 
+    right_count = 0
+    iter = Iterators.partition(𝑖, chunk_size)
+    nblocks = length(iter)
+    lefts = zeros(Int, nblocks)
+    rights = zeros(Int, nblocks)
+    bsizes = zeros(Int, nblocks)
+
+    @sync for (bid, block) in enumerate(iter)
+        Threads.@spawn split_set_chunk!(left, right, block, bid, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights, bsizes)
+    end
+
+    left_cum = 0
+    @inbounds for bid in 1:nblocks
+        view(left, offset + left_cum + 1:offset + left_cum + lefts[bid]) .= view(left, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + lefts[bid])
+        # view(right, offset + right_cum + 1:offset + right_cum + rights[bid]) .= view(right, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + rights[bid])
+        # view(right, offset + length(𝑖) - right_cum:-1:offset + length(𝑖) - right_cum - rights[bid] + 1) .= view(right, offset + chunk_size * (bid - 1) + bsizes[bid]:-1:offset + chunk_size * (bid - 1) + lefts[bid]+1)
+        left_cum += lefts[bid]
+    end
+    
+    right_cum = 0
+    @inbounds for bid in nblocks:-1:1
+        # view(right, offset + right_cum + 1:offset + right_cum + rights[bid]) .= view(right, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + rights[bid])
+        view(right, offset + length(𝑖) - right_cum:-1:offset + length(𝑖) - right_cum - rights[bid] + 1) .= view(right, offset + chunk_size * (bid - 1) + lefts[bid] + 1:offset + chunk_size * (bid - 1) + bsizes[bid])
+        right_cum += rights[bid]
+    end
+
+    return (view(left, offset + 1:offset + sum(lefts)), view(right, offset + sum(lefts) + 1:offset + length(𝑖)))
+    # return (view(left, offset + 1:offset + sum(lefts)), view(right, offset + 1:offset + sum(rights)))
+    # return (left[offset + 1:offset + sum(lefts)], right[offset + 1:offset + sum(rights)])
 end
 
 """

@@ -5,7 +5,7 @@ function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L <: Gradien
             X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
         @inbounds pred[1,i] += tree.pred[1, nid]
-end
+    end
     return nothing
 end
 
@@ -96,14 +96,3 @@ end
 function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S <: L1Regression,T}
     pred[1,n] = params.η * ∑[1] / (∑[3] * (1 + params.λ))
 end
-
-# prediction in Leaf - L1Regression
-# function pred_leaf(::S, node::TrainNode{T}, params::EvoTypes, δ²) where {S <: L1Regression,T}
-#     params.η .* node.∑δ ./ (node.∑𝑤 .* (1 .+ params.λ))
-# end
-
-# # prediction in Leaf - QuantileRegression
-# function pred_leaf(::S, node::TrainNode{T}, params::EvoTypes, δ²) where {S <: QuantileRegression,L,T}
-#     SVector{1,T}(params.η * quantile(reinterpret(Float32, δ²[node.𝑖]), params.α) / (1 + params.λ))
-#     # pred = params.η * quantile(δ²[collect(node.𝑖)], params.α) / (1 + params.λ)
-# end

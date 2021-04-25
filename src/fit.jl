@@ -83,7 +83,6 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
 
     # loop over nrounds
     for i in 1:δnrounds
-
         # select random rows and cols
         sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace=false, ordered=true)
         sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
@@ -100,7 +99,7 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
 
     end # end of nrounds
     cache.params.nrounds = params.nrounds
-    return evotree
+    return nothing
 end
 
 # grow a single tree
@@ -166,9 +165,12 @@ function grow_tree!(
                     # println("n_next pred leaf: ", n, " | ", n_next)
                 else
                     # println("typeof(nodes[n].𝑖): ", typeof(nodes[n].𝑖))
-                    # nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n])
-                    nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
+                    # _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n])
+                    # _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
+                    _left, _right = split_set_threads!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
+                    nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = _left, _right
                     offset += length(nodes[n].𝑖)
+                    # println("offset: ", offset)
                     # println("length(_left): ", length(_left))
                     # println("length(_right): ", length(_right))
                     # set ∑ stats for child nodes
