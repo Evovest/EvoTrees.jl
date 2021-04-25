@@ -52,7 +52,7 @@ function predict(model::GBTree{T}, X::AbstractMatrix) where {T}
         predict!(model.params.loss, pred, tree, X, model.K)
     end
     if typeof(model.params.loss) == Logistic
-        # @. pred = exp(pred)
+        @. pred = sigmoid(pred)
     elseif typeof(model.params.loss) == Poisson
         @. pred = exp(pred)
     elseif typeof(model.params.loss) == Gaussian

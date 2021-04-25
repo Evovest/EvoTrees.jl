@@ -25,8 +25,8 @@ end
 # logistic - on linear predictor
 function update_grads!(::Logistic, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, α::T) where {T <: AbstractFloat}
     @inbounds for i in eachindex(y)
-        δ𝑤[1,i] = (p[1,i] * (1 - y[i]) - (1 - p[1,i]) * y[i]) * δ𝑤[3,i]
-        δ𝑤[2,i] = p[1,i] * (1 - p[1,i]) * δ𝑤[3,i]
+        δ𝑤[1,i] = (sigmoid(p[1,i]) * (1 - y[i]) - (1 - sigmoid(p[1,i])) * y[i]) * δ𝑤[3,i]
+        δ𝑤[2,i] = sigmoid(p[1,i]) * (1 - sigmoid(p[1,i])) * δ𝑤[3,i]
     end
 end
 
