@@ -4,21 +4,21 @@
 mutable struct TrainNodeGPU{T<:AbstractFloat}
     gain::T
     𝑖::Union{Nothing, AbstractVector{UInt32}}
-    ∑::Vector{T}
-    h::Matrix{T}
-    hL::Matrix{T}
-    hR::Matrix{T}
-    gains::Matrix{T}
+    ∑::AbstractVector{T}
+    h::AbstractArray{T,3}
+    hL::AbstractArray{T,3}
+    hR::AbstractArray{T,3}
+    gains::AbstractMatrix{T}
 end
 
 function TrainNodeGPU(nvars, nbins, K, T)
-    node = TrainNode{T}(
+    node = TrainNodeGPU{T}(
             zero(T),
             nothing,
             CUDA.zeros(T, 2*K+1), 
-            CUDA.zeros(T, (2*K+1) * nbins, nvars), 
-            CUDA.zeros(T, (2*K+1) * nbins, nvars), 
-            CUDA.zeros(T, (2*K+1) * nbins, nvars), 
+            CUDA.zeros(T, (2*K+1) , nbins, nvars), 
+            CUDA.zeros(T, (2*K+1) , nbins, nvars), 
+            CUDA.zeros(T, (2*K+1) , nbins, nvars), 
             CUDA.zeros(T, nbins, nvars))
     return node
 end

@@ -1,97 +1,65 @@
 """
     build a single histogram containing all grads and weight information
 """
-# GPU - apply along the features axis
-# function hist_kernel!(h::CuDeviceArray{T,4}, δ::CuDeviceMatrix{T}, idx::CuDeviceMatrix{UInt8}, 
-#     𝑖::CuDeviceVector{S}, 𝑗::CuDeviceVector{S}, 𝑛::CuDeviceVector{S}, L) where {T,S}
-
-#     it = threadIdx().x
-#     id = blockDim().x
-#     ib = blockIdx().x
-#     ig = gridDim().x
-
-#     # k = blockIdx().z
-#     # i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-
-#     j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
-
-#     i_tot = length(𝑖)
-#     iter = 0
-#     while iter * id * ig < i_tot
-#         i = it + id * (ib - 1) + iter * id * ig
-#         if i <= length(𝑖) && j <= length(𝑗)
-#             n = 𝑛[i]
-#             if n > 0
-#                 pt = Base._to_linear_index(h, 1, idx[𝑖[i], 𝑗[j]], 𝑗[j], n)
-#                 for k in 1:L
-                    # CUDA.atomic_add!(pointer(h, pt + k - 1), δ[𝑖[i], k])
-#                 end
-#             end
-#         end
-#         iter += 1
-#     end
-#     return nothing
-# end
-
-
-function hist_kernel!(h::CuDeviceArray{T,4}, δ::CuDeviceMatrix{T}, xid::CuDeviceMatrix{UInt8}, 
-    𝑖::CuDeviceVector{S}, 𝑗::CuDeviceVector{S}, 𝑛::CuDeviceVector{S}, depth) where {T,S}
+function hist_kernel!(h::CuDeviceArray{T,3}, δ𝑤::CuDeviceMatrix{T}, xid::CuDeviceMatrix{UInt8}, 
+    𝑖::CuDeviceVector{S}, 𝑗::CuDeviceVector{S}) where {T,S}
     
     nbins = size(h, 2)
 
     it = threadIdx().x
     id, jd = blockDim().x, blockDim().y
-    ib, j, k = blockIdx().x, blockIdx().y, blockIdx().z
+    ib, j = blockIdx().x, blockIdx().y
     ig, jg = gridDim().x, gridDim().y
     
-    shared = @cuDynamicSharedMem(T, (size(h, 2), size(h, 4)))
+    shared = @cuDynamicSharedMem(T, (size(h, 1), size(h, 2)))
     fill!(shared, 0)
     sync_threads()
 
     i_tot = length(𝑖)
     iter = 0
-    while iter * id * ig < i_tot
+    @inbounds while iter * id * ig < i_tot
         i = it + id * (ib - 1) + iter * id * ig
-        if i <= length(𝑖) && j <= length(𝑗)
-            # depends on shared to be assigned to a single feature
-            @inbounds i_idx = 𝑖[i]
-            @inbounds n = 𝑛[i_idx]
-            # if n != 0
-            @inbounds CUDA.atomic_add!(pointer(shared, xid[i_idx, 𝑗[j]] + nbins * (n - 1)), δ[i_idx, k])
-            # @inbounds shared[xid[i_idx, 𝑗[j]] + nbins * (n-1)] += δ[i_idx, k]
-            # end
+        @inbounds if i <= length(𝑖) && j <= length(𝑗)
+            i_idx = 𝑖[i]
+            CUDA.atomic_add!(pointer(shared, (xid[i_idx, 𝑗[j]] - 1) * 3 + 1), δ𝑤[1, i_idx])
+            CUDA.atomic_add!(pointer(shared, (xid[i_idx, 𝑗[j]] - 1) * 3 + 2), δ𝑤[2, i_idx])
+            CUDA.atomic_add!(pointer(shared, (xid[i_idx, 𝑗[j]] - 1) * 3 + 3), δ𝑤[3, i_idx])
         end
         iter += 1
     end
     sync_threads()
-    # loop over nodes of given depth
-    for nid ∈ 2^(depth - 1):2^(depth) - 1
-        # n = 1 # need to loop over nodes
-        if it <= nbins
-            @inbounds hid = Base._to_linear_index(h, k, it, 𝑗[j], nid)
-            @inbounds CUDA.atomic_add!(pointer(h, hid), shared[it, nid])
-        end
+    # loop over i blocks
+    if it <= nbins
+        @inbounds hid = Base._to_linear_index(h, 1, it, 𝑗[j])
+        @inbounds CUDA.atomic_add!(pointer(h, hid), shared[1, it])
+
+        @inbounds hid = Base._to_linear_index(h, 2, it, 𝑗[j])
+        @inbounds CUDA.atomic_add!(pointer(h, hid), shared[2, it])
+
+        @inbounds hid = Base._to_linear_index(h, 3, it, 𝑗[j])
+        @inbounds CUDA.atomic_add!(pointer(h, hid), shared[3, it])
     end
+    # end
     sync_threads()
     return nothing
 end
 
 # base approach - block built along the cols first, the rows (limit collisions)
 function update_hist_gpu!(
-    h::CuArray{T,4}, 
-    δ::CuMatrix{T}, 
+    ::L,
+    h::CuArray{T,3}, 
+    δ𝑤::CuMatrix{T}, 
     X_bin::CuMatrix{UInt8}, 
     𝑖::CuVector{S}, 
-    𝑗::CuVector{S}, 
-    𝑛::CuVector{S}, depth; 
-    MAX_THREADS=512) where {T,S}
+    𝑗::CuVector{S}, K;
+    MAX_THREADS=768) where {L <: GradientRegression,T,S}
     
     # fill!(h, 0.0)
     thread_i = min(MAX_THREADS, length(𝑖))
-    threads = (thread_i,)
-    blocks = (1, length(𝑗), 3)
+    threads = (thread_i, 1)
+    blocks = (1, length(𝑗))
     # blocks = (ceil(Int, length(𝑖) / thread_i), length(𝑗))
-    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 2) * size(h, 4) hist_kernel!(h, δ, X_bin, 𝑖, 𝑗, 𝑛, depth)
+    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * size(h, 2) hist_kernel!(h, δ𝑤, X_bin, 𝑖, 𝑗)
     return
 end
 
@@ -116,6 +84,57 @@ function update_set_kernel!(𝑛, 𝑖, X_bin, feats, bins, nbins)
     end
     return nothing
 end
+
+
+"""
+    Multi-threads split_set!
+        Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
+"""
+function split_set_chunk_gpu!(left, right, block, bid, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights, bsizes)
+    left_count = 0
+    right_count = 0
+    @inbounds for i in eachindex(block)
+        @inbounds if X_bin[block[i], feat] <= cond_bin
+            left_count += 1
+            left[offset + chunk_size * (bid - 1) + left_count] = block[i]
+        else
+            right_count += 1
+            right[offset + chunk_size * (bid - 1) + right_count] = block[i]
+        end
+    end
+    lefts[bid] = left_count
+    rights[bid] = right_count
+    bsizes[bid] = length(block)
+    return nothing
+end
+
+function split_set_threads_gpu!(out, left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin, offset, chunk_size=2^15) where {S}    
+
+    left_count = 0 
+    right_count = 0
+    iter = Iterators.partition(𝑖, chunk_size)
+    nblocks = length(iter)
+    lefts = zeros(Int, nblocks)
+    rights = zeros(Int, nblocks)
+    bsizes = zeros(Int, nblocks)
+
+    @sync for (bid, block) in enumerate(iter)
+        Threads.@spawn split_set_chunk_gpu!(left, right, block, bid, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights, bsizes)
+    end
+
+    left_sum = sum(lefts)
+    left_cum = 0
+    right_cum = 0
+    @inbounds for bid in 1:nblocks
+        view(out, offset + left_cum + 1:offset + left_cum + lefts[bid]) .= view(left, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + lefts[bid])
+        view(out, offset + left_sum + right_cum + 1:offset + left_sum + right_cum + rights[bid]) .= view(right, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + rights[bid])
+        left_cum += lefts[bid]
+        right_cum += rights[bid]
+    end
+
+    return (view(out, offset + 1:offset + sum(lefts)), view(out, offset + sum(lefts)+1:offset + length(𝑖)))
+end
+
 
 function update_set_gpu!(𝑛, 𝑖, X_bin, feats, bins, nbins; MAX_THREADS=512)
     thread_i = min(MAX_THREADS, length(𝑖))
@@ -143,49 +162,42 @@ end
 # end
 
 
-# operate on hist_gpu
 """
-find_split_gpu!
-    Find best split over gpu histograms
+    update_gains!
+        Generic fallback
 """
-
 function update_gains_gpu!(
-    gains::AbstractArray{T,3},
-    hist::AbstractArray{T,4}, 
-    histL::AbstractArray{T,4}, 
-    histR::AbstractArray{T,4},
+    loss::L,
+    node::TrainNode{T},
     𝑗::AbstractVector{S},
-    params::EvoTypes,
-    nid, depth) where {T,S}
+    params::EvoTypes, K) where {L,T,S}
 
-    cumsum!(view(histL, :, :, :, nid), view(hist, :, :, :, nid), dims=2)
+    cumsum!(view(node.hL, :, :, :), view(node.h, :, :, :), dims=2)
     # cumsum!(view(histR, :, :, :, nid), reverse!(view(hist, :, :, :, nid), dims=2), dims=2)
-    view(histR, :, :, :, nid) .= view(histL, :, params.nbins:params.nbins, :, nid) .- view(histL, :, :, :, nid)
-    hist_gains_gpu!(gains, histL, histR, 𝑗, params.nbins, depth, params.λ)
+    view(node.hR, :, :, :) .= view(node.hL, :, params.nbins:params.nbins, :) .- view(histL, :, :, :)
+    hist_gains_gpu!(loss, gains, node.hL, node.hR, 𝑗, params.nbins, params.λ)
 
     return nothing
 end
 
-
-function hist_gains_gpu_kernel!(gains::CuDeviceArray{T,3}, hL::CuDeviceArray{T,4}, hR::CuDeviceArray{T,4}, 𝑗::CuDeviceVector{S}, nbins, depth, λ::T) where {T,S}
+function hist_gains_gpu_kernel!(gains::CuDeviceMatrix{T}, hL::CuDeviceArray{T,3}, hR::CuDeviceArray{T,3}, 𝑗::CuDeviceVector{S}, nbins, λ::T) where {T,S}
     
     i = threadIdx().x
     j = 𝑗[blockIdx().x]
-    n = blockIdx().y + 2^(depth - 1) - 1
 
-    @inbounds if hL[3, i, j, n] > 1e-5 && hR[3, i, j, n] > 1e-5
-        gains[i, j, n] = (hL[1, i, j, n]^2 / (hL[2, i, j, n] + λ * hL[3, i, j, n]) + 
-            hR[1, i, j, n]^2 / (hR[2, i, j, n] + λ * hR[3, i, j, n])) / 2
+    @inbounds if hL[3, i, j] > 1e-5 && hR[3, i, j] > 1e-5
+        gains[i, j] = (hL[1, i, j]^2 / (hL[2, i, j] + λ * hL[3, i, j]) + 
+            hR[1, i, j]^2 / (hR[2, i, j,] + λ * hR[3, i, j])) / 2
     elseif i == nbins
-        gains[i, j, n] = hL[1, i, j, n]^2 / (hL[2, i, j, n] + λ * hL[3, i, j, n]) / 2 
+        gains[i, j] = hL[1, i, j]^2 / (hL[2, i, j] + λ * hL[3, i, j]) / 2 
     end
     return nothing
 end
 
-function hist_gains_gpu!(gains::CuArray{T,3}, hL::CuArray{T,4}, hR::CuArray{T,4}, 𝑗::CuVector{S}, nbins, depth, λ::T; MAX_THREADS=512) where {T,S}
+function hist_gains_gpu!(loss::L, gains::CuMatrix{T}, hL::CuArray{T,3}, hR::CuArray{T,3}, 𝑗::CuVector{S}, nbins, λ::T; MAX_THREADS=512) where {L <: GradientRegression,T,S}
     thread_i = min(nbins, MAX_THREADS)
     threads = thread_i
-    blocks = length(𝑗), 2^(depth - 1)
-    @cuda blocks = blocks threads = threads hist_gains_gpu_kernel!(gains, hL, hR, 𝑗, nbins, depth, λ)
+    blocks = length(𝑗)
+    @cuda blocks = blocks threads = threads hist_gains_gpu_kernel!(gains, hL, hR, 𝑗, nbins, λ)
     return gains
 end
