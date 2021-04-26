@@ -52,12 +52,12 @@ function update_hist_gpu!(
     X_bin::CuMatrix{UInt8}, 
     𝑖::CuVector{S}, 
     𝑗::CuVector{S}, K;
-    MAX_THREADS=768) where {L <: GradientRegression,T,S}
+    MAX_THREADS=256) where {L <: GradientRegression,T,S}
     
     # fill!(h, 0.0)
     thread_i = min(MAX_THREADS, length(𝑖))
     threads = (thread_i, 1)
-    blocks = (1, length(𝑗))
+    blocks = (8, length(𝑗))
     # blocks = (ceil(Int, length(𝑖) / thread_i), length(𝑗))
     @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * size(h, 2) hist_kernel!(h, δ𝑤, X_bin, 𝑖, 𝑗)
     return
