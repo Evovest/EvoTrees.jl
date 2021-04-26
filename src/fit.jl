@@ -55,6 +55,7 @@ function init_evotree(params::EvoTypes{T,U,S},
     # initializde histograms
     nodes = [TrainNode(X_size[2], params.nbins, K, T) for n in 1:2^params.max_depth - 1]
     nodes[1].𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * X_size[1]))
+    out = zeros(UInt32, length(nodes[1].𝑖))
     left = zeros(UInt32, length(nodes[1].𝑖))
     right = zeros(UInt32, length(nodes[1].𝑖))
 
@@ -63,7 +64,7 @@ function init_evotree(params::EvoTypes{T,U,S},
         nodes = nodes,
         pred_cpu = pred_cpu,
         𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑗 = 𝑗,
-        left = left, right = right,
+        out = out, left = left, right = right,
         δ𝑤 = δ𝑤,
         edges = edges, 
         X_bin = X_bin)
@@ -93,7 +94,7 @@ function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
         # gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # assign a root and grow tree
         tree = Tree(params.max_depth, evotree.K, zero(T))
-        grow_tree!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, cache.𝑗, cache.left, cache.right, cache.X_bin, cache.K)
+        grow_tree!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, cache.𝑗, cache.out, cache.left, cache.right, cache.X_bin, cache.K)
         push!(evotree.trees, tree)
         predict!(params.loss, cache.pred_cpu, tree, cache.X, cache.K)
 
@@ -109,7 +110,7 @@ function grow_tree!(
     params::EvoTypes{T,U,S},
     δ𝑤::Matrix{T},
     edges,
-    𝑗, left, right,
+    𝑗, out, left, right,
     X_bin::AbstractMatrix, K) where {T,U,S}
 
     # reset nodes
@@ -166,8 +167,8 @@ function grow_tree!(
                 else
                     # println("typeof(nodes[n].𝑖): ", typeof(nodes[n].𝑖))
                     # _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n])
-                    _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
-                    # _left, _right = split_set_threads!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
+                    # _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
+                    _left, _right = split_set_threads!(out, left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset, 2^15)
                     nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = _left, _right
                     offset += length(nodes[n].𝑖)
                     # println("offset: ", offset)

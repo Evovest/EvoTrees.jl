@@ -67,7 +67,6 @@ end
 """
     Multi-threads split_set!
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
-        Buggy at the moment: inconsistent splits - likely some corruption of the views.
 """
 function split_set_chunk!(left, right, block, bid, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights, bsizes)
     left_count = 0
@@ -77,8 +76,8 @@ function split_set_chunk!(left, right, block, bid, X_bin, feat, cond_bin, offset
             left_count += 1
             left[offset + chunk_size * (bid - 1) + left_count] = block[i]
         else
-            right[offset + chunk_size * (bid - 1) + length(block) - right_count] = block[i]
             right_count += 1
+            right[offset + chunk_size * (bid - 1) + right_count] = block[i]
         end
     end
     lefts[bid] = left_count
@@ -87,7 +86,7 @@ function split_set_chunk!(left, right, block, bid, X_bin, feat, cond_bin, offset
     return nothing
 end
 
-function split_set_threads!(left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin, offset, chunk_size=2^14) where {S}    
+function split_set_threads!(out, left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin, offset, chunk_size=2^15) where {S}    
 
     left_count = 0 
     right_count = 0
@@ -101,23 +100,19 @@ function split_set_threads!(left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin,
         Threads.@spawn split_set_chunk!(left, right, block, bid, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights, bsizes)
     end
 
+    left_sum = sum(lefts)
     left_cum = 0
-    @inbounds for bid in 1:nblocks
-        view(left, offset + left_cum + 1:offset + left_cum + lefts[bid]) .= view(left, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + lefts[bid])
-        # view(right, offset + right_cum + 1:offset + right_cum + rights[bid]) .= view(right, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + rights[bid])
-        # view(right, offset + length(𝑖) - right_cum:-1:offset + length(𝑖) - right_cum - rights[bid] + 1) .= view(right, offset + chunk_size * (bid - 1) + bsizes[bid]:-1:offset + chunk_size * (bid - 1) + lefts[bid]+1)
-        left_cum += lefts[bid]
-    end
-    
     right_cum = 0
-    @inbounds for bid in nblocks:-1:1
-        # view(right, offset + right_cum + 1:offset + right_cum + rights[bid]) .= view(right, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + rights[bid])
-        view(right, offset + length(𝑖) - right_cum:-1:offset + length(𝑖) - right_cum - rights[bid] + 1) .= view(right, offset + chunk_size * (bid - 1) + lefts[bid] + 1:offset + chunk_size * (bid - 1) + bsizes[bid])
+    @inbounds for bid in 1:nblocks
+        view(out, offset + left_cum + 1:offset + left_cum + lefts[bid]) .= view(left, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + lefts[bid])
+        view(out, offset + left_sum + right_cum + 1:offset + left_sum + right_cum + rights[bid]) .= view(right, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + rights[bid])
+        left_cum += lefts[bid]
         right_cum += rights[bid]
     end
 
-    return (view(left, offset + 1:offset + sum(lefts)), view(right, offset + length(𝑖):-1:offset + sum(lefts) + 1))
+    return (view(out, offset + 1:offset + sum(lefts)), view(out, offset + sum(lefts)+1:offset + length(𝑖)))
 end
+
 
 """
     update_hist!

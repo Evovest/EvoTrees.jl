@@ -131,30 +131,23 @@ function grow_tree_gpu!(
 
     # initialize summary stats
     nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims=2))
-    nodes[1].gain = get_gain(params.loss, nodes[1].∑, params.λ)
+    nodes[1].gain = get_gain_gpu(params.loss, nodes[1].∑, params.λ)
 
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
     # for depth in 1:(params.max_depth - 1)
         for n ∈ n_current
-            # println("n: ", n)
             if depth == params.max_depth
-                # tree.pred[1, n] = pred_leaf_cpu(params.loss, nodes[n].∑, params)
-                # println("n leaf pred max depth: ", n,)
                 pred_leaf_gpu!(params.loss, tree.pred, n, nodes[n].∑, params)
             else
-                # println("n_current: ", n, " | ", n_current)
-                # println("depth: ", depth)
                 # histogram subtraction
                 if n > 1 && n % 2 == 1
                     nodes[n].h .= nodes[n >> 1].h .- nodes[n - 1].h
                 else
-                    update_hist!(params.loss, nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗)
+                    update_hist_gpu!(params.loss, nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗)
                 end
-                update_gains!(params.loss, nodes[n], 𝑗, params)
+                update_gains_gpu!(params.loss, nodes[n], 𝑗, params)
                 best = findmax(nodes[n].gains)
-                # println("best: ", best)
-                # println("n nodes[n].gain: ", n, " | ", nodes[n].gain)
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.γ
                     tree.gain[n] = best[1]
                     tree.cond_bin[n] = best[2][1]
@@ -163,7 +156,6 @@ function grow_tree_gpu!(
                 end
                 tree.split[n] = tree.cond_bin[n] != 0
                 if !tree.split[n]
-                    # tree.pred[1, n] = pred_leaf_cpu(params.loss, nodes[n].∑, params)
                     pred_leaf_gpu(params.loss, tree.pred, n, nodes[n].∑, params)
                     popfirst!(n_next)
                 else
