@@ -131,7 +131,7 @@ function grow_tree_gpu!(
 
     # initialize summary stats
     nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims=2))
-    nodes[1].gain = get_gain_gpu(params.loss, nodes[1].∑, params.λ)
+    nodes[1].gain = get_gain(params.loss, Array(nodes[1].∑), params.λ, K) # should use a GPU version?
 
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
@@ -159,12 +159,12 @@ function grow_tree_gpu!(
                     pred_leaf_gpu(params.loss, tree.pred, n, nodes[n].∑, params)
                     popfirst!(n_next)
                 else
-                    _left, _right = split_set_threads_gpu!(out, left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset, 2^15)
+                    _left, _right = split_set_threads_gpu!(out, left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
                     nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = _left, _right
                     offset += length(nodes[n].𝑖)
                     update_childs_∑_gpu!(params.loss, nodes, n, best[2][1], best[2][2])
-                    nodes[n << 1].gain = get_gain_gpu(params.loss, nodes[n << 1].∑, params.λ)
-                    nodes[n << 1 + 1].gain = get_gain_gpu(params.loss, nodes[n << 1 + 1].∑, params.λ)
+                    nodes[n << 1].gain = get_gain(params.loss, Array(nodes[n << 1].∑), params.λ, K)
+                    nodes[n << 1 + 1].gain = get_gain(params.loss, Array(nodes[n << 1 + 1].∑), params.λ, K)
                     push!(n_next, n << 1)
                     push!(n_next, n << 1 + 1)
                     popfirst!(n_next)

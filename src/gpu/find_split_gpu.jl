@@ -39,8 +39,6 @@ function hist_kernel!(h::CuDeviceArray{T,3}, δ𝑤::CuDeviceMatrix{T}, xid::CuD
         @inbounds hid = Base._to_linear_index(h, 3, it, 𝑗[j])
         @inbounds CUDA.atomic_add!(pointer(h, hid), shared[3, it])
     end
-    # end
-    sync_threads()
     return nothing
 end
 
@@ -57,109 +55,96 @@ function update_hist_gpu!(
     # fill!(h, 0.0)
     thread_i = min(MAX_THREADS, length(𝑖))
     threads = (thread_i, 1)
-    blocks = (8, length(𝑗))
-    # blocks = (ceil(Int, length(𝑖) / thread_i), length(𝑗))
+    blocks = (16, length(𝑗))
     @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * size(h, 2) hist_kernel!(h, δ𝑤, X_bin, 𝑖, 𝑗)
+    CUDA.synchronize()
     return
 end
-
-# update the vector of length 𝑖 pointing to associated node id
-function update_set_kernel!(𝑛, 𝑖, X_bin, feats, bins, nbins)
-    it = threadIdx().x
-    ibd = blockDim().x
-    ibi = blockIdx().x
-    i = it + ibd * (ibi - 1)
-
-    if i <= length(𝑖)
-        @inbounds idx = 𝑖[i]
-        @inbounds feat = feats[𝑛[idx]]
-        @inbounds cond = bins[𝑛[idx]]
-        @inbounds if cond == 0
-            𝑛[idx] = 0
-        elseif X_bin[idx, feat] <= cond
-            𝑛[idx] = 𝑛[idx] << 1 
-        else
-            𝑛[idx] = 𝑛[idx] << 1 + 1
-        end
-    end
-    return nothing
-end
-
 
 """
     Multi-threads split_set!
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
 """
-function split_set_chunk_gpu!(left, right, block, bid, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights, bsizes)
+function split_chunk_kernel!(left::CuDeviceVector{S}, right::CuDeviceVector{S}, 𝑖::CuDeviceVector{S}, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights) where {S}
+
+    it = threadIdx().x
+    bid = blockIdx().x
+    gdim = gridDim().x
+
     left_count = 0
     right_count = 0
-    @inbounds for i in eachindex(block)
-        @inbounds if X_bin[block[i], feat] <= cond_bin
+
+    i_size = length(𝑖)
+    i = it + chunk_size * (bid - 1)
+    
+    bid == gdim ? bsize = i_size - chunk_size * (bid - 1) : bsize = chunk_size
+    i_max = i + bsize - 1
+
+    while i <= i_max
+        if X_bin[𝑖[i], feat] <= cond_bin
             left_count += 1
-            left[offset + chunk_size * (bid - 1) + left_count] = block[i]
+            left[offset + chunk_size * (bid - 1) + left_count] = 𝑖[i]
         else
             right_count += 1
-            right[offset + chunk_size * (bid - 1) + right_count] = block[i]
+            right[offset + chunk_size * (bid - 1) + right_count] = 𝑖[i]
         end
+        i += 1
     end
+
     lefts[bid] = left_count
     rights[bid] = right_count
-    bsizes[bid] = length(block)
+
     return nothing
 end
 
-function split_set_threads_gpu!(out, left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin, offset, chunk_size=2^15) where {S}    
+function split_views_kernel!(out::CuDeviceVector{S}, left::CuDeviceVector{S}, right::CuDeviceVector{S}, offset, lefts, rights) where {S}    
 
-    left_count = 0 
-    right_count = 0
-    iter = Iterators.partition(𝑖, chunk_size)
-    nblocks = length(iter)
-    lefts = zeros(Int, nblocks)
-    rights = zeros(Int, nblocks)
-    bsizes = zeros(Int, nblocks)
-
-    @sync for (bid, block) in enumerate(iter)
-        Threads.@spawn split_set_chunk_gpu!(left, right, block, bid, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights, bsizes)
-    end
-
-    left_sum = sum(lefts)
+    it = threadIdx().x
+    
+    sum_lefts = sum(lefts)
     left_cum = 0
     right_cum = 0
-    @inbounds for bid in 1:nblocks
+
+    @inbounds for bid in eachindex(lefts)
         view(out, offset + left_cum + 1:offset + left_cum + lefts[bid]) .= view(left, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + lefts[bid])
-        view(out, offset + left_sum + right_cum + 1:offset + left_sum + right_cum + rights[bid]) .= view(right, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + rights[bid])
+        view(out, offset + sum_lefts + right_cum + 1:offset + sum_lefts + right_cum + rights[bid]) .= view(right, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + rights[bid])
         left_cum += lefts[bid]
         right_cum += rights[bid]
     end
 
-    return (view(out, offset + 1:offset + sum(lefts)), view(out, offset + sum(lefts)+1:offset + length(𝑖)))
+    return (view(out, offset + 1:offset + sum_lefts), view(out, offset + sum_lefts + 1:offset + length(𝑖)))
 end
 
-
-function update_set_gpu!(𝑛, 𝑖, X_bin, feats, bins, nbins; MAX_THREADS=512)
-    thread_i = min(MAX_THREADS, length(𝑖))
-    threads = thread_i
-    blocks = length(𝑖) ÷ thread_i + 1
-    @cuda blocks = blocks threads = threads update_set_kernel!(𝑛, 𝑖, X_bin, feats, bins, nbins)
-    return
-end
-
-# split row ids into left and right based on best split condition
-# function update_set!(𝑛, 𝑖, X_bin, feats, bins, nbins)
+function split_set_threads_gpu!(out, left, right, 𝑖, X_bin, feat, cond_bin, offset)
+    𝑖_size = length(𝑖)
     
-#     @inbounds for i in 𝑖
-#         feat = feats[𝑛[i]]
-#         cond = bins[𝑛[i]]
-#         if cond == nbins
-#             𝑛[𝑖] = 0
-#         elseif X_bin[i, feat] <= cond
-#             𝑛[i] = 𝑛[i] << 1 
-#         else
-#             𝑛[i] = 𝑛[i] << 1 + 1
-#         end
-#     end
-#     return nothing
-# end
+    chunk_size = min(𝑖_size, 1024)
+    nblocks = ceil(Int, 𝑖_size / chunk_size)
+
+    lefts = CUDA.zeros(Int, nblocks)
+    rights = CUDA.zeros(Int, nblocks)
+
+    threads = 1
+
+    @cuda blocks = nblocks threads = threads split_chunk_kernel!(left, right, 𝑖, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights)
+    CUDA.synchronize()
+    
+    # @cuda blocks = 1 threads = 1 split_views_kernel!(out, left, right, offset, lefts, rights)
+    # CUDA.synchronize()    
+    sum_lefts = sum(lefts)
+    left_cum = 0
+    right_cum = 0
+    @inbounds for bid in eachindex(lefts)
+        view(out, offset + left_cum + 1:offset + left_cum + lefts[bid]) .= view(left, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + lefts[bid])
+        view(out, offset + sum_lefts + right_cum + 1:offset + sum_lefts + right_cum + rights[bid]) .= view(right, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + rights[bid])
+        left_cum += lefts[bid]
+        right_cum += rights[bid]
+    end
+    
+    return (view(out, offset + 1:offset + sum_lefts), view(out, offset + sum_lefts + 1:offset + length(𝑖)))
+    
+    return nothing
+end
 
 
 """
@@ -168,36 +153,42 @@ end
 """
 function update_gains_gpu!(
     loss::L,
-    node::TrainNode{T},
+    node::TrainNodeGPU{T},
     𝑗::AbstractVector{S},
-    params::EvoTypes, K) where {L,T,S}
+    params::EvoTypes, K;
+    MAX_THREADS=512) where {L,T,S}
 
     cumsum!(view(node.hL, :, :, :), view(node.h, :, :, :), dims=2)
     # cumsum!(view(histR, :, :, :, nid), reverse!(view(hist, :, :, :, nid), dims=2), dims=2)
-    view(node.hR, :, :, :) .= view(node.hL, :, params.nbins:params.nbins, :) .- view(histL, :, :, :)
-    hist_gains_gpu!(loss, gains, node.hL, node.hR, 𝑗, params.nbins, params.λ)
+    view(node.hR, :, :, :) .= view(node.hL, :, params.nbins:params.nbins, :) .- view(node.hL, :, :, :)
 
+    thread_i = min(params.nbins, MAX_THREADS)
+    threads = thread_i
+    blocks = length(𝑗)
+    @cuda blocks = blocks threads = threads hist_gains_gpu_kernel!(node.gains, node.hL, node.hR, 𝑗, params.nbins, params.λ)
+    # hist_gains_gpu!(loss, node.gains, node.hL, node.hR, 𝑗, params.nbins, params.λ)
+    CUDA.synchronize()
     return nothing
 end
 
 function hist_gains_gpu_kernel!(gains::CuDeviceMatrix{T}, hL::CuDeviceArray{T,3}, hR::CuDeviceArray{T,3}, 𝑗::CuDeviceVector{S}, nbins, λ::T) where {T,S}
-    
+
     i = threadIdx().x
-    j = 𝑗[blockIdx().x]
+    @inbounds j = 𝑗[blockIdx().x]
 
     @inbounds if hL[3, i, j] > 1e-5 && hR[3, i, j] > 1e-5
         gains[i, j] = (hL[1, i, j]^2 / (hL[2, i, j] + λ * hL[3, i, j]) + 
-            hR[1, i, j]^2 / (hR[2, i, j,] + λ * hR[3, i, j])) / 2
-    elseif i == nbins
-        gains[i, j] = hL[1, i, j]^2 / (hL[2, i, j] + λ * hL[3, i, j]) / 2 
-    end
+        hR[1, i, j]^2 / (hR[2, i, j,] + λ * hR[3, i, j])) / 2
+        elseif i == nbins
+            gains[i, j] = hL[1, i, j]^2 / (hL[2, i, j] + λ * hL[3, i, j]) / 2 
+        end
     return nothing
 end
 
-function hist_gains_gpu!(loss::L, gains::CuMatrix{T}, hL::CuArray{T,3}, hR::CuArray{T,3}, 𝑗::CuVector{S}, nbins, λ::T; MAX_THREADS=512) where {L <: GradientRegression,T,S}
-    thread_i = min(nbins, MAX_THREADS)
-    threads = thread_i
-    blocks = length(𝑗)
-    @cuda blocks = blocks threads = threads hist_gains_gpu_kernel!(gains, hL, hR, 𝑗, nbins, λ)
-    return gains
-end
+# function hist_gains_gpu!(loss::L, gains::CuMatrix{T}, hL::CuArray{T,3}, hR::CuArray{T,3}, 𝑗::CuVector{S}, nbins, λ::T; MAX_THREADS=512) where {L <: GradientRegression,T,S}
+#     thread_i = min(nbins, MAX_THREADS)
+#     threads = thread_i
+#     blocks = length(𝑗)
+#     @cuda blocks = blocks threads = threads hist_gains_gpu_kernel!(gains, hL, hR, 𝑗, nbins, λ)
+#     return gains
+# end

@@ -82,3 +82,10 @@ function update_grads_gpu!(loss::Gaussian, δ::CuMatrix{T}, p::CuMatrix{T}, y::C
     @cuda blocks = blocks threads = threads kernel_gauss_δ!(δ, p, y)
     return
 end
+
+
+function update_childs_∑_gpu!(::L, nodes, n, bin, feat, K) where {L}
+    nodes[n << 1].∑ .= nodes[n].hL[:, bin, feat]
+    nodes[n << 1 + 1].∑ .= nodes[n].hR[:, bin, feat]
+    return nothing
+end

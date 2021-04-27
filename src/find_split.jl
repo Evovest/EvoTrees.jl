@@ -68,7 +68,7 @@ end
     Multi-threads split_set!
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
 """
-function split_set_chunk!(left, right, block, bid, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights, bsizes)
+function split_set_chunk!(left, right, block, bid, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights)
     left_count = 0
     right_count = 0
     @inbounds for i in eachindex(block)
@@ -82,7 +82,6 @@ function split_set_chunk!(left, right, block, bid, X_bin, feat, cond_bin, offset
     end
     lefts[bid] = left_count
     rights[bid] = right_count
-    bsizes[bid] = length(block)
     return nothing
 end
 
@@ -94,10 +93,9 @@ function split_set_threads!(out, left, right, 𝑖, X_bin::Matrix{S}, feat, cond
     nblocks = length(iter)
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
-    bsizes = zeros(Int, nblocks)
 
     @sync for (bid, block) in enumerate(iter)
-        Threads.@spawn split_set_chunk!(left, right, block, bid, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights, bsizes)
+        Threads.@spawn split_set_chunk!(left, right, block, bid, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights)
     end
 
     left_sum = sum(lefts)
