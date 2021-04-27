@@ -29,13 +29,14 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # linear
 params1 = EvoTreeRegressor(T=Float64,
-    loss=:linear, metric=:mse,
+    loss=:linear, metric=:none,
     nrounds=200, nbins = 64,
     λ = 0.5, γ=0.1, η=0.1,
-    max_depth = 6, min_weight = 1.0,
+    max_depth = 4, min_weight = 1.0,
     rowsample=0.5, colsample=1.0,
     device="gpu")
 
+@time model = fit_evotree(params1, X_train, Y_train, print_every_n = 25);
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25);
 # 67.159 ms (77252 allocations: 28.06 MiB)
 

@@ -50,7 +50,7 @@ struct TreeGPU{T<:AbstractFloat}
 end
 
 TreeGPU(x::CuVector{T}) where T <: AbstractFloat = TreeGPU(CUDA.zeros(Int, 1), CUDA.zeros(UInt8, 1), CUDA.zeros(T, 1), CUDA.zeros(T, 1), reshape(x, :, 1), CUDA.zeros(Bool, 1))
-TreeGPU(depth::S, K::S, ::T) where {S <: Integer, T <: AbstractFloat} = TreeGPU(CUDA.zeros(Int, 2^depth-1), CUDA.zeros(UInt8, 2^depth-1), CUDA.zeros(T, 2^depth-1), CUDA.zeros(T, 2^depth-1), CUDA.zeros(T, K, 2^depth-1), CUDA.zeros(Bool, 2^depth-1))
+TreeGPU(depth, K, ::T) where {S <: Integer, T <: AbstractFloat} = TreeGPU(CUDA.zeros(Int, 2^depth-1), CUDA.zeros(UInt8, 2^depth-1), CUDA.zeros(T, 2^depth-1), CUDA.zeros(T, 2^depth-1), CUDA.zeros(T, K, 2^depth-1), CUDA.zeros(Bool, 2^depth-1))
 
 # gradient-boosted tree is formed by a vector of trees
 struct GBTreeGPU{T<:AbstractFloat, S<:Integer}

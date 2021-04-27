@@ -74,10 +74,10 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
 
     # store cache
     cache = (params = deepcopy(params),
-        X = X, Y_gpu = Y, Y_cpu = Y_cpu, K = K,
+        X_gpu = CuArray(X), Y_gpu = Y, Y_cpu = Y_cpu, K = K,
         nodes = nodes,
         pred_gpu = pred_gpu,
-        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑗 = 𝑗,
+        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑗 = 𝑗, 𝑖 = Array(nodes[1].𝑖),
         out = out, left = left, right = right,
         δ𝑤 = δ𝑤,
         edges = edges, 
@@ -101,13 +101,15 @@ function grow_evotree!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T,S}
         # select random rows and cols
         sample!(params.rng, cache.𝑖_, cache.𝑖, replace=false, ordered=true)
         sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
+        cache.nodes[1].𝑖 .= CuArray(cache.𝑖)
+
         # build a new tree
         update_grads_gpu!(params.loss, cache.δ𝑤, cache.pred_gpu, cache.Y_gpu)
         # # assign a root and grow tree
-        tree = TreeGPU(UInt32(params.max_depth), evotree.K, zero(T))
-        grow_tree_gpu!(tree, nodes, params, cache.δ𝑤, cache.edges, CuVector(cache.𝑗), cache.out, cache.left, cache.right, cache.X_bin, cache.K);
+        tree = TreeGPU(params.max_depth, evotree.K, zero(T))
+        grow_tree_gpu!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, CuVector(cache.𝑗), cache.out, cache.left, cache.right, cache.X_bin, cache.K);
         push!(evotree.trees, tree)
-        # bad GPU usage - to be improved!
+        # update predctions
         predict_gpu!(cache.pred_gpu, tree, cache.X_gpu)
     end # end of nrounds
     cache.params.nrounds = params.nrounds
@@ -129,16 +131,26 @@ function grow_tree_gpu!(
     n_current = copy(n_next)
     depth = 1
 
+    # reset nodes
+    for n in eachindex(nodes)
+        nodes[n].h .= 0
+        nodes[n].hL
+        nodes[n].hR
+        nodes[n].∑ .= 0
+        nodes[n].gain = 0
+        fill!(nodes[n].gains, -Inf)
+    end
+
     # initialize summary stats
     nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims=2))
     nodes[1].gain = get_gain(params.loss, Array(nodes[1].∑), params.λ, K) # should use a GPU version?
 
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
-    # for depth in 1:(params.max_depth - 1)
+        offset = 0
         for n ∈ n_current
             if depth == params.max_depth
-                pred_leaf_gpu!(params.loss, tree.pred, n, nodes[n].∑, params)
+                pred_leaf_gpu!(params.loss, tree.pred, n, Array(nodes[n].∑), params)
             else
                 # histogram subtraction
                 if n > 1 && n % 2 == 1
@@ -156,12 +168,13 @@ function grow_tree_gpu!(
                 end
                 tree.split[n] = tree.cond_bin[n] != 0
                 if !tree.split[n]
-                    pred_leaf_gpu(params.loss, tree.pred, n, nodes[n].∑, params)
+                    pred_leaf_gpu!(params.loss, tree.pred, n, Array(nodes[n].∑), params)
                     popfirst!(n_next)
                 else
                     _left, _right = split_set_threads_gpu!(out, left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
                     nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = _left, _right
                     offset += length(nodes[n].𝑖)
+                    # println("length(_left): ", length(_left), " | length(_right): ", length(_right))
                     update_childs_∑_gpu!(params.loss, nodes, n, best[2][1], best[2][2])
                     nodes[n << 1].gain = get_gain(params.loss, Array(nodes[n << 1].∑), params.λ, K)
                     nodes[n << 1 + 1].gain = get_gain(params.loss, Array(nodes[n << 1 + 1].∑), params.λ, K)
@@ -174,5 +187,6 @@ function grow_tree_gpu!(
         n_current = copy(n_next)
         depth += 1
     end # end of loop over active ids for a given depth
+
     return nothing
 end

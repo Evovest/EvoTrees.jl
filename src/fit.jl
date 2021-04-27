@@ -134,7 +134,6 @@ function grow_tree!(
     nodes[1].gain = get_gain(params.loss, nodes[1].∑, params.λ, K)
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
-    # for depth in 1:(params.max_depth - 1)
         offset = 0 # identifies breakpoint for each node set within a depth
         for n ∈ n_current
             # println("n: ", n)
