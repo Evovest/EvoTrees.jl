@@ -1,7 +1,3 @@
-# function eval_metric(::Val{:mse}, pred::AbstractMatrix{T}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
-#     eval = mean((pred .- Y) .^ 2)
-#     return eval
-# end
 function eval_metric(::Val{:mse}, p::AbstractMatrix{T}, y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
     eval = zero(T)
     @inbounds for i in eachindex(y)
@@ -71,7 +67,7 @@ end
 function eval_metric(::Val{:quantile}, p::Vector{SVector{1,T}}, y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
     eval = zero(T)
     for i in eachindex(y)
-        eval += α * max(Y[i] - p[1,i], zero(T)) + (1 - α) * max(p[i][1] - y[i], zero(T))
+        eval += α * max(y[i] - p[1,i], zero(T)) + (1 - α) * max(p[1,i] - y[i], zero(T))
     end
     eval /= length(y)
     return eval
