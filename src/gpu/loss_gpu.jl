@@ -22,7 +22,6 @@ function kernel_linear_δ!(δ::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDev
     return
 end
 
-# base approach - block built along the cols first, the rows (limit collisions)
 function update_grads_gpu!(loss::Linear, δ::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS=1024) where {T <: AbstractFloat}
     thread_i = min(MAX_THREADS, length(y))
     threads = (thread_i)
@@ -45,7 +44,6 @@ function kernel_logistic_δ!(δ::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuD
     return
 end
 
-# base approach - block built along the cols first, the rows (limit collisions)
 function update_grads_gpu!(loss::Logistic, δ::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS=1024) where {T <: AbstractFloat}
     thread_i = min(MAX_THREADS, length(y))
     threads = (thread_i)
@@ -76,7 +74,6 @@ function kernel_gauss_δ!(δ::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDevi
     return
 end
 
-# base approach - block built along the cols first, the rows (limit collisions)
 function update_grads_gpu!(loss::Gaussian, δ::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS=1024) where {T <: AbstractFloat}
     thread_i = min(MAX_THREADS, length(y))
     threads = (thread_i)

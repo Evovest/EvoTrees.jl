@@ -7,47 +7,40 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     X = convert(Matrix{T}, X)
     
     if typeof(params.loss) == Logistic
-        Y_cpu = T.(Y)
-        Y = CuArray(Y_cpu)
+        Y = CuArray(T.(Y))
         μ = [logit(mean(Y))]
     elseif typeof(params.loss) == Poisson
-        Y_cpu = T.(Y)
-        Y = CuArray(Y_cpu)
+        Y = CuArray(T.(Y))
         μ = fill(log(mean(Y)), 1)
-    elseif typeof(params.loss) == Softmax
-        if typeof(Y) <: AbstractCategoricalVector
-            levels = CategoricalArray(CategoricalArrays.levels(Y))
-            K = length(levels)
-            μ = zeros(T, K)
-            Y = MLJModelInterface.int.(Y)
-        else
-            levels = CategoricalArray(sort(unique(Y)))
-            K = length(levels)
-            μ = zeros(T, K)
-            Y = UInt32.(Y)
-        end
+    # elseif typeof(params.loss) == Softmax
+    #     if typeof(Y) <: AbstractCategoricalVector
+    #         levels = CategoricalArray(CategoricalArrays.levels(Y))
+    #         K = length(levels)
+    #         μ = zeros(T, K)
+    #         Y = MLJModelInterface.int.(Y)
+    #     else
+    #         levels = CategoricalArray(sort(unique(Y)))
+    #         K = length(levels)
+    #         μ = zeros(T, K)
+    #         Y = UInt32.(Y)
+    #     end
     elseif typeof(params.loss) == Gaussian
         K = 2
-        Y_cpu = T.(Y)
-        Y = CuArray(Y_cpu)
+        Y = CuArray(T.(Y))
         μ = [mean(Y), log(std(Y))]
     else
-        Y_cpu = T.(Y)
-        Y = CuArray(Y_cpu)
+        Y = CuArray(T.(Y))
         μ = [mean(Y)]
     end
 
     # initialize preds
     X_size = size(X)
-    pred_cpu = zeros(T, K, X_size[1])
-    pred_gpu = CUDA.zeros(T, K, X_size[1])
-    pred_cpu .= μ'
-    pred_gpu .= CuArray(μ)'
+    pred = CUDA.zeros(T, K, X_size[1])
+    pred .= CuArray(μ)
 
     bias = TreeGPU(CuArray(μ))
     evotree = GBTreeGPU([bias], params, Metric(), K, levels)
 
-    
     # initialize gradients and weights
     δ𝑤 = CUDA.ones(T, 2 * K + 1, X_size[1])
     
@@ -66,22 +59,15 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     left = CUDA.zeros(UInt32, length(nodes[1].𝑖))
     right = CUDA.zeros(UInt32, length(nodes[1].𝑖))
 
-    # initializde histograms
-    # hist = CUDA.zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
-    # histL = CUDA.zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
-    # histR = CUDA.zeros(T, 2 * K + 1, params.nbins, X_size[2], 2^params.max_depth - 1)
-    # gains = CUDA.fill(T(-Inf), params.nbins, X_size[2], 2^params.max_depth - 1)
-
     # store cache
     cache = (params = deepcopy(params),
-        X_gpu = CuArray(X), Y_gpu = Y, Y_cpu = Y_cpu, K = K,
+        X = CuArray(X), X_bin = X_bin, Y = Y, K = K,
         nodes = nodes,
-        pred_gpu = pred_gpu,
+        pred = pred,
         𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑗 = 𝑗, 𝑖 = Array(nodes[1].𝑖),
         out = out, left = left, right = right,
         δ𝑤 = δ𝑤,
-        edges = edges, 
-        X_bin = X_bin)
+        edges = edges)
 
     cache.params.nrounds = 0
 
@@ -104,13 +90,13 @@ function grow_evotree!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T,S}
         cache.nodes[1].𝑖 .= CuArray(cache.𝑖)
 
         # build a new tree
-        update_grads_gpu!(params.loss, cache.δ𝑤, cache.pred_gpu, cache.Y_gpu)
+        update_grads_gpu!(params.loss, cache.δ𝑤, cache.pred, cache.Y)
         # # assign a root and grow tree
         tree = TreeGPU(params.max_depth, evotree.K, zero(T))
         grow_tree_gpu!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, CuVector(cache.𝑗), cache.out, cache.left, cache.right, cache.X_bin, cache.K);
         push!(evotree.trees, tree)
         # update predctions
-        predict_gpu!(cache.pred_gpu, tree, cache.X_gpu)
+        predict!(params.loss, cache.pred, tree, cache.X, cache.K)
     end # end of nrounds
     cache.params.nrounds = params.nrounds
     # return model, cache

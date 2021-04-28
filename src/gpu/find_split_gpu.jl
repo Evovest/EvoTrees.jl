@@ -122,11 +122,6 @@ function split_views_kernel!(out::CuDeviceVector{S}, left::CuDeviceVector{S}, ri
         out[offset + sum_lefts + cumsum_right + iter] = right[offset + chunk_size * (bid - 1) + iter]
         iter += 1
     end
-
-    # view(out, offset + left_cum + 1:offset + left_cum + lefts[bid]) .= view(left, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + lefts[bid])
-    # view(out, offset + sum_lefts + right_cum + 1:offset + sum_lefts + right_cum + rights[bid]) .= view(right, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + rights[bid])
-    # left_cum += lefts[bid]
-    # right_cum += rights[bid]
     sync_threads()
     return nothing
 end

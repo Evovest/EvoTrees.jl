@@ -77,7 +77,7 @@ params1 = EvoTreeGaussian(T=Float64,
 # GPU - Linear
 ################################
 # train model
-params1 = EvoTreeRegressor(T=Float32,
+params1 = EvoTreeRegressor(T=Float64,
     loss=:linear, metric=:none,
     nrounds=100,
     λ = 1.0, γ=0.0, η=0.1,

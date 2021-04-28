@@ -1,33 +1,40 @@
-# function eval_metric(::Val{:mse}, pred::AbstractMatrix{T}, Y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
-#     eval = mean((pred .- Y) .^ 2)
-#     return eval
-# end
-# function eval_metric(::Val{:mse}, pred::AbstractMatrix{T}, y::AbstractVector{T}, α) where T <: AbstractFloat
-#     eval = zero(T)
-#     @inbounds for i in 1:length(pred)
-#         eval += (pred[i,1] - y[i]) ^ 2
-#     end
-#     eval /= length(pred)
-#     return eval
-# end
+"""
+    MSE
+"""
+function eval_mse_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= length(y)
+        @inbounds eval[i] = (p[1,i] - y[i]) ^ 2
+    end
+    return nothing
+end
 
-# function eval_metric(::Val{:rmse}, pred::AbstractMatrix{T}, y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
-#     eval = zero(T)
-#     @inbounds for i in 1:length(pred)
-#         eval += (pred[i,1] - y[i]) ^ 2
-#     end
-#     eval = sqrt(eval/length(pred))
-#     return eval
-# end
+function eval_metric(::Val{:mse}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, α; MAX_THREADS=1024) where T <: AbstractFloat
+    threads = min(MAX_THREADS, length(y))
+    blocks = ceil(Int, length(y) / threads)
+    @cuda blocks = blocks threads = threads eval_mse_kernel!(eval, p, y)
+    CUDA.synchronize()
+    return mean(eval)
+end
 
-# function eval_metric(::Val{:mae}, pred::AbstractMatrix{T}, y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
-#     eval = zero(T)
-#     @inbounds for i in 1:length(pred)
-#         eval += abs(pred[i,1] - y[i])
-#     end
-#     eval /= length(pred)
-#     return eval
-# end
+"""
+    Logloss
+"""
+function eval_logloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= length(y)
+        @inbounds eval[i] = -y[i] * log(max(1e-8, sigmoid(p[1,i]))) + (1 - y[i]) * log(max(1e-8, 1 - sigmoid(p[1,i])))
+    end
+    return nothing
+end
+
+function eval_metric(::Val{:logloss}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, α; MAX_THREADS=1024) where T <: AbstractFloat
+    threads = min(MAX_THREADS, length(y))
+    blocks = ceil(Int, length(y) / threads)
+    @cuda blocks = blocks threads = threads eval_logloss_kernel!(eval, p, y)
+    CUDA.synchronize()
+    return mean(eval)
+end
 
 # function eval_metric(::Val{:logloss}, pred::AbstractMatrix{T}, y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
 #     eval = zero(T)
