@@ -36,6 +36,7 @@ params1 = EvoTreeRegressor(T=Float64,
     rowsample=0.5, colsample=1.0,
     device="gpu")
 
+@time model = fit_evotree(params1, X_train, Y_train, print_every_n = 25);
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25);
 # 67.159 ms (77252 allocations: 28.06 MiB)
 
@@ -72,14 +73,14 @@ savefig("figures/regression_sinus_gpu.png")
 ## gaussian
 ###############################
 params1 = EvoTreeGaussian(T=Float64,
-    loss=:gaussian, metric=:none,
-    nrounds=1, nbins=64,
-    λ = 0.0, γ=0.0, η=0.1,
-    max_depth = 6, min_weight = 1.0,
+    loss=:gaussian, metric=:gaussian,
+    nrounds=100, nbins=64,
+    λ = 1.0, γ=0.1, η=0.1,
+    max_depth = 6, min_weight = 0.1,
     rowsample=0.5, colsample=1.0, rng=123,
     device = "gpu")
 
-@time model = fit_evotree(params1, X_train, Y_train);
+@time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
 @time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n = 10);
 # @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
 @time pred_train_gaussian = EvoTrees.predict(model, X_train)

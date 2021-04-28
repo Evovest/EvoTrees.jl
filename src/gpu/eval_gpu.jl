@@ -36,13 +36,45 @@ function eval_metric(::Val{:logloss}, eval::AbstractVector{T}, p::AbstractMatrix
     return mean(eval)
 end
 
-# function eval_metric(::Val{:logloss}, pred::AbstractMatrix{T}, y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
-#     eval = zero(T)
-#     @inbounds for i in 1:length(y)
-#         eval -= y[i] * log(max(1e-8, sigmoid(pred[i,1]))) + (1 - y[i]) * log(max(1e-8, 1 - sigmoid(pred[i,1])))
+
+"""
+    Gaussian
+"""
+function eval_gaussian_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= length(y)
+        @inbounds eval[i] = p[2,i] + (y[i] - p[1,i])^2 / (2*max(1e-8, exp(2*p[2,i])))
+    end
+    return nothing
+end
+
+function eval_metric(::Val{:gaussian}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, α; MAX_THREADS=1024) where T <: AbstractFloat
+    threads = min(MAX_THREADS, length(y))
+    blocks = ceil(Int, length(y) / threads)
+    @cuda blocks = blocks threads = threads eval_gaussian_kernel!(eval, p, y)
+    CUDA.synchronize()
+    return mean(eval)
+end
+
+
+"""
+    Poisson
+        Unsupported factorial on CUDA at the moment
+"""
+# function eval_pois_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
+#     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+#     if i <= length(y)
+#         @inbounds eval[i] = exp(p[1,i]) * (1 - y[i]) + log(factorial(y[i]))
 #     end
-#     eval /= length(y)
-#     return eval
+#     return nothing
+# end
+
+# function eval_metric(::Val{:poisson}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, α; MAX_THREADS=1024) where T <: AbstractFloat
+#     threads = min(MAX_THREADS, length(y))
+#     blocks = ceil(Int, length(y) / threads)
+#     @cuda blocks = blocks threads = threads eval_pois_kernel!(eval, p, y)
+#     CUDA.synchronize()
+#     return mean(eval)
 # end
 
 # function eval_metric(::Val{:mlogloss}, pred::AbstractMatrix{T}, y::Vector{S}, α=0.0) where {T <: AbstractFloat, S <: Integer}
@@ -54,27 +86,6 @@ end
 #         pred[i] = pred[i] .- maximum(pred[i])
 #         soft_pred = exp.(pred[i]) / sum(exp.(pred[i]))
 #         eval -= log(soft_pred[y[i]])
-#     end
-#     eval /= length(y)
-#     return eval
-# end
-
-# function eval_metric(::Val{:poisson}, pred::AbstractMatrix{T}, y::AbstractVector{T}, α=0.0) where T <: AbstractFloat
-#     eval = zero(T)
-#     @inbounds for i in 1:length(y)
-#         eval += exp(pred[i,1]) * (1 - y[i]) + log(factorial(y[i]))
-#     end
-#     eval /= length(y)
-#     return eval
-# end
-
-# gaussian
-# pred[i][1] = μ
-# pred[i][2] = log(σ)
-# function eval_metric(::Val{:gaussian}, pred::AbstractMatrix{T}, y::AbstractVector{T}, α=0.0) where {L, T <: AbstractFloat}
-#     eval = zero(T)
-#     @inbounds for i in 1:length(y)
-#         eval += pred[i,2] + (y[i] - pred[i,1])^2 / (2*max(1e-8, exp(2*pred[i,2])))
 #     end
 #     eval /= length(y)
 #     return eval

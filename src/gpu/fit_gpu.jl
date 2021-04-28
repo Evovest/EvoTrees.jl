@@ -120,10 +120,10 @@ function grow_tree_gpu!(
     # reset nodes
     for n in eachindex(nodes)
         nodes[n].h .= 0
-        nodes[n].hL
-        nodes[n].hR
+        nodes[n].hL .= 0
+        nodes[n].hR .= 0
         nodes[n].∑ .= 0
-        nodes[n].gain = 0
+        nodes[n].gain = -Inf
         fill!(nodes[n].gains, -Inf)
     end
 
@@ -139,11 +139,11 @@ function grow_tree_gpu!(
                 pred_leaf_gpu!(params.loss, tree.pred, n, Array(nodes[n].∑), params)
             else
                 # histogram subtraction
-                if n > 1 && n % 2 == 1
-                    nodes[n].h .= nodes[n >> 1].h .- nodes[n - 1].h
-                else
-                    update_hist_gpu!(params.loss, nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗, K)
-                end
+                # if n > 1 && n % 2 == 1
+                #     nodes[n].h .= nodes[n >> 1].h .- nodes[n - 1].h
+                # else
+                update_hist_gpu!(params.loss, nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗, K)
+                # end
                 update_gains_gpu!(params.loss, nodes[n], 𝑗, params, K)
                 best = findmax(nodes[n].gains)
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.γ
@@ -152,8 +152,10 @@ function grow_tree_gpu!(
                     tree.feat[n] = best[2][2]
                     tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
                 end
+                # println("node: ", n, " | best: ", best, " | nodes[n].gain: ", nodes[n].gain)
                 tree.split[n] = tree.cond_bin[n] != 0
                 if !tree.split[n]
+                    # println("Array(nodes[n].∑: ", Array(nodes[n].∑))
                     pred_leaf_gpu!(params.loss, tree.pred, n, Array(nodes[n].∑), params)
                     popfirst!(n_next)
                 else
@@ -161,6 +163,7 @@ function grow_tree_gpu!(
                     nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = _left, _right
                     offset += length(nodes[n].𝑖)
                     # println("length(_left): ", length(_left), " | length(_right): ", length(_right))
+                    # println("best: ", best)
                     update_childs_∑_gpu!(params.loss, nodes, n, best[2][1], best[2][2])
                     nodes[n << 1].gain = get_gain(params.loss, Array(nodes[n << 1].∑), params.λ, K)
                     nodes[n << 1 + 1].gain = get_gain(params.loss, Array(nodes[n << 1 + 1].∑), params.λ, K)
