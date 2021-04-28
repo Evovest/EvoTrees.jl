@@ -150,3 +150,18 @@ q_20 = quantile.(pred, 0.20)
 q_20 = quantile.(pred, 0.80)
 
 report(mach)
+
+############################
+# Added in response to #92 #
+############################
+
+# tests that `update` handles data correctly in the case of a cold
+# restatrt:
+
+X = MLJBase.table(rand(5,2))
+y = rand(5)
+model = EvoTreeRegressor()
+data = MLJBase.reformat(model, X, y);
+f, c, r = MLJBase.fit(model, 2, data...);
+model.λ = 0.1
+MLJBase.update(model, 2, f, c, data...);
