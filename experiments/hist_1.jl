@@ -32,6 +32,18 @@ end
 @time iter_1(X_bin, hist_δ, δ, 𝑖, 𝑗)
 @btime iter_1(X_bin, hist_δ, δ, 𝑖, 𝑗)
 
+function iter_1A(X_bin, hist_δ, δ, 𝑖, 𝑗)
+    # hist_δ .*= 0.0
+    @inbounds @threads for j in 𝑗
+        @inbounds for i in 𝑖
+            hist_δ[X_bin[i,j], j] += δ[i]
+        end
+    end
+end
+
+@time iter_1A(X_bin, hist_δ, δ, 𝑖, 𝑗)
+@btime iter_1A(X_bin, hist_δ, δ, 𝑖, 𝑗)
+
 ### 3 features in seperate hists
 function iter_1B(X_bin, hist_δ, hist_δ², hist_𝑤, δ, δ², 𝑤, 𝑖, 𝑗)
     # hist_δ .= 0.0
@@ -88,6 +100,7 @@ end
 @time iter_3(X_bin, hist_δ𝑤, δ𝑤, 𝑖, 𝑗)
 @btime iter_3($X_bin, $hist_δ𝑤, $δ𝑤, $𝑖, $𝑗)
 
+# 39.849 ms (81 allocations: 8.22 KiB)
 function iter_3B(X_bin, hist_δ𝑤, δ𝑤, 𝑖, 𝑗)
     @inbounds @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
@@ -101,13 +114,16 @@ end
 @time iter_3B(X_bin, hist_δ𝑤, δ𝑤, 𝑖, 𝑗)
 @btime iter_3B($X_bin, $hist_δ𝑤, $δ𝑤, $𝑖, $𝑗)
 
+# 38.027 ms (81 allocations: 8.22 KiB)
 function iter_3C(X_bin, hist_δ𝑤, δ𝑤, 𝑖, 𝑗)
     @inbounds @threads for j in 𝑗
-        @inbounds @simd for id in eachindex(𝑖)
-            i = 𝑖[id]
-            hist_δ𝑤[1, X_bin[i,j], j] += δ𝑤[1,i]
-            hist_δ𝑤[2, X_bin[i,j], j] += δ𝑤[2,i]
-            hist_δ𝑤[3, X_bin[i,j], j] += δ𝑤[3,i]
+        @inbounds for chunk in 1:10000
+            @inbounds for iter in 1:100
+                i = iter + 100 * (chunk - 1)
+                hist_δ𝑤[1, X_bin[i,j], j] += δ𝑤[1,i]
+                hist_δ𝑤[2, X_bin[i,j], j] += δ𝑤[2,i]
+                hist_δ𝑤[3, X_bin[i,j], j] += δ𝑤[3,i]
+            end
         end
     end
 end
@@ -120,6 +136,7 @@ end
 hist_δ𝑤_vec = [zeros(3, nbins) for j in 1:nvars]
 δ𝑤 = rand(3, n)
 
+# 33.762 ms (81 allocations: 8.22 KiB)
 function iter_4(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
     # [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
     @inbounds @threads for j in 𝑗
@@ -137,8 +154,9 @@ end
 
 ### 3 features in common hists - vector of matrix hists - gradients/weight in single matrix
 hist_δ𝑤_vec = [zeros(3, nbins) for j in 1:nvars]
-δ𝑤 = rand(n,3)
+δ𝑤 = rand(n, 3)
 
+# 40.005 ms (81 allocations: 8.22 KiB)
 function iter_4B(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
     # [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]
     @inbounds @threads for j in 𝑗
@@ -156,6 +174,7 @@ end
 ### 3 features in common hists - vector of vec hists - gradients/weight in single vector
 hist_δ𝑤_vec = [zeros(3 * nbins) for j in 1:nvars]
 δ𝑤 = rand(3 * n)
+
 
 function iter_5(X_bin, hist_δ𝑤_vec, δ𝑤, 𝑖, 𝑗)
     # [hist_δ𝑤_vec[j] .= 0.0 for j in 𝑗]

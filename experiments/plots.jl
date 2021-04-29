@@ -1,6 +1,5 @@
 using Statistics
 using StatsBase: sample
-using Revise
 using EvoTrees
 using BenchmarkTools
 using BSON: @save, @load

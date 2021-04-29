@@ -36,6 +36,7 @@ mean(abs.(pred_train - selectrows(Y,train)))
 pred_test = predict(mach, selectrows(X,test))
 mean(abs.(pred_test - selectrows(Y,test)))
 
+@test MLJBase.iteration_parameter(EvoTreeRegressor) == :nrounds
 
 ##################################################
 ### classif - categorical target
