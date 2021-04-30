@@ -126,22 +126,38 @@ function update_hist!(
     𝑖::AbstractVector{S},
     𝑗::AbstractVector{S}, K) where {L <: GradientRegression,T,S}
 
+    δ𝑤_flat = reshape(δ𝑤, length(δ𝑤))
+
     @inbounds @threads for j in 𝑗
-        # InteractiveUtils.@code_native update_hist_gradient!(hist[j], δ𝑤, X_bin, 𝑖, j)
+        # InteractiveUtils.@code_native update_hist_gradient!(hist[j], δ𝑤_flat, X_bin, 𝑖, j)
         # exit(1)
-        update_hist_gradient!(hist[j], δ𝑤, X_bin, 𝑖, j)
+        update_hist_gradient!(hist[j], δ𝑤_flat, X_bin, 𝑖, j)
     end
     return nothing
 end
 
-import SIMD
-
-function update_hist_gradient!(hist, δ𝑤, X_bin, 𝑖, j)
+function update_hist_gradient!(hist::Vector{Float32}, δ𝑤_flat::Vector{Float32}, X_bin, 𝑖, j)
     @inbounds @simd for i in 𝑖
-        hid = 4 * X_bin[i,j] - 3
-        hist[hid]     += δ𝑤[1, i]
-        hist[hid + 1] += δ𝑤[2, i]
-        hist[hid + 2] += δ𝑤[3, i]
+        hid  = 4 * X_bin[i,j] - 3
+        δ𝑤id = 4 * i - 3
+
+        hist_bin  = SIMD.vloada(SIMD.Vec{4,Float32}, hist, hid)
+        loss_info = SIMD.vloada(SIMD.Vec{4,Float32}, δ𝑤_flat, δ𝑤id)
+        SIMD.vstorea(hist_bin + loss_info, hist, hid)
+    end
+end
+
+function update_hist_gradient!(hist::Vector{T}, δ𝑤_flat::Vector{T}, X_bin, 𝑖, j) where T
+    @inbounds @simd for i in 𝑖
+        hid  = 4 * X_bin[i,j] - 3
+        δ𝑤id = 4 * i - 3
+
+        # hist_bin  = SIMD.vloada(SIMD.Vec{4,T}, hist, hid)
+        # loss_info = SIMD.vloada(SIMD.Vec{4,T}, δ𝑤_flat, δ𝑤id)
+        # SIMD.vstorea(hist_bin + loss_info, hist, hid)
+        hist[hid]     += δ𝑤_flat[δ𝑤id]
+        hist[hid + 1] += δ𝑤_flat[δ𝑤id + 1]
+        hist[hid + 2] += δ𝑤_flat[δ𝑤id + 2]
     end
 end
 

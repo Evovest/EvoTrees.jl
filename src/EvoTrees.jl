@@ -15,6 +15,7 @@ using CUDA
 using BSON
 using NetworkLayout
 using RecipesBase
+import SIMD
 import MLJModelInterface
 import MLJModelInterface: fit, update, predict, schema
 import Base: convert
