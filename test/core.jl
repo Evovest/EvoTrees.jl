@@ -8,8 +8,8 @@ Random.seed!(12345)
 features = rand(Float32, 10_000) .* 5
 X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5f0 .+ 0.5f0
-Y = logit(Y) + randn(size(Y))
-Y = sigmoid(Y)
+Y = logit(Y) + randn(Float32, size(Y))
+Y = sigmoid(Y) :: Vector{Float32}
 𝑖 = collect(1:size(X,1))
 seed = 123
 
