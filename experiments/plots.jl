@@ -69,4 +69,3 @@ params1 = EvoTreeGaussian(T=Float64,
 
 @time model = fit_evotree(params1, X_train, Y_train);
 EvoTrees.save(model, "data/model_gaussian_gpu.bson")
-
