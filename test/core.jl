@@ -5,9 +5,9 @@ using EvoTrees: sigmoid, logit
 Random.seed!(12345)
 
 # prepare a dataset
-features = rand(10_000) .* 5
+features = rand(Float32, 10_000) .* 5
 X = reshape(features, (size(features)[1], 1))
-Y = sin.(features) .* 0.5 .+ 0.5
+Y = sin.(features) .* 0.5f0 .+ 0.5f0
 Y = logit(Y) + randn(size(Y))
 Y = sigmoid(Y)
 𝑖 = collect(1:size(X,1))
