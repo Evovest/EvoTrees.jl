@@ -13,11 +13,12 @@ using Distributions
 using StaticArrays
 using CategoricalArrays
 using CUDA
-using BSON: @save, @load
+using BSON
 using NetworkLayout
 using RecipesBase
 import MLJModelInterface
 import MLJModelInterface: fit, update, predict, schema
+import Base: convert
 
 include("models.jl")
 include("structs.jl")
@@ -37,13 +38,32 @@ include("gpu/predict_gpu.jl")
 include("gpu/find_split_gpu.jl")
 include("gpu/fit_gpu.jl")
 
+
+function convert(::Type{GBTree}, m::GBTreeGPU)
+    EvoTrees.GBTree([EvoTrees.Tree(Array(tree.feat),
+            Array(tree.cond_bin),
+            Array(tree.cond_float),
+            Array(tree.gain),
+            Array(tree.pred),
+            Array(tree.split)) for tree in m.trees],
+        m.params,
+        m.metric,
+        m.K,
+        m.levels)
+end
+
 function save(model::GBTree, path)
-    @save path model
+    BSON.bson(path, Dict(:model => model))
+end
+
+function save(model::GBTreeGPU, path)
+    m = convert(GBTree, model)
+    save(m, path)
 end
 
 function load(path)
-    @load path model
-    return model
+    m = BSON.load(path, @__MODULE__)
+    return m[:model]
 end
 
 end # module

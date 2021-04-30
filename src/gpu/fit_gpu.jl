@@ -3,7 +3,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     X::AbstractMatrix, Y::AbstractVector; verbosity=1) where {T,U,S}
 
     K = 1
-    levels = ""
+    levels = nothing
     X = convert(Matrix{T}, X)
     
     if typeof(params.loss) == Logistic
@@ -75,7 +75,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
 end
 
 
-function grow_evotree!(evotree::GBTreeGPU{T,S}, cache; verbosity=1) where {T,S}
+function grow_evotree!(evotree::GBTreeGPU{T}, cache; verbosity=1) where {T}
 
     # initialize from cache
     params = evotree.params

@@ -3,7 +3,7 @@ function init_evotree(params::EvoTypes{T,U,S},
     X::AbstractMatrix, Y::AbstractVector; fnames=nothing, verbosity=1) where {T,U,S}
 
     K = 1
-    levels = ""
+    levels = nothing
     X = convert(Matrix{T}, X)
 
     if typeof(params.loss) == Poisson
@@ -196,7 +196,6 @@ function fit_evotree(params, X_train, Y_train;
 
     nrounds_max = params.nrounds
     params.nrounds = 0
-
 
     if params.device == "gpu"
         model, cache = init_evotree_gpu(params, X_train, Y_train)
