@@ -4,7 +4,7 @@ export init_evotree, grow_evotree!, grow_tree, fit_evotree, predict,
     EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
     EvoTreeRModels, importance, Random
 
-using Base.Threads: @threads
+using Base.Threads: @threads, nthreads
 using Statistics
 using StatsBase: sample, sample!, quantile
 using Random

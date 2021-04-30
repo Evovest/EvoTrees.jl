@@ -111,6 +111,26 @@ function split_set_threads!(out, left, right, 𝑖, X_bin::Matrix{S}, feat, cond
     return (view(out, offset + 1:offset + sum_lefts), view(out, offset + sum_lefts + 1:offset + length(𝑖)))
 end
 
+# f should be a function that take an indices_range and returns a tuple of reduction values
+#
+# parallel_iterate will unzip those tuples into a tuple of arrays of reduction values and return that.
+function parallel_iterate(f, count)
+    thread_results = Vector{Any}(undef, nthreads())
+
+    @threads for thread_i in 1:nthreads()
+        start = div((thread_i-1) * count, nthreads()) + 1
+        stop  = div( thread_i    * count, nthreads())
+        thread_results[thread_i] = f(start:stop)
+    end
+
+    if isa(thread_results[1], Tuple)
+        # Mangling so you get a tuple of arrays.
+        Tuple(collect.(zip(thread_results...)))
+    else
+        thread_results
+    end
+end
+
 
 # import InteractiveUtils
 
@@ -128,22 +148,72 @@ function update_hist!(
 
     δ𝑤_flat = reshape(δ𝑤, length(δ𝑤))
 
-    @inbounds @threads for j in 𝑗
-        # InteractiveUtils.@code_native update_hist_gradient!(hist[j], δ𝑤_flat, X_bin, 𝑖, j)
-        # exit(1)
-        update_hist_gradient!(hist[j], δ𝑤_flat, X_bin, 𝑖, j)
+    parallel_iterate(length(𝑗)) do 𝑗_range
+        𝑗_i = 𝑗_range.start
+        while 𝑗_i <= 𝑗_range.stop
+          if 𝑗_i + 1 <= 𝑗_range.stop
+            j1 = 𝑗[𝑗_i]
+            j2 = 𝑗[𝑗_i+1]
+            update_hist_gradient!(hist[j1], hist[j2], δ𝑤_flat, X_bin, 𝑖, j1, j2)
+            𝑗_i += 2
+          else
+            j1 = 𝑗[𝑗_i]
+            update_hist_gradient!(hist[j1], δ𝑤_flat, X_bin, 𝑖, j1)
+            𝑗_i += 1
+          end
+        end
     end
     return nothing
 end
 
+function update_hist_gradient!(
+    hist1::Vector{Float32},
+    hist2::Vector{Float32},
+    δ𝑤_flat::Vector{Float32},
+    X_bin,
+    𝑖,
+    j1,
+    j2)
+    @inbounds for i in 𝑖
+        hid1 = 4 * X_bin[i,j1] - 3
+        hid2 = 4 * X_bin[i,j2] - 3
+        δ𝑤id = 4 * i - 3
+
+        loss_info = SIMD.vloada(SIMD.Vec{4,Float32}, δ𝑤_flat, δ𝑤id)
+
+        hist_bin1 = SIMD.vloada(SIMD.Vec{4,Float32}, hist1, hid1)
+        SIMD.vstorea(hist_bin1 + loss_info, hist1, hid1)
+        hist_bin2 = SIMD.vloada(SIMD.Vec{4,Float32}, hist2, hid2)
+        SIMD.vstorea(hist_bin2 + loss_info, hist2, hid2)
+    end
+end
+
 function update_hist_gradient!(hist::Vector{Float32}, δ𝑤_flat::Vector{Float32}, X_bin, 𝑖, j)
-    @inbounds @simd for i in 𝑖
+    @inbounds for i in 𝑖
         hid  = 4 * X_bin[i,j] - 3
         δ𝑤id = 4 * i - 3
 
         hist_bin  = SIMD.vloada(SIMD.Vec{4,Float32}, hist, hid)
         loss_info = SIMD.vloada(SIMD.Vec{4,Float32}, δ𝑤_flat, δ𝑤id)
         SIMD.vstorea(hist_bin + loss_info, hist, hid)
+    end
+end
+
+function update_hist_gradient!(hist1::Vector{T}, hist2::Vector{T}, δ𝑤_flat::Vector{T}, X_bin, 𝑖, j1, j2) where T
+    @inbounds @simd for i in 𝑖
+        hid1 = 4 * X_bin[i,j1] - 3
+        hid2 = 4 * X_bin[i,j2] - 3
+        δ𝑤id = 4 * i - 3
+
+        # hist_bin  = SIMD.vloada(SIMD.Vec{4,T}, hist, hid)
+        # loss_info = SIMD.vloada(SIMD.Vec{4,T}, δ𝑤_flat, δ𝑤id)
+        # SIMD.vstorea(hist_bin + loss_info, hist, hid)
+        hist1[hid1]     += δ𝑤_flat[δ𝑤id]
+        hist2[hid2]     += δ𝑤_flat[δ𝑤id]
+        hist1[hid1 + 1] += δ𝑤_flat[δ𝑤id + 1]
+        hist2[hid2 + 1] += δ𝑤_flat[δ𝑤id + 1]
+        hist1[hid1 + 2] += δ𝑤_flat[δ𝑤id + 2]
+        hist2[hid2 + 2] += δ𝑤_flat[δ𝑤id + 2]
     end
 end
 
