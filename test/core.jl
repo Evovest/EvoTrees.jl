@@ -2,6 +2,8 @@ using Statistics
 using StatsBase: sample
 using EvoTrees: sigmoid, logit
 
+Random.seed!(12345)
+
 # prepare a dataset
 features = rand(10_000) .* 5
 X = reshape(features, (size(features)[1], 1))

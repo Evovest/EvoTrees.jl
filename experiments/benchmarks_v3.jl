@@ -1,6 +1,6 @@
-using Statistics
-using StatsBase:sample
-using Revise
+# using Statistics
+# using StatsBase:sample
+# using Revise
 using EvoTrees
 using MemoryConstrainedTreeBoosting
 
@@ -30,6 +30,7 @@ params_mctb = (
       )
 
 nobs = Int(1e6)
+# nobs = Int(1e4)
 num_feat = Int(100)
 @info "testing with: $nobs observations | $num_feat features."
 X = rand(Float32, nobs, num_feat)
@@ -45,13 +46,13 @@ params_evo.device = "cpu"
 @time pred_evo = EvoTrees.predict(m_evo, X);
 @time EvoTrees.predict(m_evo, X);
 
-@info "evotrees train GPU:"
-params_evo.device = "gpu"
-@time m_evo = fit_evotree(params_evo, X, Y);
-@time fit_evotree(params_evo, X, Y);
-@info "evotrees predict GPU:"
-@time pred_evo = EvoTrees.predict(m_evo, X);
-@time EvoTrees.predict(m_evo, X);
+# @info "evotrees train GPU:"
+# params_evo.device = "gpu"
+# @time m_evo = fit_evotree(params_evo, X, Y);
+# @time fit_evotree(params_evo, X, Y);
+# @info "evotrees predict GPU:"
+# @time pred_evo = EvoTrees.predict(m_evo, X);
+# @time EvoTrees.predict(m_evo, X);
 
 @info "MemoryConstrainedTreeBoosting train CPU:"
 @time bin_splits, trees = MemoryConstrainedTreeBoosting.train(X, Y; params_mctb...);
