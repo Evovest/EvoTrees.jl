@@ -36,7 +36,7 @@ end
 
 function eval_metric(::Val{:mlogloss}, p::AbstractMatrix{T}, y::AbstractVector{S}, α=0.0) where {T <: AbstractFloat,S <: Integer}
     eval = zero(T)
-    p_prob = exp.(p) ./ sum(exp.(x), dim=1) 
+    p_prob = exp.(p) ./ sum(exp.(p), dims=1) 
     @inbounds for i in eachindex(y)
         # p[i] = p[i] .- maximum(p[i])
         # soft_pred = exp.(p[i]) / sum(exp.(p[i]))
