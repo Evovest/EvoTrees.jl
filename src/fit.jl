@@ -136,7 +136,7 @@ function grow_tree!(
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
         for n ∈ n_current
-            if depth == params.max_depth
+            if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params, K, δ𝑤, nodes[n].𝑖)
             else
                 # histogram subtraction

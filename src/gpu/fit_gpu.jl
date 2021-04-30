@@ -135,7 +135,7 @@ function grow_tree_gpu!(
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0
         for n ∈ n_current
-            if depth == params.max_depth
+            if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_gpu!(params.loss, tree.pred, n, Array(nodes[n].∑), params)
             else
                 # histogram subtraction

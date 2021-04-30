@@ -264,7 +264,7 @@ function update_gains!(
                 node.hR[j][binid + k] = node.hR[j][binid - KK + k] - node.h[j][binid + k]
             end
         end
-        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params.nbins, params.λ, K)
+        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params.nbins, params.λ, params.min_weight, K)
     end
     return nothing
 end
@@ -274,13 +274,13 @@ end
     hist_gains_cpu!
         GradientRegression
 """
-function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, K) where {L <: GradientRegression,T}
+function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, min_𝑤::T, K) where {L <: GradientRegression,T}
     @inbounds for bin in 1:nbins
         i = 3 * bin - 2
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
         if bin == nbins
             @inbounds gains[bin] = hL[i]^2 / (hL[i + 1] + λ * hL[i + 2]) / 2 
-        elseif hL[i + 2] > 1e-5 && hR[i + 2] > 1e-5
+        elseif hL[i + 2] > min_𝑤 && hR[i + 2] > min_𝑤
             @inbounds gains[bin] = (hL[i]^2 / (hL[i + 1] + λ * hL[i + 2]) + 
                 hR[i]^2 / (hR[i + 1] + λ * hR[i + 2])) / 2
         end
@@ -290,28 +290,32 @@ end
 
 """
     hist_gains_cpu!
-        QuantileRegression
+        QuantileRegression/L1Regression
 """
-function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, K) where {L <: Union{QuantileRegression,L1Regression},T}
+function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, min_𝑤::T, K) where {L <: Union{QuantileRegression,L1Regression},T}
     @inbounds for bin in 1:nbins
         i = 3 * bin - 2
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
         if bin == nbins
             @inbounds gains[bin] = abs(hL[i]) 
-        elseif hL[i + 2] > 1e-5 && hR[i + 2] > 1e-5
+        elseif hL[i + 2] > min_𝑤 && hR[i + 2] > min_𝑤
             @inbounds gains[bin] = abs(hL[i]) + abs(hR[i])
         end
     end
     return nothing
 end
 
-function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, K) where {L <: GaussianRegression,T}
+"""
+    hist_gains_cpu!
+        GaussianRegression
+"""
+function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, min_𝑤::T, K) where {L <: GaussianRegression,T}
     @inbounds for bin in 1:nbins
         i = 5 * bin - 4
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
         @inbounds if bin == nbins
             gains[bin] = (hL[i]^2 / (hL[i + 2] + λ * hL[i + 4]) + hL[i + 1]^2 / (hL[i + 3] + λ * hL[i + 4])) / 2
-        elseif hL[i + 4] > 1e-5 && hR[i + 4] > 1e-5
+        elseif hL[i + 4] > min_𝑤 && hR[i + 4] > min_𝑤
             gains[bin] = (hL[i]^2 / (hL[i + 2] + λ * hL[i + 4]) + 
                 hR[i]^2 / (hR[i + 2] + λ * hR[i + 4])) / 2 + 
                 (hL[i + 1]^2 / (hL[i + 3] + λ * hL[i + 4]) + 
@@ -321,7 +325,11 @@ function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vecto
     return nothing
 end
 
-function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, K) where {L,T}
+"""
+    hist_gains_cpu!
+        Generic
+"""
+function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, min_𝑤::T, K) where {L,T}
     @inbounds for bin in 1:nbins
         i = (2 * K + 1) * (bin - 1)
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
@@ -333,7 +341,7 @@ function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vecto
                     gains[bin] += hL[i + k]^2 / (hL[i + k + K] + λ * hL[i + 2 * K + 1]) / 2
                 end
             end
-        elseif hL[i + 4] > 1e-5 && hR[i + 4] > 1e-5
+        elseif hL[i + 2 * K + 1] > min_𝑤 && hR[i + 2 * K + 1] > min_𝑤
             @inbounds for k in 1:K
                 if k == 1
                     gains[bin] = (hL[i + k]^2 / (hL[i + k + K] + λ * hL[i + 2 * K + 1]) +  hR[i + k]^2 / (hR[i + k + K] + λ * hR[i + 2 * K + 1])) / 2
