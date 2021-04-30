@@ -24,28 +24,6 @@ function binarize(X, edges)
 end
 
 """
-    split_set!
-        Split row ids into left and right based on best split condition
-"""
-# function split_set!(left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S, offset=0) where S
-    
-#     left_count = 0
-#     right_count = 0
-
-#     @inbounds for i in 1:length(𝑖)
-#         id = 𝑖[i]
-#         @inbounds if X_bin[id, feat] <= cond_bin
-#             left_count += 1
-#             left[offset + left_count] = id
-#         else
-#             right_count += 1
-#             right[offset + right_count] = id
-#         end
-#     end
-#     return (left[1:left_count], right[1:right_count])
-# end
-
-"""
     Non Allocating split_set!
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
 """
