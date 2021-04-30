@@ -30,7 +30,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 params1 = EvoTreeRegressor(T=Float64,
     loss=:linear, metric=:mse,
     nrounds=200, nbins = 64,
-    λ = 0.5, γ=0.1, η=0.1,
+    λ = 0.1, γ=0.1, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0,
     rng = 123)
@@ -53,7 +53,7 @@ sqrt(mean((pred_train_linear .- Y_train) .^ 2))
 params1 = EvoTreeRegressor(
     loss=:logistic, metric = :logloss,
     nrounds=200, nbins = 64,
-    λ = 0.5, γ=0.1, η=0.1,
+    λ = 0.1, γ=0.1, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
@@ -68,7 +68,7 @@ sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
 params1 = EvoTreeCount(
     loss=:poisson, metric = :poisson,
     nrounds=200, nbins = 64,
-    λ = 0.5, γ=0.1, η=0.1,
+    λ = 0.1, γ=0.1, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25);
@@ -81,7 +81,7 @@ sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
 params1 = EvoTreeRegressor(
     loss=:L1, α=0.5, metric = :mae,
     nrounds=200, nbins=64,
-    λ = 0.5, γ=0.1, η=0.1,
+    λ = 0.1, γ=0.1, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25);
@@ -151,7 +151,7 @@ savefig("figures/quantiles_sinus.png")
 params1 = EvoTreeGaussian(
     loss=:gaussian, metric=:gaussian,
     nrounds=200, nbins=64,
-    λ = 1.0, γ=0.1, η=0.1,
+    λ = 0.1, γ=0.1, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0, rng=123)
 

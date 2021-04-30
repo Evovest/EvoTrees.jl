@@ -191,7 +191,7 @@ function update_gains!(
             node.hR[j][binid + 2] = node.hR[j][binid - 1] - node.h[j][binid + 2]
 
         end
-        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params.nbins, params.λ, K)
+        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params.nbins, params.λ, params.min_weight, K)
     end
     return nothing
 end
@@ -233,7 +233,7 @@ function update_gains!(
             node.hR[j][binid + 4] = node.hR[j][binid - 1] - node.h[j][binid + 4]
 
         end
-        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params.nbins, params.λ, K)
+        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params.nbins, params.λ, params.min_weight, K)
     end
     return nothing
 end
