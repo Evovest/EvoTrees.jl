@@ -148,19 +148,23 @@ function update_hist!(
 
     δ𝑤_flat = reshape(δ𝑤, length(δ𝑤))
 
+    is_chunk_size = 1000
+
     parallel_iterate(length(𝑗)) do 𝑗_range
-        𝑗_i = 𝑗_range.start
-        while 𝑗_i <= 𝑗_range.stop
-          if 𝑗_i + 1 <= 𝑗_range.stop
-            j1 = 𝑗[𝑗_i]
-            j2 = 𝑗[𝑗_i+1]
-            update_hist_gradient!(hist[j1], hist[j2], δ𝑤_flat, X_bin, 𝑖, j1, j2)
-            𝑗_i += 2
-          else
-            j1 = 𝑗[𝑗_i]
-            update_hist_gradient!(hist[j1], δ𝑤_flat, X_bin, 𝑖, j1)
-            𝑗_i += 1
-          end
+        for 𝑖_range in Iterators.partition(1:length(𝑖), is_chunk_size) # I think this allocates :/
+            𝑗_i = 𝑗_range.start
+            while 𝑗_i <= 𝑗_range.stop
+                if 𝑗_i + 1 <= 𝑗_range.stop
+                    j1 = 𝑗[𝑗_i]
+                    j2 = 𝑗[𝑗_i+1]
+                    update_hist_gradient!(hist[j1], hist[j2], δ𝑤_flat, X_bin, 𝑖, 𝑖_range, j1, j2)
+                    𝑗_i += 2
+                else
+                    j1 = 𝑗[𝑗_i]
+                    update_hist_gradient!(hist[j1], δ𝑤_flat, X_bin, 𝑖, 𝑖_range, j1)
+                    𝑗_i += 1
+                end
+            end
         end
     end
     return nothing
@@ -172,9 +176,11 @@ function update_hist_gradient!(
     δ𝑤_flat::Vector{Float32},
     X_bin,
     𝑖,
+    𝑖_range,
     j1,
     j2)
-    @inbounds for i in 𝑖
+    @inbounds for 𝑖_i in 𝑖_range
+        i = 𝑖[𝑖_i]
         hid1 = 4 * X_bin[i,j1] - 3
         hid2 = 4 * X_bin[i,j2] - 3
         δ𝑤id = 4 * i - 3
@@ -188,8 +194,9 @@ function update_hist_gradient!(
     end
 end
 
-function update_hist_gradient!(hist::Vector{Float32}, δ𝑤_flat::Vector{Float32}, X_bin, 𝑖, j)
-    @inbounds for i in 𝑖
+function update_hist_gradient!(hist::Vector{Float32}, δ𝑤_flat::Vector{Float32}, X_bin, 𝑖, 𝑖_range, j)
+    @inbounds for 𝑖_i in 𝑖_range
+        i = 𝑖[𝑖_i]
         hid  = 4 * X_bin[i,j] - 3
         δ𝑤id = 4 * i - 3
 
@@ -199,8 +206,9 @@ function update_hist_gradient!(hist::Vector{Float32}, δ𝑤_flat::Vector{Float3
     end
 end
 
-function update_hist_gradient!(hist1::Vector{T}, hist2::Vector{T}, δ𝑤_flat::Vector{T}, X_bin, 𝑖, j1, j2) where T
-    @inbounds @simd for i in 𝑖
+function update_hist_gradient!(hist1::Vector{T}, hist2::Vector{T}, δ𝑤_flat::Vector{T}, X_bin, 𝑖, 𝑖_range, j1, j2) where T
+    @inbounds @simd for 𝑖_i in 𝑖_range
+        i = 𝑖[𝑖_i]
         hid1 = 4 * X_bin[i,j1] - 3
         hid2 = 4 * X_bin[i,j2] - 3
         δ𝑤id = 4 * i - 3
@@ -217,8 +225,9 @@ function update_hist_gradient!(hist1::Vector{T}, hist2::Vector{T}, δ𝑤_flat::
     end
 end
 
-function update_hist_gradient!(hist::Vector{T}, δ𝑤_flat::Vector{T}, X_bin, 𝑖, j) where T
-    @inbounds @simd for i in 𝑖
+function update_hist_gradient!(hist::Vector{T}, δ𝑤_flat::Vector{T}, X_bin, 𝑖, 𝑖_range, j) where T
+    @inbounds @simd for 𝑖_i in 𝑖_range
+        i = 𝑖[𝑖_i]
         hid  = 4 * X_bin[i,j] - 3
         δ𝑤id = 4 * i - 3
 
