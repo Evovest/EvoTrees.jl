@@ -42,18 +42,19 @@ function init_evotree(params::EvoTypes{T,U,S},
     evotree = GBTree([bias], params, Metric(), K, levels)
 
     # initialize gradients and weights
-    δ𝑤 = ones(T, 2 * K + 1, X_size[1])
-    
+    stride = Int(ceil((2 * K + 1)/4)*4)
+    δ𝑤 = ones(T, stride, X_size[1])
+
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
-    
+
     𝑖_ = UInt32.(collect(1:X_size[1]))
     𝑗_ = UInt32.(collect(1:X_size[2]))
     𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * X_size[2]))
 
     # initializde histograms
-    nodes = [TrainNode(X_size[2], params.nbins, K, T) for n in 1:2^params.max_depth - 1]
+    nodes = [TrainNode(X_size[2], params.nbins, stride, T) for n in 1:2^params.max_depth - 1]
     nodes[1].𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * X_size[1]))
     out = zeros(UInt32, length(nodes[1].𝑖))
     left = zeros(UInt32, length(nodes[1].𝑖))
@@ -66,7 +67,7 @@ function init_evotree(params::EvoTypes{T,U,S},
         𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑗 = 𝑗,
         out = out, left = left, right = right,
         δ𝑤 = δ𝑤,
-        edges = edges, 
+        edges = edges,
         X_bin = X_bin)
 
     cache.params.nrounds = 0
@@ -128,6 +129,7 @@ function grow_tree!(
     n_next = [1]
     n_current = copy(n_next)
     depth = 1
+    weight_i = 2*K+1
 
     # initialize summary stats
     nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims=2))
@@ -136,7 +138,7 @@ function grow_tree!(
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
         for n ∈ n_current
-            if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
+            if depth == params.max_depth || nodes[n].∑[weight_i] <= params.min_weight
                 pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params, K, δ𝑤, nodes[n].𝑖)
             else
                 # histogram subtraction

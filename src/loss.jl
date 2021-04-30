@@ -33,7 +33,8 @@ end
 function update_grads!(::Softmax, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{S}, α::T) where {T <: AbstractFloat,S}
     p .= p .- maximum(p, dims=1)
     sums = sum(exp.(p), dims=1)
-    K = (size(δ𝑤, 1) - 1) ÷ 2
+    # K = (size(δ𝑤, 1) - 1) ÷ 2
+    K = size(p, 1)
     for i in eachindex(y)
         for k in 1:K
             # δ𝑤[k, i] = (exp(p[k, i]) / sums[i] - (onehot(y[i], 1:K))) * δ𝑤[2 * K + 1, i]
@@ -131,20 +132,20 @@ end
 
 
 function update_childs_∑!(::L, nodes, n, bin, feat, K) where {L <: Union{GradientRegression,QuantileRegression,L1Regression}}
-    nodes[n << 1].∑ .= nodes[n].hL[feat][(3 * bin - 2):(3 * bin)]
-    nodes[n << 1 + 1].∑ .= nodes[n].hR[feat][(3 * bin - 2):(3 * bin)]
+    nodes[n << 1].∑ .= nodes[n].hL[feat][(4 * bin - 3):(4 * bin)]
+    nodes[n << 1 + 1].∑ .= nodes[n].hR[feat][(4 * bin - 3):(4 * bin)]
     return nothing
 end
 
 function update_childs_∑!(::L, nodes, n, bin, feat, K) where {L <: GaussianRegression}
-    nodes[n << 1].∑ .= nodes[n].hL[feat][(5 * bin - 4):(5 * bin)]
-    nodes[n << 1 + 1].∑ .= nodes[n].hR[feat][(5 * bin - 4):(5 * bin)]
+    nodes[n << 1].∑ .= nodes[n].hL[feat][(8 * bin - 7):(8 * bin)]
+    nodes[n << 1 + 1].∑ .= nodes[n].hR[feat][(8 * bin - 7):(8 * bin)]
     return nothing
 end
 
 function update_childs_∑!(::L, nodes, n, bin, feat, K) where {L <: MultiClassRegression}
-    KK = 2 * K + 1
-    nodes[n << 1].∑ .= nodes[n].hL[feat][(KK * (bin - 1) + 1):(KK * bin)]
-    nodes[n << 1 + 1].∑ .= nodes[n].hR[feat][(KK * (bin - 1) + 1):(KK * bin)]
+    stride =  Int(ceil((2 * K + 1)/4)*4)
+    nodes[n << 1].∑ .= nodes[n].hL[feat][(stride * (bin - 1) + 1):(stride * bin)]
+    nodes[n << 1 + 1].∑ .= nodes[n].hR[feat][(stride * (bin - 1) + 1):(stride * bin)]
     return nothing
 end

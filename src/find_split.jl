@@ -27,7 +27,7 @@ end
     Non Allocating split_set!
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
 """
-# function split_set!(left::V, right::V, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S, offset) where {S,V}    
+# function split_set!(left::V, right::V, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S, offset) where {S,V}
 #     left_count = 0
 #     right_count = 0
 #     @inbounds for i in 1:length(𝑖)
@@ -47,7 +47,7 @@ end
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
 """
 function split_set_chunk!(left, right, 𝑖, bid, nblocks, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights)
-    
+
     left_count = 0
     right_count = 0
     i = chunk_size * (bid - 1) + 1
@@ -88,12 +88,12 @@ function split_views_kernel!(out::Vector{S}, left::Vector{S}, right::Vector{S}, 
     return nothing
 end
 
-function split_set_threads!(out, left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin, offset) where {S}    
+function split_set_threads!(out, left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin, offset) where {S}
 
     # iter = Iterators.partition(𝑖, chunk_size)
     nblocks = ceil(Int, min(length(𝑖) / 1024, Threads.nthreads()))
     chunk_size = floor(Int, length(𝑖) / nblocks)
-    
+
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
@@ -112,27 +112,37 @@ function split_set_threads!(out, left, right, 𝑖, X_bin::Matrix{S}, feat, cond
 end
 
 
+# import InteractiveUtils
+
 """
     update_hist!
         GradientRegression
 """
 function update_hist!(
-    ::L,
-    hist::Vector{Vector{T}}, 
-    δ𝑤::Matrix{T}, 
-    X_bin::Matrix{UInt8}, 
-    𝑖::AbstractVector{S}, 
+    loss::L,
+    hist::Vector{Vector{T}},
+    δ𝑤::Matrix{T},
+    X_bin::Matrix{UInt8},
+    𝑖::AbstractVector{S},
     𝑗::AbstractVector{S}, K) where {L <: GradientRegression,T,S}
-    
+
     @inbounds @threads for j in 𝑗
-        @inbounds @simd for i in 𝑖
-            hid = 3 * X_bin[i,j] - 2
-            hist[j][hid] += δ𝑤[1, i]
-            hist[j][hid + 1] += δ𝑤[2, i]
-            hist[j][hid + 2] += δ𝑤[3, i]
-        end
+        # InteractiveUtils.@code_native update_hist_gradient!(hist[j], δ𝑤, X_bin, 𝑖, j)
+        # exit(1)
+        update_hist_gradient!(hist[j], δ𝑤, X_bin, 𝑖, j)
     end
     return nothing
+end
+
+import SIMD
+
+function update_hist_gradient!(hist, δ𝑤, X_bin, 𝑖, j)
+    @inbounds @simd for i in 𝑖
+        hid = 4 * X_bin[i,j] - 3
+        hist[hid]     += δ𝑤[1, i]
+        hist[hid + 1] += δ𝑤[2, i]
+        hist[hid + 2] += δ𝑤[3, i]
+    end
 end
 
 """
@@ -141,15 +151,15 @@ end
 """
 function update_hist!(
     ::L,
-    hist::Vector{Vector{T}}, 
-    δ𝑤::Matrix{T}, 
-    X_bin::Matrix{UInt8}, 
-    𝑖::AbstractVector{S}, 
+    hist::Vector{Vector{T}},
+    δ𝑤::Matrix{T},
+    X_bin::Matrix{UInt8},
+    𝑖::AbstractVector{S},
     𝑗::AbstractVector{S}, K) where {L <: GaussianRegression,T,S}
-    
+
     @inbounds @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
-            hid = 5 * X_bin[i,j] - 4
+            hid = 8 * X_bin[i,j] - 7
             hist[j][hid] += δ𝑤[1, i]
             hist[j][hid + 1] += δ𝑤[2, i]
         hist[j][hid + 2] += δ𝑤[3, i]
@@ -166,15 +176,17 @@ end
 """
 function update_hist!(
     ::L,
-    hist::Vector{Vector{T}}, 
-    δ𝑤::Matrix{T}, 
-    X_bin::Matrix{UInt8}, 
-    𝑖::AbstractVector{S}, 
-            𝑗::AbstractVector{S}, K) where {L,T,S}
+    hist::Vector{Vector{T}},
+    δ𝑤::Matrix{T},
+    X_bin::Matrix{UInt8},
+    𝑖::AbstractVector{S},
+    𝑗::AbstractVector{S}, K) where {L,T,S}
+
+    stride =  Int(ceil((2 * K + 1)/4)*4)
 
     @inbounds @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
-            hid = (2 * K + 1) * (X_bin[i,j] - 1)
+            hid = stride * (X_bin[i,j] - 1)
             for k in 1:(2 * K + 1)
 hist[j][hid + k] += δ𝑤[k, i]
             end
@@ -193,7 +205,7 @@ function update_gains!(
     node::TrainNode{T},
     𝑗::Vector{S},
     params::EvoTypes, K) where {L <: GradientRegression,T,S}
-        
+
     @inbounds @threads for j in 𝑗
         node.hL[j][1] = node.h[j][1]
         node.hL[j][2] = node.h[j][2]
@@ -203,14 +215,15 @@ function update_gains!(
         node.hR[j][2] = node.∑[2] - node.h[j][2]
             node.hR[j][3] = node.∑[3] - node.h[j][3]
         @inbounds for bin in 2:params.nbins
-            binid = 3 * bin - 2
-            node.hL[j][binid] = node.hL[j][binid - 3] + node.h[j][binid]
-            node.hL[j][binid + 1] = node.hL[j][binid - 2] + node.h[j][binid + 1]
-            node.hL[j][binid + 2] = node.hL[j][binid - 1] + node.h[j][binid + 2]
+            binid = 4 * bin - 3
 
-            node.hR[j][binid] = node.hR[j][binid - 3] - node.h[j][binid]
-            node.hR[j][binid + 1] = node.hR[j][binid - 2] - node.h[j][binid + 1]
-            node.hR[j][binid + 2] = node.hR[j][binid - 1] - node.h[j][binid + 2]
+            node.hL[j][binid] = node.hL[j][binid - 4] + node.h[j][binid]
+            node.hL[j][binid + 1] = node.hL[j][binid - 3] + node.h[j][binid + 1]
+            node.hL[j][binid + 2] = node.hL[j][binid - 2] + node.h[j][binid + 2]
+
+            node.hR[j][binid] = node.hR[j][binid - 4] - node.h[j][binid]
+            node.hR[j][binid + 1] = node.hR[j][binid - 3] - node.h[j][binid + 1]
+            node.hR[j][binid + 2] = node.hR[j][binid - 2] - node.h[j][binid + 2]
 
         end
         hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params.nbins, params.λ, params.min_weight, K)
@@ -227,7 +240,7 @@ function update_gains!(
     node::TrainNode{T},
     𝑗::Vector{S},
     params::EvoTypes, K) where {L <: GaussianRegression,T,S}
-        
+
     @inbounds @threads for j in 𝑗
         node.hL[j][1] = node.h[j][1]
         node.hL[j][2] = node.h[j][2]
@@ -241,18 +254,18 @@ function update_gains!(
         node.hR[j][4] = node.∑[4] - node.h[j][4]
             node.hR[j][5] = node.∑[5] - node.h[j][5]
         @inbounds for bin in 2:params.nbins
-            binid = 5 * bin - 4
-            node.hL[j][binid] = node.hL[j][binid - 5] + node.h[j][binid]
-            node.hL[j][binid + 1] = node.hL[j][binid - 4] + node.h[j][binid + 1]
-            node.hL[j][binid + 2] = node.hL[j][binid - 3] + node.h[j][binid + 2]
-            node.hL[j][binid + 3] = node.hL[j][binid - 2] + node.h[j][binid + 3]
-            node.hL[j][binid + 4] = node.hL[j][binid - 1] + node.h[j][binid + 4]
+            binid = 8 * bin - 7
+            node.hL[j][binid] = node.hL[j][binid - 8] + node.h[j][binid]
+            node.hL[j][binid + 1] = node.hL[j][binid - 7] + node.h[j][binid + 1]
+            node.hL[j][binid + 2] = node.hL[j][binid - 6] + node.h[j][binid + 2]
+            node.hL[j][binid + 3] = node.hL[j][binid - 5] + node.h[j][binid + 3]
+            node.hL[j][binid + 4] = node.hL[j][binid - 4] + node.h[j][binid + 4]
 
-            node.hR[j][binid] = node.hR[j][binid - 5] - node.h[j][binid]
-            node.hR[j][binid + 1] = node.hR[j][binid - 4] - node.h[j][binid + 1]
-            node.hR[j][binid + 2] = node.hR[j][binid - 3] - node.h[j][binid + 2]
-            node.hR[j][binid + 3] = node.hR[j][binid - 2] - node.h[j][binid + 3]
-            node.hR[j][binid + 4] = node.hR[j][binid - 1] - node.h[j][binid + 4]
+            node.hR[j][binid] = node.hR[j][binid - 8] - node.h[j][binid]
+            node.hR[j][binid + 1] = node.hR[j][binid - 7] - node.h[j][binid + 1]
+            node.hR[j][binid + 2] = node.hR[j][binid - 6] - node.h[j][binid + 2]
+            node.hR[j][binid + 3] = node.hR[j][binid - 5] - node.h[j][binid + 3]
+            node.hR[j][binid + 4] = node.hR[j][binid - 4] - node.h[j][binid + 4]
 
         end
         hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params.nbins, params.λ, params.min_weight, K)
@@ -272,6 +285,8 @@ function update_gains!(
     params::EvoTypes, K) where {L,T,S}
 
     KK = 2 * K + 1
+    stride = Int(ceil(KK/4)*4)
+
     @inbounds @threads for j in 𝑗
 
         @inbounds for k in 1:KK
@@ -280,10 +295,10 @@ function update_gains!(
         end
 
         @inbounds for bin in 2:params.nbins
+            binid = stride * (bin - 1)
             @inbounds for k in 1:KK
-                binid = KK * (bin - 1)
-                node.hL[j][binid + k] = node.hL[j][binid - KK + k] + node.h[j][binid + k]
-                node.hR[j][binid + k] = node.hR[j][binid - KK + k] - node.h[j][binid + k]
+                node.hL[j][binid + k] = node.hL[j][binid - stride + k] + node.h[j][binid + k]
+                node.hR[j][binid + k] = node.hR[j][binid - stride + k] - node.h[j][binid + k]
             end
         end
         hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params.nbins, params.λ, params.min_weight, K)
@@ -298,13 +313,13 @@ end
 """
 function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, min_𝑤::T, K) where {L <: GradientRegression,T}
     @inbounds for bin in 1:nbins
-        i = 3 * bin - 2
+        i = 4 * bin - 3
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
         if bin == nbins
-            @inbounds gains[bin] = hL[i]^2 / (hL[i + 1] + λ * hL[i + 2]) / 2 
+            @inbounds gains[bin] = hL[i]^2 / (hL[i + 1] + λ * hL[i + 2]) / 2
         elseif hL[i + 2] > min_𝑤 && hR[i + 2] > min_𝑤
-            @inbounds gains[bin] = (hL[i]^2 / (hL[i + 1] + λ * hL[i + 2]) + 
-hR[i]^2 / (hR[i + 1] + λ * hR[i + 2])) / 2
+            @inbounds gains[bin] = (hL[i]^2 / (hL[i + 1] + λ * hL[i + 2]) +
+                hR[i]^2 / (hR[i + 1] + λ * hR[i + 2])) / 2
         end
     end
     return nothing
@@ -316,10 +331,10 @@ end
 """
 function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, min_𝑤::T, K) where {L <: Union{QuantileRegression,L1Regression},T}
     @inbounds for bin in 1:nbins
-        i = 3 * bin - 2
+        i = 4 * bin - 3
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
         if bin == nbins
-            @inbounds gains[bin] = abs(hL[i]) 
+            @inbounds gains[bin] = abs(hL[i])
         elseif hL[i + 2] > min_𝑤 && hR[i + 2] > min_𝑤
 @inbounds gains[bin] = abs(hL[i]) + abs(hR[i])
         end
@@ -333,15 +348,15 @@ end
 """
 function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, min_𝑤::T, K) where {L <: GaussianRegression,T}
     @inbounds for bin in 1:nbins
-        i = 5 * bin - 4
+        i = 8 * bin - 7
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
         @inbounds if bin == nbins
             gains[bin] = (hL[i]^2 / (hL[i + 2] + λ * hL[i + 4]) + hL[i + 1]^2 / (hL[i + 3] + λ * hL[i + 4])) / 2
         elseif hL[i + 4] > min_𝑤 && hR[i + 4] > min_𝑤
-            gains[bin] = (hL[i]^2 / (hL[i + 2] + λ * hL[i + 4]) + 
-                hR[i]^2 / (hR[i + 2] + λ * hR[i + 4])) / 2 + 
-                (hL[i + 1]^2 / (hL[i + 3] + λ * hL[i + 4]) + 
-hR[i + 1]^2 / (hR[i + 3] + λ * hR[i + 4])) / 2
+            gains[bin] = (hL[i]^2 / (hL[i + 2] + λ * hL[i + 4]) +
+                hR[i]^2 / (hR[i + 2] + λ * hR[i + 4])) / 2 +
+                (hL[i + 1]^2 / (hL[i + 3] + λ * hL[i + 4]) +
+                hR[i + 1]^2 / (hR[i + 3] + λ * hR[i + 4])) / 2
         end
     end
     return nothing
@@ -352,8 +367,9 @@ end
         Generic
 """
 function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, λ::T, min_𝑤::T, K) where {L,T}
+    stride =  Int(ceil((2 * K + 1)/4)*4)
     @inbounds for bin in 1:nbins
-        i = (2 * K + 1) * (bin - 1)
+        i = stride * (bin - 1)
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
         if bin == nbins
             @inbounds for k in 1:K

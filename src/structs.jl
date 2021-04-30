@@ -11,14 +11,14 @@ mutable struct TrainNode{T<:AbstractFloat}
     gains::Matrix{T}
 end
 
-function TrainNode(nvars, nbins, K, T)
+function TrainNode(nvars, nbins, stride, T)
     node = TrainNode{T}(
             zero(T),
             nothing,
-            zeros(T, 2*K+1), 
-            [zeros(T, (2*K+1) * nbins) for j in 1:nvars], 
-            [zeros(T, (2*K+1) * nbins) for j in 1:nvars], 
-            [zeros(T, (2*K+1) * nbins) for j in 1:nvars], 
+            zeros(T, stride),
+            [zeros(T, stride * nbins) for j in 1:nvars],
+            [zeros(T, stride * nbins) for j in 1:nvars],
+            [zeros(T, stride * nbins) for j in 1:nvars],
             zeros(T, nbins, nvars))
     return node
 end
