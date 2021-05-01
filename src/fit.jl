@@ -159,6 +159,7 @@ function grow_tree!(
                     popfirst!(n_next)
                 else
                     # println("typeof(nodes[n].𝑖): ", typeof(nodes[n].𝑖))
+                    # _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
                     _left, _right = split_set_threads!(out, left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset, 2^15)
                     nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = _left, _right
                     offset += length(nodes[n].𝑖)

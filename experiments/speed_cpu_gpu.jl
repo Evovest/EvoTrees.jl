@@ -5,7 +5,7 @@ using BenchmarkTools
 using CUDA
 
 # prepare a dataset
-features = rand(Int(1.25e6), 100)
+features = rand(Int(1.25e5), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -63,6 +63,7 @@ sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true);
 # train_nodes[1] = EvoTrees.TrainNode(UInt32(0), UInt32(1), ∑, gain)
 
 # 62.530 ms (7229 allocations: 17.43 MiB)
+# 1.25e5: 9.187 ms (7358 allocations: 2.46 MiB)
 tree = EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ)))
 @time EvoTrees.grow_tree!(tree, cache_c.nodes, params_c, cache_c.δ𝑤, cache_c.edges, cache_c.𝑗, cache_c.left, cache_c.left, cache_c.right, cache_c.X_bin, cache_c.K)
 @btime EvoTrees.grow_tree!($EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ))), $cache_c.nodes, $params_c, $cache_c.δ𝑤, $cache_c.edges, $cache_c.𝑗, $cache_c.left, $cache_c.left, $cache_c.right, $cache_c.X_bin, $cache_c.K)
@@ -78,6 +79,7 @@ tree = EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ)))
 δ𝑤, K, edges, X_bin, nodes, out, left, right = cache_c.δ𝑤, cache_c.K, cache_c.edges, cache_c.X_bin, cache_c.nodes, cache_c.out, cache_c.left, cache_c.right;
 
 # 9.613 ms (81 allocations: 13.55 KiB)
+# 1.25e5: 899.200 μs (81 allocations: 8.22 KiB)
 @time EvoTrees.update_hist!(params_c.loss, nodes[1].h, δ𝑤, X_bin, 𝑖, 𝑗, K)
 @btime EvoTrees.update_hist!($params_c.loss, $nodes[1].h, $δ𝑤, $X_bin, $𝑖, $𝑗, $K)
 @btime EvoTrees.update_hist!($nodes[1].h, $δ𝑤, $X_bin, $nodes[1].𝑖, $𝑗)
@@ -89,10 +91,11 @@ n = 1
 nodes[1].∑ .= vec(sum(δ𝑤[:, 𝑖], dims=2))
 EvoTrees.update_gains!(params_c.loss, nodes[n], 𝑗, params_c, K)
 nodes[1].gains
-# findmax(nodes[1].gains)
-@btime EvoTrees.update_gains!($params_c.loss, $nodes[n], $𝑗, $params_c)
-@code_warntype EvoTrees.update_gains!(params_c.loss, nodes[n], 𝑗, params_c)
+# findmax(nodes[1].gains) #1.25e5: 36.500 μs (81 allocations: 8.22 KiB)
+@btime EvoTrees.update_gains!($params_c.loss, $nodes[n], $𝑗, $params_c, $K)
+@code_warntype EvoTrees.update_gains!(params_c.loss, nodes[n], 𝑗, params_c, K)
 
+#1.25e5: 14.100 μs (1 allocation: 32 bytes)
 best = findmax(nodes[n].gains)
 @btime best = findmax(nodes[n].gains)
 
@@ -102,9 +105,15 @@ tree.feat[n] = best[2][2]
 Int.(tree.cond_bin[n])
 # tree.cond_bin[n] = 32
 
-@time EvoTrees.split_set!(left, right, 𝑖, X_bin, tree.feat[n], tree.cond_bin[n])
-@btime EvoTrees.split_set!($left, $right, $𝑖, $X_bin, $tree.feat[n], $tree.cond_bin[n])
+# 1.25e5: 26.400 μs (1 allocation: 96 bytes)
+offset = 0
+@time EvoTrees.split_set!(left, right, 𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
+@btime EvoTrees.split_set!($left, $right, $𝑖, $X_bin, $tree.feat[n], $tree.cond_bin[n], $offset)
 @code_warntype EvoTrees.split_set!(left, right, 𝑖, X_bin, tree.feat[n], tree.cond_bin[n])
+
+# 1.25e5: 26.400 μs (1 allocation: 96 bytes)
+@time EvoTrees.split_set_threads!(out, left, right, 𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
+@btime EvoTrees.split_set_threads!($out, $left, $right, $𝑖, $X_bin, $tree.feat[n], $tree.cond_bin[n], $offset, Int(2e16))
 
 ###################################################
 # GPU
