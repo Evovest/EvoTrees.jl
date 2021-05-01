@@ -28,7 +28,7 @@ end
 function eval_metric(::Val{:logloss}, p::AbstractMatrix{T}, y::AbstractVector{T}, α=0.0) where {T <: AbstractFloat}
     eval = zero(T)
     @inbounds for i in eachindex(y)
-        eval -= y[i] * log(max(1e-8, p[1,i])) + (1 - y[i]) * log(max(1e-8, 1 - p[1,i]))
+        eval -= y[i] * log(sigmoid(p[1,i])) + (1 - y[i]) * log(1 - sigmoid(p[1,i]))
     end
     eval /= length(y)
     return eval
@@ -38,8 +38,6 @@ function eval_metric(::Val{:mlogloss}, p::AbstractMatrix{T}, y::AbstractVector{S
     eval = zero(T)
     p_prob = exp.(p) ./ sum(exp.(p), dims=1) 
     @inbounds for i in eachindex(y)
-        # p[i] = p[i] .- maximum(p[i])
-        # soft_pred = exp.(p[i]) / sum(exp.(p[i]))
         eval -= log(p_prob[y[i], i])
     end
     eval /= length(y)
@@ -58,7 +56,7 @@ end
 function eval_metric(::Val{:gaussian}, p::AbstractMatrix{T}, y::AbstractVector{T}, α=0.0) where {T <: AbstractFloat}
     eval = zero(T)
     @inbounds for i in eachindex(y)
-        eval += p[2,i] + (y[i] - p[1,i])^2 / (2 * max(1e-8, exp(2 * p[2,i])))
+        eval += p[2,i] + (y[i] - p[1,i])^2 / (2 * exp(2 * p[2,i]))
     end
     eval /= length(y)
     return eval
@@ -93,5 +91,5 @@ function gini_norm(y::T, p::S) where {T,S}
 end
 
 function eval_metric(::Val{:gini}, p::AbstractMatrix{T}, y::AbstractVector{T}, α=0.0) where {T <: AbstractFloat}
-    return -gini_norm(y, view(p,1,:))
+    return -gini_norm(y, view(p, 1, :))
 end

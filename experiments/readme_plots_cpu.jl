@@ -9,7 +9,7 @@ using EvoTrees: sigmoid, logit
 # using ProfileView
 
 # prepare a dataset
-Random.seed!(123)
+Random.seed!(12)
 features = rand(10_000) .* 5
 X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5
@@ -104,7 +104,7 @@ savefig("figures/regression_sinus.png")
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.5, metric=:none,
     nrounds=200, nbins = 64,
-    λ = 0.1, γ=1e-3, η=0.05,
+    λ = 1.0, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
@@ -118,7 +118,7 @@ sum(pred_train_q50 .< Y_train) / length(Y_train)
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.2, metric=:none,
     nrounds=200, nbins = 64,
-    λ = 0.1, γ=1e-3, η=0.05,
+    λ = 1.0, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25);
@@ -129,7 +129,7 @@ sum(pred_train_q20 .< Y_train) / length(Y_train)
 params1 = EvoTreeRegressor(
     loss=:quantile, α=0.8, metric=:none,
     nrounds=200, nbins = 64,
-    λ = 0.1, γ=1e-3, η=0.05,
+    λ = 1.0, γ=0.0, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 

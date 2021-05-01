@@ -10,7 +10,7 @@ using EvoTrees: sigmoid, logit
 # using ProfileView
 
 # prepare a dataset
-Random.seed!(123)
+Random.seed!(12)
 features = rand(10_000) .* 5
 X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5

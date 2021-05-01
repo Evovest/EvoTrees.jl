@@ -61,12 +61,12 @@ function kernel_gauss_δ!(δ::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDevi
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     @inbounds if i <= length(y)
         # first order gradients
-        δ[1,i] = (p[1,i] - y[i]) / max(Cfloat(1e-5), exp(2f0 * p[2,i])) *  δ[5,i]
-        δ[2,i] = (1f0 - (p[1,i] - y[i])^2 / max(Cfloat(1e-5), exp(2f0 * p[2,i]))) *  δ[5,i]
+        δ[1,i] = (p[1,i] - y[i]) / exp(2 * p[2,i]) *  δ[5,i]
+        δ[2,i] = (1 - (p[1,i] - y[i])^2 / exp(2 * p[2,i])) *  δ[5,i]
 
         # second order gradients
-        δ[3,i] =  δ[5,i] / max(Cfloat(1e-5), exp(2 * p[2,i]))
-        δ[4,i] = 2 *  δ[5,i] / max(Cfloat(1e-5), exp(2 * p[2,i])) * (p[1,i] - y[i])^2
+        δ[3,i] =  δ[5,i] / exp(2 * p[2,i])
+        δ[4,i] = 2 *  δ[5,i] / exp(2 * p[2,i]) * (p[1,i] - y[i])^2
     end
     return
 end

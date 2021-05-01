@@ -4,7 +4,7 @@
 function eval_mse_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
-        @inbounds eval[i] = (p[1,i] - y[i]) ^ 2
+        @inbounds eval[i] = (p[1,i] - y[i])^2
     end
     return nothing
 end
@@ -23,7 +23,7 @@ end
 function eval_logloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
-        @inbounds eval[i] = -y[i] * log(max(1e-8, sigmoid(p[1,i]))) + (1 - y[i]) * log(max(1e-8, 1 - sigmoid(p[1,i])))
+        @inbounds eval[i] = -y[i] * log(sigmoid(p[1,i])) + (1 - y[i]) * log(1 - sigmoid(p[1,i]))
     end
     return nothing
 end
@@ -43,7 +43,7 @@ end
 function eval_gaussian_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
-        @inbounds eval[i] = p[2,i] + (y[i] - p[1,i])^2 / (2*max(1e-8, exp(2*p[2,i])))
+        @inbounds eval[i] = p[2,i] + (y[i] - p[1,i])^2 / (2 * exp(2 * p[2,i]))
     end
     return nothing
 end

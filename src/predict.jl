@@ -9,6 +9,17 @@ function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L <: Gradien
     return nothing
 end
 
+function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L <: Logistic,T}
+    @inbounds @threads for i in 1:size(X, 1)
+        nid = 1
+        @inbounds while tree.split[nid]
+            X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
+        end
+        @inbounds pred[1,i] = clamp(pred[1,i] + tree.pred[1, nid], -15, 15)
+    end
+    return nothing
+end
+
 function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L <: GaussianRegression,T}
     @inbounds @threads for i in 1:size(X, 1)
         nid = 1
@@ -16,7 +27,7 @@ function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L <: Gaussia
             X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
         @inbounds pred[1,i] += tree.pred[1, nid]
-        @inbounds pred[2,i] += tree.pred[2, nid]
+        @inbounds pred[2,i] = max(-15, pred[2,i] + tree.pred[2, nid])
     end
     return nothing
 end
@@ -58,7 +69,7 @@ function predict(model::GBTree{T}, X::AbstractMatrix) where {T}
     elseif typeof(model.params.loss) == Gaussian
         pred[2,:] .= exp.(pred[2,:])
     elseif typeof(model.params.loss) == Softmax
-        for i in 1:size(pred, 2)
+        @inbounds for i in 1:size(pred, 2)
             pred[:,i] .= softmax(pred[:,i])
         end
     end

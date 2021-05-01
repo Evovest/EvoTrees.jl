@@ -1,4 +1,7 @@
-function predict_kernel!(pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {T}
+"""
+    predict_kernel!
+"""
+function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L,T}
     idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if idx <= size(pred, 2)
@@ -13,13 +16,65 @@ function predict_kernel!(pred::AbstractMatrix{T}, split, feat, cond_float, leaf_
     return nothing
 end
 
+"""
+    predict_kernel!
+        GradientRegression
+"""
+function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L<:GradientRegression,T}
+    idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    nid = 1
+    @inbounds if idx <= size(pred, 2)
+        while split[nid]
+            X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
+        end
+        pred[1, idx] += leaf_pred[1, nid]
+    end
+    sync_threads()
+    return nothing
+end
+
+"""
+    predict_kernel!
+        Logistic
+"""
+function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L<:Logistic,T}
+    idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    nid = 1
+    @inbounds if idx <= size(pred, 2)
+        while split[nid]
+            X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
+        end
+        pred[1, idx] = min(15, max(-15, pred[1,idx] + leaf_pred[1, nid]))
+    end
+    sync_threads()
+    return nothing
+end
+
+"""
+    predict_kernel!
+        GaussianRegression
+"""
+function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L<:GaussianRegression,T}
+    idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    nid = 1
+    @inbounds if idx <= size(pred, 2)
+        while split[nid]
+            X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
+        end
+        pred[1, idx] += leaf_pred[1, nid]
+        pred[2, idx] = max(-15, pred[2,idx] + leaf_pred[2, nid])
+    end
+    sync_threads()
+    return nothing
+end
+
 # prediction from single tree - assign each observation to its final leaf
 function predict!(loss::L, pred::AbstractMatrix{T}, tree::TreeGPU{T}, X::AbstractMatrix, K; MAX_THREADS=1024) where {L,T}
     K = size(pred, 1)
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
     blocks = ceil(Int, n / threads)
-    @cuda blocks = blocks threads = threads predict_kernel!(pred, tree.split, tree.feat, tree.cond_float, tree.pred, X, K)
+    @cuda blocks = blocks threads = threads predict_kernel!(loss, pred, tree.split, tree.feat, tree.cond_float, tree.pred, X, K)
     CUDA.synchronize()
 end
 
