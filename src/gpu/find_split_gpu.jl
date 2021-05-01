@@ -200,15 +200,7 @@ function split_set_threads_gpu!(out, left, right, 𝑖, X_bin, feat, cond_bin, o
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
     @cuda blocks = nblocks threads = 1 split_views_kernel!(out, left, right, offset, chunk_size, lefts, rights, sum_lefts, cumsum_lefts, cumsum_rights)
-    # left_cum = 0
-    # right_cum = 0
-    # @inbounds for bid in eachindex(lefts)
-    #     view(out, offset + left_cum + 1:offset + left_cum + lefts[bid]) .= view(left, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + lefts[bid])
-    #     view(out, offset + sum_lefts + right_cum + 1:offset + sum_lefts + right_cum + rights[bid]) .= view(right, offset + chunk_size * (bid - 1) + 1:offset + chunk_size * (bid - 1) + rights[bid])
-    #     left_cum += lefts[bid]
-    #     right_cum += rights[bid]
-    # end
-
+    
     CUDA.synchronize()
     return (view(out, offset + 1:offset + sum_lefts), view(out, offset + sum_lefts + 1:offset + length(𝑖)))
 end

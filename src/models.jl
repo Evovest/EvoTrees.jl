@@ -34,7 +34,7 @@ mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJMo
 end
 
 function EvoTreeRegressor(;
-    T::Type=Float32,
+    T::Type=Float64,
     loss=:linear,
     nrounds=10,
     λ=0.0, #
@@ -82,7 +82,7 @@ mutable struct EvoTreeCount{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJModelI
 end
 
 function EvoTreeCount(;
-    T::Type=Float32,
+    T::Type=Float64,
     loss=:poisson,
     nrounds=10,
     λ=0.0, #
@@ -125,7 +125,7 @@ mutable struct EvoTreeClassifier{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJM
 end
 
 function EvoTreeClassifier(;
-    T::Type=Float32,
+    T::Type=Float64,
     loss=:softmax,
     nrounds=10,
     λ=0.0, #

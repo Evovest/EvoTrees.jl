@@ -1,19 +1,3 @@
-# # utility for softmax
-# struct OneHotVector <: AbstractVector{Bool}
-#     ix::UInt32
-#     of::UInt32
-# end
-
-# Base.size(xs::OneHotVector) = (Int64(xs.of),)
-# Base.getindex(xs::OneHotVector, i::Integer) = i == xs.ix
-# Base.getindex(xs::OneHotVector, ::Colon) = OneHotVector(xs.ix, xs.of)
-
-# function onehot(l, labels)
-#     i = something(findfirst(isequal(l), labels), 0)
-#     i > 0 || error("Value $l is not in labels")
-#     OneHotVector(i, length(labels))
-# end
-
 # linear
 function update_grads!(::Linear, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, α::T) where {T <: AbstractFloat}
     @inbounds for i in eachindex(y)
@@ -145,11 +129,6 @@ function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S <: L1Regression,T <: A
     abs(∑[1])
 end
 
-# QuantileRegression
-# function get_gain(::S, ∑δ::SVector{L,T}, ∑δ²::SVector{L,T}, ∑𝑤::SVector{1,T}, λ::T) where {S <: QuantileRegression,T <: AbstractFloat,L}
-#     gain = sum(abs.(∑δ) ./ (1 .+ λ))
-#     return gain
-# end
 
 function update_childs_∑!(::L, nodes, n, bin, feat, K) where {L <: Union{GradientRegression,QuantileRegression,L1Regression}}
     nodes[n << 1].∑ .= nodes[n].hL[feat][(3 * bin - 2):(3 * bin)]
