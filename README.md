@@ -21,7 +21,7 @@ Input features is expected to be `Matrix{Float64/Float32}`. User friendly format
 
 ## GPU
 
-GPU support is currently available for linear, logistic and Gaussian objective functions. Set paramter `device = "gpu"`.
+GPU support is currently available for linear, logistic and Gaussian objective functions. Set parameter `device = "gpu"`.
 
 ## Installation
 
@@ -51,19 +51,19 @@ GPU: NVIDIA RTX 2080
 
 | Dimensions   / Algo | XGBoost Hist | EvoTrees | EvoTrees GPU |
 |---------------------|:------------:|:--------:|:------------:|
-| 100K x 100          |     1.12s    |   1.15s  |     2.23s    |
-| 500K x 100          |     4.88s    |   4.85s  |     4.49s    |
-| 1M x 100            |     9.84s    |  12.04s  |     7.52s    |
-| 5M x 100            |     45.7s    |   103s   |     33.7s    |
+| 100K x 100          |     1.10s    |   2.22s  |     3.39s    |
+| 500K x 100          |     4.83s    |   7.16s  |     5.84s    |
+| 1M x 100            |     9.84s    |   12.7s  |     8.50s    |
+| 5M x 100            |     46.2s    |   75.9s  |     32.4s    |
 
 ### Inference:
 
 | Dimensions   / Algo | XGBoost Hist | EvoTrees | EvoTrees GPU |
 |---------------------|:------------:|:--------:|:------------:|
-| 100K x 100          |    0.177s    |  0.029s  |    0.035s    |
-| 500K x 100          |    0.861s    |  0.191s  |    0.214s    |
-| 1M x 100            |     1.67s    |  0.400s  |    0.469s    |
-| 5M x 100            |     8.51s    |   2.14s  |     2.43s    |
+| 100K x 100          |    0.164s    |  0.026s  |    0.013s    |
+| 500K x 100          |    0.796s    |  0.191s  |    0.054s    |
+| 1M x 100            |     1.59s    |  0.400s  |    0.108s    |
+| 5M x 100            |     7.96s    |   2.15s  |    0.534s    |
 
 ## Parameters
 
