@@ -37,10 +37,6 @@ pred_test = predict(mach, selectrows(X,test))
 mean(abs.(pred_test - selectrows(Y,test)))
 
 @test MLJBase.iteration_parameter(EvoTreeRegressor) == :nrounds
-<<<<<<< HEAD
-=======
-
->>>>>>> master
 
 ##################################################
 ### classif - categorical target
@@ -169,8 +165,4 @@ model = EvoTreeRegressor()
 data = MLJBase.reformat(model, X, y);
 f, c, r = MLJBase.fit(model, 2, data...);
 model.λ = 0.1
-<<<<<<< HEAD
 MLJBase.update(model, 2, f, c, data...);
-=======
-MLJBase.update(model, 2, f, c, data...);
->>>>>>> master

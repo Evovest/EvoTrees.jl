@@ -69,7 +69,7 @@ end
 const EvoTreeRegressor_desc = "Regression models with various underlying methods: least square, quantile, logistic."
 const EvoTreeClassifier_desc = "Multi-classification with softmax and cross-entropy loss."
 const EvoTreeCount_desc = "Poisson regression fitting λ with max likelihood."
-const EvoTreeGaussian_desc = "Gaussian maximum likelihood of μ and σ²."
+const EvoTreeGaussian_desc = "Gaussian maximum likelihood of μ and σ."
 
 MLJModelInterface.metadata_pkg.((EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian),
     name="EvoTrees",

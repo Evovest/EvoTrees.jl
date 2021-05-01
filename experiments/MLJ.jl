@@ -67,7 +67,6 @@ model = fit_evotree(tree_model, X_matrix, y);
 pred = predict(model, X_matrix)
 pred_cat = pred .> 0.5
 sum((y .== "B") .== pred_cat[:,1]) / length(y)
-println(sum(pred_train_mode .== y[train]))
 
 # @load EvoTreeRegressor
 tree = machine(tree_model, X, y)
