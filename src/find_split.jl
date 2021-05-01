@@ -103,7 +103,7 @@ function update_hist!(
     𝑗::AbstractVector{S}, K) where {L <: GradientRegression,T,S}
     
     @inbounds @threads for j in 𝑗
-        @inbounds @simd for i in 𝑖
+        @inbounds for i in 𝑖
             hid = 3 * X_bin[i,j] - 2
             hist[j][hid] += δ𝑤[1, i]
             hist[j][hid + 1] += δ𝑤[2, i]
@@ -126,7 +126,7 @@ function update_hist!(
     𝑗::AbstractVector{S}, K) where {L <: GaussianRegression,T,S}
     
     @inbounds @threads for j in 𝑗
-        @inbounds @simd for i in 𝑖
+        @inbounds for i in 𝑖
             hid = 5 * X_bin[i,j] - 4
             hist[j][hid] += δ𝑤[1, i]
             hist[j][hid + 1] += δ𝑤[2, i]
@@ -151,7 +151,7 @@ function update_hist!(
     𝑗::AbstractVector{S}, K) where {L,T,S}
 
     @inbounds @threads for j in 𝑗
-        @inbounds @simd for i in 𝑖
+        @inbounds for i in 𝑖
             hid = (2 * K + 1) * (X_bin[i,j] - 1)
             for k in 1:(2 * K + 1)
                 hist[j][hid + k] += δ𝑤[k, i]
