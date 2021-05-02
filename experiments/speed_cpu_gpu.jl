@@ -5,7 +5,7 @@ using BenchmarkTools
 using CUDA
 
 # prepare a dataset
-features = rand(Int(1.25e5), 100)
+features = rand(Int(1.25e6), 100)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -98,6 +98,7 @@ nodes[1].gains
 #1.25e5: 14.100 μs (1 allocation: 32 bytes)
 best = findmax(nodes[n].gains)
 @btime best = findmax(nodes[n].gains)
+@btime best = findmax(view(nodes[n].gains, :, 𝑗))
 
 tree.cond_bin[n] = best[2][1]
 tree.feat[n] = best[2][2]
@@ -105,15 +106,15 @@ tree.feat[n] = best[2][2]
 Int.(tree.cond_bin[n])
 # tree.cond_bin[n] = 32
 
-# 1.25e5: 26.400 μs (1 allocation: 96 bytes)
+# 204.900 μs (1 allocation: 96 bytes)
 offset = 0
 @time EvoTrees.split_set!(left, right, 𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
 @btime EvoTrees.split_set!($left, $right, $𝑖, $X_bin, $tree.feat[n], $tree.cond_bin[n], $offset)
 @code_warntype EvoTrees.split_set!(left, right, 𝑖, X_bin, tree.feat[n], tree.cond_bin[n])
 
-# 1.25e5: 26.400 μs (1 allocation: 96 bytes)
+# 1.25e5: 227.200 μs (22 allocations: 1.44 KiB)
 @time EvoTrees.split_set_threads!(out, left, right, 𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
-@btime EvoTrees.split_set_threads!($out, $left, $right, $𝑖, $X_bin, $tree.feat[n], $tree.cond_bin[n], $offset, Int(2e16))
+@btime EvoTrees.split_set_threads!($out, $left, $right, $𝑖, $X_bin, $tree.feat[n], $tree.cond_bin[n], $offset, Int(2e15))
 
 ###################################################
 # GPU

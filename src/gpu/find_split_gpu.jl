@@ -132,10 +132,8 @@ function split_chunk_kernel!(left::CuDeviceVector{S}, right::CuDeviceVector{S}, 
     left_count = 0
     right_count = 0
 
-    i_size = length(𝑖)
-    i = it + chunk_size * (bid - 1)
-    
-    bid == gdim ? bsize = i_size - chunk_size * (bid - 1) : bsize = chunk_size
+    i = chunk_size * (bid - 1) + 1
+    bid == gdim ? bsize = length(𝑖) - chunk_size * (bid - 1) : bsize = chunk_size
     i_max = i + bsize - 1
 
     @inbounds while i <= i_max
@@ -148,7 +146,6 @@ function split_chunk_kernel!(left::CuDeviceVector{S}, right::CuDeviceVector{S}, 
         end
         i += 1
     end
-
     @inbounds lefts[bid] = left_count
     @inbounds rights[bid] = right_count
     sync_threads()
@@ -172,7 +169,6 @@ function split_views_kernel!(out::CuDeviceVector{S}, left::CuDeviceVector{S}, ri
         iter += 1
     end
 
-    num_left = i_max
     iter = 1
     i_max = rights[bid]
     @inbounds while iter <= i_max
@@ -186,9 +182,9 @@ end
 function split_set_threads_gpu!(out, left, right, 𝑖, X_bin, feat, cond_bin, offset)
     𝑖_size = length(𝑖)
     
-    chunk_size = min(𝑖_size, 1024)
-    nblocks = ceil(Int, 𝑖_size / chunk_size)
-
+    nblocks = ceil(Int, min(length(𝑖) / 128, 2^10))
+    chunk_size = floor(Int, length(𝑖) / nblocks)
+    
     lefts = CUDA.zeros(Int, nblocks)
     rights = CUDA.zeros(Int, nblocks)
 

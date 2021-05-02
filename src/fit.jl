@@ -114,10 +114,10 @@ function grow_tree!(
     X_bin::AbstractMatrix, K) where {T,U,S}
 
     # reset nodes
-    for n in eachindex(nodes)
-        [nodes[n].h[j] .= 0 for j in eachindex(nodes[n].h)]
-        [nodes[n].hL[j] .= 0 for j in eachindex(nodes[n].hL)]
-        [nodes[n].hR[j] .= 0 for j in eachindex(nodes[n].hR)]
+    @threads for n in eachindex(nodes)
+        [nodes[n].h[j] .= 0 for j in 𝑗]
+        # [nodes[n].hL[j] .= 0 for j in eachindex(nodes[n].hL)]
+        # [nodes[n].hR[j] .= 0 for j in eachindex(nodes[n].hR)]
         nodes[n].∑ .= 0
         nodes[n].gain = 0
         fill!(nodes[n].gains, -Inf)
@@ -160,7 +160,7 @@ function grow_tree!(
                 else
                     # println("typeof(nodes[n].𝑖): ", typeof(nodes[n].𝑖))
                     # _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
-                    _left, _right = split_set_threads!(out, left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset, 2^15)
+                    _left, _right = split_set_threads!(out, left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
                     nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = _left, _right
                     offset += length(nodes[n].𝑖)
                     update_childs_∑!(params.loss, nodes, n, best[2][1], best[2][2], K)

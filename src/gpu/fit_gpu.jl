@@ -32,7 +32,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
         Y = CuArray(T.(Y))
         μ = [mean(Y)]
     end
-
+    
     # initialize preds
     X_size = size(X)
     pred = CUDA.zeros(T, K, X_size[1])
@@ -118,10 +118,10 @@ function grow_tree_gpu!(
     depth = 1
 
     # reset nodes
-    for n in eachindex(nodes)
+    @threads for n in eachindex(nodes)
         nodes[n].h .= 0
-        nodes[n].hL .= 0
-        nodes[n].hR .= 0
+        # nodes[n].hL .= 0
+        # nodes[n].hR .= 0
         nodes[n].∑ .= 0
         nodes[n].gain = -Inf
         fill!(nodes[n].gains, -Inf)
