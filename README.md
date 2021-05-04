@@ -17,7 +17,7 @@ Currently supports:
 - multiclassification (softmax) (cpu only)
 - Gaussian (max likelihood)
 
-Input features is expected to be `Matrix{Float64/Float32}`. User friendly format conversion to be done (or see integration with MLJ).
+Input features is expected to be `Matrix{Float64/Float32}`. Tables/DataFrames format can be handled through [MLJ](https://github.com/alan-turing-institute/MLJ.jl) (see [below](#mlj-integration)).
 
 ## GPU
 
