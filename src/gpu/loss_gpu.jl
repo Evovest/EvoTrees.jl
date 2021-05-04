@@ -37,8 +37,9 @@ end
 function kernel_logistic_δ!(δ::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
-        @inbounds δ[1,i] = (p[i] * (1 - y[i]) - (1 - p[i]) * y[i]) * δ[3,i]
-        @inbounds δ[2,i] = p[i] * (1 - p[i]) * δ[3,i]
+        pred = sigmoid(p[1,i])
+        @inbounds δ[1,i] = (pred - y[i]) * δ[3,i]
+        @inbounds δ[2,i] = pred * (1 - pred) * δ[3,i]
     end
     return
 end
