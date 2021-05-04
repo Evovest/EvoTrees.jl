@@ -9,8 +9,8 @@ end
 # logistic - on linear predictor
 function update_grads!(::Logistic, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, α::T) where {T <: AbstractFloat}
     @inbounds for i in eachindex(y)
-        δ𝑤[1,i] = (sigmoid(p[1,i]) * (1 - y[i]) - (1 - sigmoid(p[1,i])) * y[i]) * δ𝑤[3,i]
-        δ𝑤[2,i] = sigmoid(p[1,i]) * (1 - sigmoid(p[1,i])) * δ𝑤[3,i]
+        δ𝑤[1,i] = (p[1,i] * (1 - y[i]) - (1 - p[1,i]) * y[i]) * δ𝑤[3,i]
+        δ𝑤[2,i] = p[1,i] * (1 - p[1,i]) * δ𝑤[3,i]
     end
 end
 
@@ -61,11 +61,11 @@ end
 function update_grads!(::Gaussian, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, α::T) where {T <: AbstractFloat}
     @inbounds @simd for i in eachindex(y)
         # first order
-        δ𝑤[1,i] = (p[1,i] - y[i]) / max(1e-8, exp(2 * p[2,i])) * δ𝑤[5,i]
-        δ𝑤[2,i] = (1 - (p[1,i] - y[i])^2 / max(1e-8, exp(2 * p[2,i]))) * δ𝑤[5,i]
+        δ𝑤[1,i] = (p[1,i] - y[i]) / exp(2 * p[2,i]) * δ𝑤[5,i]
+        δ𝑤[2,i] = (1 - (p[1,i] - y[i])^2 / exp(2 * p[2,i])) * δ𝑤[5,i]
         # second order
-        δ𝑤[3,i] = δ𝑤[5,i] / max(1e-8, exp(2 * p[2,i]))
-        δ𝑤[4,i] = 2 * δ𝑤[5,i] / max(1e-8, exp(2 * p[2,i])) * (p[1,i] - y[i])^2
+        δ𝑤[3,i] = δ𝑤[5,i] / exp(2 * p[2,i])
+        δ𝑤[4,i] = 2 * δ𝑤[5,i] / exp(2 * p[2,i]) * (p[1,i] - y[i])^2
     end
 end
 

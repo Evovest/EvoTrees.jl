@@ -37,8 +37,8 @@ end
 function kernel_logistic_δ!(δ::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
-        @inbounds δ[1,i] = (sigmoid(p[i]) * (1 - y[i]) - (1 - sigmoid(p[i])) * y[i]) * δ[3,i]
-        @inbounds δ[2,i] = sigmoid(p[i]) * (1 - sigmoid(p[i])) * δ[3,i]
+        @inbounds δ[1,i] = (p[i] * (1 - y[i]) - (1 - p[i]) * y[i]) * δ[3,i]
+        @inbounds δ[2,i] = p[i] * (1 - p[i]) * δ[3,i]
     end
     return
 end
@@ -63,7 +63,6 @@ function kernel_gauss_δ!(δ::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDevi
         # first order gradients
         δ[1,i] = (p[1,i] - y[i]) / exp(2 * p[2,i]) *  δ[5,i]
         δ[2,i] = (1 - (p[1,i] - y[i])^2 / exp(2 * p[2,i])) *  δ[5,i]
-
         # second order gradients
         δ[3,i] =  δ[5,i] / exp(2 * p[2,i])
         δ[4,i] = 2 *  δ[5,i] / exp(2 * p[2,i]) * (p[1,i] - y[i])^2

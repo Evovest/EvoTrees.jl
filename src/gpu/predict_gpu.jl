@@ -40,11 +40,12 @@ end
 function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L<:Logistic,T}
     idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
+    ϵ = 2e-7
     @inbounds if idx <= size(pred, 2)
         while split[nid]
             X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
-        pred[1, idx] = min(15, max(-15, pred[1,idx] + leaf_pred[1, nid]))
+        pred[1, idx] = min(1-ϵ, max(ϵ, pred[1,idx] + leaf_pred[1, nid]))
     end
     sync_threads()
     return nothing
@@ -93,9 +94,7 @@ function predict(model::GBTreeGPU{T}, X::AbstractMatrix) where {T}
     for tree in model.trees
         predict!(model.params.loss, pred, tree, X_gpu, model.K)
     end
-    if typeof(model.params.loss) == Logistic
-        @. pred = sigmoid(pred)
-    elseif typeof(model.params.loss) == Poisson
+    if typeof(model.params.loss) == Poisson
         @. pred = exp(pred)
     elseif typeof(model.params.loss) == Gaussian
         pred[2,:] = exp.(pred[2,:])

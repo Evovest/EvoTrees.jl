@@ -48,7 +48,7 @@ params1 = EvoTreeRegressor(T=Float32,
     loss=:logistic, metric=:none,
     nrounds=100,
     λ=1.0, γ=0.1, η=0.1,
-    max_depth=4, min_weight=1.0,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=0.5, nbins=64)
 @time model = fit_evotree(params1, X_train, Y_train);
 @time pred = predict(model, X_train);

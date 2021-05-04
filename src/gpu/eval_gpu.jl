@@ -23,7 +23,7 @@ end
 function eval_logloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
-        @inbounds eval[i] = -y[i] * log(sigmoid(p[1,i])) + (1 - y[i]) * log(1 - sigmoid(p[1,i]))
+        @inbounds eval[i] = -y[i] * log(p[1,i]) + (1 - y[i]) * log(1 - p[1,i])
     end
     return nothing
 end

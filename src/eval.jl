@@ -28,7 +28,7 @@ end
 function eval_metric(::Val{:logloss}, p::AbstractMatrix{T}, y::AbstractVector{T}, α=0.0) where {T <: AbstractFloat}
     eval = zero(T)
     @inbounds for i in eachindex(y)
-        eval -= y[i] * log(sigmoid(p[1,i])) + (1 - y[i]) * log(1 - sigmoid(p[1,i]))
+        eval -= y[i] * log(p[1,i]) + (1 - y[i]) * log(1 - p[1,i])
     end
     eval /= length(y)
     return eval

@@ -10,12 +10,13 @@ function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L <: Gradien
 end
 
 function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L <: Logistic,T}
+    ϵ = T(2e-7)
     @inbounds @threads for i in 1:size(X, 1)
         nid = 1
         @inbounds while tree.split[nid]
             X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
-        @inbounds pred[1,i] = clamp(pred[1,i] + tree.pred[1, nid], -15, 15)
+        @inbounds pred[1,i] = clamp(pred[1,i] + tree.pred[1, nid], ϵ, 1 - ϵ)
     end
     return nothing
 end
@@ -62,9 +63,7 @@ function predict(model::GBTree{T}, X::AbstractMatrix) where {T}
     for tree in model.trees
         predict!(model.params.loss, pred, tree, X, model.K)
     end
-    if typeof(model.params.loss) == Logistic
-        @. pred = sigmoid(pred)
-    elseif typeof(model.params.loss) == Poisson
+    if typeof(model.params.loss) == Poisson
         @. pred = exp(pred)
     elseif typeof(model.params.loss) == Gaussian
         pred[2,:] .= exp.(pred[2,:])
