@@ -2,6 +2,7 @@ using Statistics
 using StatsBase:sample
 using Revise
 using EvoTrees
+using MemoryConstrainedTreeBoosting
 
 nrounds = 100
 
@@ -37,14 +38,20 @@ Y = Float32.(rand(Bool, size(X, 1)))
 
 @info "evotrees train CPU:"
 params_evo.device = "cpu"
+@time init = EvoTrees.init_evotree(params_evo, X, Y);
 @time m_evo = fit_evotree(params_evo, X, Y);
 @time fit_evotree(params_evo, X, Y);
 @info "evotrees predict CPU:"
 @time pred_evo = EvoTrees.predict(m_evo, X);
 @time EvoTrees.predict(m_evo, X);
 
-
-import MemoryConstrainedTreeBoosting
+@info "evotrees train GPU:"
+params_evo.device = "gpu"
+@time m_evo = fit_evotree(params_evo, X, Y);
+@time fit_evotree(params_evo, X, Y);
+@info "evotrees predict GPU:"
+@time pred_evo = EvoTrees.predict(m_evo, X);
+@time EvoTrees.predict(m_evo, X);
 
 @info "MemoryConstrainedTreeBoosting train CPU:"
 @time bin_splits, trees = MemoryConstrainedTreeBoosting.train(X, Y; params_mctb...);

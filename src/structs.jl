@@ -1,51 +1,40 @@
-# define an abstrat tree node type - concrete types are TreeSplit and TreeLeaf
-abstract type Node{T<:AbstractFloat} end
-
-# store perf info of each variable
-mutable struct SplitInfo{L, T<:AbstractFloat, S<:Int}
+"""
+    Carries training information for a given tree node
+"""
+mutable struct TrainNode{T<:AbstractFloat}
     gain::T
-    ∑δL::SVector{L,T}
-    ∑δ²L::SVector{L,T}
-    ∑𝑤L::SVector{1,T}
-    ∑δR::SVector{L,T}
-    ∑δ²R::SVector{L,T}
-    ∑𝑤R::SVector{1,T}
-    gainL::T
-    gainR::T
-    𝑖::S
-    feat::S
-    cond::T
+    𝑖::Union{Nothing, AbstractVector{UInt32}}
+    ∑::Vector{T}
+    h::Vector{Vector{T}}
+    hL::Vector{Vector{T}}
+    hR::Vector{Vector{T}}
+    gains::Matrix{T}
 end
 
-struct TreeNode{L, T<:AbstractFloat, S<:Integer, B<:Bool}
-    left::S
-    right::S
-    feat::S
-    cond::T
-    gain::T
-    pred::SVector{L,T}
-    split::B
+function TrainNode(nvars, nbins, K, T)
+    node = TrainNode{T}(
+            zero(T),
+            nothing,
+            zeros(T, 2*K+1), 
+            [zeros(T, (2*K+1) * nbins) for j in 1:nvars], 
+            [zeros(T, (2*K+1) * nbins) for j in 1:nvars], 
+            [zeros(T, (2*K+1) * nbins) for j in 1:nvars], 
+            zeros(T, nbins, nvars))
+    return node
 end
 
-TreeNode(left::S, right::S, feat::S, cond::T, gain::T, L::S) where {T<:AbstractFloat, S<:Integer} = TreeNode{L,T,S,Bool}(left, right, feat, cond, gain, zeros(SVector{L,T}), true)
-TreeNode(pred::SVector{L,T}) where {L,T} = TreeNode(0, 0, 0, zero(T), zero(T), pred, false)
-
-# single tree is made of a root node that containes nested nodes and leafs
-struct TrainNode{L, T<:AbstractFloat, S<:Integer}
-    parent::S
-    depth::S
-    ∑δ::SVector{L,T}
-    ∑δ²::SVector{L,T}
-    ∑𝑤::SVector{1,T}
-    gain::T
-    𝑖::Vector{S}
-    𝑗::Vector{S}
+# single tree is made of a vectors of length num nodes
+struct Tree{T<:AbstractFloat}
+    feat::Vector{Int}
+    cond_bin::Vector{UInt8}
+    cond_float::Vector{T}
+    gain::Vector{T}
+    pred::Matrix{T}
+    split::Vector{Bool}
 end
 
-# single tree is made of a root node that containes nested nodes and leafs
-struct Tree{L, T<:AbstractFloat, S<:Integer}
-    nodes::Vector{TreeNode{L,T,S,Bool}}
-end
+Tree(x::Vector{T}) where T <: AbstractFloat = Tree(zeros(Int, 1), zeros(UInt8, 1), zeros(T, 1), zeros(T, 1), reshape(x, :, 1), zeros(Bool, 1))
+Tree(depth, K, ::T) where {T <: AbstractFloat} = Tree(zeros(Int, 2^depth-1), zeros(UInt8, 2^depth-1), zeros(T, 2^depth-1), zeros(T, 2^depth-1), zeros(T, K, 2^depth-1), zeros(Bool, 2^depth-1))
 
 # eval metric tracking
 mutable struct Metric
@@ -55,8 +44,8 @@ end
 Metric() = Metric(0, Inf)
 
 # gradient-boosted tree is formed by a vector of trees
-struct GBTree{L, T<:AbstractFloat, S<:Integer}
-    trees::Vector{Tree{L,T,S}}
+struct GBTree{T<:AbstractFloat}
+    trees::Vector{Tree{T}}
     params::EvoTypes
     metric::Metric
     K::Int

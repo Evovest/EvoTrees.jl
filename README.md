@@ -17,11 +17,11 @@ Currently supports:
 - multiclassification (softmax) (cpu only)
 - Gaussian (max likelihood)
 
-Input features is expected to be `Matrix{Float64/Float32}`. User friendly format conversion to be done (or see integration with MLJ).
+Input features is expected to be `Matrix{Float64/Float32}`. Tables/DataFrames format can be handled through [MLJ](https://github.com/alan-turing-institute/MLJ.jl) (see [below](#mlj-integration)).
 
 ## GPU
 
-GPU support is currently available for linear, logistic and Gaussian objective functions. Set paramter `device = "gpu"`.
+GPU support is currently available for linear, logistic and Gaussian objective functions. Set parameter `device = "gpu"`.
 
 ## Installation
 
@@ -41,7 +41,7 @@ julia> Pkg.add("EvoTrees")
 
 Data consists of randomly generated float32. Training is performed on 200 iterations. Code to reproduce is [here](https://github.com/Evovest/EvoTrees.jl/blob/master/experiments/benchmarks_v2.jl). 
 
-EvoTrees: v0.7.0
+EvoTrees: v0.8.0
 XGBoost: v1.1.1
 
 CPU: 16 threads on AMD Threadripper 3970X
@@ -51,19 +51,19 @@ GPU: NVIDIA RTX 2080
 
 | Dimensions   / Algo | XGBoost Hist | EvoTrees | EvoTrees GPU |
 |---------------------|:------------:|:--------:|:------------:|
-| 100K x 100          |     1.12s    |   1.15s  |     2.23s    |
-| 500K x 100          |     4.88s    |   4.85s  |     4.49s    |
-| 1M x 100            |     9.84s    |  12.04s  |     7.52s    |
-| 5M x 100            |     45.7s    |   103s   |     33.7s    |
+| 100K x 100          |     1.10s    |   1.82s  |     3.14s    |
+| 500K x 100          |     4.83s    |   6.22s  |     5.34s    |
+| 1M x 100            |     9.84s    |   11.4s  |     7.96s    |
+| 5M x 100            |     45.5s    |   69.0s  |     31.7s    |
 
 ### Inference:
 
 | Dimensions   / Algo | XGBoost Hist | EvoTrees | EvoTrees GPU |
 |---------------------|:------------:|:--------:|:------------:|
-| 100K x 100          |    0.177s    |  0.029s  |    0.035s    |
-| 500K x 100          |    0.861s    |  0.191s  |    0.214s    |
-| 1M x 100            |     1.67s    |  0.400s  |    0.469s    |
-| 5M x 100            |     8.51s    |   2.14s  |     2.43s    |
+| 100K x 100          |    0.164s    |  0.026s  |    0.013s    |
+| 500K x 100          |    0.796s    |  0.175s  |    0.055s    |
+| 1M x 100            |     1.59s    |  0.396s  |    0.108s    |
+| 5M x 100            |     7.96s    |   2.15s  |    0.543s    |
 
 ## Parameters
 

@@ -19,7 +19,7 @@ tree_model = EvoTreeRegressor(max_depth=5, η=0.05, nrounds=10)
 # logistic regression
 tree_model = EvoTreeRegressor(loss=:logistic, max_depth=5, η=0.05, nrounds=10)
 # quantile regression
-tree_model = EvoTreeRegressor(loss=:quantile, α=0.75, max_depth=5, η=0.05, nrounds=10)
+# tree_model = EvoTreeRegressor(loss=:quantile, α=0.75, max_depth=5, η=0.05, nrounds=10)
 
 mach = machine(tree_model, X, y)
 train, test = partition(eachindex(y), 0.7, shuffle=true); # 70:30 split
@@ -37,7 +37,6 @@ pred_test = predict(mach, selectrows(X,test))
 mean(abs.(pred_test - selectrows(Y,test)))
 
 @test MLJBase.iteration_parameter(EvoTreeRegressor) == :nrounds
-
 
 ##################################################
 ### classif - categorical target
