@@ -38,7 +38,10 @@ Y = Float32.(rand(Bool, size(X, 1)))
 
 @info "evotrees train CPU:"
 params_evo.device = "cpu"
-@time init = EvoTrees.init_evotree(params_evo, X, Y);
+@time m, cache = EvoTrees.init_evotree(params_evo, X, Y);
+@time EvoTrees.grow_evotree!(m, cache);
+@time m, cache = EvoTrees.init_evotree(params_evo, X, Y);
+@time EvoTrees.grow_evotree!(m, cache);
 @time m_evo = fit_evotree(params_evo, X, Y);
 @time fit_evotree(params_evo, X, Y);
 @info "evotrees predict CPU:"

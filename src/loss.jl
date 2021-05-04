@@ -9,8 +9,9 @@ end
 # logistic - on linear predictor
 function update_grads!(::Logistic, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, α::T) where {T <: AbstractFloat}
     @inbounds for i in eachindex(y)
-        δ𝑤[1,i] = (p[1,i] * (1 - y[i]) - (1 - p[1,i]) * y[i]) * δ𝑤[3,i]
-        δ𝑤[2,i] = p[1,i] * (1 - p[1,i]) * δ𝑤[3,i]
+        pred = sigmoid(p[1,i])
+        δ𝑤[1,i] = (pred - y[i]) * δ𝑤[3,i]
+        δ𝑤[2,i] = pred * (1 - pred) * δ𝑤[3,i]
     end
 end
 
@@ -76,8 +77,7 @@ function logit(x::AbstractArray{T,1}) where T <: AbstractFloat
 end
 
 function logit(x::T) where T <: AbstractFloat
-    x = log(x / (1 - x))
-    return x
+    log(x / (1 - x))
 end
 
 function sigmoid(x::AbstractArray{T,1}) where T <: AbstractFloat
@@ -86,8 +86,7 @@ function sigmoid(x::AbstractArray{T,1}) where T <: AbstractFloat
 end
 
 function sigmoid(x::T) where T <: AbstractFloat
-    x = 1 / (1 + exp(-x))
-    return x
+    1 / (1 + exp(-x))
 end
 
 function softmax(x::AbstractVector{T}) where T <: AbstractFloat
