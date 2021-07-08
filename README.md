@@ -2,6 +2,8 @@
 
 [![Build Status](https://travis-ci.org/Evovest/EvoTrees.jl.svg?branch=master)](https://travis-ci.org/Evovest/EvoTrees.jl)
 
+[![Build status](https://github.com/Evovest/EvoTrees.jl/workflows/ci/badge.svg)](https://github.com/Evovest/EvoTrees.jl/actions)
+
 A Julia implementation of boosted trees with CPU and GPU support.
 Efficient histogram based algorithms with support for multiple loss functions (notably multi-target objectives such as max likelihood methods).
 
