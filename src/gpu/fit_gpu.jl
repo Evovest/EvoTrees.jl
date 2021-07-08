@@ -1,6 +1,6 @@
 # initialise evotree
 function init_evotree_gpu(params::EvoTypes{T,U,S},
-    X::AbstractMatrix, Y::AbstractVector; verbosity=1) where {T,U,S}
+    X::AbstractMatrix, Y::AbstractVector) where {T,U,S}
 
     K = 1
     levels = nothing
@@ -75,7 +75,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
 end
 
 
-function grow_evotree!(evotree::GBTreeGPU{T}, cache; verbosity=1) where {T}
+function grow_evotree!(evotree::GBTreeGPU{T}, cache) where {T}
 
     # initialize from cache
     params = evotree.params

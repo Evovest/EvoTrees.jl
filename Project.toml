@@ -1,7 +1,7 @@
 name = "EvoTrees"
 uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
 authors = ["jeremiedb <jeremie.db@evovest.com>"]
-version = "0.8.0"
+version = "0.8.1"
 
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
@@ -29,8 +29,10 @@ StatsBase = "0.32, 0.33"
 julia = "1.4"
 
 [extras]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 MLJBase = "a7f614a8-145f-11e9-1d2a-a57a1082229d"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Test", "MLJBase"]
+docs = ["Documenter"]

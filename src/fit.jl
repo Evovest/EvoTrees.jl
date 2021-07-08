@@ -1,6 +1,6 @@
 # initialise evotree
 function init_evotree(params::EvoTypes{T,U,S},
-    X::AbstractMatrix, Y::AbstractVector; fnames=nothing, verbosity=1) where {T,U,S}
+    X::AbstractMatrix, Y::AbstractVector) where {T,U,S}
 
     K = 1
     levels = nothing
@@ -75,7 +75,7 @@ function init_evotree(params::EvoTypes{T,U,S},
 end
 
 
-function grow_evotree!(evotree::GBTree{T}, cache; verbosity=1) where {T,S}
+function grow_evotree!(evotree::GBTree{T}, cache) where {T,S}
 
     # initialize from cache
     params = evotree.params
@@ -181,10 +181,17 @@ function grow_tree!(
 end
 
 
+"""
+    fit_evotree
+    
+    Main training function. Inputs are:
+        - params: configuration info. Either a EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount or EvoTreeGaussian
+        - X_train: Matrix of observations and features 
+        - Y_train: Vector of observations
+"""
 function fit_evotree(params, X_train, Y_train;
     X_eval=nothing, Y_eval=nothing,
     early_stopping_rounds=9999,
-    eval_every_n=1,
     print_every_n=9999,
     verbosity=1)
 
