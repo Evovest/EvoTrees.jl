@@ -49,14 +49,20 @@ function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L,T}
     return nothing
 end
 
-# prediction from single tree - assign each observation to its final leaf
+"""
+    predict 
+    Prediction from a single tree - assign each observation to its final leaf.
+"""
 function predict(loss::L, tree::Tree{T}, X::AbstractMatrix, K) where {L,T}
     pred = zeros(T, K, size(X, 1))
     predict!(loss, pred, tree, X, K)
     return pred
 end
 
-# prediction from single tree - assign each observation to its final leaf
+"""
+    predict
+    Predictions from an EvoTrees model - sums the predictions from all trees composing the model.
+"""
 function predict(model::GBTree{T}, X::AbstractMatrix) where {T}
     pred = zeros(T, model.K, size(X, 1))
     for tree in model.trees

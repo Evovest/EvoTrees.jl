@@ -1,7 +1,7 @@
 function MLJModelInterface.fit(model::EvoTypes, verbosity::Int, A, y)
-    fitresult, cache = init_evotree(model, A.matrix, y, verbosity=verbosity)
-    grow_evotree!(fitresult, cache, verbosity=verbosity)
-    report = (feature_importances = importance(fitresult, A.names), )
+    fitresult, cache = init_evotree(model, A.matrix, y)
+    grow_evotree!(fitresult, cache)
+    report = (feature_importances = importance(fitresult, A.names),)
     return fitresult, cache, report
 end
 
@@ -34,10 +34,10 @@ MLJModelInterface.iteration_parameter(::Type{<:EvoTypes}) = :nrounds
 function MLJModelInterface.update(model::EvoTypes, verbosity::Integer, fitresult, cache, A, y)
 
     if okay_to_continue(model, cache.params)
-        grow_evotree!(fitresult, cache, verbosity=verbosity)
+        grow_evotree!(fitresult, cache)
     else
-        fitresult, cache = init_evotree(model, A.matrix, y, verbosity=verbosity)
-        grow_evotree!(fitresult, cache, verbosity=verbosity)
+        fitresult, cache = init_evotree(model, A.matrix, y)
+        grow_evotree!(fitresult, cache)
     end
 
     report = (feature_importances = importance(fitresult, A.names),)
