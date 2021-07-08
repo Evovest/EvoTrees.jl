@@ -33,8 +33,9 @@ function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L <: Gaussia
 end
 
 """
-    predict!
-        Generic fallback
+    predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K)
+
+Generic fallback for adding preditions of `tree` to existing `pred` matrix.
 """
 function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L,T}
     @inbounds @threads for i in 1:size(X, 1)
@@ -49,8 +50,10 @@ function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L,T}
     return nothing
 end
 
-""" 
-    Prediction from a single tree - assign each observation to its final leaf.
+"""
+    predict(loss::L, tree::Tree{T}, X::AbstractMatrix, K)
+
+Prediction from a single tree - assign each observation to its final leaf.
 """
 function predict(loss::L, tree::Tree{T}, X::AbstractMatrix, K) where {L,T}
     pred = zeros(T, K, size(X, 1))
@@ -59,7 +62,9 @@ function predict(loss::L, tree::Tree{T}, X::AbstractMatrix, K) where {L,T}
 end
 
 """
-    Predictions from an EvoTrees model - sums the predictions from all trees composing the model.
+    predict(model::GBTree{T}, X::AbstractMatrix)
+
+Predictions from an EvoTrees model - sums the predictions from all trees composing the model.
 """
 function predict(model::GBTree{T}, X::AbstractMatrix) where {T}
     pred = zeros(T, model.K, size(X, 1))

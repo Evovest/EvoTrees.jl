@@ -182,12 +182,20 @@ end
 
 
 """
-    fit_evotree
-    
-    Main training function. Inputs are:
-        - params: configuration info. Either a EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount or EvoTreeGaussian
-        - X_train: Matrix of observations and features 
-        - Y_train: Vector of observations
+    fit_evotree(params, X_train, Y_train;
+        X_eval=nothing, Y_eval=nothing,
+        early_stopping_rounds=9999,
+        print_every_n=9999,
+        verbosity=1)
+
+Main training function.
+
+...
+# Arguments
+- `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` comprises EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount or EvoTreeGaussian
+- `X_train::Matrix`: training data of size `[#observations, #features]`. 
+- `Y_train::Vector`: vector of train targets of length `#observations`.
+...
 """
 function fit_evotree(params, X_train, Y_train;
     X_eval=nothing, Y_eval=nothing,
