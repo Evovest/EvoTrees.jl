@@ -7,7 +7,8 @@ makedocs(
     sitename="EvoTrees.jl",
     authors = "Jeremie Desgagne-Bouchard and contributors.",
     format=Documenter.HTML(),
-    pages = ["Home" => "index.md"],)
+    pages = ["Home" => "index.md"],
+    modules = [EvoTrees],)
 
 deploydocs(repo="https://github.com/Evovest/EvoTrees.jl", 
     target="build",
