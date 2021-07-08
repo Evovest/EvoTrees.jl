@@ -15,10 +15,15 @@ function importance!(gain::AbstractVector, tree::Tree)
     end
 end
 
-# loop importance over all trees and sort results
+"""
+    importance(model::GBTree, vars::AbstractVector)
+
+Sorted normalized feature importance based on loss function gain.
+"""
 function importance(model::GBTree, vars::AbstractVector)
     gain = zeros(length(vars))
     
+    # Loop importance over all trees and sort results.
     for tree in model.trees
         importance!(gain, tree)
     end
