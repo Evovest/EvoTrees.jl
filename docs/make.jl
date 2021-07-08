@@ -4,9 +4,8 @@ using EvoTrees
 push!(LOAD_PATH,"../src/")
 
 makedocs(
-    sitename="EvoTrees",
-    format=Documenter.HTML(),
-    modules=[EvoTrees])
+    sitename="EvoTrees.jl",
+    format=Documenter.HTML())
 
 deploydocs(repo="https://github.com/Evovest/EvoTrees.jl", 
     target="build",
