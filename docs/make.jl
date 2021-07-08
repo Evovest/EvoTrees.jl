@@ -5,7 +5,9 @@ push!(LOAD_PATH,"../src/")
 
 makedocs(
     sitename="EvoTrees.jl",
-    format=Documenter.HTML())
+    authors = "Jeremie Desgagne-Bouchard and contributors.",
+    format=Documenter.HTML(),
+    pages = ["Home" => "index.md"],)
 
 deploydocs(repo="https://github.com/Evovest/EvoTrees.jl", 
     target="build",
