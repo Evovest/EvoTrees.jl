@@ -13,6 +13,6 @@ makedocs(
     pages = pages,
     modules = [EvoTrees],)
 
-deploydocs(repo="https://github.com/Evovest/EvoTrees.jl", 
+deploydocs(repo="github.com/Evovest/EvoTrees.jl.git", 
     target="build",
     push_preview=false)
