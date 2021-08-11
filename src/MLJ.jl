@@ -46,7 +46,7 @@ function MLJModelInterface.update(model::EvoTypes, verbosity::Integer, fitresult
 end
 
 function predict(::EvoTreeRegressor, fitresult, A)
-    pred = predict(fitresult, A.matrix)
+    pred = vec(predict(fitresult, A.matrix))
     return pred
 end
 
@@ -56,7 +56,7 @@ function predict(::EvoTreeClassifier, fitresult, A)
 end
 
 function predict(::EvoTreeCount, fitresult, A)
-    λ = predict(fitresult, A.matrix)
+    λ = vec(predict(fitresult, A.matrix))
     return [Distributions.Poisson(λᵢ) for λᵢ ∈ λ]
 end
 
