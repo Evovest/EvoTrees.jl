@@ -79,7 +79,6 @@ function grow_evotree!(evotree::GBTree{T}, cache) where {T,S}
 
     # initialize from cache
     params = evotree.params
-    X_size = size(cache.X_bin)
     δnrounds = params.nrounds - cache.params.nrounds
 
     # loop over nrounds
@@ -90,8 +89,6 @@ function grow_evotree!(evotree::GBTree{T}, cache) where {T,S}
 
         # build a new tree
         update_grads!(params.loss, cache.δ𝑤, cache.pred, cache.Y, params.α)
-        # ∑δ, ∑δ², ∑𝑤 = sum(cache.δ[𝑖]), sum(cache.δ²[𝑖]), sum(cache.𝑤[𝑖])
-        # gain = get_gain(params.loss, ∑δ, ∑δ², ∑𝑤, params.λ)
         # assign a root and grow tree
         tree = Tree(params.max_depth, evotree.K, zero(T))
         grow_tree!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, cache.𝑗, cache.out, cache.left, cache.right, cache.X_bin, cache.K)
@@ -116,15 +113,12 @@ function grow_tree!(
     # reset nodes
     @threads for n in eachindex(nodes)
         [nodes[n].h[j] .= 0 for j in 𝑗]
-        # [nodes[n].hL[j] .= 0 for j in eachindex(nodes[n].hL)]
-        # [nodes[n].hR[j] .= 0 for j in eachindex(nodes[n].hR)]
         nodes[n].∑ .= 0
         nodes[n].gain = 0
         fill!(nodes[n].gains, -Inf)
     end
 
     # reset
-    # bval, bidx = [zero(T)], [(0,0)]
     n_next = [1]
     n_current = copy(n_next)
     depth = 1
@@ -135,16 +129,27 @@ function grow_tree!(
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
-        for n ∈ n_current
+        
+        if depth < params.max_depth
+            for n_id ∈ 1:length(n_current)
+                n = n_current[n_id]
+                if n_id % 2 == 0
+                    if n % 2 == 0
+                        nodes[n].h .= nodes[n >> 1].h .- nodes[n + 1].h
+                    else
+                        nodes[n].h .= nodes[n >> 1].h .- nodes[n - 1].h
+                    end
+                else
+                    update_hist!(params.loss, nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗, K)
+                end
+            end
+        end
+
+        for n ∈ sort(n_current)
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params, K, δ𝑤, nodes[n].𝑖)
             else
                 # histogram subtraction
-                if n > 1 && n % 2 == 1
-                    nodes[n].h .= nodes[n >> 1].h .- nodes[n - 1].h
-                else
-                    update_hist!(params.loss, nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗, K)
-                end
                 update_gains!(params.loss, nodes[n], 𝑗, params, K)
                 best = findmax(nodes[n].gains)
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.γ
@@ -159,7 +164,6 @@ function grow_tree!(
                     popfirst!(n_next)
                 else
                     # println("typeof(nodes[n].𝑖): ", typeof(nodes[n].𝑖))
-                    # _left, _right = split_set!(left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
                     _left, _right = split_set_threads!(out, left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
                     nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = _left, _right
                     offset += length(nodes[n].𝑖)
@@ -167,8 +171,13 @@ function grow_tree!(
                     nodes[n << 1].gain = get_gain(params.loss, nodes[n << 1].∑, params.λ, K)
                     nodes[n << 1 + 1].gain = get_gain(params.loss, nodes[n << 1 + 1].∑, params.λ, K)
 
-                    push!(n_next, n << 1)
-                    push!(n_next, n << 1 + 1)
+                    if length(_right) >= length(_left)
+                        push!(n_next, n << 1)
+                        push!(n_next, n << 1 + 1)
+                    else
+                        push!(n_next, n << 1 + 1)
+                        push!(n_next, n << 1)
+                    end   
                     popfirst!(n_next)
                     # println("n_next split post: ", n, " | ", n_next)
                 end

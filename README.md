@@ -76,12 +76,13 @@ GPU: NVIDIA RTX 2080
   - **γ**: min gain for split, default=0.0
   - **η**: learning rate, default=0.1
   - **max\_depth**: integer, default=5
-  - **min\_weight**: float \>= 0 default=1.0,
+  - **min\_weight**: float \>= 0 default=1.0
   - **rowsample**: float \[0,1\] default=1.0
   - **colsample**: float \[0,1\] default=1.0
   - **nbins**: Int, number of bins into which features will be quantilized default=64
   - **α**: float \[0,1\], set the quantile or bias in L1 default=0.5
   - **metric**: {:mse, :rmse, :mae, :logloss, :quantile, :gini, :gaussian, :none},  default=:none
+  - **rng**: random controller, either a `Random.AbstractRNG` or an `Int` acting as a seed. Default=123.
 
 
 ## MLJ Integration

@@ -1,7 +1,6 @@
 using Statistics
 using StatsBase:sample
 using XGBoost
-using Revise
 using EvoTrees
 using BenchmarkTools
 using CUDA

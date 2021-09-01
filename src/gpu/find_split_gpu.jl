@@ -58,7 +58,7 @@ function update_hist_gpu!(
     threads = (thread_i, 1)
     blocks = (8, length(𝑗))
     @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * size(h, 2) hist_kernel_grad!(h, δ𝑤, X_bin, 𝑖, 𝑗)
-    CUDA.synchronize()
+    # CUDA.synchronize()
     return nothing
 end
 
@@ -115,7 +115,7 @@ function update_hist_gpu!(
     threads = (thread_i, 5)
     blocks = (8, length(𝑗))
     @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * size(h, 2) hist_kernel_gauss!(h, δ𝑤, X_bin, 𝑖, 𝑗)
-    CUDA.synchronize()
+    # CUDA.synchronize()
     return nothing
 end
 
