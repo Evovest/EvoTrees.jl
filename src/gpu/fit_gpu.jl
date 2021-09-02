@@ -120,8 +120,6 @@ function grow_tree_gpu!(
     # reset nodes
     @threads for n in eachindex(nodes)
         nodes[n].h .= 0
-        # nodes[n].hL .= 0
-        # nodes[n].hR .= 0
         nodes[n].∑ .= 0
         nodes[n].gain = -Inf
         fill!(nodes[n].gains, -Inf)
@@ -137,17 +135,17 @@ function grow_tree_gpu!(
         if depth < params.max_depth
             for n_id ∈ 1:length(n_current)
                 n = n_current[n_id]
-                # if n_id % 2 == 0
-                #     if n % 2 == 0
-                #         nodes[n].h .= nodes[n >> 1].h .- nodes[n + 1].h
-                #         CUDA.synchronize()
-                #     else
-                #         nodes[n].h .= nodes[n >> 1].h .- nodes[n - 1].h
-                #         CUDA.synchronize()
-                #     end
-                # else
+                if n_id % 2 == 0
+                    if n % 2 == 0
+                        nodes[n].h .= nodes[n >> 1].h .- nodes[n + 1].h
+                        CUDA.synchronize()
+                    else
+                        nodes[n].h .= nodes[n >> 1].h .- nodes[n - 1].h
+                        CUDA.synchronize()
+                    end
+                else
                     update_hist_gpu!(params.loss, nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗, K)
-                # end
+                end
             end
         end
 
@@ -167,7 +165,6 @@ function grow_tree_gpu!(
                 # println("node: ", n, " | best: ", best, " | nodes[n].gain: ", nodes[n].gain)
                 tree.split[n] = tree.cond_bin[n] != 0
                 if !tree.split[n]
-                    # println("Array(nodes[n].∑: ", Array(nodes[n].∑))
                     pred_leaf_gpu!(params.loss, tree.pred, n, Array(nodes[n].∑), params)
                     popfirst!(n_next)
                 else
