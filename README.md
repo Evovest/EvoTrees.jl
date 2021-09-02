@@ -19,7 +19,7 @@ Input features are expected to be `Matrix{Float64/Float32}`. Tables/DataFrames f
 - logistic
 - Poisson
 - L1 (mae regression)
-- Quantile (cpu only)
+- Quantile
 - multiclassification (softmax)
 - Gaussian (max likelihood)
 
