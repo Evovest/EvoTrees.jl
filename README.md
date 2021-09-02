@@ -7,23 +7,31 @@
 A Julia implementation of boosted trees with CPU and GPU support.
 Efficient histogram based algorithms with support for multiple loss functions (notably multi-target objectives such as max likelihood methods).
 
-[R binding available](https://github.com/Evovest/EvoTrees)
+[R binding available](https://github.com/Evovest/EvoTrees).
 
-Currently supports:
+Input features are expected to be `Matrix{Float64/Float32}`. Tables/DataFrames format can be handled through [MLJ](https://github.com/alan-turing-institute/MLJ.jl) (see [below](#mlj-integration)).
+
+## Supported tasks
+
+### CPU
 
 - linear
 - logistic
-- Poisson (cpu only)
-- L1 (mae regression) (cpu only)
-- Quantile (cpu only)
-- multiclassification (softmax) (cpu only)
+- Poisson
+- L1 (mae regression)
+- Quantile
+- multiclassification (softmax)
 - Gaussian (max likelihood)
 
-Input features is expected to be `Matrix{Float64/Float32}`. Tables/DataFrames format can be handled through [MLJ](https://github.com/alan-turing-institute/MLJ.jl) (see [below](#mlj-integration)).
+Set parameter `device="cpu"`.
 
-## GPU
+### GPU
 
-GPU support is currently available for linear, logistic and Gaussian objective functions. Set parameter `device = "gpu"`.
+- linear
+- logistic
+- Gaussian (max likelihood)
+
+Set parameter `device="gpu"`.
 
 ## Installation
 
@@ -43,7 +51,7 @@ julia> Pkg.add("EvoTrees")
 
 Data consists of randomly generated float32. Training is performed on 200 iterations. Code to reproduce is [here](https://github.com/Evovest/EvoTrees.jl/blob/master/experiments/benchmarks_v2.jl). 
 
-EvoTrees: v0.8.0
+EvoTrees: v0.8.4
 XGBoost: v1.1.1
 
 CPU: 16 threads on AMD Threadripper 3970X
@@ -53,10 +61,10 @@ GPU: NVIDIA RTX 2080
 
 | Dimensions   / Algo | XGBoost Hist | EvoTrees | EvoTrees GPU |
 |---------------------|:------------:|:--------:|:------------:|
-| 100K x 100          |     1.10s    |   1.82s  |     3.14s    |
-| 500K x 100          |     4.83s    |   6.22s  |     5.34s    |
-| 1M x 100            |     9.84s    |   11.4s  |     7.96s    |
-| 5M x 100            |     45.5s    |   69.0s  |     31.7s    |
+| 100K x 100          |     1.10s    |   1.80s  |     3.14s    |
+| 500K x 100          |     4.83s    |   4.98s  |     4.98s    |
+| 1M x 100            |     9.84s    |   9.89s  |     7.37s    |
+| 5M x 100            |     45.5s    |   53.8s  |     25.8s    |
 
 ### Inference:
 
@@ -76,12 +84,13 @@ GPU: NVIDIA RTX 2080
   - **γ**: min gain for split, default=0.0
   - **η**: learning rate, default=0.1
   - **max\_depth**: integer, default=5
-  - **min\_weight**: float \>= 0 default=1.0,
+  - **min\_weight**: float \>= 0 default=1.0
   - **rowsample**: float \[0,1\] default=1.0
   - **colsample**: float \[0,1\] default=1.0
   - **nbins**: Int, number of bins into which features will be quantilized default=64
   - **α**: float \[0,1\], set the quantile or bias in L1 default=0.5
   - **metric**: {:mse, :rmse, :mae, :logloss, :quantile, :gini, :gaussian, :none},  default=:none
+  - **rng**: random controller, either a `Random.AbstractRNG` or an `Int` acting as a seed. Default=123.
 
 
 ## MLJ Integration

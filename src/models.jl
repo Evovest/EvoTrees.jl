@@ -47,7 +47,7 @@ function EvoTreeRegressor(;
     nbins=64,
     α=0.5,
     metric=:mse,
-    rng=444,
+    rng=123,
     device="cpu")
 
     if loss == :linear model_type = Linear()
@@ -95,7 +95,7 @@ function EvoTreeCount(;
     nbins=64,
     α=0.5,
     metric=:poisson,
-    rng=444,
+    rng=123,
     device="cpu")
 
     rng = mk_rng(rng)::Random.AbstractRNG
@@ -138,7 +138,7 @@ function EvoTreeClassifier(;
     nbins=64,
     α=0.5,
     metric=:mlogloss,
-    rng=444,
+    rng=123,
     device="cpu")
 
     rng = mk_rng(rng)::Random.AbstractRNG
@@ -181,7 +181,7 @@ function EvoTreeGaussian(;
     nbins=64,
     α=0.5,
     metric=:gaussian,
-    rng=444,
+    rng=123,
     device="cpu")
 
     rng = mk_rng(rng)::Random.AbstractRNG

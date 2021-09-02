@@ -53,11 +53,12 @@ function update_hist_gpu!(
     𝑗::CuVector{S}, K;
     MAX_THREADS=256) where {L <: GradientRegression,T,S}
     
-    # fill!(h, 0.0)
-    thread_i = min(MAX_THREADS, length(𝑖))
+    nbins = size(h, 2)
+    thread_i = max(nbins, min(MAX_THREADS, length(𝑖)))
     threads = (thread_i, 1)
     blocks = (8, length(𝑗))
-    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * size(h, 2) hist_kernel_grad!(h, δ𝑤, X_bin, 𝑖, 𝑗)
+    # println("threads: ", threads, " | blocks: ", blocks)
+    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * nbins hist_kernel_grad!(h, δ𝑤, X_bin, 𝑖, 𝑗)
     CUDA.synchronize()
     return nothing
 end
@@ -110,11 +111,11 @@ function update_hist_gpu!(
     𝑗::CuVector{S}, K;
     MAX_THREADS=128) where {L <: GaussianRegression,T,S}
     
-    # fill!(h, 0.0)
-    thread_i = min(MAX_THREADS, length(𝑖))
+    nbins = size(h, 2)
+    thread_i = max(nbins, min(MAX_THREADS, length(𝑖)))
     threads = (thread_i, 5)
     blocks = (8, length(𝑗))
-    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * size(h, 2) hist_kernel_gauss!(h, δ𝑤, X_bin, 𝑖, 𝑗)
+    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * nbins hist_kernel_gauss!(h, δ𝑤, X_bin, 𝑖, 𝑗)
     CUDA.synchronize()
     return nothing
 end
