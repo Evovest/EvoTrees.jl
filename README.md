@@ -11,7 +11,7 @@ Efficient histogram based algorithms with support for multiple loss functions (n
 
 Input features are expected to be `Matrix{Float64/Float32}`. Tables/DataFrames format can be handled through [MLJ](https://github.com/alan-turing-institute/MLJ.jl) (see [below](#mlj-integration)).
 
-## Suppprted tasks
+## Supported tasks
 
 ### CPU
 
