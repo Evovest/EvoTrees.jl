@@ -33,10 +33,6 @@ Set parameter `device="cpu"`.
 
 Set parameter `device="gpu"`.
 
-## GPU
-
-GPU support is currently available for linear, logistic and Gaussian objective functions. .
-
 ## Installation
 
 Latest:
