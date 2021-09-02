@@ -7,23 +7,35 @@
 A Julia implementation of boosted trees with CPU and GPU support.
 Efficient histogram based algorithms with support for multiple loss functions (notably multi-target objectives such as max likelihood methods).
 
-[R binding available](https://github.com/Evovest/EvoTrees)
+[R binding available](https://github.com/Evovest/EvoTrees).
 
-Currently supports:
+Input features are expected to be `Matrix{Float64/Float32}`. Tables/DataFrames format can be handled through [MLJ](https://github.com/alan-turing-institute/MLJ.jl) (see [below](#mlj-integration)).
+
+## Suppprted tasks
+
+### CPU
 
 - linear
 - logistic
-- Poisson (cpu only)
-- L1 (mae regression) (cpu only)
+- Poisson
+- L1 (mae regression)
 - Quantile (cpu only)
-- multiclassification (softmax) (cpu only)
+- multiclassification (softmax)
 - Gaussian (max likelihood)
 
-Input features is expected to be `Matrix{Float64/Float32}`. Tables/DataFrames format can be handled through [MLJ](https://github.com/alan-turing-institute/MLJ.jl) (see [below](#mlj-integration)).
+Set parameter `device="cpu"`.
+
+### GPU
+
+- linear
+- logistic
+- Gaussian (max likelihood)
+
+Set parameter `device="gpu"`.
 
 ## GPU
 
-GPU support is currently available for linear, logistic and Gaussian objective functions. Set parameter `device = "gpu"`.
+GPU support is currently available for linear, logistic and Gaussian objective functions. .
 
 ## Installation
 
@@ -43,7 +55,7 @@ julia> Pkg.add("EvoTrees")
 
 Data consists of randomly generated float32. Training is performed on 200 iterations. Code to reproduce is [here](https://github.com/Evovest/EvoTrees.jl/blob/master/experiments/benchmarks_v2.jl). 
 
-EvoTrees: v0.8.0
+EvoTrees: v0.8.4
 XGBoost: v1.1.1
 
 CPU: 16 threads on AMD Threadripper 3970X
