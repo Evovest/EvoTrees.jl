@@ -66,7 +66,7 @@ end
 @recipe function plot(tree::EvoTrees.Tree, var_names=nothing)
 
     map, adj = EvoTrees.get_adj_list(tree)
-    tree_layout = length(adj) == 1 ? [[0.0,0.0]] : NetworkLayout.Buchheim.layout(adj)
+    tree_layout = length(adj) == 1 ? [[0.0,0.0]] : NetworkLayout.buchheim(adj)
     shapes = EvoTrees.get_shapes(tree_layout) # issue with Shape coming from Plots... to be converted o Shape in Receipe?
     annotations = EvoTrees.get_annotations(tree_layout, map, tree, var_names) # same with Plots.text
     curves = EvoTrees.get_curves(adj, tree_layout, shapes)
@@ -105,7 +105,7 @@ end
 
     tree = model.trees[n]
     map, adj = EvoTrees.get_adj_list(tree)
-    tree_layout = length(adj) == 1 ? [[0.0,0.0]] : NetworkLayout.Buchheim.layout(adj)
+    tree_layout = length(adj) == 1 ? [[0.0,0.0]] : NetworkLayout.buchheim(adj)
     shapes = EvoTrees.get_shapes(tree_layout) # issue with Shape coming from Plots... to be converted o Shape in Receipe?
     annotations = EvoTrees.get_annotations(tree_layout, map, tree, var_names) # same with Plots.text
     curves = EvoTrees.get_curves(adj, tree_layout, shapes)
