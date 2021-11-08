@@ -22,7 +22,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 W_train = W[𝑖_train]
 
 # linear - no weights
-params1 = EvoTreeRegressor(T=Float32, device="gpu",
+params1 = EvoTreeRegressor(T=Float32, device="cpu",
     loss=:linear, metric=:mse,
     nrounds=100, nbins=100,
     λ = 0.5, γ=0.1, η=0.05,
@@ -34,7 +34,7 @@ model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval,
 preds_no_weight = predict(model, X_train)
 
 # linear - weighted
-params1 = EvoTreeRegressor(T=Float32, device="gpu",
+params1 = EvoTreeRegressor(T=Float32, device="cpu",
     loss=:linear, metric=:mse,
     nrounds=100, nbins=100,
     λ = 0.5, γ=0.1, η=0.05,
