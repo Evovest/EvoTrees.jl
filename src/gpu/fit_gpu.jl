@@ -1,6 +1,6 @@
 # initialise evotree
 function init_evotree_gpu(params::EvoTypes{T,U,S},
-    X::AbstractMatrix, Y::AbstractVector) where {T,U,S}
+    X::AbstractMatrix, Y::AbstractVector, W) where {T,U,S}
 
     K = 1
     levels = nothing
@@ -42,7 +42,10 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     evotree = GBTreeGPU([bias], params, Metric(), K, levels)
 
     # initialize gradients and weights
-    δ𝑤 = CUDA.ones(T, 2 * K + 1, X_size[1])
+    δ𝑤 = CUDA.zeros(T, 2 * K + 1, X_size[1])
+    W = isnothing(W) ? CUDA.ones(T, size(Y)) : CuVector{T}(W)
+    @assert (length(Y) == length(W) && minimum(W) > 0)
+    δ𝑤[end, :] .= W
     
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
@@ -112,7 +115,7 @@ function grow_tree_gpu!(
     edges,
     𝑗, out, left, right,
     X_bin::AbstractMatrix, K) where {T,U,S}
-
+    
     n_next = [1]
     n_current = copy(n_next)
     depth = 1

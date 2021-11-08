@@ -22,11 +22,13 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # linear
 params1 = EvoTreeRegressor(
-    loss=:linear, metric=:mae,
+    loss=:linear, metric=:mse,
     nrounds=100, nbins=100,
     λ = 0.5, γ=0.1, η=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0, rng = seed)
+
+model, cache = EvoTrees.init_evotree(params1, X_train, Y_train)
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_linear = predict(model, X_train)
 
