@@ -1,6 +1,6 @@
 # initialise evotree
 function init_evotree_gpu(params::EvoTypes{T,U,S},
-    X::AbstractMatrix, Y::AbstractVector, W) where {T,U,S}
+    X::AbstractMatrix, Y::AbstractVector, W=nothing) where {T,U,S}
 
     K = 1
     levels = nothing
