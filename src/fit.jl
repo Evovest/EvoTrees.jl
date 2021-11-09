@@ -1,6 +1,6 @@
 # initialise evotree
 function init_evotree(params::EvoTypes{T,U,S},
-    X::AbstractMatrix, Y::AbstractVector) where {T,U,S}
+    X::AbstractMatrix, Y::AbstractVector, W=nothing) where {T,U,S}
 
     K = 1
     levels = nothing
@@ -42,8 +42,11 @@ function init_evotree(params::EvoTypes{T,U,S},
     evotree = GBTree([bias], params, Metric(), K, levels)
 
     # initialize gradients and weights
-    δ𝑤 = ones(T, 2 * K + 1, X_size[1])
-    
+    δ𝑤 = zeros(T, 2 * K + 1, X_size[1])
+    W = isnothing(W) ? ones(T, size(Y)) : Vector{T}(W)
+    @assert (length(Y) == length(W) && minimum(W) > 0) 
+    δ𝑤[end, :] .= W
+
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
@@ -191,7 +194,7 @@ end
 
 
 """
-    fit_evotree(params, X_train, Y_train;
+    fit_evotree(params, X_train, Y_train, W_train=nothing;
         X_eval=nothing, Y_eval=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
@@ -204,6 +207,7 @@ Main training function. Performorms model fitting given configuration `params`, 
 - `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` comprises EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount or EvoTreeGaussian
 - `X_train::Matrix`: training data of size `[#observations, #features]`. 
 - `Y_train::Vector`: vector of train targets of length `#observations`.
+- `W_train`: vector of train weights of length `#observations`. Defaults to `nothing` and a vector of ones is assumed.
 
 # Keyword arguments
 
@@ -213,7 +217,7 @@ Main training function. Performorms model fitting given configuration `params`, 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
 """
-function fit_evotree(params, X_train, Y_train;
+function fit_evotree(params, X_train, Y_train, W_train=nothing;
     X_eval=nothing, Y_eval=nothing,
     early_stopping_rounds=9999,
     print_every_n=9999,
@@ -230,7 +234,7 @@ function fit_evotree(params, X_train, Y_train;
     params.nrounds = 0
 
     if params.device == "gpu"
-        model, cache = init_evotree_gpu(params, X_train, Y_train)
+        model, cache = init_evotree_gpu(params, X_train, Y_train, W_train)
         if params.metric != :none && !isnothing(X_eval)
             X_eval = CuArray(eltype(cache.Y).(X_eval))
             Y_eval = CuArray(eltype(cache.Y).(Y_eval))
@@ -240,7 +244,8 @@ function fit_evotree(params, X_train, Y_train;
             eval_vec = CUDA.zeros(eltype(cache.pred), size(Y_train, 1))
         end
     else
-        model, cache = init_evotree(params, X_train, Y_train)
+        # W = isnothing(W_train) ? ones(typeof(params.η), size(Y_train)) : W_train
+        model, cache = init_evotree(params, X_train, Y_train, W_train)
         if params.metric != :none && !isnothing(X_eval)
             pred_eval = predict(params.loss, model.trees[1], X_eval, model.K)
             Y_eval = convert.(eltype(cache.Y), Y_eval)
