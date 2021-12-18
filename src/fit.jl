@@ -218,7 +218,7 @@ Main training function. Performorms model fitting given configuration `params`, 
 - `verbosity`: set to 1 to print logging info during training.
 """
 function fit_evotree(params, X_train, Y_train, W_train=nothing;
-    X_eval=nothing, Y_eval=nothing,
+    X_eval=nothing, Y_eval=nothing, W_eval=nothing,
     early_stopping_rounds=9999,
     print_every_n=9999,
     verbosity=1)
@@ -236,19 +236,21 @@ function fit_evotree(params, X_train, Y_train, W_train=nothing;
     if params.device == "gpu"
         model, cache = init_evotree_gpu(params, X_train, Y_train, W_train)
         if params.metric != :none && !isnothing(X_eval)
-            X_eval = CuArray(eltype(cache.Y).(X_eval))
+            X_eval = CuArray(eltype(cache.X).(X_eval))
             Y_eval = CuArray(eltype(cache.Y).(Y_eval))
+            W_eval = isnothing(W_eval) ? CUDA.ones(eltype(cache.X), size(Y_eval)) : CuArray(eltype(cache.X).(W_eval))
             pred_eval = predict(params.loss, model.trees[1], X_eval, model.K)
             eval_vec = CUDA.zeros(eltype(cache.pred), size(Y_eval, 1))
         elseif params.metric != :none
             eval_vec = CUDA.zeros(eltype(cache.pred), size(Y_train, 1))
         end
     else
-        # W = isnothing(W_train) ? ones(typeof(params.η), size(Y_train)) : W_train
+        W = isnothing(W_train) ? ones(typeof(params.η), size(Y_train)) : W_train
         model, cache = init_evotree(params, X_train, Y_train, W_train)
         if params.metric != :none && !isnothing(X_eval)
             pred_eval = predict(params.loss, model.trees[1], X_eval, model.K)
             Y_eval = convert.(eltype(cache.Y), Y_eval)
+            W_eval = isnothing(W_eval) ? ones(eltype(cache.X), size(Y_eval)) : eltype(cache.X).(W_eval)
         end
     end
 
@@ -260,16 +262,16 @@ function fit_evotree(params, X_train, Y_train, W_train=nothing;
             if X_eval !== nothing
                 predict!(params.loss, pred_eval, model.trees[model.params.nrounds + 1], X_eval, model.K)
                 if params.device == "gpu"
-                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, pred_eval, Y_eval, params.α)
+                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, pred_eval, Y_eval, W_eval, params.α)
                 else
-                    metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, params.α)
+                    metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, W_eval, params.α)
                 end
             else
                 if params.device == "gpu"
                     # println("mean(pred_eval): ", mean(cache.pred))
-                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, cache.pred, cache.Y, params.α)
+                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, cache.pred, cache.Y, cache.δ𝑤[end, :], params.α)
                 else
-                    metric_track.metric = eval_metric(Val{params.metric}(), cache.pred, cache.Y, params.α)
+                    metric_track.metric = eval_metric(Val{params.metric}(), cache.pred, cache.Y, cache.δ𝑤[end, :], params.α)
                 end
             end
             if metric_track.metric < metric_best.metric

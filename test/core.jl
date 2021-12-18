@@ -29,7 +29,7 @@ params1 = EvoTreeRegressor(
     rowsample=0.5, colsample=1.0, rng = seed)
 
 model, cache = EvoTrees.init_evotree(params1, X_train, Y_train)
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25);
 pred_train_linear = predict(model, X_train)
 
 p1 = EvoTrees.predict(model, X_eval)

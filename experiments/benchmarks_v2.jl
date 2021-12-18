@@ -57,3 +57,9 @@ params_evo.device = "gpu"
 @info "evotrees predict GPU:"
 @time pred_evo = EvoTrees.predict(m_evo_gpu, X);
 @btime EvoTrees.predict($m_evo_gpu, $X);
+
+# W = ones(length(Y))
+# @time m_evo_gpu = fit_evotree(params_evo, X, Y);
+# @time m_evo_gpu = fit_evotree(params_evo, X, Y, W);
+# @time m_evo_gpu = fit_evotree(params_evo, X, Y, W, X_eval = X, Y_eval = Y);
+# @time m_evo_gpu = fit_evotree(params_evo, X, Y, W, X_eval = X, Y_eval = Y, W_eval = W);
