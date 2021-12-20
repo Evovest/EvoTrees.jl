@@ -195,7 +195,7 @@ end
 
 """
     fit_evotree(params, X_train, Y_train, W_train=nothing;
-        X_eval=nothing, Y_eval=nothing,
+        X_eval=nothing, Y_eval=nothing, W_eval = nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
         verbosity=1)
@@ -207,7 +207,7 @@ Main training function. Performorms model fitting given configuration `params`, 
 - `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` comprises EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount or EvoTreeGaussian
 - `X_train::Matrix`: training data of size `[#observations, #features]`. 
 - `Y_train::Vector`: vector of train targets of length `#observations`.
-- `W_train`: vector of train weights of length `#observations`. Defaults to `nothing` and a vector of ones is assumed.
+- `W_train::Vector`: vector of train weights of length `#observations`. Defaults to `nothing` and a vector of ones is assumed.
 
 # Keyword arguments
 
