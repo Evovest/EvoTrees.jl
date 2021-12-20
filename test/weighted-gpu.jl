@@ -23,7 +23,7 @@ W_train = W[𝑖_train]
 W_eval = W[𝑖_eval]
 
 # linear - no weights
-params1 = EvoTreeRegressor(T=Float32, device="cpu",
+params1 = EvoTreeRegressor(T=Float32, device="gpu",
     loss=:linear, metric=:mse,
     nrounds=100, nbins=100,
     λ = 0.0, γ=0.1, η=0.05,
@@ -35,7 +35,7 @@ model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval,
 preds_no_weight = predict(model, X_train)
 
 # linear - weighted
-params1 = EvoTreeRegressor(T=Float32, device="cpu",
+params1 = EvoTreeRegressor(T=Float32, device="gpu",
     loss=:linear, metric=:mse,
     nrounds=100, nbins=100,
     λ = 0.0, γ=0.1, η=0.05,
@@ -46,7 +46,7 @@ model, cache = EvoTrees.init_evotree(params1, X_train, Y_train, W_train)
 model = fit_evotree(params1, X_train, Y_train, W_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25);
 preds_weighted_1 = predict(model, X_train)
 
-params1 = EvoTreeRegressor(T=Float32, device="cpu",
+params1 = EvoTreeRegressor(T=Float32, device="gpu",
     loss=:linear, metric=:mse,
     nrounds=100, nbins=100,
     λ = 0.0, γ=0.1, η=0.05,
@@ -57,7 +57,7 @@ model, cache = EvoTrees.init_evotree(params1, X_train, Y_train, W_train)
 model = fit_evotree(params1, X_train, Y_train, W_train, X_eval = X_eval, Y_eval = Y_eval, W_eval = W_eval, print_every_n = 25);
 preds_weighted_2 = predict(model, X_train)
 
-params1 = EvoTreeRegressor(T=Float32, device="cpu",
+params1 = EvoTreeRegressor(T=Float32, device="gpu",
     loss=:linear, metric=:mse,
     nrounds=100, nbins=100,
     λ = 0.0, γ=0.1, η=0.05,
@@ -72,6 +72,15 @@ preds_weighted_3 = predict(model, X_train)
 
 sum(abs.(preds_no_weight .- preds_weighted_3))
 cor(preds_no_weight, preds_weighted_3)
+
+ϵ = vec(abs.(preds_no_weight .- preds_weighted_3))
+minimum(ϵ)
+maximum(ϵ)
+mean(ϵ)
+
+minimum(preds_no_weight)
+maximum(preds_no_weight)
+mean(preds_no_weight)
 
 # using Plots
 # # using Colors

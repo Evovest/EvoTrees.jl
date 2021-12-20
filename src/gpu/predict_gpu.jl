@@ -8,7 +8,7 @@ function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, 
         while split[nid]
             X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
-        @inbounds for k in 1:K
+        @inbounds for k = 1:K
             pred[k, idx] += leaf_pred[k, nid]
         end
     end
@@ -44,7 +44,7 @@ function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, 
         while split[nid]
             X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
-        pred[1, idx] = min(15, max(-15, pred[1,idx] + leaf_pred[1, nid]))
+        pred[1, idx] = min(15, max(-15, pred[1, idx] + leaf_pred[1, nid]))
     end
     sync_threads()
     return nothing
@@ -62,14 +62,14 @@ function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, 
             X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
         pred[1, idx] += leaf_pred[1, nid]
-        pred[2, idx] = max(-15, pred[2,idx] + leaf_pred[2, nid])
+        pred[2, idx] = max(-15, pred[2, idx] + leaf_pred[2, nid])
     end
     sync_threads()
     return nothing
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict!(loss::L, pred::AbstractMatrix{T}, tree::TreeGPU{T}, X::AbstractMatrix, K; MAX_THREADS=1024) where {L,T}
+function predict!(loss::L, pred::AbstractMatrix{T}, tree::TreeGPU{T}, X::AbstractMatrix, K; MAX_THREADS = 1024) where {L,T}
     K = size(pred, 1)
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
@@ -98,11 +98,11 @@ function predict(model::GBTreeGPU{T}, X::AbstractMatrix) where {T}
     elseif typeof(model.params.loss) == Poisson
         @. pred = exp(pred)
     elseif typeof(model.params.loss) == Gaussian
-        pred[2,:] = exp.(pred[2,:])
+        pred[2, :] = exp.(pred[2, :])
     elseif typeof(model.params.loss) == Softmax
         pred = transpose(reshape(pred, model.K, :))
-        for i in 1:size(pred, 1)
-            pred[i,:] .= softmax(pred[i,:])
+        for i = 1:size(pred, 1)
+            pred[i, :] .= softmax(pred[i, :])
         end
     end
     return Array(pred')
@@ -110,14 +110,14 @@ end
 
 
 # prediction in Leaf - GradientRegression
-function pred_leaf_gpu!(::S, p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes) where {S <: GradientRegression,T}
-    p[1,n] = - params.η * ∑[1] / (∑[2] + params.λ * ∑[3])
+function pred_leaf_gpu!(::S, p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes) where {S<:GradientRegression,T}
+    p[1, n] = -params.η * ∑[1] / (∑[2] + params.λ * ∑[3])
     return nothing
 end
 
 # prediction in Leaf - Gaussian
-function pred_leaf_gpu!(::S, p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes) where {S <: GaussianRegression,T}
-    p[1,n] = - params.η * ∑[1] / (∑[3] + params.λ * ∑[5])
-    p[2,n] = - params.η * ∑[2] / (∑[4] + params.λ * ∑[5])
+function pred_leaf_gpu!(::S, p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes) where {S<:GaussianRegression,T}
+    p[1, n] = -params.η * ∑[1] / (∑[3] + params.λ * ∑[5])
+    p[2, n] = -params.η * ∑[2] / (∑[4] + params.λ * ∑[5])
     return nothing
 end

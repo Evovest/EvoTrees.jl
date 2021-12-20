@@ -49,6 +49,32 @@ params1 = EvoTreeRegressor(T=Float64,
 mean(abs.(pred_train_linear .- Y_train))
 sqrt(mean((pred_train_linear .- Y_train).^2))
 
+# linear weighted
+params1 = EvoTreeRegressor(T=Float64,
+    loss=:linear, metric=:mse,
+    nrounds=100, nbins=64,
+    λ=0.1, γ=0.1, η=1.0,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=1.0,
+    rng=123)
+
+# W_train = ones(eltype(Y_train), size(Y_train)) .* 5
+W_train = rand(eltype(Y_train), size(Y_train)) .+ 0
+
+@time model = fit_evotree(params1, X_train, Y_train, W_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
+# 67.159 ms (77252 allocations: 28.06 MiB)
+# @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 999);
+# @btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval);
+# Profile.clear()  # in case we have any previous profiling data
+# @profile fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+# ProfileView.view()
+
+# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
+@time pred_train_linear_w = predict(model, X_train);
+@time pred_eval_linear_w = predict(model, X_eval)
+mean(abs.(pred_train_linear_w .- Y_train))
+sqrt(mean((pred_train_linear_w .- Y_train).^2))
+
 # logistic / cross-entropy
 params1 = EvoTreeRegressor(
     loss=:logistic, metric=:logloss,
@@ -92,6 +118,7 @@ sqrt(mean((pred_train_L1 .- Y_train).^2))
 x_perm = sortperm(X_train[:,1])
 plot(X_train, Y_train, msize=1, mcolor="gray", mswidth=0, background_color=RGB(1, 1, 1), seriestype=:scatter, xaxis=("feature"), yaxis=("target"), legend=true, label="")
 plot!(X_train[:,1][x_perm], pred_train_linear[x_perm], color="navy", linewidth=1.5, label="Linear")
+plot!(X_train[:,1][x_perm], pred_train_linear_w[x_perm], color="lightblue", linewidth=1.5, label="LinearW")
 plot!(X_train[:,1][x_perm], pred_train_logistic[x_perm], color="darkred", linewidth=1.5, label="Logistic")
 plot!(X_train[:,1][x_perm], pred_train_poisson[x_perm], color="green", linewidth=1.5, label="Poisson")
 plot!(X_train[:,1][x_perm], pred_train_L1[x_perm], color="pink", linewidth=1.5, label="L1")

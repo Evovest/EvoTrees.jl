@@ -1,6 +1,6 @@
 # initialise evotree
 function init_evotree(params::EvoTypes{T,U,S},
-    X::AbstractMatrix, Y::AbstractVector, W=nothing) where {T,U,S}
+    X::AbstractMatrix, Y::AbstractVector, W = nothing) where {T,U,S}
 
     K = 1
     levels = nothing
@@ -17,7 +17,7 @@ function init_evotree(params::EvoTypes{T,U,S},
             Y = UInt32.(CategoricalArrays.levelcode.(Y))
         else
             levels = sort(unique(Y))
-            yc = CategoricalVector(Y, levels=levels)
+            yc = CategoricalVector(Y, levels = levels)
             K = length(levels)
             μ = zeros(T, K)
             Y = UInt32.(CategoricalArrays.levelcode.(yc))
@@ -34,8 +34,8 @@ function init_evotree(params::EvoTypes{T,U,S},
     # initialize preds
     X_size = size(X)
     pred = zeros(T, K, X_size[1])
-    @inbounds for i in 1:X_size[1]
-        pred[:,i] .= μ
+    @inbounds for i = 1:X_size[1]
+        pred[:, i] .= μ
     end
 
     bias = Tree(μ)
@@ -44,19 +44,19 @@ function init_evotree(params::EvoTypes{T,U,S},
     # initialize gradients and weights
     δ𝑤 = zeros(T, 2 * K + 1, X_size[1])
     W = isnothing(W) ? ones(T, size(Y)) : Vector{T}(W)
-    @assert (length(Y) == length(W) && minimum(W) > 0) 
+    @assert (length(Y) == length(W) && minimum(W) > 0)
     δ𝑤[end, :] .= W
 
     # binarize data into quantiles
     edges = get_edges(X, params.nbins)
     X_bin = binarize(X, edges)
-    
+
     𝑖_ = UInt32.(collect(1:X_size[1]))
     𝑗_ = UInt32.(collect(1:X_size[2]))
     𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * X_size[2]))
 
     # initializde histograms
-    nodes = [TrainNode(X_size[2], params.nbins, K, T) for n in 1:2^params.max_depth - 1]
+    nodes = [TrainNode(X_size[2], params.nbins, K, T) for n = 1:2^params.max_depth-1]
     nodes[1].𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * X_size[1]))
     out = zeros(UInt32, length(nodes[1].𝑖))
     left = zeros(UInt32, length(nodes[1].𝑖))
@@ -69,7 +69,7 @@ function init_evotree(params::EvoTypes{T,U,S},
         𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑗 = 𝑗,
         out = out, left = left, right = right,
         δ𝑤 = δ𝑤,
-        edges = edges, 
+        edges = edges,
         X_bin = X_bin)
 
     cache.params.nrounds = 0
@@ -85,10 +85,10 @@ function grow_evotree!(evotree::GBTree{T}, cache) where {T,S}
     δnrounds = params.nrounds - cache.params.nrounds
 
     # loop over nrounds
-    for i in 1:δnrounds
+    for i = 1:δnrounds
         # select random rows and cols
-        sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace=false, ordered=true)
-        sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
+        sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace = false, ordered = true)
+        sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
 
         # build a new tree
         update_grads!(params.loss, cache.δ𝑤, cache.pred, cache.Y, params.α)
@@ -127,20 +127,20 @@ function grow_tree!(
     depth = 1
 
     # initialize summary stats
-    nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims=2))
+    nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims = 2))
     nodes[1].gain = get_gain(params.loss, nodes[1].∑, params.λ, K)
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
-        
+
         if depth < params.max_depth
             for n_id ∈ 1:length(n_current)
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
-                        nodes[n].h .= nodes[n >> 1].h .- nodes[n + 1].h
+                        nodes[n].h .= nodes[n>>1].h .- nodes[n+1].h
                     else
-                        nodes[n].h .= nodes[n >> 1].h .- nodes[n - 1].h
+                        nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
                     end
                 else
                     update_hist!(params.loss, nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗, K)
@@ -168,11 +168,11 @@ function grow_tree!(
                 else
                     # println("typeof(nodes[n].𝑖): ", typeof(nodes[n].𝑖))
                     _left, _right = split_set_threads!(out, left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
-                    nodes[n << 1].𝑖, nodes[n << 1 + 1].𝑖 = _left, _right
+                    nodes[n<<1].𝑖, nodes[n<<1+1].𝑖 = _left, _right
                     offset += length(nodes[n].𝑖)
                     update_childs_∑!(params.loss, nodes, n, best[2][1], best[2][2], K)
-                    nodes[n << 1].gain = get_gain(params.loss, nodes[n << 1].∑, params.λ, K)
-                    nodes[n << 1 + 1].gain = get_gain(params.loss, nodes[n << 1 + 1].∑, params.λ, K)
+                    nodes[n<<1].gain = get_gain(params.loss, nodes[n<<1].∑, params.λ, K)
+                    nodes[n<<1+1].gain = get_gain(params.loss, nodes[n<<1+1].∑, params.λ, K)
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
@@ -180,7 +180,7 @@ function grow_tree!(
                     else
                         push!(n_next, n << 1 + 1)
                         push!(n_next, n << 1)
-                    end   
+                    end
                     popfirst!(n_next)
                     # println("n_next split post: ", n, " | ", n_next)
                 end
@@ -217,11 +217,11 @@ Main training function. Performorms model fitting given configuration `params`, 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
 """
-function fit_evotree(params, X_train, Y_train, W_train=nothing;
-    X_eval=nothing, Y_eval=nothing,
-    early_stopping_rounds=9999,
-    print_every_n=9999,
-    verbosity=1)
+function fit_evotree(params, X_train, Y_train, W_train = nothing;
+    X_eval = nothing, Y_eval = nothing, W_eval = nothing,
+    early_stopping_rounds = 9999,
+    print_every_n = 9999,
+    verbosity = 1)
 
     # initialize metric
     iter_since_best = 0
@@ -236,19 +236,20 @@ function fit_evotree(params, X_train, Y_train, W_train=nothing;
     if params.device == "gpu"
         model, cache = init_evotree_gpu(params, X_train, Y_train, W_train)
         if params.metric != :none && !isnothing(X_eval)
-            X_eval = CuArray(eltype(cache.Y).(X_eval))
+            X_eval = CuArray(eltype(cache.X).(X_eval))
             Y_eval = CuArray(eltype(cache.Y).(Y_eval))
+            W_eval = isnothing(W_eval) ? CUDA.ones(eltype(cache.X), size(Y_eval)) : CuArray(eltype(cache.X).(W_eval))
             pred_eval = predict(params.loss, model.trees[1], X_eval, model.K)
             eval_vec = CUDA.zeros(eltype(cache.pred), size(Y_eval, 1))
         elseif params.metric != :none
             eval_vec = CUDA.zeros(eltype(cache.pred), size(Y_train, 1))
         end
     else
-        # W = isnothing(W_train) ? ones(typeof(params.η), size(Y_train)) : W_train
         model, cache = init_evotree(params, X_train, Y_train, W_train)
         if params.metric != :none && !isnothing(X_eval)
             pred_eval = predict(params.loss, model.trees[1], X_eval, model.K)
             Y_eval = convert.(eltype(cache.Y), Y_eval)
+            W_eval = isnothing(W_eval) ? ones(eltype(cache.X), size(Y_eval)) : eltype(cache.X).(W_eval)
         end
     end
 
@@ -258,23 +259,23 @@ function fit_evotree(params, X_train, Y_train, W_train=nothing;
         # callback function
         if params.metric != :none
             if X_eval !== nothing
-                predict!(params.loss, pred_eval, model.trees[model.params.nrounds + 1], X_eval, model.K)
+                predict!(params.loss, pred_eval, model.trees[model.params.nrounds+1], X_eval, model.K)
                 if params.device == "gpu"
-                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, pred_eval, Y_eval, params.α)
+                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, pred_eval, Y_eval, W_eval, params.α)
                 else
-                    metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, params.α)
+                    metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, W_eval, params.α)
                 end
             else
                 if params.device == "gpu"
                     # println("mean(pred_eval): ", mean(cache.pred))
-                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, cache.pred, cache.Y, params.α)
+                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, cache.pred, cache.Y, cache.δ𝑤[end, :], params.α)
                 else
-                    metric_track.metric = eval_metric(Val{params.metric}(), cache.pred, cache.Y, params.α)
+                    metric_track.metric = eval_metric(Val{params.metric}(), cache.pred, cache.Y, cache.δ𝑤[end, :], params.α)
                 end
             end
             if metric_track.metric < metric_best.metric
                 metric_best.metric = metric_track.metric
-                metric_best.iter =  model.params.nrounds
+                metric_best.iter = model.params.nrounds
                 iter_since_best = 0
             else
                 iter_since_best += 1

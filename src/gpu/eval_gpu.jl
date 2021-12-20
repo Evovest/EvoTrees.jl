@@ -1,71 +1,71 @@
 """
     MSE
 """
-function eval_mse_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
+function eval_mse_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
-        @inbounds eval[i] = (p[1,i] - y[i])^2
+        @inbounds eval[i] = w[i] * (p[1, i] - y[i])^2
     end
     return nothing
 end
 
-function eval_metric(::Val{:mse}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, α; MAX_THREADS=1024) where T <: AbstractFloat
+function eval_metric(::Val{:mse}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, α; MAX_THREADS = 1024) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
-    @cuda blocks = blocks threads = threads eval_mse_kernel!(eval, p, y)
+    @cuda blocks = blocks threads = threads eval_mse_kernel!(eval, p, y, w)
     CUDA.synchronize()
-    return mean(eval)
+    return sum(eval) / sum(w)
 end
 
 """
     Logloss
 """
-function eval_logloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
+function eval_logloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
-        @inbounds pred = sigmoid(p[1,i])
-        @inbounds eval[i] = -y[i] * log(pred) + (y[i] - 1) * log(1 - pred)
+        @inbounds pred = sigmoid(p[1, i])
+        @inbounds eval[i] = w[i] * (-y[i] * log(pred) + (y[i] - 1) * log(1 - pred))
     end
     return nothing
 end
 
-function eval_metric(::Val{:logloss}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, α; MAX_THREADS=1024) where T <: AbstractFloat
+function eval_metric(::Val{:logloss}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, α; MAX_THREADS = 1024) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
-    @cuda blocks = blocks threads = threads eval_logloss_kernel!(eval, p, y)
+    @cuda blocks = blocks threads = threads eval_logloss_kernel!(eval, p, y, w)
     CUDA.synchronize()
-    return mean(eval)
+    return sum(eval) / sum(w)
 end
 
 
 """
     Gaussian
 """
-function eval_gaussian_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
+function eval_gaussian_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
-        @inbounds eval[i] = p[2,i] + (y[i] - p[1,i])^2 / (2 * exp(2 * p[2,i]))
+        @inbounds eval[i] = w[i] * (p[2, i] + (y[i] - p[1, i])^2 / (2 * exp(2 * p[2, i])))
     end
     return nothing
 end
 
-function eval_metric(::Val{:gaussian}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, α; MAX_THREADS=1024) where T <: AbstractFloat
+function eval_metric(::Val{:gaussian}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, α; MAX_THREADS = 1024) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
-    @cuda blocks = blocks threads = threads eval_gaussian_kernel!(eval, p, y)
+    @cuda blocks = blocks threads = threads eval_gaussian_kernel!(eval, p, y, w)
     CUDA.synchronize()
-    return mean(eval)
+    return sum(eval) / sum(w)
 end
 
 
 """
     Poisson
-        Unsupported factorial on CUDA at the moment
+        Unsupported factorial/gamma on CUDA at the moment
 """
 # function eval_pois_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
 #     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
 #     if i <= length(y)
-#         @inbounds eval[i] = exp(p[1,i]) * (1 - y[i]) + log(factorial(y[i]))
+#         @inbounds eval[i] = exp(p[1,i]) * (1 - y[i]) + loggamma(y[i] + 1)
 #     end
 #     return nothing
 # end
