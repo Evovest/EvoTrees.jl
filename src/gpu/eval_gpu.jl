@@ -60,12 +60,12 @@ end
 
 """
     Poisson
-        Unsupported factorial on CUDA at the moment
+        Unsupported factorial/gamma on CUDA at the moment
 """
 # function eval_pois_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
 #     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
 #     if i <= length(y)
-#         @inbounds eval[i] = exp(p[1,i]) * (1 - y[i]) + log(factorial(y[i]))
+#         @inbounds eval[i] = exp(p[1,i]) * (1 - y[i]) + loggamma(y[i] + 1)
 #     end
 #     return nothing
 # end

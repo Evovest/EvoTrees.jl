@@ -7,24 +7,24 @@ end
 
 function okay_to_continue(new, old)
     new.nrounds - old.nrounds >= 0 &&
-    new.loss == old.loss &&
-    new.λ == old.λ &&
-    new.γ == old.γ &&
-    new.max_depth  == old.max_depth &&
-    new.min_weight == old.min_weight &&
-    new.rowsample ==  old.rowsample &&
-    new.colsample ==  old.colsample &&
-    new.nbins ==  old.nbins &&
-    new.α ==  old.α &&
-    new.metric ==  old.metric
+        new.loss == old.loss &&
+        new.λ == old.λ &&
+        new.γ == old.γ &&
+        new.max_depth == old.max_depth &&
+        new.min_weight == old.min_weight &&
+        new.rowsample == old.rowsample &&
+        new.colsample == old.colsample &&
+        new.nbins == old.nbins &&
+        new.α == old.α &&
+        new.metric == old.metric
 end
 
 
 # Generate names to be used by feature_importances in the report 
 MLJModelInterface.reformat(::EvoTypes, X, y) = ((matrix = MLJModelInterface.matrix(X), names = [name for name ∈ schema(X).names]), y)
 MLJModelInterface.reformat(::EvoTypes, X) = ((matrix = MLJModelInterface.matrix(X), names = [name for name ∈ schema(X).names]),)
-MLJModelInterface.reformat(::EvoTypes, X::AbstractMatrix, y) = ((matrix = X, names = ["feat_$i" for i in 1:size(X, 2)]), y)
-MLJModelInterface.reformat(::EvoTypes, X::AbstractMatrix) = ((matrix = X, names = ["feat_$i" for i in 1:size(X, 2)]),)
+MLJModelInterface.reformat(::EvoTypes, X::AbstractMatrix, y) = ((matrix = X, names = ["feat_$i" for i = 1:size(X, 2)]), y)
+MLJModelInterface.reformat(::EvoTypes, X::AbstractMatrix) = ((matrix = X, names = ["feat_$i" for i = 1:size(X, 2)]),)
 MLJModelInterface.selectrows(::EvoTypes, I, A, y) = ((matrix = view(A.matrix, I, :), names = A.names), view(y, I))
 MLJModelInterface.selectrows(::EvoTypes, I, A) = ((matrix = view(A.matrix, I, :), names = A.names),)
 
@@ -41,7 +41,7 @@ function MLJModelInterface.update(model::EvoTypes, verbosity::Integer, fitresult
     end
 
     report = (feature_importances = importance(fitresult, A.names),)
-    
+
     return fitresult, cache, report
 end
 
@@ -52,7 +52,7 @@ end
 
 function predict(::EvoTreeClassifier, fitresult, A)
     pred = predict(fitresult, A.matrix)
-    return MLJModelInterface.UnivariateFinite(fitresult.levels, pred, pool=missing)
+    return MLJModelInterface.UnivariateFinite(fitresult.levels, pred, pool = missing)
 end
 
 function predict(::EvoTreeCount, fitresult, A)
@@ -62,7 +62,7 @@ end
 
 function predict(::EvoTreeGaussian, fitresult, A)
     pred = predict(fitresult, A.matrix)
-    return [Distributions.Normal(pred[i,1], pred[i,2]) for i in 1:size(pred, 1)]
+    return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i = 1:size(pred, 1)]
 end
 
 # Metadata
@@ -72,40 +72,40 @@ const EvoTreeCount_desc = "Poisson regression fitting λ with max likelihood."
 const EvoTreeGaussian_desc = "Gaussian maximum likelihood of μ and σ."
 
 MLJModelInterface.metadata_pkg.((EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian),
-    name="EvoTrees",
-    uuid="f6006082-12f8-11e9-0c9c-0d5d367ab1e5",
-    url="https://github.com/Evovest/EvoTrees.jl",
-    julia=true,
-    license="Apache",
-    is_wrapper=false)
+    name = "EvoTrees",
+    uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5",
+    url = "https://github.com/Evovest/EvoTrees.jl",
+    julia = true,
+    license = "Apache",
+    is_wrapper = false)
 
 MLJModelInterface.metadata_model(EvoTreeRegressor,
-    input=Union{MLJModelInterface.Table(MLJModelInterface.Continuous),AbstractMatrix{MLJModelInterface.Continuous}},
-    target=AbstractVector{<:MLJModelInterface.Continuous},
-    weights=false,
-    path="EvoTrees.EvoTreeRegressor",
-    descr=EvoTreeRegressor_desc)
+    input = Union{MLJModelInterface.Table(MLJModelInterface.Continuous),AbstractMatrix{MLJModelInterface.Continuous}},
+    target = AbstractVector{<:MLJModelInterface.Continuous},
+    weights = false,
+    path = "EvoTrees.EvoTreeRegressor",
+    descr = EvoTreeRegressor_desc)
 
 MLJModelInterface.metadata_model(EvoTreeClassifier,
-        input=Union{MLJModelInterface.Table(MLJModelInterface.Continuous),AbstractMatrix{MLJModelInterface.Continuous}},
-        target=AbstractVector{<:MLJModelInterface.Finite},
-        weights=false,
-        path="EvoTrees.EvoTreeClassifier",
-        descr=EvoTreeClassifier_desc)
+    input = Union{MLJModelInterface.Table(MLJModelInterface.Continuous),AbstractMatrix{MLJModelInterface.Continuous}},
+    target = AbstractVector{<:MLJModelInterface.Finite},
+    weights = false,
+    path = "EvoTrees.EvoTreeClassifier",
+    descr = EvoTreeClassifier_desc)
 
 MLJModelInterface.metadata_model(EvoTreeCount,
-    input=Union{MLJModelInterface.Table(MLJModelInterface.Continuous),AbstractMatrix{MLJModelInterface.Continuous}},
-    target=AbstractVector{<:MLJModelInterface.Count},
-    weights=false,
-    path="EvoTrees.EvoTreeCount",
-    descr=EvoTreeCount_desc)
+    input = Union{MLJModelInterface.Table(MLJModelInterface.Continuous),AbstractMatrix{MLJModelInterface.Continuous}},
+    target = AbstractVector{<:MLJModelInterface.Count},
+    weights = false,
+    path = "EvoTrees.EvoTreeCount",
+    descr = EvoTreeCount_desc)
 
 MLJModelInterface.metadata_model(EvoTreeGaussian,
-    input=Union{MLJModelInterface.Table(MLJModelInterface.Continuous),AbstractMatrix{MLJModelInterface.Continuous}},
-    target=AbstractVector{<:MLJModelInterface.Continuous},
-    weights=false,
-    path="EvoTrees.EvoTreeGaussian",
-    descr=EvoTreeGaussian_desc)
+    input = Union{MLJModelInterface.Table(MLJModelInterface.Continuous),AbstractMatrix{MLJModelInterface.Continuous}},
+    target = AbstractVector{<:MLJModelInterface.Continuous},
+    weights = false,
+    path = "EvoTrees.EvoTreeGaussian",
+    descr = EvoTreeGaussian_desc)
 
 # shared metadata
 # MLJModelInterface.package_name(::Type{<:EvoTypes}) = "EvoTrees"
