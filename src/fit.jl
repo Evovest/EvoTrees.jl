@@ -245,7 +245,6 @@ function fit_evotree(params, X_train, Y_train, W_train=nothing;
             eval_vec = CUDA.zeros(eltype(cache.pred), size(Y_train, 1))
         end
     else
-        W = isnothing(W_train) ? ones(typeof(params.η), size(Y_train)) : W_train
         model, cache = init_evotree(params, X_train, Y_train, W_train)
         if params.metric != :none && !isnothing(X_eval)
             pred_eval = predict(params.loss, model.trees[1], X_eval, model.K)
