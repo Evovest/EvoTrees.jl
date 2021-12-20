@@ -211,8 +211,9 @@ Main training function. Performorms model fitting given configuration `params`, 
 
 # Keyword arguments
 
-- `X_eval::Matrix`: training data of size `[#observations, #features]`. 
-- `Y_eval::Vector`: vector of train targets of length `#observations`.
+- `X_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
+- `Y_eval::Vector`: vector of evaluation targets of length `#observations`.
+- `W_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.

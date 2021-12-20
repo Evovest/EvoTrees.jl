@@ -2,7 +2,7 @@
 
 Minimal example to fit a noisy sinus wave.
 
-![](figures/regression_sinus.png)
+![](assets/regression_sinus.png)
 
 ```julia
 using EvoTrees
@@ -67,7 +67,7 @@ pred_eval_L1 = predict(model, X_eval)
 
 ## Quantile Regression
 
-![](figures/quantiles_sinus.png)
+![](assets/quantiles_sinus.png)
 
 ```julia
 # q50
@@ -103,7 +103,7 @@ pred_train_q80 = predict(model, X_train)
 
 ## Gaussian Max Likelihood
 
-![](figures/gaussian_sinus.png)
+![](assets/gaussian_sinus.png)
 
 ```julia
 params1 = EvoTreeGaussian(
