@@ -22,15 +22,15 @@ Sorted normalized feature importance based on loss function gain.
 """
 function importance(model::GBTree, vars::AbstractVector)
     gain = zeros(length(vars))
-    
+
     # Loop importance over all trees and sort results.
     for tree in model.trees
         importance!(gain, tree)
     end
-    
+
     gain .= gain ./ sum(gain)
     pairs = collect(Dict(zip(string.(vars), gain)))
-    sort!(pairs, by=x -> -x[2])
-    
+    sort!(pairs, by = x -> -x[2])
+
     return pairs
 end

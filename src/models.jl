@@ -14,9 +14,9 @@ struct Gaussian <: GaussianRegression end
 
 # make a Random Number Generator object
 mk_rng(rng::Random.AbstractRNG) = rng
-mk_rng(rng::T) where T <: Integer = Random.MersenneTwister(rng)
+mk_rng(rng::T) where {T<:Integer} = Random.MersenneTwister(rng)
 
-mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJModelInterface.Deterministic
+mutable struct EvoTreeRegressor{T<:AbstractFloat,U<:ModelType,S<:Int} <: MLJModelInterface.Deterministic
     loss::U
     nrounds::S
     λ::T
@@ -34,26 +34,30 @@ mutable struct EvoTreeRegressor{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJMo
 end
 
 function EvoTreeRegressor(;
-    T::Type=Float64,
-    loss=:linear,
-    nrounds=10,
-    λ=0.0, #
-    γ=0.0, # gamma: min gain to split
-    η=0.1, # eta: learning rate
-    max_depth=5,
-    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
-    rowsample=1.0,
-    colsample=1.0,
-    nbins=64,
-    α=0.5,
-    metric=:mse,
-    rng=123,
-    device="cpu")
+    T::Type = Float64,
+    loss = :linear,
+    nrounds = 10,
+    λ = 0.0, #
+    γ = 0.0, # gamma: min gain to split
+    η = 0.1, # eta: learning rate
+    max_depth = 5,
+    min_weight = 1.0, # minimal weight, different from xgboost (but same for linear)
+    rowsample = 1.0,
+    colsample = 1.0,
+    nbins = 64,
+    α = 0.5,
+    metric = :mse,
+    rng = 123,
+    device = "cpu")
 
-    if loss == :linear model_type = Linear()
-    elseif loss == :logistic model_type = Logistic()
-    elseif loss == :L1 model_type = L1()
-    elseif loss == :quantile model_type = Quantile()
+    if loss == :linear
+        model_type = Linear()
+    elseif loss == :logistic
+        model_type = Logistic()
+    elseif loss == :L1
+        model_type = L1()
+    elseif loss == :quantile
+        model_type = Quantile()
     end
 
     rng = mk_rng(rng)::Random.AbstractRNG
@@ -64,7 +68,7 @@ function EvoTreeRegressor(;
 end
 
 
-mutable struct EvoTreeCount{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJModelInterface.Probabilistic
+mutable struct EvoTreeCount{T<:AbstractFloat,U<:ModelType,S<:Int} <: MLJModelInterface.Probabilistic
     loss::U
     nrounds::S
     λ::T
@@ -82,32 +86,34 @@ mutable struct EvoTreeCount{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJModelI
 end
 
 function EvoTreeCount(;
-    T::Type=Float64,
-    loss=:poisson,
-    nrounds=10,
-    λ=0.0, #
-    γ=0.0, # gamma: min gain to split
-    η=0.1, # eta: learning rate
-    max_depth=5,
-    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
-    rowsample=1.0,
-    colsample=1.0,
-    nbins=64,
-    α=0.5,
-    metric=:poisson,
-    rng=123,
-    device="cpu")
+    T::Type = Float64,
+    loss = :poisson,
+    nrounds = 10,
+    λ = 0.0, #
+    γ = 0.0, # gamma: min gain to split
+    η = 0.1, # eta: learning rate
+    max_depth = 5,
+    min_weight = 1.0, # minimal weight, different from xgboost (but same for linear)
+    rowsample = 1.0,
+    colsample = 1.0,
+    nbins = 64,
+    α = 0.5,
+    metric = :poisson,
+    rng = 123,
+    device = "cpu")
 
     rng = mk_rng(rng)::Random.AbstractRNG
 
-    if loss == :poisson model_type = Poisson() end
+    if loss == :poisson
+        model_type = Poisson()
+    end
     model = EvoTreeCount(Poisson(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng, device)
 
     return model
 end
 
 
-mutable struct EvoTreeClassifier{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJModelInterface.Probabilistic
+mutable struct EvoTreeClassifier{T<:AbstractFloat,U<:ModelType,S<:Int} <: MLJModelInterface.Probabilistic
     loss::U
     nrounds::S
     λ::T
@@ -125,32 +131,34 @@ mutable struct EvoTreeClassifier{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJM
 end
 
 function EvoTreeClassifier(;
-    T::Type=Float64,
-    loss=:softmax,
-    nrounds=10,
-    λ=0.0, #
-    γ=0.0, # gamma: min gain to split
-    η=0.1, # eta: learning rate
-    max_depth=5,
-    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
-    rowsample=1.0,
-    colsample=1.0,
-    nbins=64,
-    α=0.5,
-    metric=:mlogloss,
-    rng=123,
-    device="cpu")
+    T::Type = Float64,
+    loss = :softmax,
+    nrounds = 10,
+    λ = 0.0, #
+    γ = 0.0, # gamma: min gain to split
+    η = 0.1, # eta: learning rate
+    max_depth = 5,
+    min_weight = 1.0, # minimal weight, different from xgboost (but same for linear)
+    rowsample = 1.0,
+    colsample = 1.0,
+    nbins = 64,
+    α = 0.5,
+    metric = :mlogloss,
+    rng = 123,
+    device = "cpu")
 
     rng = mk_rng(rng)::Random.AbstractRNG
 
-    if loss == :softmax model_type = Softmax() end
+    if loss == :softmax
+        model_type = Softmax()
+    end
     model = EvoTreeClassifier(Softmax(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng, device)
 
     return model
 end
 
 
-mutable struct EvoTreeGaussian{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJModelInterface.Probabilistic
+mutable struct EvoTreeGaussian{T<:AbstractFloat,U<:ModelType,S<:Int} <: MLJModelInterface.Probabilistic
     loss::U
     nrounds::S
     λ::T
@@ -168,25 +176,27 @@ mutable struct EvoTreeGaussian{T<:AbstractFloat, U<:ModelType, S<:Int} <: MLJMod
 end
 
 function EvoTreeGaussian(;
-    T::Type=Float64,
-    loss=:gaussian,
-    nrounds=10,
-    λ=0.0, #
-    γ=0.0, # gamma: min gain to split
-    η=0.1, # eta: learning rate
-    max_depth=5,
-    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
-    rowsample=1.0,
-    colsample=1.0,
-    nbins=64,
-    α=0.5,
-    metric=:gaussian,
-    rng=123,
-    device="cpu")
+    T::Type = Float64,
+    loss = :gaussian,
+    nrounds = 10,
+    λ = 0.0, #
+    γ = 0.0, # gamma: min gain to split
+    η = 0.1, # eta: learning rate
+    max_depth = 5,
+    min_weight = 1.0, # minimal weight, different from xgboost (but same for linear)
+    rowsample = 1.0,
+    colsample = 1.0,
+    nbins = 64,
+    α = 0.5,
+    metric = :gaussian,
+    rng = 123,
+    device = "cpu")
 
     rng = mk_rng(rng)::Random.AbstractRNG
 
-    if loss == :gaussian model_type = Gaussian() end
+    if loss == :gaussian
+        model_type = Gaussian()
+    end
     model = EvoTreeGaussian(Gaussian(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng, device)
 
     return model
@@ -213,10 +223,14 @@ function EvoTreeRModels(
     rng = mk_rng(rng)::Random.AbstractRNG
 
     if loss ∈ [:linear, :L1, :logistic, :quantile]
-        if loss == :linear model_type = Linear()
-        elseif loss == :logistic model_type = Logistic()
-        elseif loss == :quantile model_type = Quantile()
-        elseif loss == :L1 model_type = L1()
+        if loss == :linear
+            model_type = Linear()
+        elseif loss == :logistic
+            model_type = Logistic()
+        elseif loss == :quantile
+            model_type = Quantile()
+        elseif loss == :L1
+            model_type = L1()
         end
         model = EvoTreeRegressor(model_type, nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, rng, device)
     elseif loss == :poisson
