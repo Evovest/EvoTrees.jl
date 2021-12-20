@@ -15,4 +15,5 @@ makedocs(
 
 deploydocs(repo="github.com/Evovest/EvoTrees.jl.git", 
     target="build",
+    devbranch = "main",
     push_preview=false)
