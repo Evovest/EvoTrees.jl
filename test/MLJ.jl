@@ -39,7 +39,7 @@ mean(abs.(pred_test - selectrows(Y, test)))
 @test MLJBase.iteration_parameter(EvoTreeRegressor) == :nrounds
 
 ##################################################
-### classif - categorical target
+### Regression - GPU
 ##################################################
 # tree_model = EvoTreeRegressor(loss = :logistic, max_depth = 5, η = 0.05, nrounds = 10, device = "gpu")
 # mach = machine(tree_model, X, y)
