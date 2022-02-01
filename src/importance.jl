@@ -7,7 +7,7 @@
 #     end
 # end
 
-function importance!(gain::AbstractVector, tree::Tree)
+function importance!(gain::AbstractVector, tree::Union{Tree,TreeGPU})
     @inbounds for n in eachindex(tree.split)
         if tree.split[n]
             gain[tree.feat[n]] += tree.gain[n]
@@ -20,7 +20,7 @@ end
 
 Sorted normalized feature importance based on loss function gain.
 """
-function importance(model::GBTree, vars::AbstractVector)
+function importance(model::Union{GBTree,GBTreeGPU}, vars::AbstractVector)
     gain = zeros(length(vars))
 
     # Loop importance over all trees and sort results.
@@ -34,3 +34,4 @@ function importance(model::GBTree, vars::AbstractVector)
 
     return pairs
 end
+

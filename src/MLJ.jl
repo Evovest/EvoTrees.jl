@@ -1,5 +1,10 @@
 function MLJModelInterface.fit(model::EvoTypes, verbosity::Int, A, y)
-    fitresult, cache = init_evotree(model, A.matrix, y)
+
+    if model.device == "gpu"
+        fitresult, cache = init_evotree_gpu(model, A.matrix, y)
+    else
+        fitresult, cache = init_evotree(model, A.matrix, y)
+    end
     grow_evotree!(fitresult, cache)
     report = (feature_importances = importance(fitresult, A.names),)
     return fitresult, cache, report
@@ -16,6 +21,7 @@ function okay_to_continue(new, old)
         new.colsample == old.colsample &&
         new.nbins == old.nbins &&
         new.α == old.α &&
+        new.device == old.device &&
         new.metric == old.metric
 end
 
