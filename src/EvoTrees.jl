@@ -27,9 +27,6 @@ include("eval.jl")
 include("predict.jl")
 include("find_split.jl")
 include("fit.jl")
-include("importance.jl")
-include("plot.jl")
-include("MLJ.jl")
 
 include("gpu/structs_gpu.jl")
 include("gpu/loss_gpu.jl")
@@ -38,6 +35,9 @@ include("gpu/predict_gpu.jl")
 include("gpu/find_split_gpu.jl")
 include("gpu/fit_gpu.jl")
 
+include("importance.jl")
+include("plot.jl")
+include("MLJ.jl")
 
 function convert(::Type{GBTree}, m::GBTreeGPU)
     EvoTrees.GBTree([EvoTrees.Tree(Array(tree.feat),
