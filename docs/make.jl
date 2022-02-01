@@ -1,7 +1,7 @@
+push!(LOAD_PATH, "../src/")
+
 using Documenter
 using EvoTrees
-
-push!(LOAD_PATH, "../src/")
 
 pages = [
     "Home" => "index.md",
