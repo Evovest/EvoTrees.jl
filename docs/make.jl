@@ -1,7 +1,7 @@
+push!(LOAD_PATH, "../src/")
+
 using Documenter
 using EvoTrees
-
-push!(LOAD_PATH, "../src/")
 
 pages = [
     "Home" => "index.md",
@@ -16,5 +16,4 @@ makedocs(
 
 deploydocs(repo = "github.com/Evovest/EvoTrees.jl.git",
     target = "build",
-    devbranch = "main",
-    push_preview = false)
+    devbranch = "main")
