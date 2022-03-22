@@ -154,24 +154,26 @@ function grow_tree_gpu!(
 
         # grow while there are remaining active nodes
         for n ∈ sort(n_current)
-            if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
+            if depth == params.max_depth || @allowscalar(nodes[n].∑[end] <= params.min_weight)
                 pred_leaf_gpu!(params.loss, tree.pred, n, Array(nodes[n].∑), params)
             else
                 update_gains_gpu!(params.loss, nodes[n], 𝑗, params, K)
                 best = findmax(nodes[n].gains)
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.γ
-                    tree.gain[n] = best[1]
-                    tree.cond_bin[n] = best[2][1]
-                    tree.feat[n] = best[2][2]
-                    tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
+                    allowscalar() do
+                        tree.gain[n] = best[1]
+                        tree.cond_bin[n] = best[2][1]
+                        tree.feat[n] = best[2][2]
+                        tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
+                    end
                 end
                 # println("node: ", n, " | best: ", best, " | nodes[n].gain: ", nodes[n].gain)
-                tree.split[n] = tree.cond_bin[n] != 0
-                if !tree.split[n]
+                @allowscalar(tree.split[n] = tree.cond_bin[n] != 0)
+                if !@allowscalar(tree.split[n])
                     pred_leaf_gpu!(params.loss, tree.pred, n, Array(nodes[n].∑), params)
                     popfirst!(n_next)
                 else
-                    _left, _right = split_set_threads_gpu!(out, left, right, nodes[n].𝑖, X_bin, tree.feat[n], tree.cond_bin[n], offset)
+                    _left, _right = split_set_threads_gpu!(out, left, right, @allowscalar(nodes[n]).𝑖, X_bin, @allowscalar(tree.feat[n]), @allowscalar(tree.cond_bin[n]), offset)
                     nodes[n<<1].𝑖, nodes[n<<1+1].𝑖 = _left, _right
                     offset += length(nodes[n].𝑖)
                     # println("length(_left): ", length(_left), " | length(_right): ", length(_right))

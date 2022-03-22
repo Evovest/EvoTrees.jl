@@ -13,6 +13,8 @@ using Distributions
 using StaticArrays
 using CategoricalArrays
 using CUDA
+using CUDA: @allowscalar
+using CUDA: allowscalar
 using BSON
 using NetworkLayout
 using RecipesBase
