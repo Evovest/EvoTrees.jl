@@ -1,12 +1,15 @@
 #############################################
 # Get the braking points
 #############################################
-function get_edges(X::AbstractMatrix{T}, nbins = 250) where {T}
+function get_edges(X::AbstractMatrix{T}, nbins) where {T}
+    Random.seed!(123)
+    nobs = min(size(X, 1), 1000 * nbins)
+    obs = rand(1:size(X, 1), nobs)
     edges = Vector{Vector{T}}(undef, size(X, 2))
     @threads for i = 1:size(X, 2)
-        edges[i] = quantile(view(X, :, i), (1:nbins) / nbins)
+        edges[i] = quantile(view(X, obs, i), (1:nbins) / nbins)
         if length(edges[i]) == 0
-            edges[i] = [minimum(view(X, :, i))]
+            edges[i] = [minimum(view(X, obs, i))]
         end
     end
     return edges
@@ -18,9 +21,9 @@ end
 function binarize(X, edges)
     X_bin = zeros(UInt8, size(X))
     @threads for i = 1:size(X, 2)
-        X_bin[:, i] = searchsortedlast.(Ref(edges[i][1:end-1]), view(X, :, i)) .+ 1
+        X_bin[:, i] .= searchsortedlast.(Ref(edges[i][1:end-1]), view(X, :, i)) .+ 1
     end
-    X_bin
+    return X_bin
 end
 
 """
