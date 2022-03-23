@@ -9,8 +9,8 @@
 
 function importance!(gain::AbstractVector, tree::Union{Tree,TreeGPU})
     @inbounds for n in eachindex(tree.split)
-        if tree.split[n]
-            gain[tree.feat[n]] += tree.gain[n]
+        if @allowscalar(tree.split[n])
+            @allowscalar(gain[tree.feat[n]] += tree.gain[n])
         end
     end
 end
