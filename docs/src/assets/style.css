@@ -4,6 +4,6 @@
     border-right: 4px solid #023572;
 }
 
-.docs-sidebar .docs-logo > img {
+#documenter .docs-sidebar .docs-logo > img {
     max-height: 10rem;
 }
