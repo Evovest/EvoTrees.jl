@@ -1,6 +1,9 @@
-# initialise evotree
-function init_evotree(params::EvoTypes{T,U,S},
-    X::AbstractMatrix, Y::AbstractVector, W = nothing) where {T,U,S}
+"""
+    init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVector, W = nothing)
+    
+Initialise EvoTree
+"""
+function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVector, W = nothing) where {T,U,S}
 
     K = 1
     levels = nothing

@@ -1,12 +1,3 @@
-# importance from single tree
-# function importance!(gain::AbstractVector, tree::Tree)
-#     @inbounds for node in tree.nodes
-#         if node.split
-#             gain[node.feat] += node.gain
-#         end
-#     end
-# end
-
 function importance!(gain::AbstractVector, tree::Union{Tree,TreeGPU})
     @inbounds for n in eachindex(tree.split)
         if @allowscalar(tree.split[n])

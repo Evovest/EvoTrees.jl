@@ -1,4 +1,3 @@
-# initialise evotree
 function init_evotree_gpu(params::EvoTypes{T,U,S},
     X::AbstractMatrix, Y::AbstractVector, W = nothing) where {T,U,S}
 
@@ -12,18 +11,6 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     elseif typeof(params.loss) == Poisson
         Y = CuArray(T.(Y))
         μ = fill(log(mean(Y)), 1)
-        # elseif typeof(params.loss) == Softmax
-        #     if typeof(Y) <: AbstractCategoricalVector
-        #         levels = CategoricalArray(CategoricalArrays.levels(Y))
-        #         K = length(levels)
-        #         μ = zeros(T, K)
-        #         Y = MLJModelInterface.int.(Y)
-        #     else
-        #         levels = CategoricalArray(sort(unique(Y)))
-        #         K = length(levels)
-        #         μ = zeros(T, K)
-        #         Y = UInt32.(Y)
-        #     end
     elseif typeof(params.loss) == Gaussian
         K = 2
         Y = CuArray(T.(Y))

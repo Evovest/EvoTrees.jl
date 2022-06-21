@@ -1,6 +1,6 @@
-# EvoTrees
 
-[![Build Status](https://travis-ci.org/Evovest/EvoTrees.jl.svg?branch=master)](https://travis-ci.org/Evovest/EvoTrees.jl)
+# EvoTrees <a href="https://evovest.github.io/EvoTrees.jl/dev/"><img src="figures/hex-evotrees-2.png" align="right" height="140"/></a>
+
 [![Build status](https://github.com/Evovest/EvoTrees.jl/workflows/CI/badge.svg)](https://github.com/Evovest/EvoTrees.jl/actions)
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://Evovest.github.io/EvoTrees.jl/stable)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://Evovest.github.io/EvoTrees.jl/dev)
@@ -42,7 +42,7 @@ Latest:
 julia> Pkg.add("https://github.com/Evovest/EvoTrees.jl")
 ```
 
-Official Repo:
+From General Registry:
 
 ```julia-repl
 julia> Pkg.add("EvoTrees")

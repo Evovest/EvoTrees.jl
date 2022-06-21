@@ -34,21 +34,21 @@ mutable struct EvoTreeRegressor{T<:AbstractFloat,U<:ModelType,S<:Int} <: MLJMode
 end
 
 function EvoTreeRegressor(;
-    T::Type = Float64,
-    loss = :linear,
-    nrounds = 10,
-    λ = 0.0, #
-    γ = 0.0, # gamma: min gain to split
-    η = 0.1, # eta: learning rate
-    max_depth = 5,
-    min_weight = 1.0, # minimal weight, different from xgboost (but same for linear)
-    rowsample = 1.0,
-    colsample = 1.0,
-    nbins = 64,
-    α = 0.5,
-    metric = :mse,
-    rng = 123,
-    device = "cpu")
+    T::Type=Float64,
+    loss=:linear,
+    nrounds=10,
+    λ=0.0, #
+    γ=0.0, # gamma: min gain to split
+    η=0.1, # eta: learning rate
+    max_depth=5,
+    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
+    rowsample=1.0,
+    colsample=1.0,
+    nbins=64,
+    α=0.5,
+    metric=:mse,
+    rng=123,
+    device="cpu")
 
     if loss == :linear
         model_type = Linear()
@@ -58,6 +58,8 @@ function EvoTreeRegressor(;
         model_type = L1()
     elseif loss == :quantile
         model_type = Quantile()
+    else
+        error("Invalid loss: $loss. Only [`:linear`, `:logistic`, `:L1`, `:quantile`],  losses are supported at the moment by EvoTreeRegressor.")
     end
 
     rng = mk_rng(rng)::Random.AbstractRNG
@@ -86,27 +88,28 @@ mutable struct EvoTreeCount{T<:AbstractFloat,U<:ModelType,S<:Int} <: MLJModelInt
 end
 
 function EvoTreeCount(;
-    T::Type = Float64,
-    loss = :poisson,
-    nrounds = 10,
-    λ = 0.0, #
-    γ = 0.0, # gamma: min gain to split
-    η = 0.1, # eta: learning rate
-    max_depth = 5,
-    min_weight = 1.0, # minimal weight, different from xgboost (but same for linear)
-    rowsample = 1.0,
-    colsample = 1.0,
-    nbins = 64,
-    α = 0.5,
-    metric = :poisson,
-    rng = 123,
-    device = "cpu")
+    T::Type=Float64,
+    loss=:poisson,
+    nrounds=10,
+    λ=0.0, #
+    γ=0.0, # gamma: min gain to split
+    η=0.1, # eta: learning rate
+    max_depth=5,
+    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
+    rowsample=1.0,
+    colsample=1.0,
+    nbins=64,
+    α=0.5,
+    metric=:poisson,
+    rng=123,
+    device="cpu")
 
     rng = mk_rng(rng)::Random.AbstractRNG
 
-    if loss == :poisson
-        model_type = Poisson()
+    if loss != :poisson
+        error("Invalid loss: $loss. Only `:poisson` loss is supported at the moment by EvoTreeCount.")
     end
+
     model = EvoTreeCount(Poisson(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng, device)
 
     return model
@@ -131,26 +134,26 @@ mutable struct EvoTreeClassifier{T<:AbstractFloat,U<:ModelType,S<:Int} <: MLJMod
 end
 
 function EvoTreeClassifier(;
-    T::Type = Float64,
-    loss = :softmax,
-    nrounds = 10,
-    λ = 0.0, #
-    γ = 0.0, # gamma: min gain to split
-    η = 0.1, # eta: learning rate
-    max_depth = 5,
-    min_weight = 1.0, # minimal weight, different from xgboost (but same for linear)
-    rowsample = 1.0,
-    colsample = 1.0,
-    nbins = 64,
-    α = 0.5,
-    metric = :mlogloss,
-    rng = 123,
-    device = "cpu")
+    T::Type=Float64,
+    loss=:softmax,
+    nrounds=10,
+    λ=0.0, #
+    γ=0.0, # gamma: min gain to split
+    η=0.1, # eta: learning rate
+    max_depth=5,
+    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
+    rowsample=1.0,
+    colsample=1.0,
+    nbins=64,
+    α=0.5,
+    metric=:mlogloss,
+    rng=123,
+    device="cpu")
 
     rng = mk_rng(rng)::Random.AbstractRNG
 
-    if loss == :softmax
-        model_type = Softmax()
+    if loss != :softmax
+        error("Invalid loss: $loss. Only `:softmax` loss is supported at the moment by EvoTreeClassifier.")
     end
     model = EvoTreeClassifier(Softmax(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng, device)
 
@@ -176,26 +179,26 @@ mutable struct EvoTreeGaussian{T<:AbstractFloat,U<:ModelType,S<:Int} <: MLJModel
 end
 
 function EvoTreeGaussian(;
-    T::Type = Float64,
-    loss = :gaussian,
-    nrounds = 10,
-    λ = 0.0, #
-    γ = 0.0, # gamma: min gain to split
-    η = 0.1, # eta: learning rate
-    max_depth = 5,
-    min_weight = 1.0, # minimal weight, different from xgboost (but same for linear)
-    rowsample = 1.0,
-    colsample = 1.0,
-    nbins = 64,
-    α = 0.5,
-    metric = :gaussian,
-    rng = 123,
-    device = "cpu")
+    T::Type=Float64,
+    loss=:gaussian,
+    nrounds=10,
+    λ=0.0, #
+    γ=0.0, # gamma: min gain to split
+    η=0.1, # eta: learning rate
+    max_depth=5,
+    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
+    rowsample=1.0,
+    colsample=1.0,
+    nbins=64,
+    α=0.5,
+    metric=:gaussian,
+    rng=123,
+    device="cpu")
 
     rng = mk_rng(rng)::Random.AbstractRNG
 
-    if loss == :gaussian
-        model_type = Gaussian()
+    if loss != :gaussian
+        error("Invalid loss: $loss. Only `:gaussian` loss is supported at the moment by EvoTreeGaussian.")
     end
     model = EvoTreeGaussian(Gaussian(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng, device)
 
