@@ -1,6 +1,6 @@
 # EvoTrees
 
-<img src="figures/hex-EvoTrees.png" align="right" />
+<a href="https://evovest.github.io/EvoTrees.jl/dev/"><img src="figures/hex-EvoTrees.png" align="right" height="140"/></a>
 
 [![Build status](https://github.com/Evovest/EvoTrees.jl/workflows/CI/badge.svg)](https://github.com/Evovest/EvoTrees.jl/actions)
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://Evovest.github.io/EvoTrees.jl/stable)
@@ -43,7 +43,7 @@ Latest:
 julia> Pkg.add("https://github.com/Evovest/EvoTrees.jl")
 ```
 
-Official Repo:
+From General Registry:
 
 ```julia-repl
 julia> Pkg.add("EvoTrees")

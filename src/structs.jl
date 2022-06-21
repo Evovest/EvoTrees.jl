@@ -33,8 +33,26 @@ struct Tree{T<:AbstractFloat}
     split::Vector{Bool}
 end
 
-Tree(x::Vector{T}) where {T<:AbstractFloat} = Tree(zeros(Int, 1), zeros(UInt8, 1), zeros(T, 1), zeros(T, 1), reshape(x, :, 1), zeros(Bool, 1))
-Tree(depth, K, ::T) where {T<:AbstractFloat} = Tree(zeros(Int, 2^depth - 1), zeros(UInt8, 2^depth - 1), zeros(T, 2^depth - 1), zeros(T, 2^depth - 1), zeros(T, K, 2^depth - 1), zeros(Bool, 2^depth - 1))
+function Tree(x::Vector{T}) where {T<:AbstractFloat}
+    Tree(
+        zeros(Int, 1),
+        zeros(UInt8, 1),
+        zeros(T, 1),
+        zeros(T, 1),
+        reshape(x, :, 1),
+        zeros(Bool, 1))
+end
+
+function Tree(depth, K, ::T) where {T<:AbstractFloat}
+    Tree(
+        zeros(Int, 2^depth - 1),
+        zeros(UInt8, 2^depth - 1),
+        zeros(T, 2^depth - 1),
+        zeros(T, 2^depth - 1),
+        zeros(T, K, 2^depth - 1),
+        zeros(Bool, 2^depth - 1)
+    )
+end
 
 # eval metric tracking
 mutable struct Metric
