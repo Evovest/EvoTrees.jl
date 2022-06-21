@@ -1,3 +1,9 @@
 #documenter .docs-sidebar{
-    background-color: #023572
+    /* background-color: #023572 */
+    background-color: white;
+    border-right: 4px solid #023572;
+}
+
+.docs-sidebar .docs-logo > img {
+    max-height: 10rem;
 }
