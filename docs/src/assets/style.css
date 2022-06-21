@@ -1,7 +1,7 @@
 #documenter .docs-sidebar{
     /* background-color: #023572 */
     background-color: white;
-    border-right: 4px solid #023572;
+    border-right: 3px solid #023572;
 }
 
 #documenter .docs-sidebar .docs-logo > img {
