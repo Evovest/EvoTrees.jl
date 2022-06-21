@@ -1,6 +1,7 @@
 # EvoTrees
 
-[![Build Status](https://travis-ci.org/Evovest/EvoTrees.jl.svg?branch=master)](https://travis-ci.org/Evovest/EvoTrees.jl)
+<img src="figures/hex-EvoTrees.png" align="right" />
+
 [![Build status](https://github.com/Evovest/EvoTrees.jl/workflows/CI/badge.svg)](https://github.com/Evovest/EvoTrees.jl/actions)
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://Evovest.github.io/EvoTrees.jl/stable)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://Evovest.github.io/EvoTrees.jl/dev)
