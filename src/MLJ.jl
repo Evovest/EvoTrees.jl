@@ -160,6 +160,54 @@ See also
 [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl).
 """
 
+
+"""
+    EvoTreeCount()
+
+# Training data
+In MLJ or MLJBase, bind an instance `model` to data with
+    mach = machine(model, X, y)
+where
+- `X`: any table of input features (eg, a `DataFrame`) whose columns
+  each have one of the following element scitypes: `Continuous`,
+  `Count`, or `<:OrderedFactor`; check column scitypes with `schema(X)`
+- `y`: is the target, which can be any `AbstractVector` whose element
+  scitype is `<:OrderedFactor` or `<:Multiclass`; check the scitype
+  with `scitype(y)`
+Train the machine using `fit!(mach, rows=...)`.
+
+# Hyper-parameters
+
+- `loss`:               One of `:linear`, `:logistic`, `:quantile`, `:L1`
+- `nrounds=10`:         Max number of rounds
+- `rng=Random.GLOBAL_RNG`: random number generator or seed
+
+# Operations
+- `predict(mach, Xnew)`: return predictions of the target given
+  features `Xnew` having the same scitype as `X` above. Predictions
+  are deterministic.
+
+# Fitted parameters
+The fields of `fitted_params(mach)` are:
+- `gbtree`: The GBTree object returned by EvoTrees.jl fitting algorithm
+
+# Report
+The fields of `report(mach)` are:
+- ...
+
+# Examples
+```
+using MLJ
+Tree = @load EvoTreeRegressor pkg=EvoTrees
+tree = Tree(max_depth=5, num_bins=32)
+X, y = @load_crab
+mach = machine(tree, X, y) |> fit!
+```
+
+See also
+[EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl).
+"""
+
 # function MLJ.clean!(model::EvoTreeRegressor)
 #     warning = ""
 #     if model.nrounds < 1
