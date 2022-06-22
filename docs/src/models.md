@@ -14,5 +14,6 @@ salut
 ```
 
 ```@docs
+EvoTreeCount
 EvoTreeClassifier
 ```
