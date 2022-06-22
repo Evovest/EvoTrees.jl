@@ -8,9 +8,22 @@ EvoTrees.jl supports four model families:
 - EvoTreeCount
 - EvoTreeGaussian
 
+## EvoTreeRegressor
 ```@docs
 EvoTreeRegressor
+```
+
+## EvoTreeClassifier
+```@docs
 EvoTreeClassifier
+```
+
+## EvoTreeCount
+```@docs
 EvoTreeCount
+```
+
+## EvoTreeGaussian
+```@docs
 EvoTreeGaussian
 ```

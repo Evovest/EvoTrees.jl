@@ -114,6 +114,60 @@ MMI.metadata_model(EvoTreeGaussian,
     descr=EvoTreeGaussian_desc)
 
 """
+$(MMI.doc_header(EvoTreeRegressor))
+
+# Training data
+
+In MLJ or MLJBase, bind an instance `model` to data with
+    mach = machine(model, X, y)
+where
+- `X`: any table of input features (eg, a `DataFrame`) whose columns
+  each have one of the following element scitypes: `Continuous`,
+  `Count`, or `<:OrderedFactor`; check column scitypes with `schema(X)`
+- `y`: is the target, which can be any `AbstractVector` whose element
+  scitype is `<:Continuous`; check the scitype
+  with `scitype(y)`
+Train the machine using `fit!(mach, rows=...)`.
+
+# Hyper-parameters
+
+- `loss`:               One of `:linear`, `:logistic`, `:quantile`, `:L1`
+- `nrounds=10`:         Max number of rounds
+- `rng=Random.GLOBAL_RNG`: random number generator or seed
+
+# Operations
+
+- `predict(mach, Xnew)`: return predictions of the target given
+  features `Xnew` having the same scitype as `X` above. Predictions
+  are deterministic.
+
+# Fitted parameters
+
+The fields of `fitted_params(mach)` are:
+- `gbtree`: The GBTree object returned by EvoTrees.jl fitting algorithm
+
+# Report
+
+The fields of `report(mach)` are:
+- ...
+
+# Examples
+
+```
+using MLJ
+EvoTreeRegressor = @load EvoTreeRegressor pkg=EvoTrees
+model = EvoTreeClassifier(max_depth=5, num_bins=32)
+X, y = @load_crab
+mach = machine(model, X, y) |> fit!
+```
+
+See also
+[EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl).
+"""
+EvoTreeRegressor
+
+
+"""
 $(MMI.doc_header(EvoTreeClassifier))
 
 # Training data
@@ -124,35 +178,38 @@ where
   each have one of the following element scitypes: `Continuous`,
   `Count`, or `<:OrderedFactor`; check column scitypes with `schema(X)`
 - `y`: is the target, which can be any `AbstractVector` whose element
-  scitype is `<:OrderedFactor` or `<:Multiclass`; check the scitype
+  scitype is `<:Finite`; check the scitype
   with `scitype(y)`
 Train the machine using `fit!(mach, rows=...)`.
 
 # Hyper-parameters
 
-- `loss`:               One of `:linear`, `:logistic`, `:quantile`, `:L1`
 - `nrounds=10`:         Max number of rounds
 - `rng=Random.GLOBAL_RNG`: random number generator or seed
 
 # Operations
+
 - `predict(mach, Xnew)`: return predictions of the target given
   features `Xnew` having the same scitype as `X` above. Predictions
   are deterministic.
 
 # Fitted parameters
+
 The fields of `fitted_params(mach)` are:
 - `gbtree`: The GBTree object returned by EvoTrees.jl fitting algorithm
 
 # Report
+
 The fields of `report(mach)` are:
 - ...
 
 # Examples
+
 ```
 using MLJ
 EvoTreeClassifier = @load EvoTreeClassifier pkg=EvoTrees
 model = EvoTreeClassifier(max_depth=5, num_bins=32)
-X, y = @load_crab
+X, y = @load_iris
 mach = machine(model, X, y) |> fit!
 ```
 
@@ -162,9 +219,10 @@ See also
 EvoTreeClassifier
 
 """
-    EvoTreeCount()
+$(MMI.doc_header(EvoTreeCount))
 
 # Training data
+
 In MLJ or MLJBase, bind an instance `model` to data with
     mach = machine(model, X, y)
 where
@@ -172,30 +230,33 @@ where
   each have one of the following element scitypes: `Continuous`,
   `Count`, or `<:OrderedFactor`; check column scitypes with `schema(X)`
 - `y`: is the target, which can be any `AbstractVector` whose element
-  scitype is `<:OrderedFactor` or `<:Multiclass`; check the scitype
+  scitype is `<:Count`; check the scitype
   with `scitype(y)`
 Train the machine using `fit!(mach, rows=...)`.
 
 # Hyper-parameters
 
-- `loss`:               One of `:linear`, `:logistic`, `:quantile`, `:L1`
 - `nrounds=10`:         Max number of rounds
 - `rng=Random.GLOBAL_RNG`: random number generator or seed
 
 # Operations
+
 - `predict(mach, Xnew)`: return predictions of the target given
   features `Xnew` having the same scitype as `X` above. Predictions
   are deterministic.
 
 # Fitted parameters
+
 The fields of `fitted_params(mach)` are:
 - `gbtree`: The GBTree object returned by EvoTrees.jl fitting algorithm
 
 # Report
+
 The fields of `report(mach)` are:
 - ...
 
 # Examples
+
 ```
 using MLJ
 EvoTreeCount = @load EvoTreeCount pkg=EvoTrees
@@ -213,6 +274,7 @@ EvoTreeCount
 $(MMI.doc_header(EvoTreeGaussian))
 
 # Training data
+
 In MLJ or MLJBase, bind an instance `model` to data with
     mach = machine(model, X, y)
 where
@@ -220,7 +282,7 @@ where
   each have one of the following element scitypes: `Continuous`,
   `Count`, or `<:OrderedFactor`; check column scitypes with `schema(X)`
 - `y`: is the target, which can be any `AbstractVector` whose element
-  scitype is `<:OrderedFactor` or `<:Multiclass`; check the scitype
+  scitype is `<:Continuous`; check the scitype
   with `scitype(y)`
 Train the machine using `fit!(mach, rows=...)`.
 
@@ -230,19 +292,23 @@ Train the machine using `fit!(mach, rows=...)`.
 - `rng=Random.GLOBAL_RNG`: random number generator or seed
 
 # Operations
+
 - `predict(mach, Xnew)`: return predictions of the target given
   features `Xnew` having the same scitype as `X` above. Predictions
   are deterministic.
 
 # Fitted parameters
+
 The fields of `fitted_params(mach)` are:
 - `gbtree`: The GBTree object returned by EvoTrees.jl fitting algorithm
 
 # Report
+
 The fields of `report(mach)` are:
 - ...
 
 # Examples
+
 ```
 using MLJ
 EvoTreeGaussian = @load EvoTreeGaussian pkg=EvoTrees
