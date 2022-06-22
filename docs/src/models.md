@@ -10,10 +10,7 @@ EvoTrees.jl supports four model families:
 
 ```@docs
 EvoTreeRegressor
-salut
-```
-
-```@docs
-EvoTreeCount
 EvoTreeClassifier
+EvoTreeCount
+EvoTreeGaussian
 ```
