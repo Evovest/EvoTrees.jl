@@ -1,9 +1,5 @@
 module EvoTrees
 
-export init_evotree, grow_evotree!, grow_tree, fit_evotree, predict
-export EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
-    EvoTreeRModels, importance, Random
-
 using Base.Threads: @threads
 using Statistics
 using StatsBase: sample, sample!, quantile
@@ -68,5 +64,10 @@ function load(path)
     m = BSON.load(path, @__MODULE__)
     return m[:model]
 end
+
+export init_evotree, grow_evotree!, grow_tree, fit_evotree, predict
+export salut
+export EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
+    EvoTreeRModels, importance, Random
 
 end # module
