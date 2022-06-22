@@ -33,6 +33,26 @@ mutable struct EvoTreeRegressor{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Det
     device
 end
 
+"""
+    EvoTreeRegressor(;
+        T::Type=Float64,
+        loss=:linear,
+        nrounds=10,
+        λ=0.0,
+        γ=0.0,
+        η=0.1,
+        max_depth=5,
+        min_weight=1.0,
+        rowsample=1.0,
+        colsample=1.0,
+        nbins=64,
+        α=0.5,
+        metric=:mse,
+        rng=123,
+        device="cpu")
+
+Docs for regressor.
+"""
 function EvoTreeRegressor(;
     T::Type=Float64,
     loss=:linear,
@@ -67,6 +87,15 @@ function EvoTreeRegressor(;
     model = EvoTreeRegressor(model_type, nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng, device)
 
     return model
+end
+
+"""
+    salut(x)
+
+Doc for salut.
+"""
+function salut(x)
+    return x
 end
 
 

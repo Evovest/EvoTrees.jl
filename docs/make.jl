@@ -5,6 +5,7 @@ using EvoTrees
 
 pages = [
     "Introduction" => "index.md",
+    "Models" => "models.md",
     "Examples" => "examples.md",
     "MLJ" => "MLJ.md"]
 

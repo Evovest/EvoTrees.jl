@@ -4,4 +4,6 @@
 fit_evotree
 predict
 importance
+salut
+EvoTreeRegressor
 ```
