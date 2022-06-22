@@ -221,8 +221,8 @@ Main training function. Performs model fitting given configuration `params`, `X_
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
 """
-function fit_evotree(params::EvoTypes, X_train::Matrix, Y_train::Vector, W_train::Vector = nothing;
-    X_eval::Matrix = nothing, Y_eval::Vector = nothing, W_eval::Vector = nothing,
+function fit_evotree(params::EvoTypes, X_train::Matrix, Y_train::Vector, W_train = nothing;
+    X_eval = nothing, Y_eval = nothing, W_eval = nothing,
     early_stopping_rounds = 9999,
     print_every_n = 9999,
     verbosity = 1)

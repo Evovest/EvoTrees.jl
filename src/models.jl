@@ -91,7 +91,7 @@ end
 
 """
     salut(x)
-
+    
 Doc for salut.
 """
 function salut(x)
