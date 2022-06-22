@@ -1,7 +1,7 @@
 module EvoTrees
 
-export init_evotree, grow_evotree!, grow_tree, fit_evotree, predict,
-    EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
+export init_evotree, grow_evotree!, grow_tree, fit_evotree, predict
+export EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
     EvoTreeRModels, importance, Random
 
 using Base.Threads: @threads
@@ -10,14 +10,16 @@ using StatsBase: sample, sample!, quantile
 using SpecialFunctions: loggamma
 using Random
 using Distributions
-using StaticArrays
 using CategoricalArrays
 using CUDA
 using CUDA: @allowscalar, allowscalar
 using BSON
+
 using NetworkLayout
 using RecipesBase
-import MLJModelInterface
+
+using MLJModelInterface
+import MLJModelInterface as MMI
 import MLJModelInterface: fit, update, predict, schema
 import Base: convert
 

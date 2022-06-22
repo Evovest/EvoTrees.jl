@@ -52,7 +52,7 @@ params1 = EvoTreeCount(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-@time pred_eval_poisson = predict(model, X_eval)
+pred_eval_poisson = predict(model, X_eval)
 
 # L1
 params1 = EvoTreeRegressor(

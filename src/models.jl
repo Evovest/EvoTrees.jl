@@ -16,7 +16,7 @@ struct Gaussian <: GaussianRegression end
 mk_rng(rng::Random.AbstractRNG) = rng
 mk_rng(rng::T) where {T<:Integer} = Random.MersenneTwister(rng)
 
-mutable struct EvoTreeRegressor{T<:AbstractFloat,U<:ModelType,S<:Int} <: MLJModelInterface.Deterministic
+mutable struct EvoTreeRegressor{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Deterministic
     loss::U
     nrounds::S
     λ::T
@@ -33,6 +33,26 @@ mutable struct EvoTreeRegressor{T<:AbstractFloat,U<:ModelType,S<:Int} <: MLJMode
     device
 end
 
+"""
+    EvoTreeRegressor(;
+        T::Type=Float64,
+        loss=:linear,
+        nrounds=10,
+        λ=0.0,
+        γ=0.0,
+        η=0.1,
+        max_depth=5,
+        min_weight=1.0,
+        rowsample=1.0,
+        colsample=1.0,
+        nbins=64,
+        α=0.5,
+        metric=:mse,
+        rng=123,
+        device="cpu")
+
+Docs for regressor.
+"""
 function EvoTreeRegressor(;
     T::Type=Float64,
     loss=:linear,
@@ -69,8 +89,17 @@ function EvoTreeRegressor(;
     return model
 end
 
+"""
+    salut(x)
 
-mutable struct EvoTreeCount{T<:AbstractFloat,U<:ModelType,S<:Int} <: MLJModelInterface.Probabilistic
+Doc for salut.
+"""
+function salut(x)
+    return x
+end
+
+
+mutable struct EvoTreeCount{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Probabilistic
     loss::U
     nrounds::S
     λ::T
@@ -116,7 +145,7 @@ function EvoTreeCount(;
 end
 
 
-mutable struct EvoTreeClassifier{T<:AbstractFloat,U<:ModelType,S<:Int} <: MLJModelInterface.Probabilistic
+mutable struct EvoTreeClassifier{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Probabilistic
     loss::U
     nrounds::S
     λ::T
@@ -161,7 +190,7 @@ function EvoTreeClassifier(;
 end
 
 
-mutable struct EvoTreeGaussian{T<:AbstractFloat,U<:ModelType,S<:Int} <: MLJModelInterface.Probabilistic
+mutable struct EvoTreeGaussian{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Probabilistic
     loss::U
     nrounds::S
     λ::T
