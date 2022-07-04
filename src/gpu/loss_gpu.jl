@@ -1,12 +1,12 @@
 # Gradient regression
-function get_gain_gpu(::L, ∑::AbstractVector{T}, λ::T) where {L<:GradientRegression,T<:AbstractFloat}
-    gain = ∑[1]^2 / (∑[2] + λ * ∑[3]) / 2
+function get_gain_gpu(::L, ∑::AbstractVector{T}, lambda::T) where {L<:GradientRegression,T<:AbstractFloat}
+    gain = ∑[1]^2 / (∑[2] + lambda * ∑[3]) / 2
     return gain
 end
 
 # Gaussian regression
-function get_gain_gpu(::L, ∑::AbstractVector{T}, λ::T) where {L<:GaussianRegression,T<:AbstractFloat}
-    gain = ∑[1]^2 / (∑[3] + λ * ∑[5]) / 2 + ∑[2]^2 / (∑[4] + λ * ∑[5]) / 2
+function get_gain_gpu(::L, ∑::AbstractVector{T}, lambda::T) where {L<:GaussianRegression,T<:AbstractFloat}
+    gain = ∑[1]^2 / (∑[3] + lambda * ∑[5]) / 2 + ∑[2]^2 / (∑[4] + lambda * ∑[5]) / 2
     return gain
 end
 

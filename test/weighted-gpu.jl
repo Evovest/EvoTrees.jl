@@ -26,7 +26,7 @@ W_eval = W[𝑖_eval]
 params1 = EvoTreeRegressor(T=Float32, device="gpu",
     loss=:linear, metric=:mse,
     nrounds=100, nbins=100,
-    λ = 0.0, γ=0.1, η=0.05,
+    lambda = 0.0, gamma=0.1, eta=0.05,
     max_depth = 6, min_weight = 0.0,
     rowsample=0.5, colsample=1.0, rng = seed)
 
@@ -38,7 +38,7 @@ preds_no_weight = predict(model, X_train)
 params1 = EvoTreeRegressor(T=Float32, device="gpu",
     loss=:linear, metric=:mse,
     nrounds=100, nbins=100,
-    λ = 0.0, γ=0.1, η=0.05,
+    lambda = 0.0, gamma=0.1, eta=0.05,
     max_depth = 6, min_weight = 0.0,
     rowsample=0.5, colsample=1.0, rng = seed)
 
@@ -49,7 +49,7 @@ preds_weighted_1 = predict(model, X_train)
 params1 = EvoTreeRegressor(T=Float32, device="gpu",
     loss=:linear, metric=:mse,
     nrounds=100, nbins=100,
-    λ = 0.0, γ=0.1, η=0.05,
+    lambda = 0.0, gamma=0.1, eta=0.05,
     max_depth = 6, min_weight = 0.0,
     rowsample=0.5, colsample=1.0, rng = seed)
 
@@ -60,7 +60,7 @@ preds_weighted_2 = predict(model, X_train)
 params1 = EvoTreeRegressor(T=Float32, device="gpu",
     loss=:linear, metric=:mse,
     nrounds=100, nbins=100,
-    λ = 0.0, γ=0.1, η=0.05,
+    lambda = 0.0, gamma=0.1, eta=0.05,
     max_depth = 6, min_weight = 0.0,
     rowsample=0.5, colsample=1.0, rng = seed)
 

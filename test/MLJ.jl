@@ -15,11 +15,11 @@ X = MLJBase.table(X)
 
 # @load EvoTreeRegressor
 # linear regression
-tree_model = EvoTreeRegressor(max_depth = 5, η = 0.05, nrounds = 10)
+tree_model = EvoTreeRegressor(max_depth = 5, eta = 0.05, nrounds = 10)
 # logistic regression
-tree_model = EvoTreeRegressor(loss = :logistic, max_depth = 5, η = 0.05, nrounds = 10)
+tree_model = EvoTreeRegressor(loss = :logistic, max_depth = 5, eta = 0.05, nrounds = 10)
 # quantile regression
-# tree_model = EvoTreeRegressor(loss=:quantile, α=0.75, max_depth=5, η=0.05, nrounds=10)
+# tree_model = EvoTreeRegressor(loss=:quantile, alpha=0.75, max_depth=5, eta=0.05, nrounds=10)
 
 mach = machine(tree_model, X, y)
 train, test = partition(eachindex(y), 0.7, shuffle = true); # 70:30 split
@@ -41,7 +41,7 @@ mean(abs.(pred_test - selectrows(Y, test)))
 ##################################################
 ### Regression - GPU
 ##################################################
-# tree_model = EvoTreeRegressor(loss = :logistic, max_depth = 5, η = 0.05, nrounds = 10, device = "gpu")
+# tree_model = EvoTreeRegressor(loss = :logistic, max_depth = 5, eta = 0.05, nrounds = 10, device = "gpu")
 # mach = machine(tree_model, X, y)
 # train, test = partition(eachindex(y), 0.7, shuffle = true); # 70:30 split
 # fit!(mach, rows = train, verbosity = 1)
@@ -64,7 +64,7 @@ mean(abs.(pred_test - selectrows(Y, test)))
 ##################################################
 X, y = @load_crabs
 
-tree_model = EvoTreeClassifier(max_depth = 4, η = 0.05, λ = 0.0, γ = 0.0, nrounds = 10)
+tree_model = EvoTreeClassifier(max_depth = 4, eta = 0.05, lambda = 0.0, gamma = 0.0, nrounds = 10)
 
 # @load EvoTreeRegressor
 mach = machine(tree_model, X, y)
@@ -107,7 +107,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 tree_model = EvoTreeCount(
     loss = :poisson, metric = :poisson,
     nrounds = 10,
-    λ = 0.0, γ = 0.0, η = 0.1,
+    lambda = 0.0, gamma = 0.0, eta = 0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample = 0.5, colsample = 0.5, nbins = 32)
 
@@ -148,7 +148,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 tree_model = EvoTreeGaussian(
     loss = :gaussian, metric = :gaussian,
     nrounds = 10,
-    λ = 0.0, γ = 0.0, η = 0.1,
+    lambda = 0.0, gamma = 0.0, eta = 0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample = 0.5, colsample = 0.5, nbins = 32)
 
@@ -185,5 +185,5 @@ y = rand(5)
 model = EvoTreeRegressor()
 data = MLJBase.reformat(model, X, y);
 f, c, r = MLJBase.fit(model, 2, data...);
-model.λ = 0.1
+model.lambda = 0.1
 MLJBase.update(model, 2, f, c, data...);
