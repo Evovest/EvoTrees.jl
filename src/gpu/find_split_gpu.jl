@@ -222,22 +222,22 @@ function update_gains_gpu!(
 
     threads = min(params.nbins, MAX_THREADS)
     blocks = length(𝑗)
-    @cuda blocks = blocks threads = threads hist_gains_gpu_kernel!(node.gains, node.hL, node.hR, 𝑗, params.nbins, params.λ, params.min_weight)
-    # hist_gains_gpu!(loss, node.gains, node.hL, node.hR, 𝑗, params.nbins, params.λ)
+    @cuda blocks = blocks threads = threads hist_gains_gpu_kernel!(node.gains, node.hL, node.hR, 𝑗, params.nbins, params.lambda, params.min_weight)
+    # hist_gains_gpu!(loss, node.gains, node.hL, node.hR, 𝑗, params.nbins, params.lambda)
     CUDA.synchronize()
     return nothing
 end
 
-function hist_gains_gpu_kernel!(gains::CuDeviceMatrix{T}, hL::CuDeviceArray{T,3}, hR::CuDeviceArray{T,3}, 𝑗::CuDeviceVector{S}, nbins, λ::T, min_𝑤::T) where {T,S}
+function hist_gains_gpu_kernel!(gains::CuDeviceMatrix{T}, hL::CuDeviceArray{T,3}, hR::CuDeviceArray{T,3}, 𝑗::CuDeviceVector{S}, nbins, lambda::T, min_𝑤::T) where {T,S}
 
     i = threadIdx().x
     @inbounds j = 𝑗[blockIdx().x]
 
     if i == nbins
-        gains[i, j] = hL[1, i, j]^2 / (hL[2, i, j] + λ * hL[3, i, j]) / 2
+        gains[i, j] = hL[1, i, j]^2 / (hL[2, i, j] + lambda * hL[3, i, j]) / 2
     elseif hL[3, i, j] > min_𝑤 && hR[3, i, j] > min_𝑤
-        gains[i, j] = (hL[1, i, j]^2 / (hL[2, i, j] + λ * hL[3, i, j]) +
-                       hR[1, i, j]^2 / (hR[2, i, j,] + λ * hR[3, i, j])) / 2
+        gains[i, j] = (hL[1, i, j]^2 / (hL[2, i, j] + lambda * hL[3, i, j]) +
+                       hR[1, i, j]^2 / (hR[2, i, j,] + lambda * hR[3, i, j])) / 2
     end
     sync_threads()
     return nothing
@@ -261,24 +261,24 @@ function update_gains_gpu!(
     thread_i = min(params.nbins, MAX_THREADS)
     threads = thread_i
     blocks = length(𝑗)
-    @cuda blocks = blocks threads = threads hist_gains_gpu_kernel_gauss!(node.gains, node.hL, node.hR, 𝑗, params.nbins, params.λ, params.min_weight)
-    # hist_gains_gpu!(loss, node.gains, node.hL, node.hR, 𝑗, params.nbins, params.λ)
+    @cuda blocks = blocks threads = threads hist_gains_gpu_kernel_gauss!(node.gains, node.hL, node.hR, 𝑗, params.nbins, params.lambda, params.min_weight)
+    # hist_gains_gpu!(loss, node.gains, node.hL, node.hR, 𝑗, params.nbins, params.lambda)
     CUDA.synchronize()
     return nothing
 end
 
-function hist_gains_gpu_kernel_gauss!(gains::CuDeviceMatrix{T}, hL::CuDeviceArray{T,3}, hR::CuDeviceArray{T,3}, 𝑗::CuDeviceVector{S}, nbins, λ::T, min_𝑤::T) where {T,S}
+function hist_gains_gpu_kernel_gauss!(gains::CuDeviceMatrix{T}, hL::CuDeviceArray{T,3}, hR::CuDeviceArray{T,3}, 𝑗::CuDeviceVector{S}, nbins, lambda::T, min_𝑤::T) where {T,S}
 
     i = threadIdx().x
     @inbounds j = 𝑗[blockIdx().x]
 
     if i == nbins
-        gains[i, j] = (hL[1, i, j]^2 / (hL[3, i, j] + λ * hL[5, i, j]) + hL[2, i, j]^2 / (hL[4, i, j] + λ * hL[5, i, j])) / 2
+        gains[i, j] = (hL[1, i, j]^2 / (hL[3, i, j] + lambda * hL[5, i, j]) + hL[2, i, j]^2 / (hL[4, i, j] + lambda * hL[5, i, j])) / 2
     elseif hL[5, i, j] > min_𝑤 && hR[5, i, j] > min_𝑤
-        gains[i, j] = (hL[1, i, j]^2 / (hL[3, i, j] + λ * hL[5, i, j]) +
-                       hR[1, i, j]^2 / (hR[3, i, j,] + λ * hR[5, i, j])) / 2 +
-                      (hL[2, i, j]^2 / (hL[4, i, j] + λ * hL[5, i, j]) +
-                       hR[2, i, j]^2 / (hR[4, i, j,] + λ * hR[5, i, j])) / 2
+        gains[i, j] = (hL[1, i, j]^2 / (hL[3, i, j] + lambda * hL[5, i, j]) +
+                       hR[1, i, j]^2 / (hR[3, i, j,] + lambda * hR[5, i, j])) / 2 +
+                      (hL[2, i, j]^2 / (hL[4, i, j] + lambda * hL[5, i, j]) +
+                       hR[2, i, j]^2 / (hR[4, i, j,] + lambda * hR[5, i, j])) / 2
     end
     sync_threads()
     return nothing

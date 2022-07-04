@@ -32,7 +32,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 params1 = EvoTreeRegressor(T=Float32,
     loss=:linear, metric=:none,
     nrounds=200, nbins = 64,
-    λ = 0.5, γ=0.1, η=0.1,
+    lambda = 0.5, gamma=0.1, eta=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
@@ -47,7 +47,7 @@ plot!(X_train[:,1][x_perm], pred_train_linear[x_perm], color = "navy", linewidth
 params1 = EvoTreeRegressor(T=Float32,
     loss=:linear, metric=:mse,
     nrounds=200, nbins = 64,
-    λ = 0.5, γ=0.1, η=0.1,
+    lambda = 0.5, gamma=0.1, eta=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
@@ -62,7 +62,7 @@ params1 = EvoTreeRegressor(T=Float32,
 params1 = EvoTreeRegressor(T=Float32,
     loss=:logistic, metric=:none,
     nrounds=200, nbins = 64,
-    λ = 0.5, γ=0.1, η=0.1,
+    lambda = 0.5, gamma=0.1, eta=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
@@ -77,7 +77,7 @@ plot!(X_train[:,1][x_perm], pred_train_linear[x_perm], color = "navy", linewidth
 params1 = EvoTreeRegressor(T=Float32,
     loss=:logistic, metric=:logloss,
     nrounds=200, nbins = 64,
-    λ = 0.5, γ=0.1, η=0.1,
+    lambda = 0.5, gamma=0.1, eta=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
@@ -91,7 +91,7 @@ params1 = EvoTreeRegressor(T=Float32,
 params1 = EvoTreeGaussian(T=Float64,
     loss=:gaussian, metric=:gaussian,
     nrounds=200, nbins=64,
-    λ = 1.0, γ=0.1, η=0.1,
+    lambda = 1.0, gamma=0.1, eta=0.1,
     max_depth = 5, min_weight = 100.0,
     rowsample=0.5, colsample=1.0, rng=123)
 
@@ -116,7 +116,7 @@ plot!(X_train[:,1][x_perm], pred_q80[x_perm, 1], color = "green", linewidth = 1.
 params1 = EvoTreeGaussian(T=Float32,
     loss=:gaussian, metric=:gaussian,
     nrounds=100, nbins=64,
-    λ = 1.0, γ=0.1, η=0.1,
+    lambda = 1.0, gamma=0.1, eta=0.1,
     max_depth = 5, min_weight = 20.0,
     rowsample=0.5, colsample=1.0, rng=123)
 

@@ -1,4 +1,4 @@
-function eval_metric(::Val{:mse}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, α = 0.0) where {T<:AbstractFloat}
+function eval_metric(::Val{:mse}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha = 0.0) where {T<:AbstractFloat}
     eval = zero(T)
     @inbounds for i in eachindex(y)
         eval += w[i] * (p[1, i] - y[i])^2
@@ -7,7 +7,7 @@ function eval_metric(::Val{:mse}, p::AbstractMatrix{T}, y::AbstractVector{T}, w:
     return eval
 end
 
-function eval_metric(::Val{:rmse}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, α = 0.0) where {T<:AbstractFloat}
+function eval_metric(::Val{:rmse}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha = 0.0) where {T<:AbstractFloat}
     eval = zero(T)
     @inbounds for i in eachindex(y)
         eval += w[i] * (p[1, i] - y[i])^2
@@ -16,7 +16,7 @@ function eval_metric(::Val{:rmse}, p::AbstractMatrix{T}, y::AbstractVector{T}, w
     return eval
 end
 
-function eval_metric(::Val{:mae}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, α = 0.0) where {T<:AbstractFloat}
+function eval_metric(::Val{:mae}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha = 0.0) where {T<:AbstractFloat}
     eval = zero(T)
     @inbounds for i in eachindex(y)
         eval += w[i] * abs(p[1, i] - y[i])
@@ -25,7 +25,7 @@ function eval_metric(::Val{:mae}, p::AbstractMatrix{T}, y::AbstractVector{T}, w:
     return eval
 end
 
-function eval_metric(::Val{:logloss}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, α = 0.0) where {T<:AbstractFloat}
+function eval_metric(::Val{:logloss}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha = 0.0) where {T<:AbstractFloat}
     eval = zero(T)
     @inbounds for i in eachindex(y)
         pred = sigmoid(p[1, i])
@@ -35,7 +35,7 @@ function eval_metric(::Val{:logloss}, p::AbstractMatrix{T}, y::AbstractVector{T}
     return eval
 end
 
-function eval_metric(::Val{:mlogloss}, p::AbstractMatrix{T}, y::AbstractVector{S}, w::AbstractVector{T}, α = 0.0) where {T<:AbstractFloat,S<:Integer}
+function eval_metric(::Val{:mlogloss}, p::AbstractMatrix{T}, y::AbstractVector{S}, w::AbstractVector{T}, alpha = 0.0) where {T<:AbstractFloat,S<:Integer}
     eval = zero(T)
     p_prob = exp.(p) ./ sum(exp.(p), dims = 1)
     @inbounds for i in eachindex(y)
@@ -45,7 +45,7 @@ function eval_metric(::Val{:mlogloss}, p::AbstractMatrix{T}, y::AbstractVector{S
     return eval
 end
 
-function eval_metric(::Val{:poisson}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, α = 0.0) where {T<:AbstractFloat}
+function eval_metric(::Val{:poisson}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha = 0.0) where {T<:AbstractFloat}
     eval = zero(T)
     @inbounds for i in eachindex(y)
         eval += w[i] * (exp(p[1, i]) * (1 - y[i]) + loggamma(y[i] + 1))
@@ -54,7 +54,7 @@ function eval_metric(::Val{:poisson}, p::AbstractMatrix{T}, y::AbstractVector{T}
     return eval
 end
 
-function eval_metric(::Val{:gaussian}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, α = 0.0) where {T<:AbstractFloat}
+function eval_metric(::Val{:gaussian}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha = 0.0) where {T<:AbstractFloat}
     eval = zero(T)
     @inbounds for i in eachindex(y)
         eval += w[i] * (p[2, i] + (y[i] - p[1, i])^2 / (2 * exp(2 * p[2, i])))
@@ -63,10 +63,10 @@ function eval_metric(::Val{:gaussian}, p::AbstractMatrix{T}, y::AbstractVector{T
     return eval
 end
 
-function eval_metric(::Val{:quantile}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, α = 0.0) where {T<:AbstractFloat}
+function eval_metric(::Val{:quantile}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha = 0.0) where {T<:AbstractFloat}
     eval = zero(T)
     for i in eachindex(y)
-        eval += w[i] * (α * max(y[i] - p[1, i], zero(T)) + (1 - α) * max(p[1, i] - y[i], zero(T)))
+        eval += w[i] * (alpha * max(y[i] - p[1, i], zero(T)) + (1 - alpha) * max(p[1, i] - y[i], zero(T)))
     end
     eval /= sum(w)
     return eval
@@ -91,6 +91,6 @@ function gini_norm(y::T, p::S) where {T,S}
     return gini_raw(y, p) / gini_raw(y, y)
 end
 
-function eval_metric(::Val{:gini}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, α = 0.0) where {T<:AbstractFloat}
+function eval_metric(::Val{:gini}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha = 0.0) where {T<:AbstractFloat}
     return -gini_norm(y, view(p, 1, :))
 end

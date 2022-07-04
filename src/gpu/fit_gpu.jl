@@ -117,7 +117,7 @@ function grow_tree_gpu!(
 
     # initialize summary stats
     nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims = 2))
-    nodes[1].gain = get_gain(params.loss, Array(nodes[1].∑), params.λ, K) # should use a GPU version?
+    nodes[1].gain = get_gain(params.loss, Array(nodes[1].∑), params.lambda, K) # should use a GPU version?
 
     # grow while there are remaining active nodes - TO DO histogram substraction hits issue on GPU
     while length(n_current) > 0 && depth <= params.max_depth
@@ -166,8 +166,8 @@ function grow_tree_gpu!(
                     # println("length(_left): ", length(_left), " | length(_right): ", length(_right))
                     # println("best: ", best)
                     update_childs_∑_gpu!(params.loss, nodes, n, best[2][1], best[2][2])
-                    nodes[n<<1].gain = get_gain(params.loss, Array(nodes[n<<1].∑), params.λ, K)
-                    nodes[n<<1+1].gain = get_gain(params.loss, Array(nodes[n<<1+1].∑), params.λ, K)
+                    nodes[n<<1].gain = get_gain(params.loss, Array(nodes[n<<1].∑), params.lambda, K)
+                    nodes[n<<1+1].gain = get_gain(params.loss, Array(nodes[n<<1+1].∑), params.lambda, K)
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)

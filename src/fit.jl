@@ -58,7 +58,7 @@ function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVec
     𝑗_ = UInt32.(collect(1:X_size[2]))
     𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * X_size[2]))
 
-    # initializde histograms
+    # initialize histograms
     nodes = [TrainNode(X_size[2], params.nbins, K, T) for n = 1:2^params.max_depth-1]
     nodes[1].𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * X_size[1]))
     out = zeros(UInt32, length(nodes[1].𝑖))
@@ -94,7 +94,7 @@ function grow_evotree!(evotree::GBTree{T}, cache) where {T,S}
         sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
 
         # build a new tree
-        update_grads!(params.loss, cache.δ𝑤, cache.pred, cache.Y, params.α)
+        update_grads!(params.loss, cache.δ𝑤, cache.pred, cache.Y, params.alpha)
         # assign a root and grow tree
         tree = Tree(params.max_depth, evotree.K, zero(T))
         grow_tree!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, cache.𝑗, cache.out, cache.left, cache.right, cache.X_bin, cache.K)
@@ -131,7 +131,7 @@ function grow_tree!(
 
     # initialize summary stats
     nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims = 2))
-    nodes[1].gain = get_gain(params.loss, nodes[1].∑, params.λ, K)
+    nodes[1].gain = get_gain(params.loss, nodes[1].∑, params.lambda, K)
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
@@ -158,7 +158,7 @@ function grow_tree!(
                 # histogram subtraction
                 update_gains!(params.loss, nodes[n], 𝑗, params, K)
                 best = findmax(nodes[n].gains)
-                if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.γ
+                if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.gamma
                     tree.gain[n] = best[1] - nodes[n].gain
                     tree.cond_bin[n] = best[2][1]
                     tree.feat[n] = best[2][2]
@@ -174,8 +174,8 @@ function grow_tree!(
                     nodes[n<<1].𝑖, nodes[n<<1+1].𝑖 = _left, _right
                     offset += length(nodes[n].𝑖)
                     update_childs_∑!(params.loss, nodes, n, best[2][1], best[2][2], K)
-                    nodes[n<<1].gain = get_gain(params.loss, nodes[n<<1].∑, params.λ, K)
-                    nodes[n<<1+1].gain = get_gain(params.loss, nodes[n<<1+1].∑, params.λ, K)
+                    nodes[n<<1].gain = get_gain(params.loss, nodes[n<<1].∑, params.lambda, K)
+                    nodes[n<<1+1].gain = get_gain(params.loss, nodes[n<<1+1].∑, params.lambda, K)
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
@@ -265,16 +265,16 @@ function fit_evotree(params::EvoTypes, X_train::Matrix, Y_train::Vector, W_train
             if X_eval !== nothing
                 predict!(params.loss, pred_eval, model.trees[model.params.nrounds+1], X_eval, model.K)
                 if params.device == "gpu"
-                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, pred_eval, Y_eval, W_eval, params.α)
+                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, pred_eval, Y_eval, W_eval, params.alpha)
                 else
-                    metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, W_eval, params.α)
+                    metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, W_eval, params.alpha)
                 end
             else
                 if params.device == "gpu"
                     # println("mean(pred_eval): ", mean(cache.pred))
-                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, cache.pred, cache.Y, cache.δ𝑤[end, :], params.α)
+                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, cache.pred, cache.Y, cache.δ𝑤[end, :], params.alpha)
                 else
-                    metric_track.metric = eval_metric(Val{params.metric}(), cache.pred, cache.Y, cache.δ𝑤[end, :], params.α)
+                    metric_track.metric = eval_metric(Val{params.metric}(), cache.pred, cache.Y, cache.δ𝑤[end, :], params.alpha)
                 end
             end
             if metric_track.metric < metric_best.metric

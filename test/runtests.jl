@@ -1,13 +1,15 @@
 using Statistics
-using Test
 using EvoTrees
+using Random
+using Test
 
 @testset "EvoTrees" begin
 
-@info "Testing core"
-include("core.jl")
+    @testset "Internal API" begin
+        include("core.jl")
+    end
 
-@info "Testing MLJ"
-include("MLJ.jl")
-
+    @testset "MLJ" begin
+        include("MLJ.jl")
+    end
 end

@@ -111,13 +111,13 @@ end
 
 # prediction in Leaf - GradientRegression
 function pred_leaf_gpu!(::S, p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes) where {S<:GradientRegression,T}
-    @allowscalar(p[1, n] = -params.η * ∑[1] / (∑[2] + params.λ * ∑[3]))
+    @allowscalar(p[1, n] = -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3]))
     return nothing
 end
 
 # prediction in Leaf - Gaussian
 function pred_leaf_gpu!(::S, p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes) where {S<:GaussianRegression,T}
-    p[1, n] = -params.η * ∑[1] / (∑[3] + params.λ * ∑[5])
-    p[2, n] = -params.η * ∑[2] / (∑[4] + params.λ * ∑[5])
+    p[1, n] = -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5])
+    p[2, n] = -params.eta * ∑[2] / (∑[4] + params.lambda * ∑[5])
     return nothing
 end

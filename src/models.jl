@@ -19,15 +19,15 @@ mk_rng(rng::T) where {T<:Integer} = Random.MersenneTwister(rng)
 mutable struct EvoTreeRegressor{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Deterministic
     loss::U
     nrounds::S
-    λ::T
-    γ::T
-    η::T
+    lambda::T
+    gamma::T
+    eta::T
     max_depth::S
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
     nbins::S
-    α::T
+    alpha::T
     metric::Symbol
     rng
     device
@@ -37,15 +37,15 @@ function EvoTreeRegressor(;
     T::Type=Float64,
     loss=:linear,
     nrounds=10,
-    λ=0.0, #
-    γ=0.0, # gamma: min gain to split
-    η=0.1, # eta: learning rate
+    lambda=0.0, #
+    gamma=0.0, # gamma: min gain to split
+    eta=0.1, # eta: learning rate
     max_depth=5,
     min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
     rowsample=1.0,
     colsample=1.0,
     nbins=64,
-    α=0.5,
+    alpha=0.5,
     metric=:mse,
     rng=123,
     device="cpu")
@@ -64,7 +64,7 @@ function EvoTreeRegressor(;
 
     rng = mk_rng(rng)::Random.AbstractRNG
 
-    model = EvoTreeRegressor(model_type, nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng, device)
+    model = EvoTreeRegressor(model_type, nrounds, T(lambda), T(gamma), T(eta), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(alpha), metric, rng, device)
 
     return model
 end
@@ -73,15 +73,15 @@ end
 mutable struct EvoTreeCount{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Probabilistic
     loss::U
     nrounds::S
-    λ::T
-    γ::T
-    η::T
+    lambda::T
+    gamma::T
+    eta::T
     max_depth::S
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
     nbins::S
-    α::T
+    alpha::T
     metric::Symbol
     rng
     device
@@ -91,15 +91,15 @@ function EvoTreeCount(;
     T::Type=Float64,
     loss=:poisson,
     nrounds=10,
-    λ=0.0, #
-    γ=0.0, # gamma: min gain to split
-    η=0.1, # eta: learning rate
+    lambda=0.0, #
+    gamma=0.0, # gamma: min gain to split
+    eta=0.1, # eta: learning rate
     max_depth=5,
     min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
     rowsample=1.0,
     colsample=1.0,
     nbins=64,
-    α=0.5,
+    alpha=0.5,
     metric=:poisson,
     rng=123,
     device="cpu")
@@ -110,7 +110,7 @@ function EvoTreeCount(;
         error("Invalid loss: $loss. Only `:poisson` loss is supported at the moment by EvoTreeCount.")
     end
 
-    model = EvoTreeCount(Poisson(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng, device)
+    model = EvoTreeCount(Poisson(), nrounds, T(lambda), T(gamma), T(eta), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(alpha), metric, rng, device)
 
     return model
 end
@@ -119,15 +119,15 @@ end
 mutable struct EvoTreeClassifier{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Probabilistic
     loss::U
     nrounds::S
-    λ::T
-    γ::T
-    η::T
+    lambda::T
+    gamma::T
+    eta::T
     max_depth::S
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
     nbins::S
-    α::T
+    alpha::T
     metric::Symbol
     rng
     device
@@ -137,15 +137,15 @@ function EvoTreeClassifier(;
     T::Type=Float64,
     loss=:softmax,
     nrounds=10,
-    λ=0.0, #
-    γ=0.0, # gamma: min gain to split
-    η=0.1, # eta: learning rate
+    lambda=0.0, #
+    gamma=0.0, # gamma: min gain to split
+    eta=0.1, # eta: learning rate
     max_depth=5,
     min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
     rowsample=1.0,
     colsample=1.0,
     nbins=64,
-    α=0.5,
+    alpha=0.5,
     metric=:mlogloss,
     rng=123,
     device="cpu")
@@ -155,7 +155,7 @@ function EvoTreeClassifier(;
     if loss != :softmax
         error("Invalid loss: $loss. Only `:softmax` loss is supported at the moment by EvoTreeClassifier.")
     end
-    model = EvoTreeClassifier(Softmax(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng, device)
+    model = EvoTreeClassifier(Softmax(), nrounds, T(lambda), T(gamma), T(eta), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(alpha), metric, rng, device)
 
     return model
 end
@@ -164,15 +164,15 @@ end
 mutable struct EvoTreeGaussian{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Probabilistic
     loss::U
     nrounds::S
-    λ::T
-    γ::T
-    η::T
+    lambda::T
+    gamma::T
+    eta::T
     max_depth::S
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
     nbins::S
-    α::T
+    alpha::T
     metric::Symbol
     rng
     device
@@ -182,15 +182,15 @@ function EvoTreeGaussian(;
     T::Type=Float64,
     loss=:gaussian,
     nrounds=10,
-    λ=0.0, #
-    γ=0.0, # gamma: min gain to split
-    η=0.1, # eta: learning rate
+    lambda=0.0, #
+    gamma=0.0, # gamma: min gain to split
+    eta=0.1, # eta: learning rate
     max_depth=5,
     min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
     rowsample=1.0,
     colsample=1.0,
     nbins=64,
-    α=0.5,
+    alpha=0.5,
     metric=:gaussian,
     rng=123,
     device="cpu")
@@ -200,7 +200,7 @@ function EvoTreeGaussian(;
     if loss != :gaussian
         error("Invalid loss: $loss. Only `:gaussian` loss is supported at the moment by EvoTreeGaussian.")
     end
-    model = EvoTreeGaussian(Gaussian(), nrounds, T(λ), T(γ), T(η), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(α), metric, rng, device)
+    model = EvoTreeGaussian(Gaussian(), nrounds, T(lambda), T(gamma), T(eta), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(alpha), metric, rng, device)
 
     return model
 end
@@ -210,15 +210,15 @@ end
 function EvoTreeRModels(
     loss,
     nrounds,
-    λ,
-    γ,
-    η,
+    lambda,
+    gamma,
+    eta,
     max_depth,
     min_weight,
     rowsample,
     colsample,
     nbins,
-    α,
+    alpha,
     metric,
     rng,
     device)
@@ -235,13 +235,13 @@ function EvoTreeRModels(
         elseif loss == :L1
             model_type = L1()
         end
-        model = EvoTreeRegressor(model_type, nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, rng, device)
+        model = EvoTreeRegressor(model_type, nrounds, Float32(lambda), Float32(gamma), Float32(eta), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(alpha), metric, rng, device)
     elseif loss == :poisson
-        model = EvoTreeCount(Poisson(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, rng, device)
+        model = EvoTreeCount(Poisson(), nrounds, Float32(lambda), Float32(gamma), Float32(eta), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(alpha), metric, rng, device)
     elseif loss == :softmax
-        model = EvoTreeClassifier(Softmax(), nrounds, Float32(λ), Float32(γ), Float32(η), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(α), metric, rng, device)
+        model = EvoTreeClassifier(Softmax(), nrounds, Float32(lambda), Float32(gamma), Float32(eta), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(alpha), metric, rng, device)
     elseif loss == :gaussian
-        model = EvoTreeGaussian(Gaussian(), nrounds, Float64(λ), Float64(γ), Float64(η), max_depth, Float64(min_weight), Float64(rowsample), Float64(colsample), nbins, Float64(α), metric, rng, device)
+        model = EvoTreeGaussian(Gaussian(), nrounds, Float64(lambda), Float64(gamma), Float64(eta), max_depth, Float64(min_weight), Float64(rowsample), Float64(colsample), nbins, Float64(alpha), metric, rng, device)
     else
         throw("invalid loss")
     end

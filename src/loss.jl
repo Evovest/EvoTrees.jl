@@ -1,5 +1,5 @@
 # linear
-function update_grads!(::Linear, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, α::T) where {T<:AbstractFloat}
+function update_grads!(::Linear, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
     @inbounds for i in eachindex(y)
         δ𝑤[1, i] = 2 * (p[1, i] - y[i]) * δ𝑤[3, i]
         δ𝑤[2, i] = 2 * δ𝑤[3, i]
@@ -7,7 +7,7 @@ function update_grads!(::Linear, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, 
 end
 
 # logistic - on linear predictor
-function update_grads!(::Logistic, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, α::T) where {T<:AbstractFloat}
+function update_grads!(::Logistic, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
     @inbounds for i in eachindex(y)
         pred = sigmoid(p[1, i])
         δ𝑤[1, i] = (pred - y[i]) * δ𝑤[3, i]
@@ -16,7 +16,7 @@ function update_grads!(::Logistic, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}
 end
 
 # Poisson
-function update_grads!(::Poisson, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, α::T) where {T<:AbstractFloat}
+function update_grads!(::Poisson, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
     @inbounds for i in eachindex(y)
         δ𝑤[1, i] = (exp(p[1, i]) .- y[i]) * δ𝑤[3, i]
         δ𝑤[2, i] = exp(p[1, i]) * δ𝑤[3, i]
@@ -24,14 +24,14 @@ function update_grads!(::Poisson, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T},
 end
 
 # L1
-function update_grads!(::L1, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, α::T) where {T<:AbstractFloat}
+function update_grads!(::L1, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
     @inbounds for i in eachindex(y)
-        δ𝑤[1, i] = (α * max(y[i] - p[1, i], 0) - (1 - α) * max(p[1, i] - y[i], 0)) * δ𝑤[3, i]
+        δ𝑤[1, i] = (alpha * max(y[i] - p[1, i], 0) - (1 - alpha) * max(p[1, i] - y[i], 0)) * δ𝑤[3, i]
     end
 end
 
 # Softmax
-function update_grads!(::Softmax, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{S}, α::T) where {T<:AbstractFloat,S}
+function update_grads!(::Softmax, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{S}, alpha::T) where {T<:AbstractFloat,S}
     p .= p .- maximum(p, dims = 1)
     sums = sum(exp.(p), dims = 1)
     K = (size(δ𝑤, 1) - 1) ÷ 2
@@ -49,9 +49,9 @@ function update_grads!(::Softmax, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{S},
 end
 
 # Quantile
-function update_grads!(::Quantile, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, α::T) where {T<:AbstractFloat}
+function update_grads!(::Quantile, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
     @inbounds for i in eachindex(y)
-        δ𝑤[1, i] = y[i] > p[1, i] ? α * δ𝑤[3, i] : (α - 1) * δ𝑤[3, i]
+        δ𝑤[1, i] = y[i] > p[1, i] ? alpha * δ𝑤[3, i] : (alpha - 1) * δ𝑤[3, i]
         δ𝑤[2, i] = y[i] - p[1, i] # δ² serves to calculate the quantile value - hence no weighting on δ²
     end
 end
@@ -59,7 +59,7 @@ end
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
-function update_grads!(::Gaussian, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, α::T) where {T<:AbstractFloat}
+function update_grads!(::Gaussian, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
     @inbounds @simd for i in eachindex(y)
         # first order
         δ𝑤[1, i] = (p[1, i] - y[i]) / exp(2 * p[2, i]) * δ𝑤[5, i]
