@@ -116,29 +116,34 @@ MMI.metadata_model(EvoTreeGaussian,
 """
   EvoTreeRegressor
 
-A model type for constructing a EvoTree regressor, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API the MLJ model interface.
+A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API the MLJ model interface.
+EvoTreeRegressor is used to perform the following regression types:
+  - linear
+  - logistic
+  - Quantile
+  - L1
 
 # Hyper-parameters
 
 - `loss=:linear`:         One of `:linear`, `:logistic`, `:quantile`, `:L1`.
 - `nrounds=10`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
-- `lambda::T=0.0`         L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
-- `gamma::T=0.0`          Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
-- `alpha::T=0.5`          Loss specific parameter in the [0-1] range: 
+- `lambda::T=0.0`:        L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
+- `gamma::T=0.0`:         Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
+- `alpha::T=0.5`:         Loss specific parameter in the [0-1] range: 
                             - `:quantile`: target quantile for the regression. 
                             - `:L1`: weighting parameters to positive vs negative residuals.  
                                   - Positive residual weights = alpha
                                   - Negative residual weights = (1 - alpha)
-- `max_depth=5`           Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf. 
+- `max_depth=5`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf. 
   A complete tree of depth N contains `2^(depth - 1)` terminal leaves and `2^(depth - 1) - 1` split nodes.
   Compute cost is proportional to 2^max_depth. Typical optimal values are in the [3-9] range.
-- `min_weight=0.0         Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector.  
-- `rowsample=1.0`         Proportion of rows that are sampled at each iteration to build the tree. Should be `]0, 1]`.
-- `colsample=1.0`         Proprtion of columns / features that are sampled at each iteration to build the tree. Should be `]0, 1]`.
-- `nbins=32`              Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
+- `min_weight=0.0`:       Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector.  
+- `rowsample=1.0`:        Proportion of rows that are sampled at each iteration to build the tree. Should be `]0, 1]`.
+- `colsample=1.0`:        Proprtion of columns / features that are sampled at each iteration to build the tree. Should be `]0, 1]`.
+- `nbins=32`:             Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
 - `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`). 
-- `metric::Symbol=mse`:   Metric that is to be tracked during the training process. One of: `:none`, `mse`, `mae`, `logloss`.
-- `device="cpu"`          Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
+- `metric::Symbol=:none`: Metric that is to be tracked during the training process. One of: `:none`, `:mse`, `:mae`, `:logloss`.
+- `device="cpu"`:         Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`. Only `:linear` and `:logistic` losses are supported on GPU.
 
 # Internal API
 
@@ -147,7 +152,19 @@ Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeReg
 
 ## Training model
 
-A model is built using [`fit_evotree`](@ref): `fit_evotree(params, X_train, Y_train, W_train=nothing; kwargs...)`.
+A model is built using [`fit_evotree`](@ref): 
+
+```julia
+model = fit_evotree(params, X_train, Y_train, W_train=nothing; kwargs...).
+```
+
+## Inference
+
+Predictions are obtained using [`predict`](@ref) which returns a `Matrix` of size `[nobs, 1]`:
+
+```julia
+EvoTrees.predict(model, X)
+```
 
 # MLJ Interface
 
@@ -158,7 +175,7 @@ EvoTreeRegressor = @load EvoTreeRegressor pkg=EvoTrees
 ```
 
 Do `model = EvoTreeRegressor()` to construct an instance with default hyper-parameters. 
-Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeRegressor(loss=...).
+Provide keyword arguments to override hyper-parameter defaults, as in `EvoTreeRegressor(loss=...)`.
 
 ## Training model
 
@@ -182,17 +199,18 @@ Train the machine using `fit!(mach, rows=...)`.
 ## Fitted parameters
 
 The fields of `fitted_params(mach)` are:
-- `:fitresult`: The GBTree object returned by EvoTrees.jl fitting algorithm.
+  - `:fitresult`: The GBTree object returned by EvoTrees.jl fitting algorithm.
 
 ## Report
 
 The fields of `report(mach)` are:
-- `:feature_importances`: Feature importances based on the gain brought at each node split in the form of a Vector{Pair{String, Float64}}.  
+  - `:feature_importances`: Feature importances based on the gain brought at each node split in the form of a `Vector{Pair{String, Float64}}`.  
 
 # Examples
 
 ```
-using EvoTrees, DataFrames
+# Internal API
+using EvoTrees
 params = EvoTreeRegressor(max_depth=5, nbins=32, nrounds=100)
 nobs, nfeats = 1_000, 5
 X, y = randn(nobs, nfeats), rand(nobs)
@@ -201,6 +219,7 @@ preds = EvoTrees.predict(model, X)
 ```
 
 ```
+# MLJ Interface
 using MLJ
 EvoTreeRegressor = @load EvoTreeRegressor pkg=EvoTrees
 model = EvoTreeRegressor(max_depth=5, nbins=32, nrounds=100)
@@ -213,9 +232,62 @@ EvoTreeRegressor
 
 
 """
-$(MMI.doc_header(EvoTreeClassifier))
+  EvoTreeClassifier
 
-# Training data
+A model type for constructing a EvoTreeClassifier, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API the MLJ model interface.
+EvoTreeClassifier is used to perform multi-class classification, using cross-entropy loss.
+
+# Hyper-parameters
+
+- `loss::Symbol=:softmax`:      Fixed to `softmax` by default.
+- `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
+- `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
+- `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
+- `max_depth=5`:                Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf. 
+  A complete tree of depth N contains `2^(depth - 1)` terminal leaves and `2^(depth - 1) - 1` split nodes.
+  Compute cost is proportional to 2^max_depth. Typical optimal values are in the [3-9] range.
+- `min_weight=0.0`:             Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector.  
+- `rowsample=1.0`:              Proportion of rows that are sampled at each iteration to build the tree. Should be `]0, 1]`.
+- `colsample=1.0`:              Proprtion of columns / features that are sampled at each iteration to build the tree. Should be `]0, 1]`.
+- `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
+- `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`). 
+- `metric::Symbol=:none`:       Metric that is to be tracked during the training process. One of: `:none`, `:mlogloss`.
+- `device="cpu"`:               Hardware device to use for computations. Only CPU is supported at the moment.
+
+# Internal API
+
+Do `params = EvoTreeClassifier()` to construct an instance with default hyper-parameters. 
+Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeClassifier(max_depth=...).
+
+## Training model
+
+A model is built using [`fit_evotree`](@ref): 
+
+```julia
+model = fit_evotree(params, X_train, Y_train, W_train=nothing; kwargs...).
+```
+
+## Inference
+
+Predictions are obtained using [`predict`](@ref) which returns a `Matrix` of size `[nobs, K]` where `K` is the number of classes:
+
+```julia
+EvoTrees.predict(model, X)
+```
+
+# MLJ
+
+From MLJ, the type can be imported using:
+
+```julia
+EvoTreeClassifier = @load EvoTreeClassifier pkg=EvoTrees
+```
+
+Do `model = EvoTreeClassifier()` to construct an instance with default hyper-parameters. 
+Provide keyword arguments to override hyper-parameter defaults, as in `EvoTreeClassifier(loss=...)`.
+
+## Training data
+
 In MLJ or MLJBase, bind an instance `model` to data with
     mach = machine(model, X, y)
 where
@@ -227,35 +299,44 @@ where
   with `scitype(y)`
 Train the machine using `fit!(mach, rows=...)`.
 
-# Hyper-parameters
+## Operations
 
-- `nrounds=10`:         Max number of rounds
-- `rng=Random.GLOBAL_RNG`: random number generator or seed
+- `predict(mach, Xnew)`: return predictions of the target given features `Xnew` having the same scitype as `X` above. 
+  Predictions are probabilistic.
+  
+- `predict_mode(mach, Xnew)`: returns the mode of each of the prediction above.
 
-# Operations
-
-- `predict(mach, Xnew)`: return predictions of the target given
-  features `Xnew` having the same scitype as `X` above. Predictions
-  are deterministic.
-
-# Fitted parameters
+## Fitted parameters
 
 The fields of `fitted_params(mach)` are:
-- `gbtree`: The GBTree object returned by EvoTrees.jl fitting algorithm
+  - `:fitresult`: The GBTree object returned by EvoTrees.jl fitting algorithm.
 
-# Report
+## Report
 
 The fields of `report(mach)` are:
-- ...
+  - `:feature_importances`: Feature importances based on the gain brought at each node split in the form of a `Vector{Pair{String, Float64}}`.  
 
 # Examples
 
 ```
+# Internal API
+using EvoTrees
+params = EvoTreeClassifier(max_depth=5, nbins=32, nrounds=100)
+nobs, nfeats = 1_000, 5
+X, y = randn(nobs, nfeats), rand(1:3, nobs)
+model = fit_evotree(params, X, y)
+preds = EvoTrees.predict(model, X)
+```
+
+```
+# MLJ Interface
 using MLJ
 EvoTreeClassifier = @load EvoTreeClassifier pkg=EvoTrees
-model = EvoTreeClassifier(max_depth=5, num_bins=32)
+model = EvoTreeClassifier(max_depth=5, nbins=32, nrounds=100)
 X, y = @load_iris
 mach = machine(model, X, y) |> fit!
+preds = predict(mach, X)
+preds = predict_mode(mach, X)
 ```
 
 See also
@@ -264,9 +345,61 @@ See also
 EvoTreeClassifier
 
 """
-$(MMI.doc_header(EvoTreeCount))
+  EvoTreeCount
 
-# Training data
+A model type for constructing a EvoTreeCount, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API the MLJ model interface.
+EvoTreeCount is used to perform Poisson probabilistic regression on count target.
+
+# Hyper-parameters
+
+- `loss::Symbol=:poisson`:      Fixed to `poisson` by default.
+- `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
+- `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
+- `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
+- `max_depth=5`:                Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf. 
+  A complete tree of depth N contains `2^(depth - 1)` terminal leaves and `2^(depth - 1) - 1` split nodes.
+  Compute cost is proportional to 2^max_depth. Typical optimal values are in the [3-9] range.
+- `min_weight=0.0`:             Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector.  
+- `rowsample=1.0`:              Proportion of rows that are sampled at each iteration to build the tree. Should be `]0, 1]`.
+- `colsample=1.0`:              Proprtion of columns / features that are sampled at each iteration to build the tree. Should be `]0, 1]`.
+- `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
+- `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`). 
+- `metric::Symbol=:none`:       Metric that is to be tracked during the training process. One of: `:none`, `:poisson`, `:mae`, `:mse`.
+- `device="cpu"`:               Hardware device to use for computations. Only CPU is supported at the moment.
+
+# Internal API
+
+Do `params = EvoTreeCount()` to construct an instance with default hyper-parameters. 
+Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeCount(max_depth=...).
+
+## Training model
+
+A model is built using [`fit_evotree`](@ref): 
+
+```julia
+model = fit_evotree(params, X_train, Y_train, W_train=nothing; kwargs...).
+```
+
+## Inference
+
+Predictions are obtained using [`predict`](@ref) which returns a `Matrix` of size `[nobs, 1]`:
+
+```julia
+EvoTrees.predict(model, X)
+```
+
+# MLJ
+
+From MLJ, the type can be imported using:
+
+```julia
+EvoTreeCount = @load EvoTreeCount pkg=EvoTrees
+```
+
+Do `model = EvoTreeCount()` to construct an instance with default hyper-parameters. 
+Provide keyword arguments to override hyper-parameter defaults, as in `EvoTreeCount(loss=...)`.
+
+## Training data
 
 In MLJ or MLJBase, bind an instance `model` to data with
     mach = machine(model, X, y)
@@ -279,35 +412,51 @@ where
   with `scitype(y)`
 Train the machine using `fit!(mach, rows=...)`.
 
-# Hyper-parameters
-
-- `nrounds=10`:         Max number of rounds
-- `rng=Random.GLOBAL_RNG`: random number generator or seed
-
 # Operations
 
-- `predict(mach, Xnew)`: return predictions of the target given
-  features `Xnew` having the same scitype as `X` above. Predictions
-  are deterministic.
+- `predict(mach, Xnew)`: returns the Poisson distribution given features `Xnew` having the same scitype as `X` above. 
+Predictions are probabilistic.
 
-# Fitted parameters
+Specific metrics can also be predicted using:
+
+  - `predict_mean(mach, Xnew)`
+  - `predict_mode(mach, Xnew)`
+  - `predict_median(mach, Xnew)`
+
+## Fitted parameters
 
 The fields of `fitted_params(mach)` are:
-- `gbtree`: The GBTree object returned by EvoTrees.jl fitting algorithm
+  - `:fitresult`: The GBTree object returned by EvoTrees.jl fitting algorithm.
 
-# Report
+## Report
 
 The fields of `report(mach)` are:
-- ...
+  - `:feature_importances`: Feature importances based on the gain brought at each node split in the form of a `Vector{Pair{String, Float64}}`.  
 
 # Examples
 
 ```
+# Internal API
+using EvoTrees
+params = EvoTreeCount(max_depth=5, nbins=32, nrounds=100)
+nobs, nfeats = 1_000, 5
+X, y = randn(nobs, nfeats), rand(0:2, nobs)
+model = fit_evotree(params, X, y)
+preds = EvoTrees.predict(model, X)
+```
+
+```
 using MLJ
 EvoTreeCount = @load EvoTreeCount pkg=EvoTrees
-model = EvoTreeCount(max_depth=5, num_bins=32)
-X, y = @load_crab
+model = EvoTreeCount(max_depth=5, nbins=32, nrounds=100)
+nobs, nfeats = 1_000, 5
+X, y = randn(nobs, nfeats), rand(0:2, nobs)
 mach = machine(model, X, y) |> fit!
+preds = predict(mach, X)
+preds = predict_mean(mach, X)
+preds = predict_mode(mach, X)
+preds = predict_median(mach, X)
+
 ```
 
 See also
@@ -316,9 +465,61 @@ See also
 EvoTreeCount
 
 """
-$(MMI.doc_header(EvoTreeGaussian))
+  EvoTreeGaussian
 
-# Training data
+A model type for constructing a EvoTreeGaussian, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API the MLJ model interface.
+EvoTreeGaussian is used to perform Gaussain probabilistic regression, fitting μ and σ parameters to maximize likelihood.
+
+# Hyper-parameters
+
+- `loss::Symbol=:gaussian`:     Fixed to `gaussian` by default.
+- `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
+- `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
+- `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
+- `max_depth=5`:                Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf. 
+  A complete tree of depth N contains `2^(depth - 1)` terminal leaves and `2^(depth - 1) - 1` split nodes.
+  Compute cost is proportional to 2^max_depth. Typical optimal values are in the [3-9] range.
+- `min_weight=0.0`:             Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector.  
+- `rowsample=1.0`:              Proportion of rows that are sampled at each iteration to build the tree. Should be `]0, 1]`.
+- `colsample=1.0`:              Proprtion of columns / features that are sampled at each iteration to build the tree. Should be `]0, 1]`.
+- `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
+- `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`). 
+- `metric::Symbol=:none`:       Metric that is to be tracked during the training process. One of: `:none`, `:gaussian`.
+- `device="cpu"`:               Hardware device to use for computations. Only CPU is supported at the moment.
+
+# Internal API
+
+Do `params = EvoTreeGaussian()` to construct an instance with default hyper-parameters. 
+Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeGaussian(max_depth=...).
+
+## Training model
+
+A model is built using [`fit_evotree`](@ref): 
+
+```julia
+fit_evotree(params, X_train, Y_train, W_train=nothing; kwargs...).
+```
+
+## Inference
+
+Predictions are obtained using [`predict`](@ref) which returns a `Matrix` of size `[nobs, 2]` where the second dimensions refer to `μ` and `σ` respectively:
+
+```julia
+EvoTrees.predict(model, X)
+```
+
+# MLJ
+
+From MLJ, the type can be imported using:
+
+```julia
+EvoTreeGaussian = @load EvoTreeGaussian pkg=EvoTrees
+```
+
+Do `model = EvoTreeGaussian()` to construct an instance with default hyper-parameters. 
+Provide keyword arguments to override hyper-parameter defaults, as in `EvoTreeGaussian(loss=...)`.
+
+## Training data
 
 In MLJ or MLJBase, bind an instance `model` to data with
     mach = machine(model, X, y)
@@ -331,39 +532,51 @@ where
   with `scitype(y)`
 Train the machine using `fit!(mach, rows=...)`.
 
-# Hyper-parameters
+## Operations
 
-- `nrounds=10`:         Max number of rounds
-- `rng=Random.GLOBAL_RNG`: random number generator or seed
+- `predict(mach, Xnew)`: returns the Gaussian distribution given features `Xnew` having the same scitype as `X` above. 
+Predictions are probabilistic.
 
-# Operations
+Specific metrics can also be predicted using:
 
-- `predict(mach, Xnew)`: return predictions of the target given
-  features `Xnew` having the same scitype as `X` above. Predictions
-  are deterministic.
-
-# Fitted parameters
+  - `predict_mean(mach, Xnew)`
+  - `predict_mode(mach, Xnew)`
+  - `predict_median(mach, Xnew)`
+  
+## Fitted parameters
 
 The fields of `fitted_params(mach)` are:
-- `gbtree`: The GBTree object returned by EvoTrees.jl fitting algorithm
+  - `:fitresult`: The GBTree object returned by EvoTrees.jl fitting algorithm.
 
-# Report
+## Report
 
 The fields of `report(mach)` are:
-- ...
+  - `:feature_importances`: Feature importances based on the gain brought at each node split in the form of a `Vector{Pair{String, Float64}}`.  
 
 # Examples
 
 ```
-using MLJ
-EvoTreeGaussian = @load EvoTreeGaussian pkg=EvoTrees
-model = EvoTreeGaussian(max_depth=5, num_bins=32)
-X, y = @load_crab
-mach = machine(model, X, y) |> fit!
+# Internal API
+using EvoTrees
+params = EvoTreeGaussian(max_depth=5, nbins=32, nrounds=100)
+nobs, nfeats = 1_000, 5
+X, y = randn(nobs, nfeats), rand(nobs)
+model = fit_evotree(params, X, y)
+preds = EvoTrees.predict(model, X)
 ```
 
-See also
-[EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl).
+```
+# MLJ Interface
+using MLJ
+EvoTreeGaussian = @load EvoTreeGaussian pkg=EvoTrees
+model = EvoTreeGaussian(max_depth=5, nbins=32, nrounds=100)
+X, y = @load_boston
+mach = machine(model, X, y) |> fit!
+preds = predict(mach, X)
+preds = predict_mean(mach, X)
+preds = predict_mode(mach, X)
+preds = predict_median(mach, X)
+```
 """
 EvoTreeGaussian
 

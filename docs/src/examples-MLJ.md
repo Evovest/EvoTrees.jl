@@ -21,7 +21,7 @@ y = Y
 X = MLJBase.table(X)
 
 # linear regression
-tree_model = EvoTreeRegressor(loss=:linear, max_depth=5, η=0.05, nrounds=10)
+tree_model = EvoTreeRegressor(loss=:linear, max_depth=5, eta=0.05, nrounds=10)
 
 # set machine
 mach = machine(tree_model, X, y)
