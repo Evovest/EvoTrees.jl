@@ -46,17 +46,6 @@ params1 = EvoTreeRegressor(
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_eval_logistic = predict(model, X_eval)
 
-# Poisson
-params1 = EvoTreeCount(
-    loss=:poisson, metric = :poisson,
-    nrounds=100, nbins = 100,
-    lambda = 0.5, gamma=0.1, eta=0.1,
-    max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0)
-
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_eval_poisson = predict(model, X_eval)
-
 # L1
 params1 = EvoTreeRegressor(
     loss=:L1, alpha=0.5, metric = :mae,
@@ -67,6 +56,21 @@ params1 = EvoTreeRegressor(
 
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_eval_L1 = predict(model, X_eval)
+```
+
+## Poisson Count
+
+```julia
+# Poisson
+params1 = EvoTreeCount(
+    loss=:poisson, metric = :poisson,
+    nrounds=100, nbins = 100,
+    lambda = 0.5, gamma=0.1, eta=0.1,
+    max_depth = 6, min_weight = 1.0,
+    rowsample=0.5, colsample=1.0)
+
+model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
+pred_eval_poisson = predict(model, X_eval)
 ```
 
 ## Quantile Regression
