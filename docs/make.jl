@@ -6,8 +6,9 @@ using EvoTrees
 pages = [
     "Introduction" => "index.md",
     "Models" => "models.md",
-    "Examples" => "examples.md",
-    "MLJ" => "MLJ.md"]
+    "API" => "api.md",
+    "Examples - API" => "examples-API.md",
+    "Examples - MLJ" => "examples-MLJ.md"]
 
 makedocs(
     sitename="EvoTrees.jl",

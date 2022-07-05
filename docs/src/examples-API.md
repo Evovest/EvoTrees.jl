@@ -28,9 +28,10 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:mse,
     nrounds=100, nbins = 100,
-    λ = 0.5, γ=0.1, η=0.1,
+    lambda = 0.5, gamma=0.1, eta=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
+
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_eval_linear = predict(model, X_eval)
 
@@ -38,9 +39,10 @@ pred_eval_linear = predict(model, X_eval)
 params1 = EvoTreeRegressor(
     loss=:logistic, metric = :logloss,
     nrounds=100, nbins = 100,
-    λ = 0.5, γ=0.1, η=0.1,
+    lambda = 0.5, gamma=0.1, eta=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
+
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_eval_logistic = predict(model, X_eval)
 
@@ -48,19 +50,21 @@ pred_eval_logistic = predict(model, X_eval)
 params1 = EvoTreeCount(
     loss=:poisson, metric = :poisson,
     nrounds=100, nbins = 100,
-    λ = 0.5, γ=0.1, η=0.1,
+    lambda = 0.5, gamma=0.1, eta=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
+
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_eval_poisson = predict(model, X_eval)
 
 # L1
 params1 = EvoTreeRegressor(
-    loss=:L1, α=0.5, metric = :mae,
+    loss=:L1, alpha=0.5, metric = :mae,
     nrounds=100, nbins=100,
-    λ = 0.5, γ=0.0, η=0.1,
+    lambda = 0.5, gamma=0.0, eta=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
+
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_eval_L1 = predict(model, X_eval)
 ```
@@ -72,31 +76,34 @@ pred_eval_L1 = predict(model, X_eval)
 ```julia
 # q50
 params1 = EvoTreeRegressor(
-    loss=:quantile, α=0.5, metric = :quantile,
+    loss=:quantile, alpha=0.5, metric = :quantile,
     nrounds=200, nbins = 100,
-    λ = 0.1, γ=0.0, η=0.05,
+    lambda = 0.1, gamma=0.0, eta=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
+
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_q50 = predict(model, X_train)
 
 # q20
 params1 = EvoTreeRegressor(
-    loss=:quantile, α=0.2, metric = :quantile,
+    loss=:quantile, alpha=0.2, metric = :quantile,
     nrounds=200, nbins = 100,
-    λ = 0.1, γ=0.0, η=0.05,
+    lambda = 0.1, gamma=0.0, eta=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
+
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_q20 = predict(model, X_train)
 
 # q80
 params1 = EvoTreeRegressor(
-    loss=:quantile, α=0.8,
+    loss=:quantile, alpha=0.8,
     nrounds=200, nbins = 100,
-    λ = 0.1, γ=0.0, η=0.05,
+    lambda = 0.1, gamma=0.0, eta=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
+
 model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 pred_train_q80 = predict(model, X_train)
 ```
@@ -109,7 +116,7 @@ pred_train_q80 = predict(model, X_train)
 params1 = EvoTreeGaussian(
     loss=:gaussian, metric=:gaussian,
     nrounds=100, nbins=100,
-    λ = 0.0, γ=0.0, η=0.1,
+    lambda = 0.0, gamma=0.0, eta=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0, seed=123)
 ```
