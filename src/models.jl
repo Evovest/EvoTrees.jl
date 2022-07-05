@@ -44,7 +44,7 @@ function EvoTreeRegressor(;
     min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
     rowsample=1.0,
     colsample=1.0,
-    nbins=64,
+    nbins=32,
     alpha=0.5,
     metric=:mse,
     rng=123,
@@ -98,7 +98,7 @@ function EvoTreeCount(;
     min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
     rowsample=1.0,
     colsample=1.0,
-    nbins=64,
+    nbins=32,
     alpha=0.5,
     metric=:poisson,
     rng=123,
@@ -144,7 +144,7 @@ function EvoTreeClassifier(;
     min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
     rowsample=1.0,
     colsample=1.0,
-    nbins=64,
+    nbins=32,
     alpha=0.5,
     metric=:mlogloss,
     rng=123,
@@ -189,7 +189,7 @@ function EvoTreeGaussian(;
     min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
     rowsample=1.0,
     colsample=1.0,
-    nbins=64,
+    nbins=32,
     alpha=0.5,
     metric=:gaussian,
     rng=123,
