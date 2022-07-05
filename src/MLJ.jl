@@ -74,7 +74,7 @@ end
 # Metadata
 const EvoTreeRegressor_desc = "Regression models with various underlying methods: least square, quantile, logistic."
 const EvoTreeClassifier_desc = "Multi-classification with softmax and cross-entropy loss."
-const EvoTreeCount_desc = "Poisson regression fitting lambda with max likelihood."
+const EvoTreeCount_desc = "Poisson regression fitting λ with max likelihood."
 const EvoTreeGaussian_desc = "Gaussian maximum likelihood of μ and σ."
 
 MMI.metadata_pkg.((EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian),
@@ -114,7 +114,7 @@ MMI.metadata_model(EvoTreeGaussian,
     descr=EvoTreeGaussian_desc)
 
 """
-  EvoTreeRegressor
+  EvoTreeRegressor(;kwargs...)
 
 A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API the MLJ model interface.
 EvoTreeRegressor is used to perform the following regression types:
@@ -232,7 +232,7 @@ EvoTreeRegressor
 
 
 """
-  EvoTreeClassifier
+  EvoTreeClassifier(;kwargs...)
 
 A model type for constructing a EvoTreeClassifier, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API the MLJ model interface.
 EvoTreeClassifier is used to perform multi-class classification, using cross-entropy loss.
@@ -345,7 +345,7 @@ See also
 EvoTreeClassifier
 
 """
-  EvoTreeCount
+  EvoTreeCount(;kwargs...)
 
 A model type for constructing a EvoTreeCount, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API the MLJ model interface.
 EvoTreeCount is used to perform Poisson probabilistic regression on count target.
@@ -465,7 +465,7 @@ See also
 EvoTreeCount
 
 """
-  EvoTreeGaussian
+  EvoTreeGaussian(;kwargs...)
 
 A model type for constructing a EvoTreeGaussian, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API the MLJ model interface.
 EvoTreeGaussian is used to perform Gaussain probabilistic regression, fitting μ and σ parameters to maximize likelihood.

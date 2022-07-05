@@ -1,4 +1,5 @@
-__EvoTrees.jl__ supports four model families:
+[EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl) supports four model families: 
+
     - EvoTreeRegressor
         - Linear (minimize mean-squared error)
         - Logistic (minimize cross-entropy)
