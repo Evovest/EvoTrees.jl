@@ -6,7 +6,9 @@ using BenchmarkTools
 using CUDA
 
 nrounds = 200
-nthread = 16
+nthread = Base.Threads.nthreads()
+
+@info nthread
 
 # xgboost aprams
 params_xgb = ["max_depth" => 5,
@@ -22,13 +24,13 @@ metrics = ["rmse"]
 # EvoTrees params
 params_evo = EvoTreeRegressor(T=Float32,
         loss=:linear, metric=:mse,
-        nrounds=nrounds, α=0.5,
-        λ=0.0, γ=0.0, η=0.05,
+        nrounds=nrounds, alpha=0.5,
+        lambda=0.0, gamma=0.0, eta=0.05,
         max_depth=6, min_weight=1.0,
         rowsample=0.5, colsample=0.5, nbins=64)
 
 
-nobs = Int(1e6)
+nobs = Int(5e6)
 num_feat = Int(100)
 @info "testing with: $nobs observations | $num_feat features."
 X = rand(nobs, num_feat)

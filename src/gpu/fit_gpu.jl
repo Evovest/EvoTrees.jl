@@ -146,7 +146,7 @@ function grow_tree_gpu!(
             else
                 update_gains_gpu!(params.loss, nodes[n], 𝑗, params, K)
                 best = findmax(nodes[n].gains)
-                if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.γ
+                if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.gamma
                     allowscalar() do
                         tree.gain[n] = best[1]
                         tree.cond_bin[n] = best[2][1]
