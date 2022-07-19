@@ -9,7 +9,7 @@ function eval_mse_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDe
     return nothing
 end
 
-function eval_metric(::Val{:mse}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS = 1024) where {T<:AbstractFloat}
+function eval_metric(::Val{:mse}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_mse_kernel!(eval, p, y, w)
@@ -29,7 +29,7 @@ function eval_logloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::
     return nothing
 end
 
-function eval_metric(::Val{:logloss}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS = 1024) where {T<:AbstractFloat}
+function eval_metric(::Val{:logloss}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_logloss_kernel!(eval, p, y, w)
@@ -49,7 +49,7 @@ function eval_gaussian_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y:
     return nothing
 end
 
-function eval_metric(::Val{:gaussian}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS = 1024) where {T<:AbstractFloat}
+function eval_metric(::Val{:gaussian}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_gaussian_kernel!(eval, p, y, w)

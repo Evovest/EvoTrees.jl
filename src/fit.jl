@@ -3,7 +3,7 @@
     
 Initialise EvoTree
 """
-function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVector, W = nothing) where {T,U,S}
+function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVector, W=nothing) where {T,U,S}
 
     K = 1
     levels = nothing
@@ -20,7 +20,7 @@ function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVec
             Y = UInt32.(CategoricalArrays.levelcode.(Y))
         else
             levels = sort(unique(Y))
-            yc = CategoricalVector(Y, levels = levels)
+            yc = CategoricalVector(Y, levels=levels)
             K = length(levels)
             μ = zeros(T, K)
             Y = UInt32.(CategoricalArrays.levelcode.(yc))
@@ -65,15 +65,15 @@ function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVec
     left = zeros(UInt32, length(nodes[1].𝑖))
     right = zeros(UInt32, length(nodes[1].𝑖))
 
-    cache = (params = deepcopy(params),
-        X = X, Y = Y, K = K,
-        nodes = nodes,
-        pred = pred,
-        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑗 = 𝑗,
-        out = out, left = left, right = right,
-        δ𝑤 = δ𝑤,
-        edges = edges,
-        X_bin = X_bin)
+    cache = (params=deepcopy(params),
+        X=X, Y=Y, K=K,
+        nodes=nodes,
+        pred=pred,
+        𝑖_=𝑖_, 𝑗_=𝑗_, 𝑗=𝑗,
+        out=out, left=left, right=right,
+        δ𝑤=δ𝑤,
+        edges=edges,
+        X_bin=X_bin)
 
     cache.params.nrounds = 0
 
@@ -90,8 +90,8 @@ function grow_evotree!(evotree::GBTree{T}, cache) where {T,S}
     # loop over nrounds
     for i = 1:δnrounds
         # select random rows and cols
-        sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace = false, ordered = true)
-        sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
+        sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace=false, ordered=true)
+        sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
 
         # build a new tree
         update_grads!(params.loss, cache.δ𝑤, cache.pred, cache.Y, params.alpha)
@@ -130,7 +130,7 @@ function grow_tree!(
     depth = 1
 
     # initialize summary stats
-    nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims = 2))
+    nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims=2))
     nodes[1].gain = get_gain(params.loss, nodes[1].∑, params.lambda, K)
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
@@ -221,11 +221,11 @@ Main training function. Performs model fitting given configuration `params`, `X_
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
 """
-function fit_evotree(params::EvoTypes, X_train::AbstractMatrix, Y_train::AbstractVector, W_train = nothing;
-    X_eval = nothing, Y_eval = nothing, W_eval = nothing,
-    early_stopping_rounds = 9999,
-    print_every_n = 9999,
-    verbosity = 1)
+function fit_evotree(params::EvoTypes, X_train::AbstractMatrix, Y_train::AbstractVector, W_train=nothing;
+    X_eval=nothing, Y_eval=nothing, W_eval=nothing,
+    early_stopping_rounds=9999,
+    print_every_n=9999,
+    verbosity=1)
 
     # initialize metric
     iter_since_best = 0

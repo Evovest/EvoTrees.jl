@@ -22,7 +22,7 @@ function kernel_linear_δ!(δ::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDev
     return
 end
 
-function update_grads_gpu!(loss::Linear, δ::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS = 1024) where {T<:AbstractFloat}
+function update_grads_gpu!(loss::Linear, δ::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS=1024) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_linear_δ!(δ, p, y)
@@ -44,7 +44,7 @@ function kernel_logistic_δ!(δ::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuD
     return
 end
 
-function update_grads_gpu!(loss::Logistic, δ::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS = 1024) where {T<:AbstractFloat}
+function update_grads_gpu!(loss::Logistic, δ::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS=1024) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_logistic_δ!(δ, p, y)
@@ -71,7 +71,7 @@ function kernel_gauss_δ!(δ::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDevi
     return
 end
 
-function update_grads_gpu!(loss::Gaussian, δ::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS = 1024) where {T<:AbstractFloat}
+function update_grads_gpu!(loss::Gaussian, δ::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS=1024) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_gauss_δ!(δ, p, y)

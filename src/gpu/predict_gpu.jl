@@ -69,7 +69,7 @@ function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, 
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict!(loss::L, pred::AbstractMatrix{T}, tree::TreeGPU{T}, X::AbstractMatrix, K; MAX_THREADS = 1024) where {L,T}
+function predict!(loss::L, pred::AbstractMatrix{T}, tree::TreeGPU{T}, X::AbstractMatrix, K; MAX_THREADS=1024) where {L,T}
     K = size(pred, 1)
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)

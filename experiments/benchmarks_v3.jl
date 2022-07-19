@@ -10,7 +10,7 @@ nrounds = 100
 params_evo = EvoTreeRegressor(T=Float32,
         loss=:logistic, metric=:logloss,
         nrounds=nrounds,
-        λ=0.5, γ=0.0, η=0.05,
+        lambda=0.5, gamma=0.0, eta=0.05,
         max_depth=6, min_weight=1.0,
         rowsample=1.0, colsample=0.5, nbins=64)
 

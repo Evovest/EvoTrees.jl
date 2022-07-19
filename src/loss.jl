@@ -32,8 +32,8 @@ end
 
 # Softmax
 function update_grads!(::Softmax, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{S}, alpha::T) where {T<:AbstractFloat,S}
-    p .= p .- maximum(p, dims = 1)
-    sums = sum(exp.(p), dims = 1)
+    p .= p .- maximum(p, dims=1)
+    sums = sum(exp.(p), dims=1)
     K = (size(δ𝑤, 1) - 1) ÷ 2
     for i in eachindex(y)
         for k = 1:K
