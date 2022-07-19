@@ -20,7 +20,7 @@ function get_adj_list(tree::EvoTrees.Tree)
             push!(adj, [])
         end
     end
-    return (map = map, adj = adj)
+    return (map=map, adj=adj)
 end
 
 function get_shapes(tree_layout)
@@ -41,9 +41,9 @@ function get_annotations(tree_layout, map, tree, var_names)
         x, y = tree_layout[i][1], tree_layout[i][2] # center point
         if tree.split[map[i]]
             feat = isnothing(var_names) ? "feat: " * string(tree.feat[map[i]]) : var_names[tree.feat[map[i]]]
-            txt = "$feat\n" * string(round(tree.cond_float[map[i]], sigdigits = 3))
+            txt = "$feat\n" * string(round(tree.cond_float[map[i]], sigdigits=3))
         else
-            txt = "pred:\n" * string(round(tree.pred[1, map[i]], sigdigits = 3))
+            txt = "pred:\n" * string(round(tree.pred[1, map[i]], sigdigits=3))
         end
         # annotations[i] = (x, y, txt, (9, :white, "helvetica"))
         push!(annotations, (x, y, txt, 10))
@@ -63,7 +63,7 @@ function get_curves(adj, tree_layout, shapes)
     return curves
 end
 
-@recipe function plot(tree::EvoTrees.Tree, var_names = nothing)
+@recipe function plot(tree::EvoTrees.Tree, var_names=nothing)
 
     map, adj = EvoTrees.get_adj_list(tree)
     tree_layout = length(adj) == 1 ? [[0.0, 0.0]] : NetworkLayout.buchheim(adj)
@@ -99,7 +99,7 @@ end
     end
 end
 
-@recipe function plot(model::EvoTrees.GBTree, n = 1, var_names = nothing)
+@recipe function plot(model::EvoTrees.GBTree, n=1, var_names=nothing)
 
     isnothing(var_names)
 

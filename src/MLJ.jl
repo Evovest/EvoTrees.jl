@@ -1,28 +1,27 @@
 function MMI.fit(model::EvoTypes, verbosity::Int, A, y)
-
-    if model.device == "gpu"
-        fitresult, cache = init_evotree_gpu(model, A.matrix, y)
-    else
-        fitresult, cache = init_evotree(model, A.matrix, y)
-    end
-    grow_evotree!(fitresult, cache)
-    report = (feature_importances=importance(fitresult, A.names),)
-    return fitresult, cache, report
+  if model.device == "gpu"
+    fitresult, cache = init_evotree_gpu(model, A.matrix, y)
+  else
+    fitresult, cache = init_evotree(model, A.matrix, y)
+  end
+  grow_evotree!(fitresult, cache)
+  report = (feature_importances=importance(fitresult, A.names),)
+  return fitresult, cache, report
 end
 
 function okay_to_continue(new, old)
-    new.nrounds - old.nrounds >= 0 &&
-        new.loss == old.loss &&
-        new.lambda == old.lambda &&
-        new.gamma == old.gamma &&
-        new.max_depth == old.max_depth &&
-        new.min_weight == old.min_weight &&
-        new.rowsample == old.rowsample &&
-        new.colsample == old.colsample &&
-        new.nbins == old.nbins &&
-        new.alpha == old.alpha &&
-        new.device == old.device &&
-        new.metric == old.metric
+  new.nrounds - old.nrounds >= 0 &&
+    new.loss == old.loss &&
+    new.lambda == old.lambda &&
+    new.gamma == old.gamma &&
+    new.max_depth == old.max_depth &&
+    new.min_weight == old.min_weight &&
+    new.rowsample == old.rowsample &&
+    new.colsample == old.colsample &&
+    new.nbins == old.nbins &&
+    new.alpha == old.alpha &&
+    new.device == old.device &&
+    new.metric == old.metric
 end
 
 
@@ -39,36 +38,36 @@ MMI.iteration_parameter(::Type{<:EvoTypes}) = :nrounds
 
 function MMI.update(model::EvoTypes, verbosity::Integer, fitresult, cache, A, y)
 
-    if okay_to_continue(model, cache.params)
-        grow_evotree!(fitresult, cache)
-    else
-        fitresult, cache = init_evotree(model, A.matrix, y)
-        grow_evotree!(fitresult, cache)
-    end
+  if okay_to_continue(model, cache.params)
+    grow_evotree!(fitresult, cache)
+  else
+    fitresult, cache = init_evotree(model, A.matrix, y)
+    grow_evotree!(fitresult, cache)
+  end
 
-    report = (feature_importances=importance(fitresult, A.names),)
+  report = (feature_importances=importance(fitresult, A.names),)
 
-    return fitresult, cache, report
+  return fitresult, cache, report
 end
 
 function predict(::EvoTreeRegressor, fitresult, A)
-    pred = vec(predict(fitresult, A.matrix))
-    return pred
+  pred = vec(predict(fitresult, A.matrix))
+  return pred
 end
 
 function predict(::EvoTreeClassifier, fitresult, A)
-    pred = predict(fitresult, A.matrix)
-    return MMI.UnivariateFinite(fitresult.levels, pred, pool=missing)
+  pred = predict(fitresult, A.matrix)
+  return MMI.UnivariateFinite(fitresult.levels, pred, pool=missing)
 end
 
 function predict(::EvoTreeCount, fitresult, A)
-    λs = vec(predict(fitresult, A.matrix))
-    return [Distributions.Poisson(λᵢ) for λᵢ ∈ λs]
+  λs = vec(predict(fitresult, A.matrix))
+  return [Distributions.Poisson(λ) for λ ∈ λs]
 end
 
 function predict(::EvoTreeGaussian, fitresult, A)
-    pred = predict(fitresult, A.matrix)
-    return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i = 1:size(pred, 1)]
+  pred = predict(fitresult, A.matrix)
+  return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i = 1:size(pred, 1)]
 end
 
 # Metadata
@@ -78,40 +77,40 @@ const EvoTreeCount_desc = "Poisson regression fitting λ with max likelihood."
 const EvoTreeGaussian_desc = "Gaussian maximum likelihood of μ and σ."
 
 MMI.metadata_pkg.((EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian),
-    name="EvoTrees",
-    uuid="f6006082-12f8-11e9-0c9c-0d5d367ab1e5",
-    url="https://github.com/Evovest/EvoTrees.jl",
-    julia=true,
-    license="Apache",
-    is_wrapper=false)
+  name="EvoTrees",
+  uuid="f6006082-12f8-11e9-0c9c-0d5d367ab1e5",
+  url="https://github.com/Evovest/EvoTrees.jl",
+  julia=true,
+  license="Apache",
+  is_wrapper=false)
 
 MMI.metadata_model(EvoTreeRegressor,
-    input=Union{MMI.Table(MMI.Continuous),AbstractMatrix{MMI.Continuous}},
-    target=AbstractVector{<:MMI.Continuous},
-    weights=false,
-    path="EvoTrees.EvoTreeRegressor",
-    descr=EvoTreeRegressor_desc)
+  input_scitype=Union{MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor),AbstractMatrix{MMI.Continuous}},
+  target_scitype=AbstractVector{<:MMI.Continuous},
+  weights=false,
+  path="EvoTrees.EvoTreeRegressor",
+  descr=EvoTreeRegressor_desc)
 
 MMI.metadata_model(EvoTreeClassifier,
-    input=Union{MMI.Table(MMI.Continuous),AbstractMatrix{MMI.Continuous}},
-    target=AbstractVector{<:MMI.Finite},
-    weights=false,
-    path="EvoTrees.EvoTreeClassifier",
-    descr=EvoTreeClassifier_desc)
+  input_scitype=Union{MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor),AbstractMatrix{MMI.Continuous}},
+  target_scitype=AbstractVector{<:MMI.Finite},
+  weights=false,
+  path="EvoTrees.EvoTreeClassifier",
+  descr=EvoTreeClassifier_desc)
 
 MMI.metadata_model(EvoTreeCount,
-    input=Union{MMI.Table(MMI.Continuous),AbstractMatrix{MMI.Continuous}},
-    target=AbstractVector{<:MMI.Count},
-    weights=false,
-    path="EvoTrees.EvoTreeCount",
-    descr=EvoTreeCount_desc)
+  input_scitype=Union{MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor),AbstractMatrix{MMI.Continuous}},
+  target_scitype=AbstractVector{<:MMI.Count},
+  weights=false,
+  path="EvoTrees.EvoTreeCount",
+  descr=EvoTreeCount_desc)
 
 MMI.metadata_model(EvoTreeGaussian,
-    input=Union{MMI.Table(MMI.Continuous),AbstractMatrix{MMI.Continuous}},
-    target=AbstractVector{<:MMI.Continuous},
-    weights=false,
-    path="EvoTrees.EvoTreeGaussian",
-    descr=EvoTreeGaussian_desc)
+  input_scitype=Union{MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor),AbstractMatrix{MMI.Continuous}},
+  target_scitype=AbstractVector{<:MMI.Continuous},
+  weights=false,
+  path="EvoTrees.EvoTreeGaussian",
+  descr=EvoTreeGaussian_desc)
 
 """
   EvoTreeRegressor(;kwargs...)

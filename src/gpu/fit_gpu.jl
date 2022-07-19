@@ -1,5 +1,5 @@
 function init_evotree_gpu(params::EvoTypes{T,U,S},
-    X::AbstractMatrix, Y::AbstractVector, W = nothing) where {T,U,S}
+    X::AbstractMatrix, Y::AbstractVector, W=nothing) where {T,U,S}
 
     K = 1
     levels = nothing
@@ -50,14 +50,14 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     right = CUDA.zeros(UInt32, length(nodes[1].𝑖))
 
     # store cache
-    cache = (params = deepcopy(params),
-        X = CuArray(X), X_bin = X_bin, Y = Y, K = K,
-        nodes = nodes,
-        pred = pred,
-        𝑖_ = 𝑖_, 𝑗_ = 𝑗_, 𝑗 = 𝑗, 𝑖 = Array(nodes[1].𝑖),
-        out = out, left = left, right = right,
-        δ𝑤 = δ𝑤,
-        edges = edges)
+    cache = (params=deepcopy(params),
+        X=CuArray(X), X_bin=X_bin, Y=Y, K=K,
+        nodes=nodes,
+        pred=pred,
+        𝑖_=𝑖_, 𝑗_=𝑗_, 𝑗=𝑗, 𝑖=Array(nodes[1].𝑖),
+        out=out, left=left, right=right,
+        δ𝑤=δ𝑤,
+        edges=edges)
 
     cache.params.nrounds = 0
 
@@ -75,8 +75,8 @@ function grow_evotree!(evotree::GBTreeGPU{T}, cache) where {T}
     # loop over nrounds
     for i = 1:δnrounds
         # select random rows and cols
-        sample!(params.rng, cache.𝑖_, cache.𝑖, replace = false, ordered = true)
-        sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
+        sample!(params.rng, cache.𝑖_, cache.𝑖, replace=false, ordered=true)
+        sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
         cache.nodes[1].𝑖 .= CuArray(cache.𝑖)
 
         # build a new tree
@@ -116,7 +116,7 @@ function grow_tree_gpu!(
     end
 
     # initialize summary stats
-    nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims = 2))
+    nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims=2))
     nodes[1].gain = get_gain(params.loss, Array(nodes[1].∑), params.lambda, K) # should use a GPU version?
 
     # grow while there are remaining active nodes - TO DO histogram substraction hits issue on GPU

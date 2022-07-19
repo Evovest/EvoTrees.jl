@@ -51,7 +51,7 @@ function update_hist_gpu!(
     X_bin::CuMatrix{UInt8},
     𝑖::CuVector{S},
     𝑗::CuVector{S}, K;
-    MAX_THREADS = 256) where {L<:GradientRegression,T,S}
+    MAX_THREADS=256) where {L<:GradientRegression,T,S}
 
     nbins = size(h, 2)
     thread_i = max(nbins, min(MAX_THREADS, length(𝑖)))
@@ -109,7 +109,7 @@ function update_hist_gpu!(
     X_bin::CuMatrix{UInt8},
     𝑖::CuVector{S},
     𝑗::CuVector{S}, K;
-    MAX_THREADS = 128) where {L<:GaussianRegression,T,S}
+    MAX_THREADS=128) where {L<:GaussianRegression,T,S}
 
     nbins = size(h, 2)
     thread_i = max(nbins, min(MAX_THREADS, length(𝑖)))
@@ -212,9 +212,9 @@ function update_gains_gpu!(
     node::TrainNodeGPU{T},
     𝑗::AbstractVector{S},
     params::EvoTypes, K;
-    MAX_THREADS = 512) where {L<:GradientRegression,T,S}
+    MAX_THREADS=512) where {L<:GradientRegression,T,S}
 
-    cumsum!(node.hL, node.h, dims = 2)
+    cumsum!(node.hL, node.h, dims=2)
     node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
     # cumsum!(view(node.hL, :, :, :), view(node.h, :, :, :), dims=2)
     # cumsum!(view(histR, :, :, :, nid), reverse!(view(hist, :, :, :, nid), dims=2), dims=2)
@@ -253,9 +253,9 @@ function update_gains_gpu!(
     node::TrainNodeGPU{T},
     𝑗::AbstractVector{S},
     params::EvoTypes, K;
-    MAX_THREADS = 512) where {L<:GaussianRegression,T,S}
+    MAX_THREADS=512) where {L<:GaussianRegression,T,S}
 
-    cumsum!(node.hL, node.h, dims = 2)
+    cumsum!(node.hL, node.h, dims=2)
     node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
 
     thread_i = min(params.nbins, MAX_THREADS)
