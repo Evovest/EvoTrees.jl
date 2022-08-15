@@ -216,7 +216,7 @@ function update_gains!(
             node.hR[j][binid+2] = node.hR[j][binid-1] - node.h[j][binid+2]
 
         end
-        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params.nbins, params.lambda, params.min_weight, K)
+        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params, get(params.monotone_constraints, j, 0), K)
     end
     return nothing
 end
@@ -243,7 +243,7 @@ function update_gains!(
         node.hR[j][3] = node.∑[3] - node.h[j][3]
         node.hR[j][4] = node.∑[4] - node.h[j][4]
         node.hR[j][5] = node.∑[5] - node.h[j][5]
-        @inbounds for bin = 2:params.nbins
+        @inbounds for bin in 2:params.nbins
             binid = 5 * bin - 4
             node.hL[j][binid] = node.hL[j][binid-5] + node.h[j][binid]
             node.hL[j][binid+1] = node.hL[j][binid-4] + node.h[j][binid+1]
@@ -258,7 +258,7 @@ function update_gains!(
             node.hR[j][binid+4] = node.hR[j][binid-1] - node.h[j][binid+4]
 
         end
-        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params.nbins, params.lambda, params.min_weight, K)
+        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params, get(params.monotone_constraints, j, 0), K)
     end
     return nothing
 end
@@ -277,19 +277,19 @@ function update_gains!(
     KK = 2 * K + 1
     @inbounds @threads for j in 𝑗
 
-        @inbounds for k = 1:KK
+        @inbounds for k in 1:KK
             node.hL[j][k] = node.h[j][k]
             node.hR[j][k] = node.∑[k] - node.h[j][k]
         end
 
-        @inbounds for bin = 2:params.nbins
+        @inbounds for bin in 2:params.nbins
             @inbounds for k = 1:KK
                 binid = KK * (bin - 1)
                 node.hL[j][binid+k] = node.hL[j][binid-KK+k] + node.h[j][binid+k]
                 node.hR[j][binid+k] = node.hR[j][binid-KK+k] - node.h[j][binid+k]
             end
         end
-        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params.nbins, params.lambda, params.min_weight, K)
+        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params, K)
     end
     return nothing
 end
@@ -299,15 +299,21 @@ end
     hist_gains_cpu!
         GradientRegression
 """
-function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, lambda::T, min_𝑤::T, K) where {L<:GradientRegression,T}
-    @inbounds for bin = 1:nbins
+function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, monotone_constraint, K) where {L<:GradientRegression,T}
+    @inbounds for bin in 1:params.nbins
         i = 3 * bin - 2
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
-        if bin == nbins
-            gains[bin] = hL[i]^2 / (hL[i+1] + lambda * hL[i+2]) / 2
-        elseif hL[i+2] > min_𝑤 && hR[i+2] > min_𝑤
-            gains[bin] = (hL[i]^2 / (hL[i+1] + lambda * hL[i+2]) +
-                          hR[i]^2 / (hR[i+1] + lambda * hR[i+2])) / 2
+        if bin == params.nbins
+            gains[bin] = hL[i]^2 / (hL[i+1] + params.lambda * hL[i+2]) / 2
+        elseif hL[i+2] > params.min_weight && hR[i+2] > params.min_weight
+            predL = pred_scalar_cpu!(params.loss, hL[i:i+2], params, K)
+            predR = pred_scalar_cpu!(params.loss, hR[i:i+2], params, K)
+            if (monotone_constraint == 0) ||
+               (monotone_constraint == -1 && predL > predR) ||
+               (monotone_constraint == 1 && predL < predR)
+                gains[bin] = (hL[i]^2 / (hL[i+1] + params.lambda * hL[i+2]) +
+                              hR[i]^2 / (hR[i+1] + params.lambda * hR[i+2])) / 2
+            end
         end
     end
     return nothing
@@ -317,13 +323,13 @@ end
     hist_gains_cpu!
         QuantileRegression/L1Regression
 """
-function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, lambda::T, min_𝑤::T, K) where {L<:Union{QuantileRegression,L1Regression},T}
-    @inbounds for bin = 1:nbins
+function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K) where {L<:Union{QuantileRegression,L1Regression},T}
+    @inbounds for bin in 1:params.nbins
         i = 3 * bin - 2
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
-        if bin == nbins
+        if bin == params.nbins
             gains[bin] = abs(hL[i])
-        elseif hL[i+2] > min_𝑤 && hR[i+2] > min_𝑤
+        elseif hL[i+2] > params.min_weight && hR[i+2] > params.min_weight
             gains[bin] = abs(hL[i]) + abs(hR[i])
         end
     end
@@ -334,17 +340,24 @@ end
     hist_gains_cpu!
         GaussianRegression
 """
-function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, lambda::T, min_𝑤::T, K) where {L<:GaussianRegression,T}
-    @inbounds for bin = 1:nbins
+function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, monotone_constraint, K) where {L<:GaussianRegression,T}
+    @inbounds for bin in 1:params.nbins
         i = 5 * bin - 4
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
-        if bin == nbins
-            gains[bin] = (hL[i]^2 / (hL[i+2] + lambda * hL[i+4]) + hL[i+1]^2 / (hL[i+3] + lambda * hL[i+4])) / 2
-        elseif hL[i+4] > min_𝑤 && hR[i+4] > min_𝑤
-            gains[bin] = (hL[i]^2 / (hL[i+2] + lambda * hL[i+4]) +
-                          hR[i]^2 / (hR[i+2] + lambda * hR[i+4])) / 2 +
-                         (hL[i+1]^2 / (hL[i+3] + lambda * hL[i+4]) +
-                          hR[i+1]^2 / (hR[i+3] + lambda * hR[i+4])) / 2
+        if bin == params.nbins
+            gains[bin] = (hL[i]^2 / (hL[i+2] + params.lambda * hL[i+4]) +
+                          hL[i+1]^2 / (hL[i+3] + params.lambda * hL[i+4])) / 2
+        elseif hL[i+4] > params.min_weight && hR[i+4] > params.min_weight
+            predL = pred_scalar_cpu!(params.loss, hL[i:i+4], params, K)
+            predR = pred_scalar_cpu!(params.loss, hR[i:i+4], params, K)
+            if (monotone_constraint == 0) ||
+               (monotone_constraint == -1 && predL > predR) ||
+               (monotone_constraint == 1 && predL < predR)
+                gains[bin] = (hL[i]^2 / (hL[i+2] + params.lambda * hL[i+4]) +
+                              hR[i]^2 / (hR[i+2] + params.lambda * hR[i+4])) / 2 +
+                             (hL[i+1]^2 / (hL[i+3] + params.lambda * hL[i+4]) +
+                              hR[i+1]^2 / (hR[i+3] + params.lambda * hR[i+4])) / 2
+            end
         end
     end
     return nothing
@@ -354,24 +367,26 @@ end
     hist_gains_cpu!
         Generic
 """
-function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, nbins, lambda::T, min_𝑤::T, K) where {L,T}
-    @inbounds for bin = 1:nbins
+function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K) where {L,T}
+    @inbounds for bin in 1:params.nbins
         i = (2 * K + 1) * (bin - 1)
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
-        if bin == nbins
+        if bin == params.nbins
             for k = 1:K
                 if k == 1
-                    gains[bin] = hL[i+k]^2 / (hL[i+k+K] + lambda * hL[i+2*K+1]) / 2
+                    gains[bin] = hL[i+k]^2 / (hL[i+k+K] + params.lambda * hL[i+2*K+1]) / 2
                 else
-                    gains[bin] += hL[i+k]^2 / (hL[i+k+K] + lambda * hL[i+2*K+1]) / 2
+                    gains[bin] += hL[i+k]^2 / (hL[i+k+K] + params.lambda * hL[i+2*K+1]) / 2
                 end
             end
-        elseif hL[i+2*K+1] > min_𝑤 && hR[i+2*K+1] > min_𝑤
+        elseif hL[i+2*K+1] > params.min_weight && hR[i+2*K+1] > params.min_weight
             for k = 1:K
                 if k == 1
-                    gains[bin] = (hL[i+k]^2 / (hL[i+k+K] + lambda * hL[i+2*K+1]) + hR[i+k]^2 / (hR[i+k+K] + lambda * hR[i+2*K+1])) / 2
+                    gains[bin] = (hL[i+k]^2 / (hL[i+k+K] + params.lambda * hL[i+2*K+1]) +
+                                  hR[i+k]^2 / (hR[i+k+K] + params.lambda * hR[i+2*K+1])) / 2
                 else
-                    gains[bin] += (hL[i+k]^2 / (hL[i+k+K] + lambda * hL[i+2*K+1]) + hR[i+k]^2 / (hR[i+k+K] + lambda * hR[i+2*K+1])) / 2
+                    gains[bin] += (hL[i+k]^2 / (hL[i+k+K] + params.lambda * hL[i+2*K+1]) +
+                                   hR[i+k]^2 / (hR[i+k+K] + params.lambda * hR[i+2*K+1])) / 2
                 end
             end
         end

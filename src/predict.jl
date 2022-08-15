@@ -89,15 +89,21 @@ end
 function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S<:GradientRegression,T}
     pred[1, n] = -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3])
 end
+function pred_scalar_cpu!(::S, ∑::Vector{T}, params::EvoTypes, K) where {S<:GradientRegression,T}
+    -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3])
+end
 
 # prediction in Leaf - GaussianRegression
 function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S<:GaussianRegression,T}
     pred[1, n] = -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5])
     pred[2, n] = -params.eta * ∑[2] / (∑[4] + params.lambda * ∑[5])
 end
+function pred_scalar_cpu!(::S, ∑::Vector{T}, params::EvoTypes, K) where {S<:GaussianRegression,T}
+    -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5])
+end
 
 # prediction in Leaf - MultiClassRegression
-function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S<:MultiClassRegression,T}
+function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K) where {S<:MultiClassRegression,T}
     @inbounds for k = 1:K
         pred[k, n] = -params.eta * ∑[k] / (∑[k+K] + params.lambda * ∑[2*K+1])
     end
@@ -108,8 +114,14 @@ function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ�
     pred[1, n] = params.eta * quantile(δ𝑤[2, 𝑖], params.alpha) / (1 + params.lambda)
     # pred[1,n] = params.eta * quantile(view(δ𝑤, 2, 𝑖), params.alpha) / (1 + params.lambda)
 end
+# function pred_scalar_cpu!(::S, ∑::Vector{T}, params::EvoTypes, K) where {S<:QuantileRegression,T}
+#     params.eta * quantile(δ𝑤[2, 𝑖], params.alpha) / (1 + params.lambda)
+# end
 
 # prediction in Leaf - L1Regression
 function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S<:L1Regression,T}
     pred[1, n] = params.eta * ∑[1] / (∑[3] * (1 + params.lambda))
+end
+function pred_scalar_cpu!(::S, ∑::Vector{T}, params::EvoTypes, K) where {S<:L1Regression,T}
+    params.eta * ∑[1] / (∑[3] * (1 + params.lambda))
 end

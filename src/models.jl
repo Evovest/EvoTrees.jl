@@ -28,43 +28,79 @@ mutable struct EvoTreeRegressor{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Det
     colsample::T
     nbins::S
     alpha::T
+    monotone_constraints
     metric::Symbol
     rng
     device
 end
 
-function EvoTreeRegressor(;
-    T::Type=Float64,
-    loss=:linear,
-    nrounds=10,
-    lambda=0.0, #
-    gamma=0.0, # gamma: min gain to split
-    eta=0.1, # eta: learning rate
-    max_depth=5,
-    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
-    rowsample=1.0,
-    colsample=1.0,
-    nbins=32,
-    alpha=0.5,
-    metric=:mse,
-    rng=123,
-    device="cpu")
+function EvoTreeRegressor(; kwargs...)
 
-    if loss == :linear
-        model_type = Linear()
-    elseif loss == :logistic
-        model_type = Logistic()
-    elseif loss == :L1
-        model_type = L1()
-    elseif loss == :quantile
-        model_type = Quantile()
-    else
-        error("Invalid loss: $loss. Only [`:linear`, `:logistic`, `:L1`, `:quantile`],  losses are supported at the moment by EvoTreeRegressor.")
+    args_provided = keys(kwargs)
+
+    # defaults arguments
+    args = Dict{Symbol,Any}(
+        :T => Float64,
+        :loss => :linear,
+        :nrounds => 10,
+        :lambda => 0.0,
+        :gamma => 0.0, # min gain to split
+        :eta => 0.1, # learning rate
+        :max_depth => 5,
+        :min_weight => 1.0, # minimal weight, different from xgboost (but same for linear)
+        :rowsample => 1.0,
+        :colsample => 1.0,
+        :nbins => 32,
+        :alpha => 0.5,
+        :monotone_constraints => Dict{Int,Int}(),
+        :metric => :mse,
+        :rng => 123,
+        :device => "cpu"
+    )
+
+    args_ignored = setdiff(keys(kwargs), keys(args))
+    args_ignored_str = join(args_ignored, ", ")
+    length(args_ignored) > 0 && @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
+
+    args_default = setdiff(keys(args), keys(kwargs))
+    args_default_str = join(args_default, ", ")
+    length(args_default) > 0 && @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
+
+    args_override = intersect(keys(args), keys(kwargs))
+    for arg in args_override
+        args[arg] = kwargs[arg]
     end
 
-    rng = mk_rng(rng)::Random.AbstractRNG
+    if args[:loss] == :linear
+        args[:loss] = Linear()
+    elseif args[:loss] == :logistic
+        args[:loss] = Logistic()
+    elseif args[:loss] == :L1
+        args[:loss] = L1()
+    elseif args[:loss] == :quantile
+        args[:loss] = Quantile()
+    else
+        error("Invalid loss: $(args[:loss]). Only [`:linear`, `:logistic`, `:L1`, `:quantile`] are supported at the moment by EvoTreeRegressor.")
+    end
 
-    model = EvoTreeRegressor(model_type, nrounds, T(lambda), T(gamma), T(eta), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(alpha), metric, rng, device)
+    args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
+
+    model = EvoTreeRegressor(
+        args[:loss],
+        args[:nrounds],
+        args[:T](args[:lambda]),
+        args[:T](args[:gamma]),
+        args[:T](args[:eta]),
+        args[:max_depth],
+        args[:T](args[:min_weight]),
+        args[:T](args[:rowsample]),
+        args[:T](args[:colsample]),
+        args[:nbins],
+        args[:T](args[:alpha]),
+        args[:monotone_constraints],
+        args[:metric],
+        args[:rng],
+        args[:device])
 
     return model
 end
@@ -82,39 +118,74 @@ mutable struct EvoTreeCount{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Probabi
     colsample::T
     nbins::S
     alpha::T
+    monotone_constraints
     metric::Symbol
     rng
     device
 end
 
-function EvoTreeCount(;
-    T::Type=Float64,
-    loss=:poisson,
-    nrounds=10,
-    lambda=0.0, #
-    gamma=0.0, # gamma: min gain to split
-    eta=0.1, # eta: learning rate
-    max_depth=5,
-    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
-    rowsample=1.0,
-    colsample=1.0,
-    nbins=32,
-    alpha=0.5,
-    metric=:poisson,
-    rng=123,
-    device="cpu")
+function EvoTreeCount(; kwargs...)
 
-    rng = mk_rng(rng)::Random.AbstractRNG
+    args_provided = keys(kwargs)
 
-    if loss != :poisson
-        error("Invalid loss: $loss. Only `:poisson` loss is supported at the moment by EvoTreeCount.")
+    # defaults arguments
+    args = Dict{Symbol,Any}(
+        :T => Float64,
+        :loss => :poisson,
+        :nrounds => 10,
+        :lambda => 0.0,
+        :gamma => 0.0, # min gain to split
+        :eta => 0.1, # learning rate
+        :max_depth => 5,
+        :min_weight => 1.0, # minimal weight, different from xgboost (but same for linear)
+        :rowsample => 1.0,
+        :colsample => 1.0,
+        :nbins => 32,
+        :alpha => 0.5,
+        :monotone_constraints => Dict{Int,Int}(),
+        :metric => :mse,
+        :rng => 123,
+        :device => "cpu"
+    )
+
+    args_ignored = setdiff(keys(kwargs), keys(args))
+    args_ignored_str = join(args_ignored, ", ")
+    length(args_ignored) > 0 && @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
+
+    args_default = setdiff(keys(args), keys(kwargs))
+    args_default_str = join(args_default, ", ")
+    length(args_default) > 0 && @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
+
+    args_override = intersect(keys(args), keys(kwargs))
+    for arg in args_override
+        args[arg] = kwargs[arg]
     end
 
-    model = EvoTreeCount(Poisson(), nrounds, T(lambda), T(gamma), T(eta), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(alpha), metric, rng, device)
+    if args[:loss] != :poisson
+        error("Invalid loss: $(args[:loss]). Only `:poisson` is supported by EvoTreeCount.")
+    end
+
+    args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
+
+    model = EvoTreeCount(
+        args[:loss],
+        args[:nrounds],
+        args[:T](args[:lambda]),
+        args[:T](args[:gamma]),
+        args[:T](args[:eta]),
+        args[:max_depth],
+        args[:T](args[:min_weight]),
+        args[:T](args[:rowsample]),
+        args[:T](args[:colsample]),
+        args[:nbins],
+        args[:T](args[:alpha]),
+        args[:monotone_constraints],
+        args[:metric],
+        args[:rng],
+        args[:device])
 
     return model
 end
-
 
 mutable struct EvoTreeClassifier{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Probabilistic
     loss::U
@@ -133,33 +204,68 @@ mutable struct EvoTreeClassifier{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Pr
     device
 end
 
-function EvoTreeClassifier(;
-    T::Type=Float64,
-    loss=:softmax,
-    nrounds=10,
-    lambda=0.0, #
-    gamma=0.0, # gamma: min gain to split
-    eta=0.1, # eta: learning rate
-    max_depth=5,
-    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
-    rowsample=1.0,
-    colsample=1.0,
-    nbins=32,
-    alpha=0.5,
-    metric=:mlogloss,
-    rng=123,
-    device="cpu")
+function EvoTreeClassifier(; kwargs...)
 
-    rng = mk_rng(rng)::Random.AbstractRNG
+    args_provided = keys(kwargs)
 
-    if loss != :softmax
-        error("Invalid loss: $loss. Only `:softmax` loss is supported at the moment by EvoTreeClassifier.")
+    # defaults arguments
+    args = Dict{Symbol,Any}(
+        :T => Float64,
+        :loss => :softmax,
+        :nrounds => 10,
+        :lambda => 0.0,
+        :gamma => 0.0, # min gain to split
+        :eta => 0.1, # learning rate
+        :max_depth => 5,
+        :min_weight => 1.0, # minimal weight, different from xgboost (but same for linear)
+        :rowsample => 1.0,
+        :colsample => 1.0,
+        :nbins => 32,
+        :alpha => 0.5,
+        :metric => :mse,
+        :rng => 123,
+        :device => "cpu"
+    )
+
+    args_ignored = setdiff(keys(kwargs), keys(args))
+    args_ignored_str = join(args_ignored, ", ")
+    length(args_ignored) > 0 && @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
+
+    args_default = setdiff(keys(args), keys(kwargs))
+    args_default_str = join(args_default, ", ")
+    length(args_default) > 0 && @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
+
+    args_override = intersect(keys(args), keys(kwargs))
+    for arg in args_override
+        args[arg] = kwargs[arg]
     end
-    model = EvoTreeClassifier(Softmax(), nrounds, T(lambda), T(gamma), T(eta), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(alpha), metric, rng, device)
+
+    if args[:loss] != :softmax
+        error("Invalid loss: $(args[:loss]). Only `:softmax` is supported by EvoTreeClassifier.")
+    else
+        args[:loss] = Softmax()
+    end
+
+    args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
+
+    model = EvoTreeClassifier(
+        args[:loss],
+        args[:nrounds],
+        args[:T](args[:lambda]),
+        args[:T](args[:gamma]),
+        args[:T](args[:eta]),
+        args[:max_depth],
+        args[:T](args[:min_weight]),
+        args[:T](args[:rowsample]),
+        args[:T](args[:colsample]),
+        args[:nbins],
+        args[:T](args[:alpha]),
+        args[:metric],
+        args[:rng],
+        args[:device])
 
     return model
 end
-
 
 mutable struct EvoTreeGaussian{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Probabilistic
     loss::U
@@ -173,34 +279,73 @@ mutable struct EvoTreeGaussian{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Prob
     colsample::T
     nbins::S
     alpha::T
+    monotone_constraints
     metric::Symbol
     rng
     device
 end
 
-function EvoTreeGaussian(;
-    T::Type=Float64,
-    loss=:gaussian,
-    nrounds=10,
-    lambda=0.0, #
-    gamma=0.0, # gamma: min gain to split
-    eta=0.1, # eta: learning rate
-    max_depth=5,
-    min_weight=1.0, # minimal weight, different from xgboost (but same for linear)
-    rowsample=1.0,
-    colsample=1.0,
-    nbins=32,
-    alpha=0.5,
-    metric=:gaussian,
-    rng=123,
-    device="cpu")
+function EvoTreeGaussian(; kwargs...)
 
-    rng = mk_rng(rng)::Random.AbstractRNG
+    args_provided = keys(kwargs)
 
-    if loss != :gaussian
-        error("Invalid loss: $loss. Only `:gaussian` loss is supported at the moment by EvoTreeGaussian.")
+    # defaults arguments
+    args = Dict{Symbol,Any}(
+        :T => Float64,
+        :loss => :gaussian,
+        :nrounds => 10,
+        :lambda => 0.0,
+        :gamma => 0.0, # min gain to split
+        :eta => 0.1, # learning rate
+        :max_depth => 5,
+        :min_weight => 1.0, # minimal weight, different from xgboost (but same for linear)
+        :rowsample => 1.0,
+        :colsample => 1.0,
+        :nbins => 32,
+        :alpha => 0.5,
+        :monotone_constraints => Dict{Int,Int}(),
+        :metric => :mse,
+        :rng => 123,
+        :device => "cpu"
+    )
+
+    args_ignored = setdiff(keys(kwargs), keys(args))
+    args_ignored_str = join(args_ignored, ", ")
+    length(args_ignored) > 0 && @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
+
+    args_default = setdiff(keys(args), keys(kwargs))
+    args_default_str = join(args_default, ", ")
+    length(args_default) > 0 && @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
+
+    args_override = intersect(keys(args), keys(kwargs))
+    for arg in args_override
+        args[arg] = kwargs[arg]
     end
-    model = EvoTreeGaussian(Gaussian(), nrounds, T(lambda), T(gamma), T(eta), max_depth, T(min_weight), T(rowsample), T(colsample), nbins, T(alpha), metric, rng, device)
+
+    if args[:loss] != :gaussian
+        error("Invalid loss: $(args[:loss]). Only `:gaussian` is supported by EvoTreeGaussian.")
+    else
+        args[:loss] = Gaussian()
+    end
+
+    args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
+
+    model = EvoTreeCount(
+        args[:loss],
+        args[:nrounds],
+        args[:T](args[:lambda]),
+        args[:T](args[:gamma]),
+        args[:T](args[:eta]),
+        args[:max_depth],
+        args[:T](args[:min_weight]),
+        args[:T](args[:rowsample]),
+        args[:T](args[:colsample]),
+        args[:nbins],
+        args[:T](args[:alpha]),
+        args[:monotone_constraints],
+        args[:metric],
+        args[:rng],
+        args[:device])
 
     return model
 end
