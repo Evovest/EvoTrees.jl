@@ -41,10 +41,47 @@ preds_ref = predict(model, X_train);
 params1 = EvoTreeRegressor(
     device="cpu",
     loss=:linear, metric=:mse,
-    nrounds=200, nbins=32,
+    nrounds=1, nbins=16,
     lambda=0.0, gamma=0.0, eta=0.5,
+    max_depth=3, min_weight=0.0,
+    monotone_constraints=Dict(1 => -1),
+    rowsample=0.5, colsample=1.0, rng=seed)
+
+model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
+preds_mono = predict(model, X_train);
+
+using Plots
+using Colors
+x_perm = sortperm(X_train[:, 1])
+plot(X_train, Y_train, msize=1, mcolor="gray", mswidth=0, background_color=RGB(1, 1, 1), seriestype=:scatter, xaxis=("feature"), yaxis=("target"), legend=true, label="")
+plot!(X_train[:, 1][x_perm], preds_ref[x_perm], color="navy", linewidth=1.5, label="Reference")
+plot!(X_train[:, 1][x_perm], preds_mono[x_perm], color="red", linewidth=1.5, label="Monotonic")
+
+
+
+######################################
+### Logistic
+######################################
+# benchmark
+params1 = EvoTreeRegressor(
+    device="cpu",
+    loss=:logistic, metric=:logloss,
+    nrounds=200, nbins=32,
+    lambda=0.05, gamma=0.0, eta=0.05,
     max_depth=6, min_weight=0.0,
-    monotone_constraints=Dict(1 => 1),
+    rowsample=0.5, colsample=1.0, rng=seed)
+
+model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
+preds_ref = predict(model, X_train);
+
+# monotonic constraint
+params1 = EvoTreeRegressor(
+    device="cpu",
+    loss=:logistic, metric=:logloss,
+    nrounds=200, nbins=32,
+    lambda=0.05, gamma=0.0, eta=0.05,
+    max_depth=6, min_weight=0.0,
+    monotone_constraints=Dict(1 => -1),
     rowsample=0.5, colsample=1.0, rng=seed)
 
 model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
@@ -77,10 +114,10 @@ preds_ref = predict(model, X_train);
 params1 = EvoTreeGaussian(
     device="cpu",
     metric=:gaussian,
-    nrounds=200, nbins=32,
+    nrounds=1, nbins=16,
     lambda=0.0, gamma=0.0, eta=0.5,
-    max_depth=4, min_weight=0.0,
-    monotone_constraints=Dict(1 => 1),
+    max_depth=3, min_weight=0.0,
+    monotone_constraints=Dict(1 => -1),
     rowsample=0.5, colsample=1.0, rng=seed)
 
 model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);

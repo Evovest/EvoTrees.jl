@@ -223,7 +223,6 @@ function update_gains_gpu!(
     threads = min(params.nbins, MAX_THREADS)
     blocks = length(𝑗)
     @cuda blocks = blocks threads = threads hist_gains_gpu_kernel!(node.gains, node.hL, node.hR, 𝑗, params.nbins, params.lambda, params.min_weight)
-    # hist_gains_gpu!(loss, node.gains, node.hL, node.hR, 𝑗, params.nbins, params.lambda)
     CUDA.synchronize()
     return nothing
 end
@@ -262,7 +261,6 @@ function update_gains_gpu!(
     threads = thread_i
     blocks = length(𝑗)
     @cuda blocks = blocks threads = threads hist_gains_gpu_kernel_gauss!(node.gains, node.hL, node.hR, 𝑗, params.nbins, params.lambda, params.min_weight)
-    # hist_gains_gpu!(loss, node.gains, node.hL, node.hR, 𝑗, params.nbins, params.lambda)
     CUDA.synchronize()
     return nothing
 end
