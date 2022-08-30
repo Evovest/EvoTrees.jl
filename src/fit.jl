@@ -65,6 +65,12 @@ function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVec
     left = zeros(UInt32, length(nodes[1].𝑖))
     right = zeros(UInt32, length(nodes[1].𝑖))
 
+    # monotone constraints vector
+    monotone_constraints = zeros(Int32, X_size[2])
+    for (k, v) in params.monotone_constraints
+        monotone_constraints[k] = v
+    end
+
     cache = (params=deepcopy(params),
         X=X, Y=Y, K=K,
         nodes=nodes,
@@ -73,7 +79,8 @@ function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVec
         out=out, left=left, right=right,
         δ𝑤=δ𝑤,
         edges=edges,
-        X_bin=X_bin)
+        X_bin=X_bin,
+        monotone_constraints=monotone_constraints)
 
     cache.params.nrounds = 0
 
@@ -97,7 +104,7 @@ function grow_evotree!(evotree::GBTree{T}, cache) where {T,S}
         update_grads!(params.loss, cache.δ𝑤, cache.pred, cache.Y, params.alpha)
         # assign a root and grow tree
         tree = Tree(params.max_depth, evotree.K, zero(T))
-        grow_tree!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, cache.𝑗, cache.out, cache.left, cache.right, cache.X_bin, cache.K)
+        grow_tree!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, cache.𝑗, cache.out, cache.left, cache.right, cache.X_bin, cache.K, cache.monotone_constraints)
         push!(evotree.trees, tree)
         predict!(params.loss, cache.pred, tree, cache.X, cache.K)
 
@@ -114,7 +121,7 @@ function grow_tree!(
     δ𝑤::Matrix{T},
     edges,
     𝑗, out, left, right,
-    X_bin::AbstractMatrix, K) where {T,U,S}
+    X_bin::AbstractMatrix, K, monotone_constraints) where {T,U,S}
 
     # reset nodes
     @threads for n in eachindex(nodes)
@@ -156,7 +163,7 @@ function grow_tree!(
                 pred_leaf_cpu!(params.loss, tree.pred, n, nodes[n].∑, params, K, δ𝑤, nodes[n].𝑖)
             else
                 # histogram subtraction
-                update_gains!(params.loss, nodes[n], 𝑗, params, K)
+                update_gains!(params.loss, nodes[n], 𝑗, params, K, monotone_constraints)
                 best = findmax(nodes[n].gains)
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.gamma
                     tree.gain[n] = best[1] - nodes[n].gain

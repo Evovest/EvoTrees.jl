@@ -487,7 +487,7 @@ EvoTreeGaussian is used to perform Gaussain probabilistic regression, fitting μ
 - `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 - `metric::Symbol=:none`:       Metric that is to be tracked during the training process. One of: `:none`, `:gaussian`.
-- `device="cpu"`:               Hardware device to use for computations. Only CPU is supported at the moment.
+- `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
 # Internal API
 
