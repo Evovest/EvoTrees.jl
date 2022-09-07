@@ -163,6 +163,8 @@ function EvoTreeCount(; kwargs...)
 
     if args[:loss] != :poisson
         error("Invalid loss: $(args[:loss]). Only `:poisson` is supported by EvoTreeCount.")
+    else
+        args[:loss] = Poisson()
     end
 
     args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
@@ -330,7 +332,7 @@ function EvoTreeGaussian(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
 
-    model = EvoTreeCount(
+    model = EvoTreeGaussian(
         args[:loss],
         args[:nrounds],
         args[:T](args[:lambda]),

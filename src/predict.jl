@@ -103,7 +103,7 @@ function pred_scalar_cpu!(::S, ∑::Vector{T}, params::EvoTypes, K) where {S<:Ga
 end
 
 # prediction in Leaf - MultiClassRegression
-function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K) where {S<:MultiClassRegression,T}
+function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S<:MultiClassRegression,T}
     @inbounds for k = 1:K
         pred[k, n] = -params.eta * ∑[k] / (∑[k+K] + params.lambda * ∑[2*K+1])
     end

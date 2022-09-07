@@ -67,7 +67,7 @@ function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVec
 
     # monotone constraints vector
     monotone_constraints = zeros(Int32, X_size[2])
-    for (k, v) in params.monotone_constraints
+    hasproperty(params, :monotone_constraints) && for (k, v) in params.monotone_constraints
         monotone_constraints[k] = v
     end
 
