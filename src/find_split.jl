@@ -27,25 +27,6 @@ function binarize(X, edges)
 end
 
 """
-    Non Allocating split_set!
-        Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
-"""
-# function split_set!(left::V, right::V, 𝑖, X_bin::Matrix{S}, feat, cond_bin::S, offset) where {S,V}    
-#     left_count = 0
-#     right_count = 0
-#     @inbounds for i in 1:length(𝑖)
-#         @inbounds if X_bin[𝑖[i], feat] <= cond_bin
-#             left_count += 1
-#             left[offset + left_count] = 𝑖[i]
-#         else
-#             right[offset + length(𝑖) - right_count] = 𝑖[i]
-#             right_count += 1
-#         end
-#     end
-#     return (view(left, (offset + 1):(offset + left_count)), view(right, (offset + length(𝑖)):-1:(offset + left_count + 1)))
-# end
-
-"""
     Multi-threaded split_set!
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
 """
@@ -127,7 +108,7 @@ function update_hist!(
     𝑖::AbstractVector{S},
     𝑗::AbstractVector{S}, K) where {L<:GradientRegression,T,S}
 
-    @inbounds @threads for j in 𝑗
+    @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
             hid = 3 * X_bin[i, j] - 2
             hist[j][hid] += δ𝑤[1, i]
@@ -150,7 +131,7 @@ function update_hist!(
     𝑖::AbstractVector{S},
     𝑗::AbstractVector{S}, K) where {L<:GaussianRegression,T,S}
 
-    @inbounds @threads for j in 𝑗
+    @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
             hid = 5 * X_bin[i, j] - 4
             hist[j][hid] += δ𝑤[1, i]
@@ -175,10 +156,10 @@ function update_hist!(
     𝑖::AbstractVector{S},
     𝑗::AbstractVector{S}, K) where {L,T,S}
 
-    @inbounds @threads for j in 𝑗
-        @inbounds @simd for i in 𝑖
+    @threads for j in 𝑗
+        @inbounds for i in 𝑖
             hid = (2 * K + 1) * (X_bin[i, j] - 1)
-            for k = 1:(2*K+1)
+            for k in 1:(2*K+1)
                 hist[j][hid+k] += δ𝑤[k, i]
             end
         end
@@ -188,85 +169,13 @@ end
 
 
 """
-    update_gains!
-    GradientRegression
-"""
-function update_gains!(
-    loss::L,
-    node::TrainNode{T},
-    𝑗::Vector{S},
-    params::EvoTypes, K, monotone_constraints) where {L<:GradientRegression,T,S}
+    update_gains!(
+        loss::L,
+        node::TrainNode{T},
+        𝑗::Vector{S},
+        params::EvoTypes, K, monotone_constraints) where {L,T,S}
 
-    @inbounds @threads for j in 𝑗
-        node.hL[j][1] = node.h[j][1]
-        node.hL[j][2] = node.h[j][2]
-        node.hL[j][3] = node.h[j][3]
-
-        node.hR[j][1] = node.∑[1] - node.h[j][1]
-        node.hR[j][2] = node.∑[2] - node.h[j][2]
-        node.hR[j][3] = node.∑[3] - node.h[j][3]
-        @inbounds for bin = 2:params.nbins
-            binid = 3 * bin - 2
-            node.hL[j][binid] = node.hL[j][binid-3] + node.h[j][binid]
-            node.hL[j][binid+1] = node.hL[j][binid-2] + node.h[j][binid+1]
-            node.hL[j][binid+2] = node.hL[j][binid-1] + node.h[j][binid+2]
-
-            node.hR[j][binid] = node.hR[j][binid-3] - node.h[j][binid]
-            node.hR[j][binid+1] = node.hR[j][binid-2] - node.h[j][binid+1]
-            node.hR[j][binid+2] = node.hR[j][binid-1] - node.h[j][binid+2]
-
-        end
-        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params, K, monotone_constraints[j])
-    end
-    return nothing
-end
-
-"""
-    update_gains!
-    GaussianRegression
-"""
-function update_gains!(
-    loss::L,
-    node::TrainNode{T},
-    𝑗::Vector{S},
-    params::EvoTypes, K, monotone_constraints) where {L<:GaussianRegression,T,S}
-
-    @inbounds @threads for j in 𝑗
-        node.hL[j][1] = node.h[j][1]
-        node.hL[j][2] = node.h[j][2]
-        node.hL[j][3] = node.h[j][3]
-        node.hL[j][4] = node.h[j][4]
-        node.hL[j][5] = node.h[j][5]
-
-        node.hR[j][1] = node.∑[1] - node.h[j][1]
-        node.hR[j][2] = node.∑[2] - node.h[j][2]
-        node.hR[j][3] = node.∑[3] - node.h[j][3]
-        node.hR[j][4] = node.∑[4] - node.h[j][4]
-        node.hR[j][5] = node.∑[5] - node.h[j][5]
-        @inbounds for bin in 2:params.nbins
-            binid = 5 * bin - 4
-            node.hL[j][binid] = node.hL[j][binid-5] + node.h[j][binid]
-            node.hL[j][binid+1] = node.hL[j][binid-4] + node.h[j][binid+1]
-            node.hL[j][binid+2] = node.hL[j][binid-3] + node.h[j][binid+2]
-            node.hL[j][binid+3] = node.hL[j][binid-2] + node.h[j][binid+3]
-            node.hL[j][binid+4] = node.hL[j][binid-1] + node.h[j][binid+4]
-
-            node.hR[j][binid] = node.hR[j][binid-5] - node.h[j][binid]
-            node.hR[j][binid+1] = node.hR[j][binid-4] - node.h[j][binid+1]
-            node.hR[j][binid+2] = node.hR[j][binid-3] - node.h[j][binid+2]
-            node.hR[j][binid+3] = node.hR[j][binid-2] - node.h[j][binid+3]
-            node.hR[j][binid+4] = node.hR[j][binid-1] - node.h[j][binid+4]
-
-        end
-        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params, K, monotone_constraints[j])
-    end
-    return nothing
-end
-
-
-"""
-    update_gains!
-        Generic fallback
+Generic fallback
 """
 function update_gains!(
     loss::L,

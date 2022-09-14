@@ -140,6 +140,8 @@ EvoTreeRegressor is used to perform the following regression types:
 - `rowsample=1.0`:        Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `colsample=1.0`:        Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `nbins=32`:             Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
+- `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
+  Only `:linear` and `:logistic` losses are supported at the moment.
 - `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 - `metric::Symbol=:none`: Metric that is to be tracked during the training process. One of: `:none`, `:mse`, `:mae`, `:logloss`.
 - `device="cpu"`:         Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`. Only `:linear` and `:logistic` losses are supported on GPU.
@@ -365,6 +367,7 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
 - `rowsample=1.0`:              Proportion of rows that are sampled at each iteration to build the tree. Should be `]0, 1]`.
 - `colsample=1.0`:              Proportion of columns / features that are sampled at each iteration to build the tree. Should be `]0, 1]`.
 - `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
+- `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing).
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 - `metric::Symbol=:none`:       Metric that is to be tracked during the training process. One of: `:none`, `:poisson`, `:mae`, `:mse`.
 - `device="cpu"`:               Hardware device to use for computations. Only CPU is supported at the moment.
@@ -485,6 +488,8 @@ EvoTreeGaussian is used to perform Gaussain probabilistic regression, fitting μ
 - `rowsample=1.0`:              Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `colsample=1.0`:              Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
+- `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
+  !Experimental feature: note that for Gaussian regression, constraints may not be enforce systematically.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 - `metric::Symbol=:none`:       Metric that is to be tracked during the training process. One of: `:none`, `:gaussian`.
 - `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.

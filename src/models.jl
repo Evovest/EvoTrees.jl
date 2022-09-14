@@ -324,7 +324,7 @@ function EvoTreeGaussian(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
 
-    model = EvoTreeCount(
+    model = EvoTreeGaussian(
         args[:loss],
         args[:nrounds],
         args[:T](args[:lambda]),

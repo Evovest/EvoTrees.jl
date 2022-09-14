@@ -70,7 +70,7 @@ function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVec
 
     # assign monotone contraints in constraints vector
     monotone_constraints = zeros(Int32, X_size[2])
-    isdefined(params, :monotone_constraint) && for (k, v) in params.monotone_constraints
+    hasproperty(params, :monotone_constraint) && for (k, v) in params.monotone_constraints
         monotone_constraints[k] = v
     end
 
@@ -147,7 +147,7 @@ function grow_tree!(
         offset = 0 # identifies breakpoint for each node set within a depth
 
         if depth < params.max_depth
-            for n_id ∈ 1:length(n_current)
+            for n_id in eachindex(n_current)
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
