@@ -101,7 +101,7 @@ function predict(model::GBTreeGPU{T}, X::AbstractMatrix) where {T}
         pred[2, :] = exp.(pred[2, :])
     elseif typeof(model.params.loss) == Softmax
         pred = transpose(reshape(pred, model.K, :))
-        for i = 1:size(pred, 1)
+        for i in axes(pred, 1)
             pred[i, :] .= softmax(pred[i, :])
         end
     end

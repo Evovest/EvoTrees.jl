@@ -36,8 +36,6 @@ end
 
 function EvoTreeRegressor(; kwargs...)
 
-    args_provided = keys(kwargs)
-
     # defaults arguments
     args = Dict{Symbol,Any}(
         :T => Float64,
@@ -126,8 +124,6 @@ end
 
 function EvoTreeCount(; kwargs...)
 
-    args_provided = keys(kwargs)
-
     # defaults arguments
     args = Dict{Symbol,Any}(
         :T => Float64,
@@ -163,6 +159,8 @@ function EvoTreeCount(; kwargs...)
 
     if args[:loss] != :poisson
         error("Invalid loss: $(args[:loss]). Only `:poisson` is supported by EvoTreeCount.")
+    else
+        args[:loss] = Poisson()
     end
 
     args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
@@ -205,8 +203,6 @@ mutable struct EvoTreeClassifier{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Pr
 end
 
 function EvoTreeClassifier(; kwargs...)
-
-    args_provided = keys(kwargs)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
@@ -286,8 +282,6 @@ mutable struct EvoTreeGaussian{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Prob
 end
 
 function EvoTreeGaussian(; kwargs...)
-
-    args_provided = keys(kwargs)
 
     # defaults arguments
     args = Dict{Symbol,Any}(

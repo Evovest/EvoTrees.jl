@@ -22,7 +22,7 @@ Y = sigmoid(Y)
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace=false)
 train_size = 0.8
 𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
-𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1)) + 1:end]
+𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
 
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
@@ -31,7 +31,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 params1 = EvoTreeRegressor(T=Float32,
     loss=:linear, metric=:mse,
     nrounds=200, nbins=64,
-    λ=0.5, γ=0.1, η=0.1,
+    lambda=0.5, gamma=0.1, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.1, colsample=1.0,
     device="gpu")
@@ -47,13 +47,13 @@ sum(pred_train_linear_gpu .- pred_train_linear_cpu)
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
 @time pred_train_linear = predict(model, X_train)
 mean(abs.(pred_train_linear .- Y_train))
-sqrt(mean((pred_train_linear .- Y_train).^2))
+sqrt(mean((pred_train_linear .- Y_train) .^ 2))
 
 # logistic / cross-entropy
 params1 = EvoTreeRegressor(T=Float32,
     loss=:logistic, metric=:logloss,
     nrounds=200, nbins=64,
-    λ=0.5, γ=0.1, η=0.1,
+    lambda=0.5, gamma=0.1, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0,
     device="gpu")
@@ -63,12 +63,12 @@ params1 = EvoTreeRegressor(T=Float32,
 # 218.040 ms (123372 allocations: 34.71 MiB)
 # @btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train_logistic = predict(model, X_train)
-sqrt(mean((pred_train_logistic .- Y_train).^2))
+sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
 
-x_perm = sortperm(X_train[:,1])
+x_perm = sortperm(X_train[:, 1])
 plot(X_train, Y_train, msize=1, mcolor="gray", mswidth=0, background_color=RGB(1, 1, 1), seriestype=:scatter, xaxis=("feature"), yaxis=("target"), legend=true, label="")
-plot!(X_train[:,1][x_perm], pred_train_linear[x_perm], color="navy", linewidth=1.5, label="Linear")
-plot!(X_train[:,1][x_perm], pred_train_logistic[x_perm], color="darkred", linewidth=1.5, label="Logistic")
+plot!(X_train[:, 1][x_perm], pred_train_linear[x_perm], color="navy", linewidth=1.5, label="Linear")
+plot!(X_train[:, 1][x_perm], pred_train_logistic[x_perm], color="darkred", linewidth=1.5, label="Logistic")
 # plot!(X_train[:,1][x_perm], pred_train_poisson[x_perm], color = "green", linewidth = 1.5, label = "Poisson")
 # plot!(X_train[:,1][x_perm], pred_train_L1[x_perm], color = "pink", linewidth = 1.5, label = "L1")
 savefig("figures/regression_sinus_gpu.png")
@@ -80,7 +80,7 @@ savefig("figures/regression_sinus_gpu.png")
 params1 = EvoTreeGaussian(T=Float32,
     loss=:gaussian, metric=:gaussian,
     nrounds=200, nbins=64,
-    λ=1.0, γ=0.1, η=0.1,
+    lambda=1.0, gamma=0.1, eta=0.1,
     max_depth=6, min_weight=0.1,
     rowsample=0.5, colsample=1.0, rng=123,
     device="gpu")
@@ -90,17 +90,17 @@ params1 = EvoTreeGaussian(T=Float32,
 # @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
 @time pred_train_gaussian = EvoTrees.predict(model, X_train)
 
-pred_gauss = [Distributions.Normal(pred_train_gaussian[i,1], pred_train_gaussian[i,2]) for i in 1:size(pred_train_gaussian, 1)]
+pred_gauss = [Distributions.Normal(pred_train_gaussian[i, 1], pred_train_gaussian[i, 2]) for i in axes(pred_train_gaussian, 1)]
 pred_q80 = quantile.(pred_gauss, 0.8)
 pred_q20 = quantile.(pred_gauss, 0.2)
 
 mean(Y_train .< pred_q80)
 mean(Y_train .< pred_q20)
 
-x_perm = sortperm(X_train[:,1])
+x_perm = sortperm(X_train[:, 1])
 plot(X_train[:, 1], Y_train, ms=1, mcolor="gray", mswidth=0, background_color=RGB(1, 1, 1), seriestype=:scatter, xaxis=("feature"), yaxis=("target"), legend=true, label="")
-plot!(X_train[:,1][x_perm], pred_train_gaussian[x_perm, 1], color="navy", linewidth=1.5, label="mu")
-plot!(X_train[:,1][x_perm], pred_train_gaussian[x_perm, 2], color="darkred", linewidth=1.5, label="sigma")
-plot!(X_train[:,1][x_perm], pred_q20[x_perm, 1], color="green", linewidth=1.5, label="q20")
-plot!(X_train[:,1][x_perm], pred_q80[x_perm, 1], color="green", linewidth=1.5, label="q80")
+plot!(X_train[:, 1][x_perm], pred_train_gaussian[x_perm, 1], color="navy", linewidth=1.5, label="mu")
+plot!(X_train[:, 1][x_perm], pred_train_gaussian[x_perm, 2], color="darkred", linewidth=1.5, label="sigma")
+plot!(X_train[:, 1][x_perm], pred_q20[x_perm, 1], color="green", linewidth=1.5, label="q20")
+plot!(X_train[:, 1][x_perm], pred_q80[x_perm, 1], color="green", linewidth=1.5, label="q80")
 savefig("figures/gaussian_sinus_gpu.png")

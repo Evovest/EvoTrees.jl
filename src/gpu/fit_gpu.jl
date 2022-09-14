@@ -49,9 +49,9 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     left = CUDA.zeros(UInt32, length(nodes[1].𝑖))
     right = CUDA.zeros(UInt32, length(nodes[1].𝑖))
 
-    # monotone constraints vector
+    # assign monotone contraints in constraints vector
     monotone_constraints = zeros(Int32, X_size[2])
-    for (k, v) in params.monotone_constraints
+    isdefined(params, :monotone_constraint) && for (k, v) in params.monotone_constraints
         monotone_constraints[k] = v
     end
 

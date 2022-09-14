@@ -9,7 +9,10 @@ function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVec
     levels = nothing
     X = convert(Matrix{T}, X)
 
-    if typeof(params.loss) == Poisson
+    if typeof(params.loss) == Logistic
+        Y = T.(Y)
+        μ = [logit(mean(Y))]
+    elseif typeof(params.loss) == Poisson
         Y = T.(Y)
         μ = fill(log(mean(Y)), 1)
     elseif typeof(params.loss) == Softmax
@@ -65,9 +68,9 @@ function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVec
     left = zeros(UInt32, length(nodes[1].𝑖))
     right = zeros(UInt32, length(nodes[1].𝑖))
 
-    # monotone constraints vector
+    # assign monotone contraints in constraints vector
     monotone_constraints = zeros(Int32, X_size[2])
-    for (k, v) in params.monotone_constraints
+    isdefined(params, :monotone_constraint) && for (k, v) in params.monotone_constraints
         monotone_constraints[k] = v
     end
 
