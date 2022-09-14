@@ -101,7 +101,7 @@ function predict(model::GBTreeGPU{T}, X::AbstractMatrix) where {T}
         pred[2, :] = exp.(pred[2, :])
     elseif typeof(model.params.loss) == Softmax
         pred = transpose(reshape(pred, model.K, :))
-        for i = 1:size(pred, 1)
+        for i in axes(pred, 1)
             pred[i, :] .= softmax(pred[i, :])
         end
     end
@@ -114,10 +114,16 @@ function pred_leaf_gpu!(::S, p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, pa
     @allowscalar(p[1, n] = -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3]))
     return nothing
 end
+function pred_scalar_gpu!(::S, ∑::AbstractVector{T}, lambda) where {S<:GradientRegression,T}
+    @allowscalar(-∑[1] / (∑[2] + lambda * ∑[3]))
+end
 
 # prediction in Leaf - Gaussian
 function pred_leaf_gpu!(::S, p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes) where {S<:GaussianRegression,T}
     p[1, n] = -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5])
     p[2, n] = -params.eta * ∑[2] / (∑[4] + params.lambda * ∑[5])
     return nothing
+end
+function pred_scalar_gpu!(::S, ∑::AbstractVector{T}, params::EvoTypes) where {S<:GradientRegression,T}
+    @allowscalar(-params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5]))
 end

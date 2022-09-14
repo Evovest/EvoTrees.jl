@@ -30,7 +30,7 @@ params_evo = EvoTreeRegressor(T=Float32,
         rowsample=0.5, colsample=0.5, nbins=64)
 
 
-nobs = Int(5e6)
+nobs = Int(1e6)
 num_feat = Int(100)
 @info "testing with: $nobs observations | $num_feat features."
 X = rand(nobs, num_feat)

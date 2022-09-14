@@ -49,6 +49,12 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     left = CUDA.zeros(UInt32, length(nodes[1].𝑖))
     right = CUDA.zeros(UInt32, length(nodes[1].𝑖))
 
+    # assign monotone contraints in constraints vector
+    monotone_constraints = zeros(Int32, X_size[2])
+    hasproperty(params, :monotone_constraint) && for (k, v) in params.monotone_constraints
+        monotone_constraints[k] = v
+    end
+
     # store cache
     cache = (params=deepcopy(params),
         X=CuArray(X), X_bin=X_bin, Y=Y, K=K,
@@ -57,7 +63,8 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
         𝑖_=𝑖_, 𝑗_=𝑗_, 𝑗=𝑗, 𝑖=Array(nodes[1].𝑖),
         out=out, left=left, right=right,
         δ𝑤=δ𝑤,
-        edges=edges)
+        edges=edges,
+        monotone_constraints=CuArray(monotone_constraints))
 
     cache.params.nrounds = 0
 
@@ -83,7 +90,7 @@ function grow_evotree!(evotree::GBTreeGPU{T}, cache) where {T}
         update_grads_gpu!(params.loss, cache.δ𝑤, cache.pred, cache.Y)
         # # assign a root and grow tree
         tree = TreeGPU(params.max_depth, evotree.K, zero(T))
-        grow_tree_gpu!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, CuVector(cache.𝑗), cache.out, cache.left, cache.right, cache.X_bin, cache.K)
+        grow_tree_gpu!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, CuVector(cache.𝑗), cache.out, cache.left, cache.right, cache.X_bin, cache.K, cache.monotone_constraints)
         push!(evotree.trees, tree)
         # update predctions
         predict!(params.loss, cache.pred, tree, cache.X, cache.K)
@@ -101,7 +108,7 @@ function grow_tree_gpu!(
     δ𝑤::AbstractMatrix{T},
     edges,
     𝑗, out, left, right,
-    X_bin::AbstractMatrix, K) where {T,U,S}
+    X_bin::AbstractMatrix, K, monotone_constraints) where {T,U,S}
 
     n_next = [1]
     n_current = copy(n_next)
@@ -123,7 +130,7 @@ function grow_tree_gpu!(
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
         if depth < params.max_depth
-            for n_id ∈ 1:length(n_current)
+            for n_id in eachindex(n_current)
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
@@ -144,7 +151,7 @@ function grow_tree_gpu!(
             if depth == params.max_depth || @allowscalar(nodes[n].∑[end] <= params.min_weight)
                 pred_leaf_gpu!(params.loss, tree.pred, n, Array(nodes[n].∑), params)
             else
-                update_gains_gpu!(params.loss, nodes[n], 𝑗, params, K)
+                update_gains_gpu!(params.loss, nodes[n], 𝑗, params, K, monotone_constraints)
                 best = findmax(nodes[n].gains)
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.gamma
                     allowscalar() do

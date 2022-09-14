@@ -71,22 +71,18 @@ function update_grads!(::Gaussian, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}
 end
 
 # utility functions
-function logit(x::AbstractArray{T,1}) where {T<:AbstractFloat}
-    @. x = log(x / (1 - x))
-    return x
+function logit(x::AbstractArray{T}) where {T<:AbstractFloat}
+    return logit.(x)
+end
+@inline function logit(x::T) where {T<:AbstractFloat}
+    @fastmath log(x / (1 - x))
 end
 
-function logit(x::T) where {T<:AbstractFloat}
-    log(x / (1 - x))
+function sigmoid(x::AbstractArray{T}) where {T<:AbstractFloat}
+    return sigmoid.(x)
 end
-
-function sigmoid(x::AbstractArray{T,1}) where {T<:AbstractFloat}
-    @. x = 1 / (1 + exp(-x))
-    return x
-end
-
-function sigmoid(x::T) where {T<:AbstractFloat}
-    1 / (1 + exp(-x))
+@inline function sigmoid(x::T) where {T<:AbstractFloat}
+    @fastmath 1 / (1 + exp(-x))
 end
 
 function softmax(x::AbstractVector{T}) where {T<:AbstractFloat}

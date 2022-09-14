@@ -7,6 +7,7 @@ using Test
 
     @testset "Internal API" begin
         include("core.jl")
+        include("monotonic.jl")
     end
 
     @testset "MLJ" begin
