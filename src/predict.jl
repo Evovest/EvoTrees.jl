@@ -71,10 +71,11 @@ function predict(model::GBTree{T}, X::AbstractMatrix) where {T}
     for tree in model.trees
         predict!(model.params.loss, pred, tree, X, model.K)
     end
+
     if typeof(model.params.loss) == Logistic
-        @. pred = sigmoid(pred)
-    elseif typeof(model.params.loss) == Poisson
-        @. pred = exp(pred)
+        pred .= sigmoid.(pred)
+    elseif typeof(model.params.loss) ∈ [Poisson, Gamma, Tweedie]
+        pred .= exp.(pred)
     elseif typeof(model.params.loss) == Gaussian
         pred[2, :] .= exp.(pred[2, :])
     elseif typeof(model.params.loss) == Softmax
@@ -82,6 +83,7 @@ function predict(model::GBTree{T}, X::AbstractMatrix) where {T}
             pred[:, i] .= softmax(pred[:, i])
         end
     end
+
     return Array(transpose(pred))
 end
 

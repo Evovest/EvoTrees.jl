@@ -5,8 +5,10 @@ abstract type QuantileRegression <: ModelType end
 abstract type MultiClassRegression <: ModelType end
 abstract type GaussianRegression <: ModelType end
 struct Linear <: GradientRegression end
-struct Poisson <: GradientRegression end
 struct Logistic <: GradientRegression end
+struct Poisson <: GradientRegression end
+struct Gamma <: GradientRegression end
+struct Tweedie <: GradientRegression end
 struct L1 <: L1Regression end
 struct Quantile <: QuantileRegression end
 struct Softmax <: MultiClassRegression end
@@ -73,6 +75,10 @@ function EvoTreeRegressor(; kwargs...)
         args[:loss] = Linear()
     elseif args[:loss] == :logistic
         args[:loss] = Logistic()
+    elseif args[:loss] == :gamma
+        args[:loss] = Gamma()
+    elseif args[:loss] == :tweedie
+        args[:loss] = Tweedie()
     elseif args[:loss] == :L1
         args[:loss] = L1()
     elseif args[:loss] == :quantile

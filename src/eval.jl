@@ -54,6 +54,27 @@ function eval_metric(::Val{:poisson}, p::AbstractMatrix{T}, y::AbstractVector{T}
     return eval
 end
 
+function eval_metric(::Val{:gamma}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha=0.0) where {T<:AbstractFloat}
+    eval = zero(T)
+    @inbounds for i in eachindex(y)
+        pred = exp(p[1, i])
+        eval += w[i] * 2 * (log(pred / y[i]) + y[i] / pred - 1)
+    end
+    eval /= sum(w)
+    return eval
+end
+
+function eval_metric(::Val{:tweedie}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha=0.0) where {T<:AbstractFloat}
+    eval = zero(T)
+    rho = T(1.5)
+    @inbounds for i in eachindex(y)
+        pred = exp(p[1, i])
+        eval += w[i] * 2 * (y[i]^(2 - rho) / (1 - rho) / (2 - rho) - y[i] * pred^(1 - rho) / (1 - rho) + pred^(2 - rho) / (2 - rho))
+    end
+    eval /= sum(w)
+    return eval
+end
+
 function eval_metric(::Val{:gaussian}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha=0.0) where {T<:AbstractFloat}
     eval = zero(T)
     @inbounds for i in eachindex(y)
