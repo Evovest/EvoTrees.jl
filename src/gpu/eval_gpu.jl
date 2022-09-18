@@ -37,7 +37,6 @@ function eval_metric(::Val{:logloss}, eval::AbstractVector{T}, p::AbstractMatrix
     return sum(eval) / sum(w)
 end
 
-
 """
     Gaussian
 """
@@ -57,26 +56,71 @@ function eval_metric(::Val{:gaussian}, eval::AbstractVector{T}, p::AbstractMatri
     return sum(eval) / sum(w)
 end
 
+"""
+    
+Poisson Deviance
+"""
+function eval_poisson_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    ϵ = eps(T(1e-7))
+    if i <= length(y)
+        @inbounds pred = exp(p[1, i])
+        @inbounds eval[i] = w[i] * 2 * (y[i] * log(y[i] / pred + ϵ) + pred - y[i])
+    end
+    return nothing
+end
+
+function eval_metric(::Val{:poisson}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+    threads = min(MAX_THREADS, length(y))
+    blocks = ceil(Int, length(y) / threads)
+    @cuda blocks = blocks threads = threads eval_poisson_kernel!(eval, p, y, w)
+    CUDA.synchronize()
+    return sum(eval) / sum(w)
+end
 
 """
-    Poisson
-        Unsupported factorial/gamma on CUDA at the moment
+    
+Gamma Deviance
 """
-# function eval_pois_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T <: AbstractFloat}
-#     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-#     if i <= length(y)
-#         @inbounds eval[i] = exp(p[1,i]) * (1 - y[i]) + loggamma(y[i] + 1)
-#     end
-#     return nothing
-# end
+function eval_gamma_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= length(y)
+        @inbounds pred = exp(p[1, i])
+        @inbounds eval[i] = w[i] * 2 * (log(pred / y[i]) + y[i] / pred - 1)
+    end
+    return nothing
+end
 
-# function eval_metric(::Val{:poisson}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, alpha; MAX_THREADS=1024) where T <: AbstractFloat
-#     threads = min(MAX_THREADS, length(y))
-#     blocks = ceil(Int, length(y) / threads)
-#     @cuda blocks = blocks threads = threads eval_pois_kernel!(eval, p, y)
-#     CUDA.synchronize()
-#     return mean(eval)
-# end
+function eval_metric(::Val{:gamma}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+    threads = min(MAX_THREADS, length(y))
+    blocks = ceil(Int, length(y) / threads)
+    @cuda blocks = blocks threads = threads eval_gamma_kernel!(eval, p, y, w)
+    CUDA.synchronize()
+    return sum(eval) / sum(w)
+end
+
+"""
+    
+Tweedie Deviance
+"""
+function eval_tweedie_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    rho = T(1.5)
+    if i <= length(y)
+        pred = exp(p[1, i])
+        @inbounds eval[i] = w[i] * 2 * (y[i]^(2 - rho) / (1 - rho) / (2 - rho) - y[i] * pred^(1 - rho) / (1 - rho) + pred^(2 - rho) / (2 - rho))
+
+    end
+    return nothing
+end
+
+function eval_metric(::Val{:tweedie}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+    threads = min(MAX_THREADS, length(y))
+    blocks = ceil(Int, length(y) / threads)
+    @cuda blocks = blocks threads = threads eval_tweedie_kernel!(eval, p, y, w)
+    CUDA.synchronize()
+    return sum(eval) / sum(w)
+end
 
 # function eval_metric(::Val{:mlogloss}, pred::AbstractMatrix{T}, y::Vector{S}, alpha=0.0) where {T <: AbstractFloat, S <: Integer}
 #     eval = zero(T)

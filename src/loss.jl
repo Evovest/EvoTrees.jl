@@ -18,8 +18,28 @@ end
 # Poisson
 function update_grads!(::Poisson, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
     @inbounds for i in eachindex(y)
-        δ𝑤[1, i] = (exp(p[1, i]) .- y[i]) * δ𝑤[3, i]
-        δ𝑤[2, i] = exp(p[1, i]) * δ𝑤[3, i]
+        pred = exp(p[1, i])
+        δ𝑤[1, i] = (pred - y[i]) * δ𝑤[3, i]
+        δ𝑤[2, i] = pred * δ𝑤[3, i]
+    end
+end
+
+# Gamma
+function update_grads!(::Gamma, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
+    @inbounds for i in eachindex(y)
+        pred = exp(p[1, i])
+        δ𝑤[1, i] = 2 * (1 - y[i] / pred) * δ𝑤[3, i]
+        δ𝑤[2, i] = 2 * y[i] / pred * δ𝑤[3, i]
+    end
+end
+
+# Tweedie
+function update_grads!(::Tweedie, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
+    rho = T(1.5)
+    @inbounds for i in eachindex(y)
+        pred = exp(p[1, i])
+        δ𝑤[1, i] = 2 * (pred^(2 - rho) - y[i] * pred^(1 - rho)) * δ𝑤[3, i]
+        δ𝑤[2, i] = 2 * ((2 - rho) * pred^(2 - rho) - (1 - rho) * y[i] * pred^(1 - rho)) * δ𝑤[3, i]
     end
 end
 

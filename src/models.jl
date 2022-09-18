@@ -5,8 +5,10 @@ abstract type QuantileRegression <: ModelType end
 abstract type MultiClassRegression <: ModelType end
 abstract type GaussianRegression <: ModelType end
 struct Linear <: GradientRegression end
-struct Poisson <: GradientRegression end
 struct Logistic <: GradientRegression end
+struct Poisson <: GradientRegression end
+struct Gamma <: GradientRegression end
+struct Tweedie <: GradientRegression end
 struct L1 <: L1Regression end
 struct Quantile <: QuantileRegression end
 struct Softmax <: MultiClassRegression end
@@ -51,7 +53,7 @@ function EvoTreeRegressor(; kwargs...)
         :nbins => 32,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
-        :metric => :mse,
+        :metric => :none,
         :rng => 123,
         :device => "cpu"
     )
@@ -73,6 +75,10 @@ function EvoTreeRegressor(; kwargs...)
         args[:loss] = Linear()
     elseif args[:loss] == :logistic
         args[:loss] = Logistic()
+    elseif args[:loss] == :gamma
+        args[:loss] = Gamma()
+    elseif args[:loss] == :tweedie
+        args[:loss] = Tweedie()
     elseif args[:loss] == :L1
         args[:loss] = L1()
     elseif args[:loss] == :quantile
@@ -139,7 +145,7 @@ function EvoTreeCount(; kwargs...)
         :nbins => 32,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
-        :metric => :mse,
+        :metric => :none,
         :rng => 123,
         :device => "cpu"
     )
@@ -161,6 +167,10 @@ function EvoTreeCount(; kwargs...)
         error("Invalid loss: $(args[:loss]). Only `:poisson` is supported by EvoTreeCount.")
     else
         args[:loss] = Poisson()
+    end
+
+    if args[:metric] == :poisson
+        @warn "Poisson metric breaking change.\nStarting with EvoTrees.jl v0.11.0, `:poisson` metric now returns the deviance, while it previously returned the log-likelihood."
     end
 
     args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
@@ -218,7 +228,7 @@ function EvoTreeClassifier(; kwargs...)
         :colsample => 1.0,
         :nbins => 32,
         :alpha => 0.5,
-        :metric => :mse,
+        :metric => :none,
         :rng => 123,
         :device => "cpu"
     )
@@ -298,7 +308,7 @@ function EvoTreeGaussian(; kwargs...)
         :nbins => 32,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
-        :metric => :mse,
+        :metric => :none,
         :rng => 123,
         :device => "cpu"
     )
