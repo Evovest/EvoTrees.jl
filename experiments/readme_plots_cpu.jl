@@ -29,8 +29,8 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 # linear
 params1 = EvoTreeRegressor(T=Float64,
     loss=:linear, metric=:mse,
-    nrounds=100, nbins=64,
-    lambda=0.1, gamma=0.1, eta=0.1,
+    nrounds=200, nbins=64,
+    lambda=0.1, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0,
     rng=123)
@@ -52,8 +52,8 @@ sqrt(mean((pred_train_linear .- Y_train) .^ 2))
 # linear weighted
 params1 = EvoTreeRegressor(T=Float64,
     loss=:linear, metric=:mse,
-    nrounds=100, nbins=64,
-    λ=0.1, γ=0.1, η=1.0,
+    nrounds=200, nbins=64,
+    lambda=0.1, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0,
     rng=123)
@@ -107,35 +107,48 @@ plot(X_train, Y_train, msize=1, mcolor="gray", mswidth=0, background_color=RGB(1
 plot!(X_train[:, 1][x_perm], pred_train_linear[x_perm], color="navy", linewidth=1.5, label="Linear")
 plot!(X_train[:, 1][x_perm], pred_train_linear_w[x_perm], color="lightblue", linewidth=1.5, label="LinearW")
 plot!(X_train[:, 1][x_perm], pred_train_logistic[x_perm], color="darkred", linewidth=1.5, label="Logistic")
-plot!(X_train[:, 1][x_perm], pred_train_poisson[x_perm], color="green", linewidth=1.5, label="Poisson")
 plot!(X_train[:, 1][x_perm], pred_train_L1[x_perm], color="pink", linewidth=1.5, label="L1")
 savefig("figures/regression_sinus.png")
-
-
 
 # Poisson
 params1 = EvoTreeCount(
     loss=:poisson, metric=:poisson,
     nrounds=200, nbins=64,
-    lambda=0.1, gamma=0.1, eta=0.05,
+    lambda=0.5, gamma=0.1, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 @time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
-# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train_poisson = predict(model, X_train);
-@time pred_eval_poisson = predict(model, X_eval)
 sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
 
+# Gamma
+params1 = EvoTreeRegressor(
+    loss=:gamma, metric=:gamma,
+    nrounds=200, nbins=64,
+    lambda=0.5, gamma=0.1, eta=0.1,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=1.0)
+@time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
+@time pred_train_gamma = predict(model, X_train);
+sqrt(mean((pred_train_gamma .- Y_train) .^ 2))
+
+# Tweedie
+params1 = EvoTreeRegressor(
+    loss=:tweedie, metric=:tweedie,
+    nrounds=200, nbins=64,
+    lambda=0.5, gamma=0.1, eta=0.1,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=1.0)
+@time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
+@time pred_train_tweedie = predict(model, X_train);
+sqrt(mean((pred_train_tweedie .- Y_train) .^ 2))
 
 x_perm = sortperm(X_train[:, 1])
 plot(X_train, Y_train, msize=1, mcolor="gray", mswidth=0, background_color=RGB(1, 1, 1), seriestype=:scatter, xaxis=("feature"), yaxis=("target"), legend=true, label="")
-plot!(X_train[:, 1][x_perm], pred_train_linear[x_perm], color="navy", linewidth=1.5, label="Linear")
-plot!(X_train[:, 1][x_perm], pred_train_linear_w[x_perm], color="lightblue", linewidth=1.5, label="LinearW")
-plot!(X_train[:, 1][x_perm], pred_train_logistic[x_perm], color="darkred", linewidth=1.5, label="Logistic")
-plot!(X_train[:, 1][x_perm], pred_train_poisson[x_perm], color="green", linewidth=1.5, label="Poisson")
-plot!(X_train[:, 1][x_perm], pred_train_L1[x_perm], color="pink", linewidth=1.5, label="L1")
-savefig("figures/regression_sinus.png")
-
+plot!(X_train[:, 1][x_perm], pred_train_poisson[x_perm], color="navy", linewidth=1.5, label="Poisson")
+plot!(X_train[:, 1][x_perm], pred_train_gamma[x_perm], color="lightblue", linewidth=1.5, label="Gamma")
+plot!(X_train[:, 1][x_perm], pred_train_tweedie[x_perm], color="darkred", linewidth=1.5, label="Tweedie")
+savefig("figures/regression_sinus2.png")
 
 
 ###############################
