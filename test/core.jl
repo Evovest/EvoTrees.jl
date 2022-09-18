@@ -42,7 +42,6 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 end
 
 @testset "EvoTreeRegressor - Logistic" begin
-    # logistic / cross-entropy
     params1 = EvoTreeRegressor(
         loss=:logistic, metric=:logloss,
         nrounds=100,
@@ -61,8 +60,45 @@ end
     @test mse_gain_pct < -0.75
 end
 
+@testset "EvoTreeRegressor - Gamma" begin
+    params1 = EvoTreeRegressor(
+        loss=:gamma, metric=:gamma,
+        nrounds=100,
+        lambda=0.5, gamma=0.1, eta=0.05,
+        max_depth=6, min_weight=1.0,
+        rowsample=0.5, colsample=1.0, rng=123)
+
+    model, cache = EvoTrees.init_evotree(params1, X_train, Y_train)
+    preds_ini = EvoTrees.predict(model, X_eval)
+    mse_error_ini = mean(abs.(preds_ini .- Y_eval) .^ 2)
+    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
+
+    preds = EvoTrees.predict(model, X_eval)
+    mse_error = mean(abs.(preds .- Y_eval) .^ 2)
+    mse_gain_pct = mse_error / mse_error_ini - 1
+    @test mse_gain_pct < -0.75
+end
+
+@testset "EvoTreeRegressor - Tweedie" begin
+    params1 = EvoTreeRegressor(
+        loss=:tweedie, metric=:tweedie,
+        nrounds=100,
+        lambda=0.5, gamma=0.1, eta=0.05,
+        max_depth=6, min_weight=1.0,
+        rowsample=0.5, colsample=1.0, rng=123)
+
+    model, cache = EvoTrees.init_evotree(params1, X_train, Y_train)
+    preds_ini = EvoTrees.predict(model, X_eval)
+    mse_error_ini = mean(abs.(preds_ini .- Y_eval) .^ 2)
+    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
+
+    preds = EvoTrees.predict(model, X_eval)
+    mse_error = mean(abs.(preds .- Y_eval) .^ 2)
+    mse_gain_pct = mse_error / mse_error_ini - 1
+    @test mse_gain_pct < -0.75
+end
+
 @testset "EvoTreeRegressor - L1" begin
-    # L1
     params1 = EvoTreeRegressor(
         loss=:L1, alpha=0.5, metric=:mae,
         nrounds=100, nbins=100,
@@ -82,7 +118,6 @@ end
 end
 
 @testset "EvoTreeRegressor - Quantile" begin
-    # Quantiles
     params1 = EvoTreeRegressor(
         loss=:quantile, alpha=0.5, metric=:quantile,
         nrounds=100, nbins=100,
@@ -102,7 +137,6 @@ end
 end
 
 @testset "EvoTreeCount - Count" begin
-    # Poisson
     params1 = EvoTreeCount(
         loss=:poisson, metric=:poisson,
         nrounds=100,
@@ -122,7 +156,6 @@ end
 end
 
 @testset "EvoTreeGaussian - Gaussian" begin
-    # Gaussian
     params1 = EvoTreeGaussian(
         loss=:gaussian, metric=:gaussian,
         nrounds=100, nbins=100,
@@ -143,7 +176,7 @@ end
 
 @testset "EvoTrees - Feature Importance" begin
     params1 = EvoTreeRegressor(
-        loss=:linear, metric=:mse,
+        loss=:linear, metric=:mae,
         nrounds=100, nbins=100,
         lambda=0.5, gamma=0.1, eta=0.05,
         max_depth=6, min_weight=1.0,

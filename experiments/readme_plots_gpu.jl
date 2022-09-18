@@ -37,8 +37,6 @@ params1 = EvoTreeRegressor(T=Float32,
     device="gpu")
 
 @time model = fit_evotree(params1, X_train, Y_train, print_every_n=25);
-# @time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
-# 67.159 ms (77252 allocations: 28.06 MiB)
 model_cpu = convert(EvoTrees.GBTree, model);
 pred_train_linear_gpu = predict(model, X_train)
 pred_train_linear_cpu = predict(model_cpu, X_train)
@@ -59,29 +57,68 @@ params1 = EvoTreeRegressor(T=Float32,
     device="gpu")
 
 @time model = fit_evotree(params1, X_train, Y_train, print_every_n=25);
-# @time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
-# 218.040 ms (123372 allocations: 34.71 MiB)
-# @btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train_logistic = predict(model, X_train)
 sqrt(mean((pred_train_logistic .- Y_train) .^ 2))
+
+# poisson
+params1 = EvoTreeCount(T=Float32,
+    loss=:poisson, metric=:poisson,
+    nrounds=200, nbins=64,
+    lambda=0.5, gamma=0.1, eta=0.1,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=1.0,
+    device="gpu")
+
+@time model = fit_evotree(params1, X_train, Y_train, print_every_n=25);
+@time pred_train_poisson = predict(model, X_train)
+sqrt(mean((pred_train_poisson .- Y_train) .^ 2))
+
+# gamma
+params1 = EvoTreeRegressor(T=Float32,
+    loss=:gamma, metric=:gamma,
+    nrounds=200, nbins=64,
+    lambda=0.5, gamma=0.1, eta=0.1,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=1.0,
+    device="gpu")
+
+@time model = fit_evotree(params1, X_train, Y_train, print_every_n=25);
+@time pred_train_gamma = predict(model, X_train)
+sqrt(mean((pred_train_gamma .- Y_train) .^ 2))
+
+
+# tweedie
+params1 = EvoTreeRegressor(T=Float32,
+    loss=:tweedie, metric=:tweedie,
+    nrounds=200, nbins=64,
+    lambda=0.5, gamma=0.1, eta=0.1,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=1.0,
+    device="gpu")
+
+@time model = fit_evotree(params1, X_train, Y_train, print_every_n=25);
+@time pred_train_tweedie = predict(model, X_train)
+sqrt(mean((pred_train_tweedie .- Y_train) .^ 2))
 
 x_perm = sortperm(X_train[:, 1])
 plot(X_train, Y_train, msize=1, mcolor="gray", mswidth=0, background_color=RGB(1, 1, 1), seriestype=:scatter, xaxis=("feature"), yaxis=("target"), legend=true, label="")
 plot!(X_train[:, 1][x_perm], pred_train_linear[x_perm], color="navy", linewidth=1.5, label="Linear")
 plot!(X_train[:, 1][x_perm], pred_train_logistic[x_perm], color="darkred", linewidth=1.5, label="Logistic")
-# plot!(X_train[:,1][x_perm], pred_train_poisson[x_perm], color = "green", linewidth = 1.5, label = "Poisson")
-# plot!(X_train[:,1][x_perm], pred_train_L1[x_perm], color = "pink", linewidth = 1.5, label = "L1")
+plot!(X_train[:,1][x_perm], pred_train_poisson[x_perm], color = "green", linewidth = 1.5, label = "Poisson")
+plot!(X_train[:,1][x_perm], pred_train_gamma[x_perm], color = "pink", linewidth = 1.5, label = "Gamma")
+plot!(X_train[:,1][x_perm], pred_train_tweedie[x_perm], color = "orange", linewidth = 1.5, label = "Tweedie")
 savefig("figures/regression_sinus_gpu.png")
 
 
 ###############################
 ## gaussian
 ###############################
+EvoTrees.CUDA.allowscalar(false)
 params1 = EvoTreeGaussian(T=Float32,
     loss=:gaussian, metric=:gaussian,
     nrounds=200, nbins=64,
-    lambda=1.0, gamma=0.1, eta=0.1,
-    max_depth=6, min_weight=0.1,
+    lambda=1.0, gamma=0.1, eta=0.05,
+    max_depth=6, min_weight=5,
     rowsample=0.5, colsample=1.0, rng=123,
     device="gpu")
 

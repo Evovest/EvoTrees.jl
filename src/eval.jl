@@ -47,8 +47,10 @@ end
 
 function eval_metric(::Val{:poisson}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha=0.0) where {T<:AbstractFloat}
     eval = zero(T)
+    ϵ = eps(T)
     @inbounds for i in eachindex(y)
-        eval += w[i] * (exp(p[1, i]) * (1 - y[i]) + loggamma(y[i] + 1))
+        pred = exp(p[1, i])
+        eval += w[i] * 2 * (y[i] * log(y[i] / pred + ϵ) + pred - y[i])
     end
     eval /= sum(w)
     return eval

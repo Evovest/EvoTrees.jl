@@ -8,7 +8,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     if typeof(params.loss) == Logistic
         Y = CuArray(T.(Y))
         μ = [logit(mean(Y))]
-    elseif typeof(params.loss) == Poisson
+    elseif typeof(params.loss) ∈ [Poisson, Gamma, Tweedie]
         Y = CuArray(T.(Y))
         μ = fill(log(mean(Y)), 1)
     elseif typeof(params.loss) == Gaussian

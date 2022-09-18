@@ -12,7 +12,7 @@ function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVec
     if typeof(params.loss) == Logistic
         Y = T.(Y)
         μ = [logit(mean(Y))]
-    elseif typeof(params.loss) == Poisson
+    elseif typeof(params.loss) ∈ [Poisson, Gamma, Tweedie]
         Y = T.(Y)
         μ = fill(log(mean(Y)), 1)
     elseif typeof(params.loss) == Softmax

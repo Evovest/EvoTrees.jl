@@ -18,8 +18,9 @@ end
 # Poisson
 function update_grads!(::Poisson, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
     @inbounds for i in eachindex(y)
-        δ𝑤[1, i] = (exp(p[1, i]) .- y[i]) * δ𝑤[3, i]
-        δ𝑤[2, i] = exp(p[1, i]) * δ𝑤[3, i]
+        pred = exp(p[1, i])
+        δ𝑤[1, i] = (pred - y[i]) * δ𝑤[3, i]
+        δ𝑤[2, i] = pred * δ𝑤[3, i]
     end
 end
 
