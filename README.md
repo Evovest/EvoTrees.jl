@@ -7,13 +7,13 @@
 | [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][ci-img]][ci-url] |
 
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
-[docs-latest-url]: https://jeremiedb.github.io/EvoTrees.jl/dev
+[docs-latest-url]: https://evovest.github.io/EvoTrees.jl/dev
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
-[docs-stable-url]: https://jeremiedb.github.io/EvoTrees.jl/stable
+[docs-stable-url]: https://evovest.github.io/EvoTrees.jl/stable
 
-[ci-img]: https://github.com/jeremiedb/EvoTrees.jl/workflows/CI/badge.svg
-[ci-url]: https://github.com/jeremiedb/EvoTrees.jl/actions?query=workflow%3ACI+branch%3Amain
+[ci-img]: https://github.com/Evovest/EvoTrees.jl/workflows/CI/badge.svg
+[ci-url]: https://github.com/Evovest/EvoTrees.jl/actions?query=workflow%3ACI+branch%3Amain
 
 A Julia implementation of boosted trees with CPU and GPU support.
 Efficient histogram based algorithms with support for multiple loss functions (notably multi-target objectives such as max likelihood methods).
