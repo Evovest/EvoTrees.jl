@@ -1,9 +1,19 @@
 
 # EvoTrees <a href="https://evovest.github.io/EvoTrees.jl/dev/"><img src="figures/hex-evotrees-2.png" align="right" height="160"/></a>
 
-[![Build status](https://github.com/Evovest/EvoTrees.jl/workflows/CI/badge.svg)](https://github.com/Evovest/EvoTrees.jl/actions)
-[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://Evovest.github.io/EvoTrees.jl/stable)
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://Evovest.github.io/EvoTrees.jl/dev)
+
+| Documentation | CI Status |
+|:------------------------:|:----------------:|
+| [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][ci-img]][ci-url] |
+
+[docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
+[docs-latest-url]: https://jeremiedb.github.io/EvoTrees.jl/dev
+
+[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-stable-url]: https://jeremiedb.github.io/EvoTrees.jl/stable
+
+[ci-img]: https://github.com/jeremiedb/EvoTrees.jl/workflows/CI/badge.svg
+[ci-url]: https://github.com/jeremiedb/EvoTrees.jl/actions?query=workflow%3ACI+branch%3Amain
 
 A Julia implementation of boosted trees with CPU and GPU support.
 Efficient histogram based algorithms with support for multiple loss functions (notably multi-target objectives such as max likelihood methods).
@@ -19,6 +29,8 @@ Input features are expected to be `Matrix{Float64/Float32}` when using the inter
 - linear
 - logistic
 - Poisson
+- Gamma
+- Tweedie
 - L1 (mae regression)
 - Quantile
 - multiclassification (softmax)
@@ -30,6 +42,9 @@ Set parameter `device="cpu"`.
 
 - linear
 - logistic
+- Poisson
+- Gamma
+- Tweedie
 - Gaussian (max likelihood)
 
 Set parameter `device="gpu"`.

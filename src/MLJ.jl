@@ -126,7 +126,14 @@ EvoTreeRegressor is used to perform the following regression types:
 
 # Hyper-parameters
 
-- `loss=:linear`:         One of `:linear`, `:logistic`, `:gamma`, `tweedie`, `:quantile`, `:L1`.
+- `loss=:linear`:         Loss to be be minimized during training. One of:
+
+  - `:linear`
+  - `:logistic`
+  - `:gamma`
+  - `tweedie`
+  - `:quantile`
+  - `:L1`
 - `nrounds=10`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
 - `lambda::T=0.0`:        L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma::T=0.0`:         Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model.
@@ -146,7 +153,7 @@ EvoTreeRegressor is used to perform the following regression types:
   Only `:linear`, `:logistic`, `:gamma` and `tweedie` losses are supported at the moment.
 - `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 - `metric::Symbol=:none`: Metric that is to be tracked during the training process. One of: `:none`, `:mse`, `:mae`, `:logloss`, `:gamma`, `:tweedie`.
-- `device="cpu"`:         Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`. Only `:linear` and `:logistic` losses are supported on GPU.
+- `device="cpu"`:         Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`. Only `:linear`, `:logistic`, `:gamma` and `tweedie` losses are supported on GPU.
 
 # Internal API
 
@@ -372,7 +379,7 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing).
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 - `metric::Symbol=:none`:       Metric that is to be tracked during the training process. One of: `:none`, `:poisson`, `:mae`, `:mse`.
-- `device="cpu"`:               Hardware device to use for computations. Only CPU is supported at the moment.
+- `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
 # Internal API
 
