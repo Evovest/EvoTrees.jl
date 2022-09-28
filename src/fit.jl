@@ -3,7 +3,7 @@
     
 Initialise EvoTree
 """
-function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVector, W=nothing) where {T,U,S}
+function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVector, W=nothing, offset=nothing) where {T,U,S}
 
     K = 1
     levels = nothing
@@ -12,9 +12,11 @@ function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVec
     if typeof(params.loss) == Logistic
         Y = T.(Y)
         μ = [logit(mean(Y))]
+        !isnothing(offset) && (offset .= logit.(offset))
     elseif typeof(params.loss) ∈ [Poisson, Gamma, Tweedie]
         Y = T.(Y)
         μ = fill(log(mean(Y)), 1)
+        !isnothing(offset) && (offset .= log.(offset))
     elseif typeof(params.loss) == Softmax
         if eltype(Y) <: CategoricalValue
             levels = CategoricalArrays.levels(Y)
@@ -28,21 +30,26 @@ function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVec
             μ = zeros(T, K)
             Y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
+        !isnothing(offset) && offset .= log.(offset)
     elseif typeof(params.loss) == Gaussian
         K = 2
         Y = T.(Y)
         μ = [mean(Y), log(std(Y))]
+        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     else
         Y = T.(Y)
         μ = [mean(Y)]
     end
 
+    # force a neutral bias/initial tree when offset is specified
+    !isnothing(offset) && (μ .= 0)
     # initialize preds
     X_size = size(X)
     pred = zeros(T, K, X_size[1])
     @inbounds for i = 1:X_size[1]
         pred[:, i] .= μ
     end
+    !isnothing(offset) && (pred .+= offset')
 
     bias = Tree(μ)
     evotree = GBTree([bias], params, Metric(), K, levels)
@@ -207,32 +214,35 @@ end
 
 
 """
-    fit_evotree(params, X_train, Y_train, W_train=nothing;
-        X_eval=nothing, Y_eval=nothing, W_eval = nothing,
+    fit_evotree(params, x_train, y_train, w_train=nothing, offset_train=nothing;
+        x_eval=nothing, y_eval=nothing, w_eval = nothing, offset_eval=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
         verbosity=1)
 
-Main training function. Performs model fitting given configuration `params`, `X_train`, `Y_train` input data. 
+Main training function. Performs model fitting given configuration `params`, `x_train`, `y_train` input data. 
 
 # Arguments
 
 - `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` comprises EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount or EvoTreeGaussian
-- `X_train::Matrix`: training data of size `[#observations, #features]`. 
-- `Y_train::Vector`: vector of train targets of length `#observations`.
-- `W_train::Vector`: vector of train weights of length `#observations`. Defaults to `nothing` and a vector of ones is assumed.
+- `x_train::Matrix`: training data of size `[#observations, #features]`. 
+- `y_train::Vector`: vector of train targets of length `#observations`.
+- `w_train::Vector`: vector of train weights of length `#observations`. Defaults to `nothing` and a vector of ones is assumed.
+- `offset_train::VecOrMat`: offset for the training data. Defaults to `nothing`. Should match the size of the predictions.
 
 # Keyword arguments
 
-- `X_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
-- `Y_eval::Vector`: vector of evaluation targets of length `#observations`.
-- `W_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
+- `x_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
+- `y_eval::Vector`: vector of evaluation targets of length `#observations`.
+- `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
+- `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
 """
-function fit_evotree(params::EvoTypes, X_train::AbstractMatrix, Y_train::AbstractVector, W_train=nothing;
-    X_eval=nothing, Y_eval=nothing, W_eval=nothing,
+function fit_evotree(params::EvoTypes;
+    x_train::AbstractMatrix, y_train::AbstractVector, w_train=nothing, offset_train=nothing,
+    x_eval=nothing, y_eval=nothing, w_eval=nothing, offset_eval=nothing,
     early_stopping_rounds=9999,
     print_every_n=9999,
     verbosity=1)
@@ -248,22 +258,30 @@ function fit_evotree(params::EvoTypes, X_train::AbstractMatrix, Y_train::Abstrac
     params.nrounds = 0
 
     if params.device == "gpu"
-        model, cache = init_evotree_gpu(params, X_train, Y_train, W_train)
-        if params.metric != :none && !isnothing(X_eval)
-            X_eval = CuArray(eltype(cache.X).(X_eval))
-            Y_eval = CuArray(eltype(cache.Y).(Y_eval))
-            W_eval = isnothing(W_eval) ? CUDA.ones(eltype(cache.X), size(Y_eval)) : CuArray(eltype(cache.X).(W_eval))
-            pred_eval = predict(params.loss, model.trees[1], X_eval, model.K)
-            eval_vec = CUDA.zeros(eltype(cache.pred), size(Y_eval, 1))
+        model, cache = init_evotree_gpu(params, x_train, y_train, w_train, offset_train)
+        if params.metric != :none && !isnothing(x_eval)
+            x_eval = CuArray(eltype(cache.X).(x_eval))
+            y_eval = CuArray(eltype(cache.Y).(y_eval))
+            w_eval = isnothing(w_eval) ? CUDA.ones(eltype(cache.X), size(y_eval)) : CuArray(eltype(cache.X).(w_eval))
+            pred_eval = predict(params.loss, model.trees[1], x_eval, model.K)
+            !isnothing(offset_eval) && pred_eval .+= offset_eval
+            eval_vec = CUDA.zeros(eltype(cache.pred), size(y_eval, 1))
         elseif params.metric != :none
-            eval_vec = CUDA.zeros(eltype(cache.pred), size(Y_train, 1))
+            eval_vec = CUDA.zeros(eltype(cache.pred), size(y_train, 1))
         end
     else
-        model, cache = init_evotree(params, X_train, Y_train, W_train)
-        if params.metric != :none && !isnothing(X_eval)
-            pred_eval = predict(params.loss, model.trees[1], X_eval, model.K)
-            Y_eval = convert.(eltype(cache.Y), Y_eval)
-            W_eval = isnothing(W_eval) ? ones(eltype(cache.X), size(Y_eval)) : eltype(cache.X).(W_eval)
+        model, cache = init_evotree(params, x_train, y_train, w_train, offset_train)
+        if params.metric != :none && !isnothing(x_eval)
+            pred_eval = predict(params.loss, model.trees[1], x_eval, model.K)
+            if !isnothing(offset_eval)
+                typeof(params.loss) == Logistic && offset_eval .= logit.(offset_eval)
+                typeof(params.loss) in [Poisson, Gamma, Tweedie] && offset_eval .= log.(offset_eval)
+                typeof(params.loss) == Softmax && offset_eval .= log.(offset_eval)
+                typeof(params.loss) == Softmax && offset_eval[2, :] .= offset_eval[2, :]
+                pred_eval .+= offset_eval
+            end
+            y_eval = convert.(eltype(cache.Y), y_eval)
+            w_eval = isnothing(w_eval) ? ones(eltype(cache.X), size(y_eval)) : eltype(cache.X).(w_eval)
         end
     end
 
@@ -272,16 +290,15 @@ function fit_evotree(params::EvoTypes, X_train::AbstractMatrix, Y_train::Abstrac
         grow_evotree!(model, cache)
         # callback function
         if params.metric != :none
-            if X_eval !== nothing
-                predict!(params.loss, pred_eval, model.trees[model.params.nrounds+1], X_eval, model.K)
+            if x_eval !== nothing
+                predict!(params.loss, pred_eval, model.trees[model.params.nrounds+1], x_eval, model.K)
                 if params.device == "gpu"
-                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, pred_eval, Y_eval, W_eval, params.alpha)
+                    metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, pred_eval, y_eval, w_eval, params.alpha)
                 else
-                    metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, Y_eval, W_eval, params.alpha)
+                    metric_track.metric = eval_metric(Val{params.metric}(), pred_eval, y_eval, w_eval, params.alpha)
                 end
             else
                 if params.device == "gpu"
-                    # println("mean(pred_eval): ", mean(cache.pred))
                     metric_track.metric = eval_metric(Val{params.metric}(), eval_vec, cache.pred, cache.Y, cache.δ𝑤[end, :], params.alpha)
                 else
                     metric_track.metric = eval_metric(Val{params.metric}(), cache.pred, cache.Y, cache.δ𝑤[end, :], params.alpha)

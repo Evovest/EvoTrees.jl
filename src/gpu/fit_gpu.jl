@@ -1,5 +1,5 @@
 function init_evotree_gpu(params::EvoTypes{T,U,S},
-    X::AbstractMatrix, Y::AbstractVector, W=nothing) where {T,U,S}
+    X::AbstractMatrix, Y::AbstractVector, W=nothing, offset=nothing) where {T,U,S}
 
     K = 1
     levels = nothing
@@ -8,22 +8,28 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     if typeof(params.loss) == Logistic
         Y = CuArray(T.(Y))
         μ = [logit(mean(Y))]
+        !isnothing(offset) && (offset .= logit.(offset))
     elseif typeof(params.loss) ∈ [Poisson, Gamma, Tweedie]
         Y = CuArray(T.(Y))
         μ = fill(log(mean(Y)), 1)
+        !isnothing(offset) && (offset .= log.(offset))
     elseif typeof(params.loss) == Gaussian
         K = 2
         Y = CuArray(T.(Y))
         μ = [mean(Y), log(std(Y))]
+        !isnothing(offset) && (offset[2, :] .= log.(offset[2, :]))
     else
         Y = CuArray(T.(Y))
         μ = [mean(Y)]
     end
 
+    # force a neutral bias/initial tree when offset is specified
+    !isnothing(offset) && (μ .= 0)
     # initialize preds
     X_size = size(X)
     pred = CUDA.zeros(T, K, X_size[1])
     pred .= CuArray(μ)
+    !isnothing(offset) && (pred .+= offset)
 
     bias = TreeGPU(CuArray(μ))
     evotree = GBTreeGPU([bias], params, Metric(), K, levels)
