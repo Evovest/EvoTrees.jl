@@ -54,7 +54,7 @@ plot!(X_train[:, 1][x_perm], pred_train_linear_offset[x_perm], color="lightblue"
 ###############################
 params1 = EvoTreeGaussian(
     loss=:gaussian, metric=:gaussian,
-    nrounds=40, nbins=64,
+    nrounds=400, nbins=64,
     lambda=0.1, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=1.0, colsample=1.0, rng=123)
@@ -62,13 +62,21 @@ params1 = EvoTreeGaussian(
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=10);
 @time pred_train = EvoTrees.predict(model, X_train);
 
-@time model_offset = fit_evotree(params1; x_train, y_train, offset_train = pred_train, x_eval, y_eval, print_every_n=10);
-@time pred_train_offset = pred_train .+ EvoTrees.predict(model_offset, X_train);
+@time model_res = fit_evotree(params1; x_train, y_train, offset_train=copy(pred_train), x_eval, y_eval, print_every_n=10);
+@time pred_train_res = EvoTrees.predict(model_res, X_train);
+pred_train_stack = copy(pred_train)
+pred_train_stack[:,2] .= log.(pred_train_stack[:,2])
+pred_train_res_stack = copy(pred_train_res)
+pred_train_res_stack[:,2] .= log.(pred_train_res_stack[:,2])
+pred_train_tot = pred_train_stack + pred_train_res_stack
+pred_train_tot[:,2] .= exp.(pred_train_tot[:,2])
 
 x_perm = sortperm(X_train[:, 1])
 plot(X_train[:, 1], Y_train, ms=1, mcolor="gray", mswidth=0, background_color=RGB(1, 1, 1), seriestype=:scatter, xaxis=("feature"), yaxis=("target"), legend=true, label="")
 plot!(X_train[:, 1][x_perm], pred_train[x_perm, 1], color="navy", linewidth=1.5, label="mu")
-plot!(X_train[:, 1][x_perm], pred_train_offset[x_perm, 1], color="lightblue", linewidth=1.5, label="mu-offset")
+plot!(X_train[:, 1][x_perm], pred_train_res[x_perm, 1], color="blue", linewidth=1.5, label="mu-res")
+plot!(X_train[:, 1][x_perm], pred_train_tot[x_perm, 1], color="lightblue", linewidth=1.5, label="mu-tot")
 
 plot!(X_train[:, 1][x_perm], pred_train[x_perm, 2], color="darkred", linewidth=1.5, label="sigma")
-plot!(X_train[:, 1][x_perm], pred_train_offset[x_perm, 2], color="red", linewidth=1.5, label="sigma-offset")
+plot!(X_train[:, 1][x_perm], pred_train_res[x_perm, 2], color="red", linewidth=1.5, label="sigma-res")
+plot!(X_train[:, 1][x_perm], pred_train_tot[x_perm, 2], color="pink", linewidth=1.5, label="sigma-tot")
