@@ -5,7 +5,8 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y)
     fitresult, cache = init_evotree(model, A.matrix, y)
   end
   grow_evotree!(fitresult, cache)
-  report = (feature_importances=importance(fitresult, A.names),)
+#  report = (feature_importances=importance(fitresult, A.names),)
+  report = (features=A.names,)
   return fitresult, cache, report
 end
 
@@ -45,7 +46,8 @@ function MMI.update(model::EvoTypes, verbosity::Integer, fitresult, cache, A, y)
     grow_evotree!(fitresult, cache)
   end
 
-  report = (feature_importances=importance(fitresult, A.names),)
+  # report = (feature_importances=importance(fitresult, A.names),)
+  report = ()
 
   return fitresult, cache, report
 end
@@ -69,6 +71,22 @@ function predict(::EvoTreeGaussian, fitresult, A)
   pred = predict(fitresult, A.matrix)
   return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i = 1:size(pred, 1)]
 end
+
+
+# # Feature Importances
+MMI.reports_feature_importances(::Type{<:EvoTreeClassifier}) = true
+MMI.reports_feature_importances(::Type{<:EvoTreeRegressor}) = true
+MMI.reports_feature_importances(::Type{<:EvoTreeCount}) = true
+MMI.reports_feature_importances(::Type{<:EvoTreeGaussian}) = true
+
+function MMI.feature_importances(m::Union{EvoTreeClassifier, EvoTreeRegressor, EvoTreeCount, EvoTreeGaussian}, fitresult, report)
+    fi_pairs = importance(fitresult, report.features)
+    sort!(fi_pairs, by= x->-x[2])
+    return fi_pairs
+end
+
+
+
 
 # Metadata
 const EvoTreeRegressor_desc = "Regression models with various underlying methods: least square, quantile, logistic."
@@ -203,7 +221,7 @@ The fields of `fitted_params(mach)` are:
 ## Report
 
 The fields of `report(mach)` are:
-  - `:feature_importances`: Feature importances based on the gain brought at each node split in the form of a `Vector{Pair{String, Float64}}`.
+  - `:features`: The names of the features encountered in training.
 
 # Examples
 
@@ -316,7 +334,7 @@ The fields of `fitted_params(mach)` are:
 ## Report
 
 The fields of `report(mach)` are:
-  - `:feature_importances`: Feature importances based on the gain brought at each node split in the form of a `Vector{Pair{String, Float64}}`.
+  - `:features`: The names of the features encountered in training.
 
 # Examples
 
@@ -433,7 +451,7 @@ The fields of `fitted_params(mach)` are:
 ## Report
 
 The fields of `report(mach)` are:
-  - `:feature_importances`: Feature importances based on the gain brought at each node split in the form of a `Vector{Pair{String, Float64}}`.
+  - `:features`: The names of the features encountered in training.
 
 # Examples
 
@@ -559,8 +577,7 @@ The fields of `fitted_params(mach)` are:
 ## Report
 
 The fields of `report(mach)` are:
-
-  - `:feature_importances`: Feature importances based on the gain brought at each node split in the form of a `Vector{Pair{String, Float64}}`.
+  - `:features`: The names of the features encountered in training.
 
 # Examples
 
