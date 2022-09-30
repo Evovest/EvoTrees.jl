@@ -214,8 +214,9 @@ end
 
 
 """
-    fit_evotree(params, x_train, y_train, w_train=nothing, offset_train=nothing;
-        x_eval=nothing, y_eval=nothing, w_eval = nothing, offset_eval=nothing,
+    fit_evotree(params;
+        x_train, y_train, w_train=nothing, offset_train=nothing;
+        x_eval=nothing, y_eval=nothing, w_eval=nothing, offset_eval=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
         verbosity=1)
@@ -225,13 +226,13 @@ Main training function. Performs model fitting given configuration `params`, `x_
 # Arguments
 
 - `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` comprises EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount or EvoTreeGaussian
-- `x_train::Matrix`: training data of size `[#observations, #features]`. 
-- `y_train::Vector`: vector of train targets of length `#observations`.
-- `w_train::Vector`: vector of train weights of length `#observations`. Defaults to `nothing` and a vector of ones is assumed.
-- `offset_train::VecOrMat`: offset for the training data. Defaults to `nothing`. Should match the size of the predictions.
 
 # Keyword arguments
 
+- `x_train::Matrix`: training data of size `[#observations, #features]`. 
+- `y_train::Vector`: vector of train targets of length `#observations`.
+- `w_train::Vector`: vector of train weights of length `#observations`. If `nothing`, a vector of ones is assumed.
+- `offset_train::VecOrMat`: offset for the training data. Should match the size of the predictions.
 - `x_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
 - `y_eval::Vector`: vector of evaluation targets of length `#observations`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
