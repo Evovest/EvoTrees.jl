@@ -71,6 +71,10 @@ function EvoTreeRegressor(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
+    args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
+    args[:loss] = Symbol(args[:loss])
+    args[:metric] = Symbol(args[:metric])
+
     if args[:loss] == :linear
         args[:loss] = Linear()
     elseif args[:loss] == :logistic
@@ -86,8 +90,6 @@ function EvoTreeRegressor(; kwargs...)
     else
         error("Invalid loss: $(args[:loss]). Only [`:linear`, `:logistic`, `:L1`, `:quantile`] are supported at the moment by EvoTreeRegressor.")
     end
-
-    args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
 
     model = EvoTreeRegressor(
         args[:loss],
@@ -163,6 +165,10 @@ function EvoTreeCount(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
+    args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
+    args[:loss] = Symbol(args[:loss])
+    args[:metric] = Symbol(args[:metric])
+
     if args[:loss] != :poisson
         error("Invalid loss: $(args[:loss]). Only `:poisson` is supported by EvoTreeCount.")
     else
@@ -172,8 +178,6 @@ function EvoTreeCount(; kwargs...)
     if args[:metric] == :poisson
         @warn "Poisson metric breaking change.\nStarting with EvoTrees.jl v0.11.0, `:poisson` metric now returns the deviance, while it previously returned the log-likelihood."
     end
-
-    args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
 
     model = EvoTreeCount(
         args[:loss],
@@ -246,13 +250,15 @@ function EvoTreeClassifier(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
+    args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
+    args[:loss] = Symbol(args[:loss])
+    args[:metric] = Symbol(args[:metric])
+
     if args[:loss] != :softmax
         error("Invalid loss: $(args[:loss]). Only `:softmax` is supported by EvoTreeClassifier.")
     else
         args[:loss] = Softmax()
     end
-
-    args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
 
     model = EvoTreeClassifier(
         args[:loss],
@@ -326,13 +332,15 @@ function EvoTreeGaussian(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
+    args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
+    args[:loss] = Symbol(args[:loss])
+    args[:metric] = Symbol(args[:metric])
+
     if args[:loss] != :gaussian
         error("Invalid loss: $(args[:loss]). Only `:gaussian` is supported by EvoTreeGaussian.")
     else
         args[:loss] = Gaussian()
     end
-
-    args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
 
     model = EvoTreeGaussian(
         args[:loss],
@@ -350,50 +358,6 @@ function EvoTreeGaussian(; kwargs...)
         args[:metric],
         args[:rng],
         args[:device])
-
-    return model
-end
-
-
-# For R-package
-function EvoTreeRModels(
-    loss,
-    nrounds,
-    lambda,
-    gamma,
-    eta,
-    max_depth,
-    min_weight,
-    rowsample,
-    colsample,
-    nbins,
-    alpha,
-    metric,
-    rng,
-    device)
-
-    rng = mk_rng(rng)::Random.AbstractRNG
-
-    if loss ∈ [:linear, :L1, :logistic, :quantile]
-        if loss == :linear
-            model_type = Linear()
-        elseif loss == :logistic
-            model_type = Logistic()
-        elseif loss == :quantile
-            model_type = Quantile()
-        elseif loss == :L1
-            model_type = L1()
-        end
-        model = EvoTreeRegressor(model_type, nrounds, Float32(lambda), Float32(gamma), Float32(eta), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(alpha), metric, rng, device)
-    elseif loss == :poisson
-        model = EvoTreeCount(Poisson(), nrounds, Float32(lambda), Float32(gamma), Float32(eta), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(alpha), metric, rng, device)
-    elseif loss == :softmax
-        model = EvoTreeClassifier(Softmax(), nrounds, Float32(lambda), Float32(gamma), Float32(eta), max_depth, Float32(min_weight), Float32(rowsample), Float32(colsample), nbins, Float32(alpha), metric, rng, device)
-    elseif loss == :gaussian
-        model = EvoTreeGaussian(Gaussian(), nrounds, Float64(lambda), Float64(gamma), Float64(eta), max_depth, Float64(min_weight), Float64(rowsample), Float64(colsample), nbins, Float64(alpha), metric, rng, device)
-    else
-        throw("invalid loss")
-    end
 
     return model
 end

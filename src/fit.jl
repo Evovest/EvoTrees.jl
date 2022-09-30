@@ -257,6 +257,12 @@ function fit_evotree(params::EvoTypes;
     nrounds_max = params.nrounds
     params.nrounds = 0
 
+    if !isnothing(offset_eval)
+        typeof(params.loss) == Logistic && (offset_eval .= logit.(offset_eval))
+        typeof(params.loss) in [Poisson, Gamma, Tweedie] && (offset_eval .= log.(offset_eval))
+        typeof(params.loss) == Softmax && (offset_eval .= log.(offset_eval))
+        typeof(params.loss) == Gaussian && (offset_eval[:, 2] .= log.(offset_eval[:, 2]))
+    end
     if params.device == "gpu"
         model, cache = init_evotree_gpu(params, x_train, y_train, w_train, offset_train)
         if params.metric != :none && !isnothing(x_eval)
@@ -264,24 +270,18 @@ function fit_evotree(params::EvoTypes;
             y_eval = CuArray(eltype(cache.Y).(y_eval))
             w_eval = isnothing(w_eval) ? CUDA.ones(eltype(cache.X), size(y_eval)) : CuArray(eltype(cache.X).(w_eval))
             pred_eval = predict(params.loss, model.trees[1], x_eval, model.K)
-            !isnothing(offset_eval) && pred_eval .+= offset_eval
+            !isnothing(offset_eval) && (pred_eval .+= CuArray(offset_eval'))
             eval_vec = CUDA.zeros(eltype(cache.pred), size(y_eval, 1))
         elseif params.metric != :none
             eval_vec = CUDA.zeros(eltype(cache.pred), size(y_train, 1))
         end
-    else
+    else # params.device == "cpu"
         model, cache = init_evotree(params, x_train, y_train, w_train, offset_train)
         if params.metric != :none && !isnothing(x_eval)
-            pred_eval = predict(params.loss, model.trees[1], x_eval, model.K)
-            if !isnothing(offset_eval)
-                typeof(params.loss) == Logistic && offset_eval .= logit.(offset_eval)
-                typeof(params.loss) in [Poisson, Gamma, Tweedie] && offset_eval .= log.(offset_eval)
-                typeof(params.loss) == Softmax && offset_eval .= log.(offset_eval)
-                typeof(params.loss) == Softmax && offset_eval[2, :] .= offset_eval[2, :]
-                pred_eval .+= offset_eval
-            end
             y_eval = convert.(eltype(cache.Y), y_eval)
             w_eval = isnothing(w_eval) ? ones(eltype(cache.X), size(y_eval)) : eltype(cache.X).(w_eval)
+            pred_eval = predict(params.loss, model.trees[1], x_eval, model.K)
+            !isnothing(offset_eval) && (pred_eval .+= offset_eval')
         end
     end
 

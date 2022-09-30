@@ -17,7 +17,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
         K = 2
         Y = CuArray(T.(Y))
         μ = [mean(Y), log(std(Y))]
-        !isnothing(offset) && (offset[2, :] .= log.(offset[2, :]))
+        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     else
         Y = CuArray(T.(Y))
         μ = [mean(Y)]
@@ -29,7 +29,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     X_size = size(X)
     pred = CUDA.zeros(T, K, X_size[1])
     pred .= CuArray(μ)
-    !isnothing(offset) && (pred .+= offset)
+    !isnothing(offset) && (pred .+= CuArray(offset'))
 
     bias = TreeGPU(CuArray(μ))
     evotree = GBTreeGPU([bias], params, Metric(), K, levels)
