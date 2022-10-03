@@ -62,10 +62,11 @@ end
 Metric() = Metric(0, Inf)
 
 # gradient-boosted tree is formed by a vector of trees
-struct GBTree{T<:AbstractFloat}
+struct GBTree{T<:AbstractFloat,U,S}
     trees::Vector{Tree{T}}
-    params::EvoTypes
+    params::EvoTypes{T,U,S}
     metric::Metric
     K::Int
     levels
 end
+(m::GBTree)(x::AbstractMatrix) = predict(m, x)

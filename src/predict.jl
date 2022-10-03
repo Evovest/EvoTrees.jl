@@ -66,7 +66,7 @@ end
 
 Predictions from an EvoTrees model - sums the predictions from all trees composing the model.
 """
-function predict(model::GBTree{T}, X::AbstractMatrix) where {T}
+function predict(model::GBTree{T,U,S}, X::AbstractMatrix{R}) where {T,U,S,R}
     pred = zeros(T, model.K, size(X, 1))
     for tree in model.trees
         predict!(model.params.loss, pred, tree, X, model.K)

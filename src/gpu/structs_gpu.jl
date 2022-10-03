@@ -53,10 +53,11 @@ TreeGPU(x::CuVector{T}) where {T<:AbstractFloat} = TreeGPU(CUDA.zeros(Int, 1), C
 TreeGPU(depth, K, ::T) where {T<:AbstractFloat} = TreeGPU(CUDA.zeros(Int, 2^depth - 1), CUDA.zeros(UInt8, 2^depth - 1), CUDA.zeros(T, 2^depth - 1), CUDA.zeros(T, 2^depth - 1), CUDA.zeros(T, K, 2^depth - 1), CUDA.zeros(Bool, 2^depth - 1))
 
 # gradient-boosted tree is formed by a vector of trees
-struct GBTreeGPU{T<:AbstractFloat}
+struct GBTreeGPU{T<:AbstractFloat,U,S}
     trees::Vector{TreeGPU{T}}
-    params::EvoTypes
+    params::EvoTypes{T,U,S}
     metric::Metric
     K::Int
     levels
 end
+(m::GBTreeGPU)(x::AbstractMatrix) = predict(m, x)

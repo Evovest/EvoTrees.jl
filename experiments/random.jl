@@ -1,6 +1,6 @@
+using Revise
 using Statistics
 using StatsBase: sample
-using Revise
 using EvoTrees
 using BenchmarkTools
 
@@ -17,8 +17,8 @@ train_size = 0.8
 𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
 𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
 
-X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
-Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
+x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
+y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 
 #############################
@@ -32,13 +32,13 @@ params1 = EvoTreeRegressor(T=Float32,
     rowsample=0.5, colsample=0.5, nbins=64)
 
 # asus laptopt: for 1.25e6 no eval: 9.650007 seconds (893.53 k allocations: 2.391 GiB, 5.52% gc time)
-@time model = fit_evotree(params1, X_train, Y_train);
-@btime model = fit_evotree($params1, $X_train, $Y_train);
-@time pred_train = predict(model, X_train);
-@btime pred_train = predict(model, X_train);
+@time model = fit_evotree(params1; x_train, y_train);
+@btime model = fit_evotree($params1; $x_train, $y_train);
+@time pred_train = predict(model, x_train);
+@btime pred_train = predict(model, x_train);
 gain = importance(model, 1:100)
 
-@time model, cache = EvoTrees.init_evotree(params1, X_train, Y_train);
+@time model, cache = EvoTrees.init_evotree(params1, x_train, y_train);
 @time EvoTrees.grow_evotree!(model, cache);
 
 #############################
@@ -47,11 +47,13 @@ gain = importance(model, 1:100)
 params1 = EvoTreeRegressor(T=Float32,
     loss=:logistic, metric=:logloss,
     nrounds=100,
-    lambda=1.0, gamma=0, eta=0.1,
+    lambda=1.0, gamma=0.0, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=0.5, nbins=64)
-@time model = fit_evotree(params1, X_train, Y_train);
-@time pred = predict(model, X_train);
+@time model = fit_evotree(params1; x_train, y_train);
+@time pred = predict(model, x_train);
+# @code_warntype pred = predict(model, x_train)
+# @code_warntype pred = predict(model, x_train)
 
 #############################
 # CPU - Gaussian
