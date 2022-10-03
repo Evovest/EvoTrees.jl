@@ -187,3 +187,41 @@ data = MLJBase.reformat(model, X, y);
 f, c, r = MLJBase.fit(model, 2, data...);
 model.lambda = 0.1
 MLJBase.update(model, 2, f, c, data...);
+
+
+
+
+############################
+# Feature Importances
+############################
+
+# Test feature importances are defined
+for model ∈ [
+    EvoTreeClassifier(),
+    EvoTreeCount(),
+    EvoTreeRegressor(),
+    EvoTreeGaussian(),
+    ]
+
+    @test reports_feature_importances(model) == true
+end
+
+
+# Test that feature importances work for Classifier
+X, y = MLJBase.make_blobs(100, 3)
+model = EvoTreeClassifier()
+m = machine(model, X, y)
+fit!(m)
+
+rpt = MLJBase.report(m)
+fi = MLJBase.feature_importances(model, m.fitresult, rpt)
+@test size(fi, 1) == 3
+
+X, y = MLJBase.make_regression(100, 3)
+model = EvoTreeRegressor()
+m = machine(model, X, y)
+fit!(m)
+
+rpt = MLJBase.report(m)
+fi = MLJBase.feature_importances(model, m.fitresult, rpt)
+@test size(fi, 1) == 3
