@@ -68,15 +68,13 @@ function predict(::EvoTreeGaussian, fitresult, A)
 end
 
 
-# # Feature Importances
+# Feature Importances
 MMI.reports_feature_importances(::Type{<:EvoTypes}) = true
 
 function MMI.feature_importances(m::EvoTypes, fitresult, report)
   fi_pairs = importance(fitresult, report.features)
   return fi_pairs
 end
-
-
 
 
 # Metadata
