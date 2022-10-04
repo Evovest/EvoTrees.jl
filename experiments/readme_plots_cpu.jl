@@ -161,7 +161,6 @@ params1 = EvoTreeRegressor(
     lambda=1.0, gamma=0.0, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
-
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
 # 116.822 ms (74496 allocations: 36.41 MiB) for 100 iterations
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
@@ -186,7 +185,6 @@ params1 = EvoTreeRegressor(
     lambda=1.0, gamma=0.0, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
-
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 @time pred_train_q80 = predict(model, x_train)
 sum(pred_train_q80 .< y_train) / length(y_train)
