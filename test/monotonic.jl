@@ -20,8 +20,8 @@
     𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
     𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
 
-    X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
-    Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
+    x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
+    y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 
     ######################################
     ### Linear - CPU
@@ -35,8 +35,8 @@
         max_depth=6, min_weight=0.0,
         rowsample=0.5, colsample=1.0, rng=seed)
 
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
-    preds_ref = predict(model, X_train)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    preds_ref = predict(model, x_train)
 
     # monotonic constraint
     params1 = EvoTreeRegressor(
@@ -48,8 +48,8 @@
         monotone_constraints=Dict(1 => 1),
         rowsample=0.5, colsample=1.0, rng=seed)
 
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
-    preds_mono = predict(model, X_train)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    preds_mono = predict(model, x_train)
 
     # using Plots
     # using Colors
@@ -71,8 +71,8 @@
     #     max_depth=6, min_weight=0.0,
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
-    # preds_ref = predict(model, X_train);
+    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+    # preds_ref = predict(model, x_train);
 
     # # monotonic constraint
     # params1 = EvoTreeRegressor(
@@ -84,8 +84,8 @@
     #     monotone_constraints=Dict(1 => 1),
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
-    # preds_mono = predict(model, X_train);
+    # model = fit_evotree(params1, x_train, y_train, x_eval, y_eval, print_every_n=25);
+    # preds_mono = predict(model, x_train);
 
     # using Plots
     # using Colors
@@ -107,8 +107,8 @@
         max_depth=6, min_weight=0.0,
         rowsample=0.5, colsample=1.0, rng=seed)
 
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
-    preds_ref = predict(model, X_train)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    preds_ref = predict(model, x_train)
 
     # monotonic constraint
     params1 = EvoTreeRegressor(
@@ -120,8 +120,8 @@
         monotone_constraints=Dict(1 => 1),
         rowsample=0.5, colsample=1.0, rng=seed)
 
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
-    preds_mono = predict(model, X_train)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    preds_mono = predict(model, x_train)
 
     # using Plots
     # using Colors
@@ -143,8 +143,8 @@
     #     max_depth=6, min_weight=0.0,
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
-    # preds_ref = predict(model, X_train);
+    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+    # preds_ref = predict(model, x_train);
 
     # # monotonic constraint
     # params1 = EvoTreeRegressor(
@@ -156,8 +156,8 @@
     #     monotone_constraints=Dict(1 => 1),
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
-    # preds_mono = predict(model, X_train);
+    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+    # preds_mono = predict(model, x_train);
 
     # using Plots
     # using Colors
@@ -179,8 +179,8 @@
         max_depth=6, min_weight=0.0,
         rowsample=0.5, colsample=1.0, rng=seed)
 
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
-    preds_ref = predict(model, X_train)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    preds_ref = predict(model, x_train)
 
     # monotonic constraint
     params1 = EvoTreeGaussian(
@@ -192,8 +192,8 @@
         monotone_constraints=Dict(1 => 1),
         rowsample=0.5, colsample=1.0, rng=seed)
 
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
-    preds_mono = predict(model, X_train)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    preds_mono = predict(model, x_train)
 
     # using Plots
     # using Colors
@@ -215,8 +215,8 @@
     #     max_depth=6, min_weight=0.0,
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
-    # preds_ref = predict(model, X_train);
+    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+    # preds_ref = predict(model, x_train);
 
     # # monotonic constraint
     # params1 = EvoTreeGaussian(
@@ -228,8 +228,8 @@
     #     monotone_constraints=Dict(1 => 1),
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
-    # preds_mono = predict(model, X_train);
+    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+    # preds_mono = predict(model, x_train);
 
     # using Plots
     # using Colors

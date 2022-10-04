@@ -30,7 +30,7 @@ function init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVec
             μ = zeros(T, K)
             Y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
-        !isnothing(offset) && offset .= log.(offset)
+        !isnothing(offset) && (offset .= log.(offset))
     elseif typeof(params.loss) == Gaussian
         K = 2
         Y = T.(Y)
