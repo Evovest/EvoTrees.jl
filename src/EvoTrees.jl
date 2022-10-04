@@ -7,10 +7,11 @@ export EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
 using Base.Threads: @threads
 using Statistics
 using StatsBase: sample, sample!, quantile
-using SpecialFunctions: loggamma
 using Random
 using Distributions
 using CategoricalArrays
+using LoopVectorization
+using Tables
 using CUDA
 using CUDA: @allowscalar, allowscalar
 using BSON

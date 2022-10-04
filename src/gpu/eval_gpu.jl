@@ -17,6 +17,26 @@ function eval_metric(::Val{:mse}, eval::AbstractVector{T}, p::AbstractMatrix{T},
     return sum(eval) / sum(w)
 end
 
+
+"""
+    MAE
+"""
+function eval_mae_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= length(y)
+        @inbounds eval[i] = w[i] * abs(p[1, i] - y[i])
+    end
+    return nothing
+end
+
+function eval_metric(::Val{:mae}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+    threads = min(MAX_THREADS, length(y))
+    blocks = ceil(Int, length(y) / threads)
+    @cuda blocks = blocks threads = threads eval_mae_kernel!(eval, p, y, w)
+    CUDA.synchronize()
+    return sum(eval) / sum(w)
+end
+
 """
     Logloss
 """
