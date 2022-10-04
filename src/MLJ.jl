@@ -5,7 +5,6 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y)
     fitresult, cache = init_evotree(model, A.matrix, y)
   end
   grow_evotree!(fitresult, cache)
-
   report = (features=A.names,)
   return fitresult, cache, report
 end
@@ -38,16 +37,13 @@ MMI.selectrows(::EvoTypes, I, A) = ((matrix=view(A.matrix, I, :), names=A.names)
 MMI.iteration_parameter(::Type{<:EvoTypes}) = :nrounds
 
 function MMI.update(model::EvoTypes, verbosity::Integer, fitresult, cache, A, y)
-
   if okay_to_continue(model, cache.params)
     grow_evotree!(fitresult, cache)
   else
     fitresult, cache = init_evotree(model, A.matrix, y)
     grow_evotree!(fitresult, cache)
   end
-
   report = (features=A.names,)
-
   return fitresult, cache, report
 end
 
@@ -68,16 +64,16 @@ end
 
 function predict(::EvoTreeGaussian, fitresult, A)
   pred = predict(fitresult, A.matrix)
-  return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i = 1:size(pred, 1)]
+  return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
 
 # # Feature Importances
 MMI.reports_feature_importances(::Type{<:EvoTypes}) = true
 
-function MMI.feature_importances(m::Union{EvoTreeClassifier, EvoTreeRegressor, EvoTreeCount, EvoTreeGaussian}, fitresult, report)
-    fi_pairs = importance(fitresult, report.features)
-    return fi_pairs
+function MMI.feature_importances(m::EvoTypes, fitresult, report)
+  fi_pairs = importance(fitresult, report.features)
+  return fi_pairs
 end
 
 
