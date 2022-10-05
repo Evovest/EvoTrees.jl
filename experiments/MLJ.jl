@@ -1,4 +1,6 @@
+using Revise
 using Tables
+using DataFrames
 using MLJBase
 using StatsBase: sample, mean, quantile
 using Statistics
@@ -18,14 +20,15 @@ Y = logit(Y) + randn(size(Y))
 Y = sigmoid(Y)
 y = Y
 X = Tables.table(X)
+X = DataFrame(X)
 
 # @load EvoTreeRegressor
 # linear regression
-tree_model = EvoTreeRegressor(max_depth=5, η=0.05, nrounds=10)
+tree_model = EvoTreeRegressor(max_depth=5, eta=0.05, nrounds=10)
 # logistic regression
-tree_model = EvoTreeRegressor(loss=:logistic, max_depth=5, η=0.05, nrounds=10)
+tree_model = EvoTreeRegressor(loss=:logistic, max_depth=5, eta=0.05, nrounds=10)
 # quantile regression
-tree_model = EvoTreeRegressor(loss=:quantile, α=0.75, max_depth=5, η=0.05, nrounds=10)
+tree_model = EvoTreeRegressor(loss=:quantile, alpha=0.75, max_depth=5, eta=0.05, nrounds=10)
 
 tree = machine(tree_model, X, y)
 train, test = partition(eachindex(y), 0.7, shuffle=true); # 70:30 split

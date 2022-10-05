@@ -22,32 +22,6 @@ Efficient histogram based algorithms with support for multiple loss functions (n
 
 Input features are expected to be `Matrix{Float64/Float32}` when using the internal API. Tables/DataFrames format can be handled through [MLJ](https://github.com/alan-turing-institute/MLJ.jl). See the docs for further details. 
 
-## Supported tasks
-
-### CPU
-
-- linear
-- logistic
-- Poisson
-- Gamma
-- Tweedie
-- L1 (mae regression)
-- Quantile
-- multiclassification (softmax)
-- Gaussian (max likelihood)
-
-Set parameter `device="cpu"`.
-
-### GPU
-
-- linear
-- logistic
-- Poisson
-- Gamma
-- Tweedie
-- Gaussian (max likelihood)
-
-Set parameter `device="gpu"`.
 
 ## Installation
 
@@ -102,20 +76,20 @@ See [official project page](https://github.com/alan-turing-institute/MLJ.jl) for
 ```julia
 using EvoTrees
 
-params1 = EvoTreeRegressor(
+config = EvoTreeRegressor(
     loss=:linear, 
     metric=:mse,
     nrounds=100, 
-    nbins = 100,
-    lambda = 0.5, 
+    nbins=100,
+    lambda=0.5, 
     gamma=0.1, 
     eta=0.1,
-    max_depth = 6, 
-    min_weight = 1.0,
+    max_depth=6, 
+    min_weight=1.0,
     rowsample=0.5, 
     colsample=1.0)
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-preds = predict(model, X_eval)
+model = fit_evotree(config; x_train = x_train, y_train = y_train)
+preds = predict(model, x_eval)
 ```
 
 ## Feature importance
@@ -123,7 +97,7 @@ preds = predict(model, X_eval)
 Returns the normalized gain by feature.
 
 ```julia
-features_gain = importance(model, var_names)
+features_gain = importance(model)
 ```
 
 ## Plot
