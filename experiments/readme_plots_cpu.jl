@@ -92,9 +92,9 @@ sqrt(mean((pred_train_logistic .- y_train) .^ 2))
 
 # L1
 params1 = EvoTreeRegressor(
-    loss=:L1, α=0.5, metric=:mae,
+    loss=:L1, alpha=0.5,
     nrounds=200, nbins=64,
-    lambda=0.1, gamma=0.1, eta=0.05,
+    lambda=0.0, gamma=0.0, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
@@ -156,7 +156,7 @@ savefig("figures/regression_sinus2.png")
 ###############################
 # q50
 params1 = EvoTreeRegressor(
-    loss=:quantile, alpha=0.5, metric=:none,
+    loss=:quantile, alpha=0.5,
     nrounds=200, nbins=64,
     lambda=1.0, gamma=0.0, eta=0.05,
     max_depth=6, min_weight=1.0,
@@ -169,7 +169,7 @@ sum(pred_train_q50 .< y_train) / length(y_train)
 
 # q20
 params1 = EvoTreeRegressor(
-    loss=:quantile, alpha=0.2, metric=:none,
+    loss=:quantile, alpha=0.2,
     nrounds=200, nbins=64,
     lambda=1.0, gamma=0.0, eta=0.05,
     max_depth=6, min_weight=1.0,

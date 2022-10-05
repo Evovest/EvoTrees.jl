@@ -1,4 +1,4 @@
-function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L<:GradientRegression,T}
+function predict!(pred::Matrix, tree::Tree{L,T}, X, K) where {L<:GradientRegression,T}
     @inbounds @threads for i in axes(X, 1)
         nid = 1
         @inbounds while tree.split[nid]
@@ -9,7 +9,7 @@ function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L<:GradientR
     return nothing
 end
 
-function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L<:Logistic,T}
+function predict!(pred::Matrix, tree::Tree{L,T}, X, K) where {L<:Logistic,T}
     @inbounds @threads for i in axes(X, 1)
         nid = 1
         @inbounds while tree.split[nid]
@@ -20,7 +20,7 @@ function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L<:Logistic,
     return nothing
 end
 
-function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L<:GaussianRegression,T}
+function predict!(pred::Matrix, tree::Tree{L,T}, X, K) where {L<:GaussianRegression,T}
     @inbounds @threads for i in axes(X, 1)
         nid = 1
         @inbounds while tree.split[nid]
@@ -35,16 +35,16 @@ end
 """
     predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K)
 
-Generic fallback for adding preditions of `tree` to existing `pred` matrix.
+Generic fallback to add predictions of `tree` to existing `pred` matrix.
 """
-function predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K) where {L,T}
+function predict!(pred::Matrix, tree::Tree{L,T}, X, K) where {L,T}
     @inbounds @threads for i in axes(X, 1)
         nid = 1
         @inbounds while tree.split[nid]
             X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
-        for k = 1:K
-            @inbounds pred[k, i] += tree.pred[k, nid]
+        @inbounds for k = 1:K
+            pred[k, i] += tree.pred[k, nid]
         end
     end
     return nothing
@@ -55,9 +55,9 @@ end
 
 Prediction from a single tree - assign each observation to its final leaf.
 """
-function predict(loss::L, tree::Tree{T}, X::AbstractMatrix, K) where {L,T}
+function predict(tree::Tree{L,T}, X::AbstractMatrix, K) where {L,T}
     pred = zeros(T, K, size(X, 1))
-    predict!(loss, pred, tree, X, K)
+    predict!(pred, tree, X, K)
     return pred
 end
 
@@ -66,53 +66,52 @@ end
 
 Predictions from an EvoTrees model - sums the predictions from all trees composing the model.
 """
-function predict(model::GBTree{T,U,S}, X::AbstractMatrix{R}) where {T,U,S,R}
+function predict(model::GBTree{L,T,S}, X::AbstractMatrix) where {L,T,S}
     pred = zeros(T, model.K, size(X, 1))
     for tree in model.trees
-        predict!(model.params.loss, pred, tree, X, model.K)
+        predict!(pred, tree, X, model.K)
     end
-
-    if typeof(model.params.loss) == Logistic
+    if L == Logistic
         pred .= sigmoid.(pred)
-    elseif typeof(model.params.loss) ∈ [Poisson, Gamma, Tweedie]
+    elseif L ∈ [Poisson, Gamma, Tweedie]
         pred .= exp.(pred)
-    elseif typeof(model.params.loss) == Gaussian
+    elseif L == Gaussian
         pred[2, :] .= exp.(pred[2, :])
-    elseif typeof(model.params.loss) == Softmax
+    elseif L == Softmax
         @inbounds for i in axes(pred, 2)
             pred[:, i] .= softmax(pred[:, i])
         end
     end
-
-    return Array(transpose(pred))
+    pred = model.K == 1 ? vec(Array(pred')) : Array(pred')
+    return pred
 end
 
 
-function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S<:GradientRegression,T}
+function pred_leaf_cpu!(pred, n, ∑::Vector, params::EvoTypes{L,T,S}, K, δ𝑤, 𝑖) where {L<:GradientRegression,T,S}
     pred[1, n] = -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3])
 end
-function pred_scalar_cpu!(::S, ∑::Vector{T}, params::EvoTypes, K) where {S<:GradientRegression,T}
+function pred_scalar_cpu!(∑::Vector{T}, params::EvoTypes, K) where {L<:GradientRegression,T,S}
     -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3])
 end
 
 # prediction in Leaf - GaussianRegression
-function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S<:GaussianRegression,T}
+function pred_leaf_cpu!(pred, n, ∑::Vector, params::EvoTypes{L,T,S}, K, δ𝑤, 𝑖) where {L<:GaussianRegression,T,S}
     pred[1, n] = -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5])
     pred[2, n] = -params.eta * ∑[2] / (∑[4] + params.lambda * ∑[5])
 end
-function pred_scalar_cpu!(::S, ∑::Vector{T}, params::EvoTypes, K) where {S<:GaussianRegression,T}
+function pred_scalar_cpu!(∑::Vector{T}, params::EvoTypes{L,T,S}, K) where {L<:GaussianRegression,T,S}
     -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5])
 end
 
 # prediction in Leaf - MultiClassRegression
-function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S<:MultiClassRegression,T}
+function pred_leaf_cpu!(pred, n, ∑::Vector, params::EvoTypes{L,T,S}, K, δ𝑤, 𝑖) where {L<:MultiClassRegression,T,S}
     @inbounds for k = 1:K
         pred[k, n] = -params.eta * ∑[k] / (∑[k+K] + params.lambda * ∑[2*K+1])
     end
 end
 
 # prediction in Leaf - QuantileRegression
-function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S<:QuantileRegression,T}
+function pred_leaf_cpu!(pred, n, ∑::Vector, params::EvoTypes{L,T,S}, K, δ𝑤, 𝑖) where {L<:QuantileRegression,T,S}
     pred[1, n] = params.eta * quantile(δ𝑤[2, 𝑖], params.alpha) / (1 + params.lambda)
     # pred[1,n] = params.eta * quantile(view(δ𝑤, 2, 𝑖), params.alpha) / (1 + params.lambda)
 end
@@ -121,9 +120,9 @@ end
 # end
 
 # prediction in Leaf - L1Regression
-function pred_leaf_cpu!(::S, pred, n, ∑::Vector{T}, params::EvoTypes, K, δ𝑤, 𝑖) where {S<:L1Regression,T}
+function pred_leaf_cpu!(pred, n, ∑::Vector, params::EvoTypes{L,T,S}, K, δ𝑤, 𝑖) where {L<:L1Regression,T,S}
     pred[1, n] = params.eta * ∑[1] / (∑[3] * (1 + params.lambda))
 end
-function pred_scalar_cpu!(::S, ∑::Vector{T}, params::EvoTypes, K) where {S<:L1Regression,T}
+function pred_scalar_cpu!(∑::Vector, params::EvoTypes{L,T,S}, K) where {L<:L1Regression,T,S}
     params.eta * ∑[1] / (∑[3] * (1 + params.lambda))
 end

@@ -11,7 +11,6 @@ end
 
 function okay_to_continue(new, old)
   new.nrounds - old.nrounds >= 0 &&
-    new.loss == old.loss &&
     new.lambda == old.lambda &&
     new.gamma == old.gamma &&
     new.max_depth == old.max_depth &&
@@ -20,8 +19,7 @@ function okay_to_continue(new, old)
     new.colsample == old.colsample &&
     new.nbins == old.nbins &&
     new.alpha == old.alpha &&
-    new.device == old.device &&
-    new.metric == old.metric
+    new.device == old.device
 end
 
 

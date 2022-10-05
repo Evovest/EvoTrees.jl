@@ -27,10 +27,12 @@ import Base: convert
 include("models.jl")
 include("structs.jl")
 include("loss.jl")
-include("eval.jl")
+
+# include("eval.jl")
 include("predict.jl")
 include("find_split.jl")
 include("fit.jl")
+include("metric.jl")
 
 include("gpu/structs_gpu.jl")
 include("gpu/loss_gpu.jl")
@@ -43,8 +45,8 @@ include("importance.jl")
 include("plot.jl")
 include("MLJ.jl")
 
-function convert(::Type{GBTree}, m::GBTreeGPU)
-    EvoTrees.GBTree([EvoTrees.Tree(Array(tree.feat),
+function convert(::Type{GBTree}, m::GBTreeGPU{L,T,S}) where {L,T,S}
+    EvoTrees.GBTree{L,T,S}([EvoTrees.Tree{L,T}(Array(tree.feat),
             Array(tree.cond_bin),
             Array(tree.cond_float),
             Array(tree.gain),

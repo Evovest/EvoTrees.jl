@@ -1,11 +1,11 @@
 # Gradient regression
-function get_gain_gpu(::L, ∑::AbstractVector{T}, lambda::T) where {L<:GradientRegression,T<:AbstractFloat}
+function get_gain_gpu(::Type{L}, ∑::AbstractVector{T}, lambda::T) where {L<:GradientRegression,T<:AbstractFloat}
     gain = ∑[1]^2 / (∑[2] + lambda * ∑[3]) / 2
     return gain
 end
 
 # Gaussian regression
-function get_gain_gpu(::L, ∑::AbstractVector{T}, lambda::T) where {L<:GaussianRegression,T<:AbstractFloat}
+function get_gain_gpu(::Type{L}, ∑::AbstractVector{T}, lambda::T) where {L<:GaussianRegression,T<:AbstractFloat}
     gain = ∑[1]^2 / (∑[3] + lambda * ∑[5]) / 2 + ∑[2]^2 / (∑[4] + lambda * ∑[5]) / 2
     return gain
 end
@@ -13,7 +13,7 @@ end
 #####################
 # linear
 #####################
-function kernel_linear_δ𝑤!(δ𝑤::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T<:AbstractFloat}
+function kernel_linear_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
         @inbounds δ𝑤[1, i] = 2 * (p[i] - y[i]) * δ𝑤[3, i]
@@ -21,7 +21,7 @@ function kernel_linear_δ𝑤!(δ𝑤::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, 
     end
     return
 end
-function update_grads_gpu!(loss::Linear, δ𝑤::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS=1024) where {T<:AbstractFloat}
+function update_grads_gpu!(::Type{Linear}, δ𝑤::CuMatrix, p::CuMatrix, y::CuVector; MAX_THREADS=1024)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_linear_δ𝑤!(δ𝑤, p, y)
@@ -32,7 +32,7 @@ end
 #####################
 # Logistic
 #####################
-function kernel_logistic_δ𝑤!(δ𝑤::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T<:AbstractFloat}
+function kernel_logistic_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
         @inbounds pred = sigmoid(p[1, i])
@@ -41,7 +41,7 @@ function kernel_logistic_δ𝑤!(δ𝑤::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}
     end
     return
 end
-function update_grads_gpu!(loss::Logistic, δ𝑤::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS=1024) where {T<:AbstractFloat}
+function update_grads_gpu!(::Type{Logistic}, δ𝑤::CuMatrix, p::CuMatrix, y::CuVector; MAX_THREADS=1024)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_logistic_δ𝑤!(δ𝑤, p, y)
@@ -52,7 +52,7 @@ end
 #####################
 # Poisson
 #####################
-function kernel_poisson_δ𝑤!(δ𝑤::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T<:AbstractFloat}
+function kernel_poisson_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
         @inbounds pred = exp(p[1, i])
@@ -61,7 +61,7 @@ function kernel_poisson_δ𝑤!(δ𝑤::CuDeviceMatrix{T}, p::CuDeviceMatrix{T},
     end
     return
 end
-function update_grads_gpu!(loss::Poisson, δ𝑤::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS=1024) where {T<:AbstractFloat}
+function update_grads_gpu!(::Type{Poisson}, δ𝑤::CuMatrix, p::CuMatrix, y::CuVector; MAX_THREADS=1024)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_poisson_δ𝑤!(δ𝑤, p, y)
@@ -72,7 +72,7 @@ end
 #####################
 # Gamma
 #####################
-function kernel_gamma_δ𝑤!(δ𝑤::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T<:AbstractFloat}
+function kernel_gamma_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
         pred = exp(p[1, i])
@@ -81,7 +81,7 @@ function kernel_gamma_δ𝑤!(δ𝑤::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y
     end
     return
 end
-function update_grads_gpu!(loss::Gamma, δ𝑤::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS=1024) where {T<:AbstractFloat}
+function update_grads_gpu!(::Type{Gamma}, δ𝑤::CuMatrix, p::CuMatrix, y::CuVector; MAX_THREADS=1024)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_gamma_δ𝑤!(δ𝑤, p, y)
@@ -92,9 +92,9 @@ end
 #####################
 # Tweedie
 #####################
-function kernel_tweedie_δ𝑤!(δ𝑤::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T<:AbstractFloat}
+function kernel_tweedie_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-    rho = T(1.5)
+    rho = eltype(p)(1.5)
     if i <= length(y)
         @inbounds pred = exp(p[1, i])
         @inbounds δ𝑤[1, i] = 2 * (pred^(2 - rho) - y[i] * pred^(1 - rho)) * δ𝑤[3, i]
@@ -102,7 +102,7 @@ function kernel_tweedie_δ𝑤!(δ𝑤::CuDeviceMatrix{T}, p::CuDeviceMatrix{T},
     end
     return
 end
-function update_grads_gpu!(loss::Tweedie, δ𝑤::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS=1024) where {T<:AbstractFloat}
+function update_grads_gpu!(::Type{Tweedie}, δ𝑤::CuMatrix, p::CuMatrix, y::CuVector; MAX_THREADS=1024)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_tweedie_δ𝑤!(δ𝑤, p, y)
@@ -116,7 +116,7 @@ end
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
 ################################################################################
-function kernel_gauss_δ𝑤!(δ𝑤::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}) where {T<:AbstractFloat}
+function kernel_gauss_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     @inbounds if i <= length(y)
         # first order gradients
@@ -129,7 +129,7 @@ function kernel_gauss_δ𝑤!(δ𝑤::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y
     return
 end
 
-function update_grads_gpu!(loss::Gaussian, δ𝑤::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}; MAX_THREADS=1024) where {T<:AbstractFloat}
+function update_grads_gpu!(::Type{Gaussian}, δ𝑤::CuMatrix, p::CuMatrix, y::CuVector; MAX_THREADS=1024)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_gauss_δ𝑤!(δ𝑤, p, y)
@@ -138,7 +138,7 @@ function update_grads_gpu!(loss::Gaussian, δ𝑤::CuMatrix{T}, p::CuMatrix{T}, 
 end
 
 
-function update_childs_∑_gpu!(::L, nodes, n, bin, feat) where {L}
+function update_childs_∑_gpu!(::Type{L}, nodes, n, bin, feat) where {L}
     nodes[n<<1].∑ .= nodes[n].hL[:, bin, feat]
     nodes[n<<1+1].∑ .= nodes[n].hR[:, bin, feat]
     return nothing

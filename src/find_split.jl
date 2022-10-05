@@ -101,7 +101,7 @@ end
         GradientRegression
 """
 function update_hist!(
-    ::L,
+    ::Type{L},
     hist::Vector{Vector{T}},
     δ𝑤::Matrix{T},
     X_bin::Matrix{UInt8},
@@ -124,7 +124,7 @@ end
         GaussianRegression
 """
 function update_hist!(
-    ::L,
+    ::Type{L},
     hist::Vector{Vector{T}},
     δ𝑤::Matrix{T},
     X_bin::Matrix{UInt8},
@@ -149,7 +149,7 @@ end
         Generic fallback
 """
 function update_hist!(
-    ::L,
+    ::Type{L},
     hist::Vector{Vector{T}},
     δ𝑤::Matrix{T},
     X_bin::Matrix{UInt8},
@@ -172,16 +172,15 @@ end
     update_gains!(
         loss::L,
         node::TrainNode{T},
-        𝑗::Vector{S},
+        𝑗::Vector,
         params::EvoTypes, K, monotone_constraints) where {L,T,S}
 
 Generic fallback
 """
 function update_gains!(
-    loss::L,
-    node::TrainNode{T},
-    𝑗::Vector{S},
-    params::EvoTypes, K, monotone_constraints) where {L,T,S}
+    node::TrainNode,
+    𝑗::Vector,
+    params::EvoTypes{L,T,S}, K, monotone_constraints) where {L,T,S}
 
     KK = 2 * K + 1
     @inbounds @threads for j in 𝑗
@@ -198,7 +197,7 @@ function update_gains!(
                 node.hR[j][binid+k] = node.hR[j][binid-KK+k] - node.h[j][binid+k]
             end
         end
-        hist_gains_cpu!(loss, view(node.gains, :, j), node.hL[j], node.hR[j], params, K, monotone_constraints[j])
+        hist_gains_cpu!(L, view(node.gains, :, j), node.hL[j], node.hR[j], params, K, monotone_constraints[j])
     end
     return nothing
 end
@@ -208,15 +207,15 @@ end
     hist_gains_cpu!
         GradientRegression
 """
-function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L<:GradientRegression,T}
+function hist_gains_cpu!(::Type{L}, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L<:GradientRegression,T}
     @inbounds for bin in 1:params.nbins
         i = 3 * bin - 2
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
         if bin == params.nbins
             gains[bin] = hL[i]^2 / (hL[i+1] + params.lambda * hL[i+2]) / 2
         elseif hL[i+2] > params.min_weight && hR[i+2] > params.min_weight
-            predL = pred_scalar_cpu!(params.loss, hL[i:i+2], params, K)
-            predR = pred_scalar_cpu!(params.loss, hR[i:i+2], params, K)
+            predL = pred_scalar_cpu!(hL[i:i+2], params, K)
+            predR = pred_scalar_cpu!(hR[i:i+2], params, K)
             if (monotone_constraint == 0) ||
                (monotone_constraint == -1 && predL > predR) ||
                (monotone_constraint == 1 && predL < predR)
@@ -232,7 +231,7 @@ end
     hist_gains_cpu!
         QuantileRegression/L1Regression
 """
-function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L<:Union{QuantileRegression,L1Regression},T}
+function hist_gains_cpu!(::Type{L}, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L<:Union{QuantileRegression,L1Regression},T}
     @inbounds for bin in 1:params.nbins
         i = 3 * bin - 2
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
@@ -249,7 +248,7 @@ end
     hist_gains_cpu!
         GaussianRegression
 """
-function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L<:GaussianRegression,T}
+function hist_gains_cpu!(::Type{L}, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L<:GaussianRegression,T}
     @inbounds for bin in 1:params.nbins
         i = 5 * bin - 4
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
@@ -257,8 +256,8 @@ function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vecto
             gains[bin] = (hL[i]^2 / (hL[i+2] + params.lambda * hL[i+4]) +
                           hL[i+1]^2 / (hL[i+3] + params.lambda * hL[i+4])) / 2
         elseif hL[i+4] > params.min_weight && hR[i+4] > params.min_weight
-            predL = pred_scalar_cpu!(params.loss, hL[i:i+4], params, K)
-            predR = pred_scalar_cpu!(params.loss, hR[i:i+4], params, K)
+            predL = pred_scalar_cpu!(hL[i:i+4], params, K)
+            predR = pred_scalar_cpu!(hR[i:i+4], params, K)
             if (monotone_constraint == 0) ||
                (monotone_constraint == -1 && predL > predR) ||
                (monotone_constraint == 1 && predL < predR)
@@ -276,7 +275,7 @@ end
     hist_gains_cpu!
         Generic
 """
-function hist_gains_cpu!(::L, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L,T}
+function hist_gains_cpu!(::Type{L}, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L,T}
     @inbounds for bin in 1:params.nbins
         i = (2 * K + 1) * (bin - 1)
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)

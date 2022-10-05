@@ -1,19 +1,19 @@
-function init_evotree_gpu(params::EvoTypes{T,U,S},
-    X::AbstractMatrix, Y::AbstractVector, W=nothing, offset=nothing) where {T,U,S}
+function init_evotree_gpu(params::EvoTypes{L,T,S},
+    X::AbstractMatrix, Y::AbstractVector, W=nothing, offset=nothing) where {L,T,S}
 
     K = 1
     levels = nothing
     X = convert(Matrix{T}, X)
 
-    if typeof(params.loss) == Logistic
+    if L == Logistic
         Y = CuArray(T.(Y))
         μ = [logit(mean(Y))]
         !isnothing(offset) && (offset .= logit.(offset))
-    elseif typeof(params.loss) ∈ [Poisson, Gamma, Tweedie]
+    elseif L ∈ [Poisson, Gamma, Tweedie]
         Y = CuArray(T.(Y))
         μ = fill(log(mean(Y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
-    elseif typeof(params.loss) == Gaussian
+    elseif L == Gaussian
         K = 2
         Y = CuArray(T.(Y))
         μ = [mean(Y), log(std(Y))]
@@ -31,8 +31,8 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
     pred .= CuArray(μ)
     !isnothing(offset) && (pred .+= CuArray(offset'))
 
-    bias = TreeGPU(CuArray(μ))
-    evotree = GBTreeGPU([bias], params, Metric(), K, levels)
+    bias = [TreeGPU{L,T}(CuArray(μ))]
+    evotree = GBTreeGPU(bias, params, Metric(), K, levels)
 
     # initialize gradients and weights
     δ𝑤 = CUDA.zeros(T, 2 * K + 1, X_size[1])
@@ -78,7 +78,7 @@ function init_evotree_gpu(params::EvoTypes{T,U,S},
 end
 
 
-function grow_evotree!(evotree::GBTreeGPU{T}, cache) where {T}
+function grow_evotree!(evotree::GBTreeGPU{L,T,S}, cache) where {L,T,S}
 
     # initialize from cache
     params = evotree.params
@@ -93,13 +93,13 @@ function grow_evotree!(evotree::GBTreeGPU{T}, cache) where {T}
         cache.nodes[1].𝑖 .= CuArray(cache.𝑖)
 
         # build a new tree
-        update_grads_gpu!(params.loss, cache.δ𝑤, cache.pred, cache.Y)
+        update_grads_gpu!(L, cache.δ𝑤, cache.pred, cache.Y)
         # # assign a root and grow tree
-        tree = TreeGPU(params.max_depth, evotree.K, zero(T))
+        tree = TreeGPU{L,T}(params.max_depth, evotree.K, zero(T))
         grow_tree_gpu!(tree, cache.nodes, params, cache.δ𝑤, cache.edges, CuVector(cache.𝑗), cache.out, cache.left, cache.right, cache.X_bin, cache.K, cache.monotone_constraints)
         push!(evotree.trees, tree)
         # update predctions
-        predict!(params.loss, cache.pred, tree, cache.X, cache.K)
+        predict!(cache.pred, tree, cache.X, cache.K)
     end # end of nrounds
     cache.params.nrounds = params.nrounds
     # return model, cache
@@ -108,13 +108,13 @@ end
 
 # grow a single tree - grow through all depth
 function grow_tree_gpu!(
-    tree::TreeGPU{T},
+    tree::TreeGPU{L,T},
     nodes,
-    params::EvoTypes{T,U,S},
-    δ𝑤::AbstractMatrix{T},
+    params::EvoTypes{L,T,S},
+    δ𝑤::AbstractMatrix,
     edges,
     𝑗, out, left, right,
-    X_bin::AbstractMatrix, K, monotone_constraints) where {T,U,S}
+    X_bin::AbstractMatrix, K, monotone_constraints) where {L,T,S}
 
     n_next = [1]
     n_current = copy(n_next)
@@ -130,7 +130,7 @@ function grow_tree_gpu!(
 
     # initialize summary stats
     nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims=2))
-    nodes[1].gain = get_gain(params.loss, Array(nodes[1].∑), params.lambda, K) # should use a GPU version?
+    nodes[1].gain = get_gain(L, Array(nodes[1].∑), params.lambda, K) # should use a GPU version?
 
     # grow while there are remaining active nodes - TO DO histogram substraction hits issue on GPU
     while length(n_current) > 0 && depth <= params.max_depth
@@ -147,7 +147,7 @@ function grow_tree_gpu!(
                         CUDA.synchronize()
                     end
                 else
-                    update_hist_gpu!(params.loss, nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗, K)
+                    update_hist_gpu!(L, nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗, K)
                 end
             end
         end
@@ -155,9 +155,9 @@ function grow_tree_gpu!(
         # grow while there are remaining active nodes
         for n ∈ sort(n_current)
             if depth == params.max_depth || @allowscalar(nodes[n].∑[end] <= params.min_weight)
-                pred_leaf_gpu!(params.loss, tree.pred, n, Array(nodes[n].∑), params)
+                pred_leaf_gpu!(tree.pred, n, Array(nodes[n].∑), params)
             else
-                update_gains_gpu!(params.loss, nodes[n], 𝑗, params, K, monotone_constraints)
+                update_gains_gpu!(nodes[n], 𝑗, params, K, monotone_constraints)
                 best = findmax(nodes[n].gains)
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.gamma
                     allowscalar() do
@@ -170,7 +170,7 @@ function grow_tree_gpu!(
                 # println("node: ", n, " | best: ", best, " | nodes[n].gain: ", nodes[n].gain)
                 @allowscalar(tree.split[n] = tree.cond_bin[n] != 0)
                 if !@allowscalar(tree.split[n])
-                    pred_leaf_gpu!(params.loss, tree.pred, n, Array(nodes[n].∑), params)
+                    pred_leaf_gpu!(tree.pred, n, Array(nodes[n].∑), params)
                     popfirst!(n_next)
                 else
                     _left, _right = split_set_threads_gpu!(out, left, right, @allowscalar(nodes[n]).𝑖, X_bin, @allowscalar(tree.feat[n]), @allowscalar(tree.cond_bin[n]), offset)
@@ -178,9 +178,9 @@ function grow_tree_gpu!(
                     offset += length(nodes[n].𝑖)
                     # println("length(_left): ", length(_left), " | length(_right): ", length(_right))
                     # println("best: ", best)
-                    update_childs_∑_gpu!(params.loss, nodes, n, best[2][1], best[2][2])
-                    nodes[n<<1].gain = get_gain(params.loss, Array(nodes[n<<1].∑), params.lambda, K)
-                    nodes[n<<1+1].gain = get_gain(params.loss, Array(nodes[n<<1+1].∑), params.lambda, K)
+                    update_childs_∑_gpu!(L, nodes, n, best[2][1], best[2][2])
+                    nodes[n<<1].gain = get_gain(L, Array(nodes[n<<1].∑), params.lambda, K)
+                    nodes[n<<1+1].gain = get_gain(L, Array(nodes[n<<1+1].∑), params.lambda, K)
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)

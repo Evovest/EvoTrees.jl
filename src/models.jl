@@ -18,8 +18,7 @@ struct Gaussian <: GaussianRegression end
 mk_rng(rng::Random.AbstractRNG) = rng
 mk_rng(rng::T) where {T<:Integer} = Random.MersenneTwister(rng)
 
-mutable struct EvoTreeRegressor{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Deterministic
-    loss::U
+mutable struct EvoTreeRegressor{L<:ModelType,T<:AbstractFloat,S<:Int} <: MMI.Deterministic
     nrounds::S
     lambda::T
     gamma::T
@@ -31,7 +30,6 @@ mutable struct EvoTreeRegressor{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Det
     nbins::S
     alpha::T
     monotone_constraints
-    metric::Symbol
     rng
     device
 end
@@ -53,7 +51,6 @@ function EvoTreeRegressor(; kwargs...)
         :nbins => 32,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
-        :metric => :none,
         :rng => 123,
         :device => "cpu"
     )
@@ -73,38 +70,36 @@ function EvoTreeRegressor(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
     args[:loss] = Symbol(args[:loss])
-    args[:metric] = Symbol(args[:metric])
+    T = args[:T]
 
     if args[:loss] == :linear
-        args[:loss] = Linear()
+        L = Linear
     elseif args[:loss] == :logistic
-        args[:loss] = Logistic()
+        L = Logistic
     elseif args[:loss] == :gamma
-        args[:loss] = Gamma()
+        L = Gamma
     elseif args[:loss] == :tweedie
-        args[:loss] = Tweedie()
+        L = Tweedie
     elseif args[:loss] == :L1
-        args[:loss] = L1()
+        L = L1
     elseif args[:loss] == :quantile
-        args[:loss] = Quantile()
+        L = Quantile
     else
         error("Invalid loss: $(args[:loss]). Only [`:linear`, `:logistic`, `:L1`, `:quantile`] are supported at the moment by EvoTreeRegressor.")
     end
 
-    model = EvoTreeRegressor(
-        args[:loss],
+    model = EvoTreeRegressor{L,T,Int}(
         args[:nrounds],
-        args[:T](args[:lambda]),
-        args[:T](args[:gamma]),
-        args[:T](args[:eta]),
+        T(args[:lambda]),
+        T(args[:gamma]),
+        T(args[:eta]),
         args[:max_depth],
-        args[:T](args[:min_weight]),
-        args[:T](args[:rowsample]),
-        args[:T](args[:colsample]),
+        T(args[:min_weight]),
+        T(args[:rowsample]),
+        T(args[:colsample]),
         args[:nbins],
-        args[:T](args[:alpha]),
+        T(args[:alpha]),
         args[:monotone_constraints],
-        args[:metric],
         args[:rng],
         args[:device])
 
@@ -112,8 +107,7 @@ function EvoTreeRegressor(; kwargs...)
 end
 
 
-mutable struct EvoTreeCount{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Probabilistic
-    loss::U
+mutable struct EvoTreeCount{L<:ModelType,T<:AbstractFloat,S<:Int} <: MMI.Probabilistic
     nrounds::S
     lambda::T
     gamma::T
@@ -125,7 +119,6 @@ mutable struct EvoTreeCount{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Probabi
     nbins::S
     alpha::T
     monotone_constraints
-    metric::Symbol
     rng
     device
 end
@@ -135,7 +128,6 @@ function EvoTreeCount(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :T => Float64,
-        :loss => :poisson,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
@@ -147,7 +139,6 @@ function EvoTreeCount(; kwargs...)
         :nbins => 32,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
-        :metric => :none,
         :rng => 123,
         :device => "cpu"
     )
@@ -166,41 +157,28 @@ function EvoTreeCount(; kwargs...)
     end
 
     args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
-    args[:loss] = Symbol(args[:loss])
-    args[:metric] = Symbol(args[:metric])
+    L = Poisson
+    T = args[:T]
 
-    if args[:loss] != :poisson
-        error("Invalid loss: $(args[:loss]). Only `:poisson` is supported by EvoTreeCount.")
-    else
-        args[:loss] = Poisson()
-    end
-
-    if args[:metric] == :poisson
-        @warn "Poisson metric breaking change.\nStarting with EvoTrees.jl v0.11.0, `:poisson` metric now returns the deviance, while it previously returned the log-likelihood."
-    end
-
-    model = EvoTreeCount(
-        args[:loss],
+    model = EvoTreeCount{L,T,Int}(
         args[:nrounds],
-        args[:T](args[:lambda]),
-        args[:T](args[:gamma]),
-        args[:T](args[:eta]),
+        T(args[:lambda]),
+        T(args[:gamma]),
+        T(args[:eta]),
         args[:max_depth],
-        args[:T](args[:min_weight]),
-        args[:T](args[:rowsample]),
-        args[:T](args[:colsample]),
+        T(args[:min_weight]),
+        T(args[:rowsample]),
+        T(args[:colsample]),
         args[:nbins],
-        args[:T](args[:alpha]),
+        T(args[:alpha]),
         args[:monotone_constraints],
-        args[:metric],
         args[:rng],
         args[:device])
 
     return model
 end
 
-mutable struct EvoTreeClassifier{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Probabilistic
-    loss::U
+mutable struct EvoTreeClassifier{L<:ModelType,T<:AbstractFloat,S<:Int} <: MMI.Probabilistic
     nrounds::S
     lambda::T
     gamma::T
@@ -211,7 +189,6 @@ mutable struct EvoTreeClassifier{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Pr
     colsample::T
     nbins::S
     alpha::T
-    metric::Symbol
     rng
     device
 end
@@ -221,7 +198,6 @@ function EvoTreeClassifier(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :T => Float64,
-        :loss => :softmax,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
@@ -232,7 +208,6 @@ function EvoTreeClassifier(; kwargs...)
         :colsample => 1.0,
         :nbins => 32,
         :alpha => 0.5,
-        :metric => :none,
         :rng => 123,
         :device => "cpu"
     )
@@ -251,36 +226,27 @@ function EvoTreeClassifier(; kwargs...)
     end
 
     args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
-    args[:loss] = Symbol(args[:loss])
-    args[:metric] = Symbol(args[:metric])
+    L = Softmax
+    T = args[:T]
 
-    if args[:loss] != :softmax
-        error("Invalid loss: $(args[:loss]). Only `:softmax` is supported by EvoTreeClassifier.")
-    else
-        args[:loss] = Softmax()
-    end
-
-    model = EvoTreeClassifier(
-        args[:loss],
+    model = EvoTreeClassifier{L,T,Int}(
         args[:nrounds],
-        args[:T](args[:lambda]),
-        args[:T](args[:gamma]),
-        args[:T](args[:eta]),
+        T(args[:lambda]),
+        T(args[:gamma]),
+        T(args[:eta]),
         args[:max_depth],
-        args[:T](args[:min_weight]),
-        args[:T](args[:rowsample]),
-        args[:T](args[:colsample]),
+        T(args[:min_weight]),
+        T(args[:rowsample]),
+        T(args[:colsample]),
         args[:nbins],
-        args[:T](args[:alpha]),
-        args[:metric],
+        T(args[:alpha]),
         args[:rng],
         args[:device])
 
     return model
 end
 
-mutable struct EvoTreeGaussian{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Probabilistic
-    loss::U
+mutable struct EvoTreeGaussian{L<:ModelType,T<:AbstractFloat,S<:Int} <: MMI.Probabilistic
     nrounds::S
     lambda::T
     gamma::T
@@ -292,7 +258,6 @@ mutable struct EvoTreeGaussian{T<:AbstractFloat,U<:ModelType,S<:Int} <: MMI.Prob
     nbins::S
     alpha::T
     monotone_constraints
-    metric::Symbol
     rng
     device
 end
@@ -302,7 +267,6 @@ function EvoTreeGaussian(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :T => Float64,
-        :loss => :gaussian,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
@@ -314,7 +278,6 @@ function EvoTreeGaussian(; kwargs...)
         :nbins => 32,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
-        :metric => :none,
         :rng => 123,
         :device => "cpu"
     )
@@ -333,29 +296,21 @@ function EvoTreeGaussian(; kwargs...)
     end
 
     args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
-    args[:loss] = Symbol(args[:loss])
-    args[:metric] = Symbol(args[:metric])
+    L = Gaussian
+    T = args[:T]
 
-    if args[:loss] != :gaussian
-        error("Invalid loss: $(args[:loss]). Only `:gaussian` is supported by EvoTreeGaussian.")
-    else
-        args[:loss] = Gaussian()
-    end
-
-    model = EvoTreeGaussian(
-        args[:loss],
+    model = EvoTreeGaussian{L,T,Int}(
         args[:nrounds],
-        args[:T](args[:lambda]),
-        args[:T](args[:gamma]),
-        args[:T](args[:eta]),
+        T(args[:lambda]),
+        T(args[:gamma]),
+        T(args[:eta]),
         args[:max_depth],
-        args[:T](args[:min_weight]),
-        args[:T](args[:rowsample]),
-        args[:T](args[:colsample]),
+        T(args[:min_weight]),
+        T(args[:rowsample]),
+        T(args[:colsample]),
         args[:nbins],
-        args[:T](args[:alpha]),
+        T(args[:alpha]),
         args[:monotone_constraints],
-        args[:metric],
         args[:rng],
         args[:device])
 
@@ -363,4 +318,4 @@ function EvoTreeGaussian(; kwargs...)
 end
 
 # const EvoTypes = Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassifier,EvoTreeGaussian}
-const EvoTypes{T,U,S} = Union{EvoTreeRegressor{T,U,S},EvoTreeCount{T,U,S},EvoTreeClassifier{T,U,S},EvoTreeGaussian{T,U,S}}
+const EvoTypes{L,T,S} = Union{EvoTreeRegressor{L,T,S},EvoTreeCount{L,T,S},EvoTreeClassifier{L,T,S},EvoTreeGaussian{L,T,S}}
