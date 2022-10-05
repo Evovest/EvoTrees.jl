@@ -78,7 +78,6 @@ using EvoTrees
 
 config = EvoTreeRegressor(
     loss=:linear, 
-    metric=:mse,
     nrounds=100, 
     nbins=100,
     lambda=0.5, 
