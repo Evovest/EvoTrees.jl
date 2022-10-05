@@ -1,5 +1,5 @@
 function init_evotree_gpu(params::EvoTypes{L,T,S},
-    X::AbstractMatrix, Y::AbstractVector, W=nothing, offset=nothing) where {L,T,S}
+    X::AbstractMatrix, Y::AbstractVector, W=nothing, offset=nothing; fnames) where {L,T,S}
 
     K = 1
     levels = nothing
@@ -31,8 +31,12 @@ function init_evotree_gpu(params::EvoTypes{L,T,S},
     pred .= CuArray(μ)
     !isnothing(offset) && (pred .+= CuArray(offset'))
 
+    # init GBTree
     bias = [TreeGPU{L,T}(CuArray(μ))]
-    evotree = GBTreeGPU(bias, params, Metric(), K, levels)
+    fnames = isnothing(fnames) ? ["feat_$i" for i in axes(X, 2)] : string.(fnames)
+    @assert length(fnames) == size(X, 2)
+    info = Dict(:fnames => fnames, :levels => levels)
+    evotree = GBTreeGPU{L,T,S}(bias, params, Metric(), K, info)
 
     # initialize gradients and weights
     δ𝑤 = CUDA.zeros(T, 2 * K + 1, X_size[1])

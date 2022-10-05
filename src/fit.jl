@@ -3,7 +3,7 @@
     
 Initialise EvoTree
 """
-function init_evotree(params::EvoTypes{L,T,S}, X::AbstractMatrix, Y::AbstractVector, W=nothing, offset=nothing) where {L,T,S}
+function init_evotree(params::EvoTypes{L,T,S}, X::AbstractMatrix, Y::AbstractVector, W=nothing, offset=nothing; fnames=nothing) where {L,T,S}
 
     K = 1
     levels = nothing
@@ -51,8 +51,12 @@ function init_evotree(params::EvoTypes{L,T,S}, X::AbstractMatrix, Y::AbstractVec
     end
     !isnothing(offset) && (pred .+= offset')
 
+    # init GBTree
     bias = [Tree{L,T}(μ)]
-    evotree = GBTree{L,T,S}(bias, params, Metric(), K, levels)
+    fnames = isnothing(fnames) ? ["feat_$i" for i in axes(X, 2)] : string.(fnames)
+    @assert length(fnames) == size(X, 2)
+    info = Dict(:fnames => fnames, :levels => levels)
+    evotree = GBTree{L,T,S}(bias, params, Metric(), K, info)
 
     # initialize gradients and weights
     δ𝑤 = zeros(T, 2 * K + 1, X_size[1])
@@ -244,16 +248,16 @@ Main training function. Performs model fitting given configuration `params`, `x_
 function fit_evotree(params::EvoTypes{L,T,S};
     x_train::AbstractMatrix, y_train::AbstractVector, w_train=nothing, offset_train=nothing,
     x_eval=nothing, y_eval=nothing, w_eval=nothing, offset_eval=nothing,
-    metric=nothing, early_stopping_rounds=9999, print_every_n=9999, verbosity=1) where {L,T,S}
+    metric=nothing, early_stopping_rounds=9999, print_every_n=9999, verbosity=1, fnames=nothing) where {L,T,S}
 
     nrounds_max = params.nrounds
     params.nrounds = 0
     iter_since_best = 0
 
     if params.device == "gpu"
-        model, cache = init_evotree_gpu(params, x_train, y_train, w_train, offset_train)
+        model, cache = init_evotree_gpu(params, x_train, y_train, w_train, offset_train; fnames)
     else
-        model, cache = init_evotree(params, x_train, y_train, w_train, offset_train)
+        model, cache = init_evotree(params, x_train, y_train, w_train, offset_train; fnames)
     end
 
     if !isnothing(offset_eval)
@@ -280,12 +284,11 @@ function fit_evotree(params::EvoTypes{L,T,S};
             !isnothing(offset_eval) && (p_eval .+= offset_eval')
         end
         # initialize metric
-        metric_f = metric_dict[Symbol(metric)]
         metric_track = Metric()
         metric_best = Metric()
-        metric_val = metric_f(p_eval, y_eval, w_eval)
-        tracker = (iter=[0], metric=[metric_val])
-        @info "Initial $metric: " metric = metric_val
+        metric_track.metric = eval_metric(Val{metric}(), p_eval, y_eval, w_eval, params.alpha)
+        tracker = (iter=[0], metric=[metric_track.metric])
+        @info "Initial tracking info" iter = model.params.nrounds metric = metric_track.metric
     end
 
     while model.params.nrounds < nrounds_max && iter_since_best < early_stopping_rounds
@@ -294,7 +297,7 @@ function fit_evotree(params::EvoTypes{L,T,S};
         # callback function
         if !isnothing(metric) && !isnothing(x_eval) && !isnothing(y_eval)
             predict!(p_eval, model.trees[model.params.nrounds+1], x_eval, model.K)
-            metric_track.metric = metric_f(p_eval, y_eval, w_eval)
+            metric_track.metric = eval_metric(Val{metric}(), p_eval, y_eval, w_eval, params.alpha)
             if metric_track.metric < metric_best.metric
                 metric_best.metric = metric_track.metric
                 metric_best.iter = model.params.nrounds

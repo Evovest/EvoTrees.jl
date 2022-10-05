@@ -183,5 +183,5 @@ end
         rowsample=0.5, colsample=1.0, rng=123)
 
     model = fit_evotree(params1; x_train, y_train)
-    features_gain = importance(model, 1:1)
+    features_gain = importance(model)
 end

@@ -67,6 +67,6 @@ struct GBTree{L,T,S}
     params::EvoTypes
     metric::Metric
     K::Int
-    levels
+    info
 end
 (m::GBTree)(x::AbstractMatrix) = predict(m, x)

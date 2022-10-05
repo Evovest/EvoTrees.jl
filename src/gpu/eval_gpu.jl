@@ -8,8 +8,8 @@ function eval_mse_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDe
     end
     return nothing
 end
-
-function eval_metric(::Val{:mse}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function eval_metric(::Val{:mse}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+    eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_mse_kernel!(eval, p, y, w)
@@ -28,8 +28,8 @@ function eval_mae_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDe
     end
     return nothing
 end
-
-function eval_metric(::Val{:mae}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function eval_metric(::Val{:mae}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+    eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_mae_kernel!(eval, p, y, w)
@@ -48,14 +48,15 @@ function eval_logloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::
     end
     return nothing
 end
-
-function eval_metric(::Val{:logloss}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function eval_metric(::Val{:logloss}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+    eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_logloss_kernel!(eval, p, y, w)
     CUDA.synchronize()
     return sum(eval) / sum(w)
 end
+
 
 """
     Gaussian
@@ -67,8 +68,8 @@ function eval_gaussian_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y:
     end
     return nothing
 end
-
-function eval_metric(::Val{:gaussian}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function eval_metric(::Val{:gaussian}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+    eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_gaussian_kernel!(eval, p, y, w)
@@ -90,7 +91,8 @@ function eval_poisson_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::
     return nothing
 end
 
-function eval_metric(::Val{:poisson}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function eval_metric(::Val{:poisson}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+    eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_poisson_kernel!(eval, p, y, w)
@@ -111,7 +113,8 @@ function eval_gamma_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::Cu
     return nothing
 end
 
-function eval_metric(::Val{:gamma}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function eval_metric(::Val{:gamma}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+    eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_gamma_kernel!(eval, p, y, w)
@@ -134,7 +137,8 @@ function eval_tweedie_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::
     return nothing
 end
 
-function eval_metric(::Val{:tweedie}, eval::AbstractVector{T}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function eval_metric(::Val{:tweedie}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+    eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_tweedie_kernel!(eval, p, y, w)

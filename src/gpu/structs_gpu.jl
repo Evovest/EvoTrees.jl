@@ -58,6 +58,6 @@ struct GBTreeGPU{L,T,S}
     params::EvoTypes{L,T,S}
     metric::Metric
     K::Int
-    levels
+    info
 end
 (m::GBTreeGPU)(x::AbstractMatrix) = predict(m, x)

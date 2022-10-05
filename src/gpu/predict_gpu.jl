@@ -81,7 +81,7 @@ end
 # prediction from single tree - assign each observation to its final leaf
 function predict(tree::TreeGPU{L,T}, X::AbstractMatrix, K) where {L,T}
     pred = CUDA.zeros(T, K, size(X, 1))
-    predict!(L, pred, tree, X, K)
+    predict!(pred, tree, X, K)
     return pred
 end
 

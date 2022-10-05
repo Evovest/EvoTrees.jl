@@ -52,7 +52,7 @@ end
 
 function predict(::EvoTreeClassifier, fitresult, A)
   pred = predict(fitresult, A.matrix)
-  return MMI.UnivariateFinite(fitresult.levels, pred, pool=missing)
+  return MMI.UnivariateFinite(fitresult.info[:levels], pred, pool=missing)
 end
 
 function predict(::EvoTreeCount, fitresult, A)
@@ -70,7 +70,7 @@ end
 MMI.reports_feature_importances(::Type{<:EvoTypes}) = true
 
 function MMI.feature_importances(m::EvoTypes, fitresult, report)
-  fi_pairs = importance(fitresult, report.features)
+  fi_pairs = importance(fitresult)
   return fi_pairs
 end
 
@@ -121,13 +121,6 @@ MMI.metadata_model(EvoTreeGaussian,
   EvoTreeRegressor(;kwargs...)
 
 A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API and the MLJ model interface.
-EvoTreeRegressor is used to perform the following regression types:
-  - linear
-  - logistic
-  - Gamma
-  - Tweedie
-  - Quantile
-  - L1
 
 # Hyper-parameters
 
@@ -136,7 +129,7 @@ EvoTreeRegressor is used to perform the following regression types:
   - `:linear`
   - `:logistic`
   - `:gamma`
-  - `tweedie`
+  - `:tweedie`
   - `:quantile`
   - `:L1`
 - `nrounds=10`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
@@ -157,7 +150,6 @@ EvoTreeRegressor is used to perform the following regression types:
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   Only `:linear`, `:logistic`, `:gamma` and `tweedie` losses are supported at the moment.
 - `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `metric::Symbol=:none`: Metric that is to be tracked during the training process. One of: `:none`, `:mse`, `:mae`, `:logloss`, `:gamma`, `:tweedie`.
 - `device="cpu"`:         Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`. Only `:linear`, `:logistic`, `:gamma` and `tweedie` losses are supported on GPU.
 
 # Internal API
@@ -254,7 +246,6 @@ EvoTreeClassifier is used to perform multi-class classification, using cross-ent
 
 # Hyper-parameters
 
-- `loss::Symbol=:softmax`:      Fixed to `softmax` by default.
 - `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
 - `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma::T=0.0`:               Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model.
@@ -266,7 +257,6 @@ EvoTreeClassifier is used to perform multi-class classification, using cross-ent
 - `colsample=1.0`:              Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `metric::Symbol=:none`:       Metric that is to be tracked during the training process. One of: `:none`, `:mlogloss`.
 - `device="cpu"`:               Hardware device to use for computations. Only CPU is supported at the moment.
 
 # Internal API
@@ -370,7 +360,6 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
 
 # Hyper-parameters
 
-- `loss::Symbol=:poisson`:      Fixed to `poisson` by default.
 - `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
 - `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
@@ -383,7 +372,6 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
 - `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing).
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `metric::Symbol=:none`:       Metric that is to be tracked during the training process. One of: `:none`, `:poisson`, `:mae`, `:mse`.
 - `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
 # Internal API
@@ -491,7 +479,6 @@ EvoTreeGaussian is used to perform Gaussain probabilistic regression, fitting μ
 
 # Hyper-parameters
 
-- `loss::Symbol=:gaussian`:     Fixed to `gaussian` by default.
 - `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
 - `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.

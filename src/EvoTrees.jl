@@ -26,13 +26,12 @@ import Base: convert
 
 include("models.jl")
 include("structs.jl")
-include("loss.jl")
 
-# include("eval.jl")
+include("loss.jl")
+include("eval.jl")
 include("predict.jl")
 include("find_split.jl")
 include("fit.jl")
-include("metric.jl")
 
 include("gpu/structs_gpu.jl")
 include("gpu/loss_gpu.jl")
@@ -55,7 +54,7 @@ function convert(::Type{GBTree}, m::GBTreeGPU{L,T,S}) where {L,T,S}
         m.params,
         m.metric,
         m.K,
-        m.levels)
+        m.info)
 end
 
 function save(model::GBTree, path)
