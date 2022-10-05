@@ -16,8 +16,8 @@ train_size = 0.8
 𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
 𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
 
-X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
-Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
+x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
+y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:mse,
@@ -26,8 +26,8 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_eval_linear = predict(model, X_eval)
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_eval_linear = predict(model, x_eval)
 
 # logistic / cross-entropy
 params1 = EvoTreeRegressor(
@@ -37,8 +37,8 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_eval_logistic = predict(model, X_eval)
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_eval_logistic = predict(model, x_eval)
 
 # L1
 params1 = EvoTreeRegressor(
@@ -48,8 +48,8 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_eval_L1 = predict(model, X_eval)</code></pre><h2 id="Poisson-Count"><a class="docs-heading-anchor" href="#Poisson-Count">Poisson Count</a><a id="Poisson-Count-1"></a><a class="docs-heading-anchor-permalink" href="#Poisson-Count" title="Permalink"></a></h2><pre><code class="language-julia hljs"># Poisson
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_eval_L1 = predict(model, x_eval)</code></pre><h2 id="Poisson-Count"><a class="docs-heading-anchor" href="#Poisson-Count">Poisson Count</a><a id="Poisson-Count-1"></a><a class="docs-heading-anchor-permalink" href="#Poisson-Count" title="Permalink"></a></h2><pre><code class="language-julia hljs"># Poisson
 params1 = EvoTreeCount(
     loss=:poisson, metric = :poisson,
     nrounds=100, nbins = 100,
@@ -57,8 +57,8 @@ params1 = EvoTreeCount(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_eval_poisson = predict(model, X_eval)</code></pre><h2 id="Quantile-Regression"><a class="docs-heading-anchor" href="#Quantile-Regression">Quantile Regression</a><a id="Quantile-Regression-1"></a><a class="docs-heading-anchor-permalink" href="#Quantile-Regression" title="Permalink"></a></h2><p><img src="../assets/quantiles_sinus.png" alt/></p><pre><code class="language-julia hljs"># q50
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_eval_poisson = predict(model, x_eval)</code></pre><h2 id="Quantile-Regression"><a class="docs-heading-anchor" href="#Quantile-Regression">Quantile Regression</a><a id="Quantile-Regression-1"></a><a class="docs-heading-anchor-permalink" href="#Quantile-Regression" title="Permalink"></a></h2><p><img src="../assets/quantiles_sinus.png" alt/></p><pre><code class="language-julia hljs"># q50
 params1 = EvoTreeRegressor(
     loss=:quantile, alpha=0.5, metric = :quantile,
     nrounds=200, nbins = 100,
@@ -66,8 +66,8 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_train_q50 = predict(model, X_train)
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_train_q50 = predict(model, x_train)
 
 # q20
 params1 = EvoTreeRegressor(
@@ -77,8 +77,8 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_train_q20 = predict(model, X_train)
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_train_q20 = predict(model, x_train)
 
 # q80
 params1 = EvoTreeRegressor(
@@ -88,10 +88,10 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_train_q80 = predict(model, X_train)</code></pre><h2 id="Gaussian-Max-Likelihood"><a class="docs-heading-anchor" href="#Gaussian-Max-Likelihood">Gaussian Max Likelihood</a><a id="Gaussian-Max-Likelihood-1"></a><a class="docs-heading-anchor-permalink" href="#Gaussian-Max-Likelihood" title="Permalink"></a></h2><p><img src="../assets/gaussian_sinus.png" alt/></p><pre><code class="language-julia hljs">params1 = EvoTreeGaussian(
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_train_q80 = predict(model, x_train)</code></pre><h2 id="Gaussian-Max-Likelihood"><a class="docs-heading-anchor" href="#Gaussian-Max-Likelihood">Gaussian Max Likelihood</a><a id="Gaussian-Max-Likelihood-1"></a><a class="docs-heading-anchor-permalink" href="#Gaussian-Max-Likelihood" title="Permalink"></a></h2><p><img src="../assets/gaussian_sinus.png" alt/></p><pre><code class="language-julia hljs">params1 = EvoTreeGaussian(
     loss=:gaussian, metric=:gaussian,
     nrounds=100, nbins=100,
     lambda = 0.0, gamma=0.0, eta=0.1,
     max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed=123)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../api/">« API</a><a class="docs-footer-nextpage" href="../examples-MLJ/">Examples - MLJ »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.23 on <span class="colophon-date" title="Monday 3 October 2022 15:21">Monday 3 October 2022</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+    rowsample=0.5, colsample=1.0, seed=123)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../api/">« API</a><a class="docs-footer-nextpage" href="../examples-MLJ/">Examples - MLJ »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.23 on <span class="colophon-date" title="Wednesday 5 October 2022 15:10">Wednesday 5 October 2022</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
