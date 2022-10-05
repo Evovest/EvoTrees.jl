@@ -24,7 +24,7 @@ function TrainNode(nvars, nbins, K, T)
 end
 
 # single tree is made of a vectors of length num nodes
-struct Tree{T<:AbstractFloat}
+struct Tree{L,T<:AbstractFloat}
     feat::Vector{Int}
     cond_bin::Vector{UInt8}
     cond_float::Vector{T}
@@ -33,8 +33,8 @@ struct Tree{T<:AbstractFloat}
     split::Vector{Bool}
 end
 
-function Tree(x::Vector{T}) where {T<:AbstractFloat}
-    Tree(
+function Tree{L,T}(x::Vector{T}) where {L,T}
+    Tree{L,T}(
         zeros(Int, 1),
         zeros(UInt8, 1),
         zeros(T, 1),
@@ -43,8 +43,8 @@ function Tree(x::Vector{T}) where {T<:AbstractFloat}
         zeros(Bool, 1))
 end
 
-function Tree(depth, K, ::T) where {T<:AbstractFloat}
-    Tree(
+function Tree{L,T}(depth, K, ::T) where {L,T}
+    Tree{L,T}(
         zeros(Int, 2^depth - 1),
         zeros(UInt8, 2^depth - 1),
         zeros(T, 2^depth - 1),
@@ -62,10 +62,11 @@ end
 Metric() = Metric(0, Inf)
 
 # gradient-boosted tree is formed by a vector of trees
-struct GBTree{T<:AbstractFloat}
-    trees::Vector{Tree{T}}
+struct GBTree{L,T,S}
+    trees::Vector{Tree{L,T}}
     params::EvoTypes
     metric::Metric
     K::Int
-    levels
+    info
 end
+(m::GBTree)(x::AbstractMatrix) = predict(m, x)

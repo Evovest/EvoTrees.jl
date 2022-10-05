@@ -23,8 +23,8 @@ train_size = 0.8
 𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
 𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
 
-X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
-Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
+x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
+y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 ################################
 # linear
@@ -36,7 +36,7 @@ params1 = EvoTreeRegressor(T=Float32,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-@time model = fit_evotree_gpu(params1, X_train, Y_train);
+@time model = fit_evotree_gpu(params1; x_train, y_train);
 @time pred_train_linear = predict_gpu(model, X_train)
 
 x_perm = sortperm(X_train[:, 1])
@@ -52,9 +52,9 @@ params1 = EvoTreeRegressor(T=Float32,
     rowsample=0.5, colsample=1.0,
     device="gpu")
 
-@time model = fit_evotree_gpu(params1, X_train, Y_train, print_every_n=25);
-@time model = fit_evotree_gpu(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
-@time pred_train_linear = predict_gpu(model, X_train)
+@time model = fit_evotree_gpu(params1; x_train, y_train, print_every_n=25);
+@time model = fit_evotree_gpu(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+@time pred_train_linear = predict_gpu(model, x_train)
 
 ################################
 # Logistic
@@ -67,7 +67,7 @@ params1 = EvoTreeRegressor(T=Float32,
     rowsample=0.5, colsample=1.0,
     device="gpu")
 
-@time model = fit_evotree_gpu(params1, X_train, Y_train);
+@time model = fit_evotree_gpu(params1; x_train, y_train);
 @time pred_train_linear = predict_gpu(model, X_train)
 
 ################################
@@ -81,10 +81,10 @@ params1 = EvoTreeGaussian(T=Float64,
     rowsample=0.5, colsample=1.0, rng=123,
     device="gpu")
 
-@time model = fit_evotree_gpu(params1, X_train, Y_train, print_every_n=25);
-@time pred_train_gauss = predict_gpu(model, X_train)
+@time model = fit_evotree_gpu(params1; x_train, y_train, print_every_n=25);
+@time pred_train_gauss = predict_gpu(model, x_train)
 
-pred_gauss = [Distributions.Normal(pred_train_gauss[i, 1], pred_train_gauss[i, 2]) for i in 1:size(pred_train_gauss, 1)]
+pred_gauss = [Distributions.Normal(pred_train_gauss[i, 1], pred_train_gauss[i, 2]) for i in axes(pred_train_gauss, 1)]
 pred_q20 = quantile.(pred_gauss, 0.2)
 pred_q80 = quantile.(pred_gauss, 0.8)
 

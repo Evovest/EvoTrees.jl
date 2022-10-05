@@ -18,8 +18,8 @@ train_size = 0.8
 𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
 𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
 
-X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
-Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
+x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
+y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 @testset "EvoTreeRegressor - Linear" begin
     # linear
@@ -30,13 +30,13 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
         max_depth=6, min_weight=1.0,
         rowsample=0.5, colsample=1.0, rng=123)
 
-    model, cache = EvoTrees.init_evotree(params1, X_train, Y_train)
-    preds_ini = EvoTrees.predict(model, X_eval)
-    mse_error_ini = mean(abs.(preds_ini .- Y_eval) .^ 2)
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
+    model, cache = EvoTrees.init_evotree(params1, x_train, y_train)
+    preds_ini = EvoTrees.predict(model, x_eval)
+    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 
-    preds = EvoTrees.predict(model, X_eval)
-    mse_error = mean(abs.(preds .- Y_eval) .^ 2)
+    preds = EvoTrees.predict(model, x_eval)
+    mse_error = mean(abs.(preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 end
@@ -49,13 +49,13 @@ end
         max_depth=6, min_weight=1.0,
         rowsample=0.5, colsample=1.0, rng=123)
 
-    model, cache = EvoTrees.init_evotree(params1, X_train, Y_train)
-    preds_ini = EvoTrees.predict(model, X_eval)
-    mse_error_ini = mean(abs.(preds_ini .- Y_eval) .^ 2)
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
+    model, cache = EvoTrees.init_evotree(params1, x_train, y_train)
+    preds_ini = EvoTrees.predict(model, x_eval)
+    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 
-    preds = EvoTrees.predict(model, X_eval)
-    mse_error = mean(abs.(preds .- Y_eval) .^ 2)
+    preds = EvoTrees.predict(model, x_eval)
+    mse_error = mean(abs.(preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 end
@@ -68,13 +68,13 @@ end
         max_depth=6, min_weight=1.0,
         rowsample=0.5, colsample=1.0, rng=123)
 
-    model, cache = EvoTrees.init_evotree(params1, X_train, Y_train)
-    preds_ini = EvoTrees.predict(model, X_eval)
-    mse_error_ini = mean(abs.(preds_ini .- Y_eval) .^ 2)
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
+    model, cache = EvoTrees.init_evotree(params1, x_train, y_train)
+    preds_ini = EvoTrees.predict(model, x_eval)
+    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 
-    preds = EvoTrees.predict(model, X_eval)
-    mse_error = mean(abs.(preds .- Y_eval) .^ 2)
+    preds = EvoTrees.predict(model, x_eval)
+    mse_error = mean(abs.(preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 end
@@ -87,13 +87,13 @@ end
         max_depth=6, min_weight=1.0,
         rowsample=0.5, colsample=1.0, rng=123)
 
-    model, cache = EvoTrees.init_evotree(params1, X_train, Y_train)
-    preds_ini = EvoTrees.predict(model, X_eval)
-    mse_error_ini = mean(abs.(preds_ini .- Y_eval) .^ 2)
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
+    model, cache = EvoTrees.init_evotree(params1, x_train, y_train)
+    preds_ini = EvoTrees.predict(model, x_eval)
+    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 
-    preds = EvoTrees.predict(model, X_eval)
-    mse_error = mean(abs.(preds .- Y_eval) .^ 2)
+    preds = EvoTrees.predict(model, x_eval)
+    mse_error = mean(abs.(preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 end
@@ -106,13 +106,13 @@ end
         max_depth=6, min_weight=1.0,
         rowsample=0.5, colsample=1.0, rng=123)
 
-    model, cache = EvoTrees.init_evotree(params1, X_train, Y_train)
-    preds_ini = EvoTrees.predict(model, X_eval)
-    mse_error_ini = mean(abs.(preds_ini .- Y_eval) .^ 2)
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
+    model, cache = EvoTrees.init_evotree(params1, x_train, y_train)
+    preds_ini = EvoTrees.predict(model, x_eval)
+    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 
-    preds = EvoTrees.predict(model, X_eval)
-    mse_error = mean(abs.(preds .- Y_eval) .^ 2)
+    preds = EvoTrees.predict(model, x_eval)
+    mse_error = mean(abs.(preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 end
@@ -125,13 +125,13 @@ end
         max_depth=6, min_weight=1.0,
         rowsample=0.5, colsample=1.0, rng=123)
 
-    model, cache = EvoTrees.init_evotree(params1, X_train, Y_train)
-    preds_ini = EvoTrees.predict(model, X_eval)
-    mse_error_ini = mean(abs.(preds_ini .- Y_eval) .^ 2)
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
+    model, cache = EvoTrees.init_evotree(params1, x_train, y_train)
+    preds_ini = EvoTrees.predict(model, x_eval)
+    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 
-    preds = EvoTrees.predict(model, X_eval)
-    mse_error = mean(abs.(preds .- Y_eval) .^ 2)
+    preds = EvoTrees.predict(model, x_eval)
+    mse_error = mean(abs.(preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 end
@@ -144,13 +144,13 @@ end
         max_depth=6, min_weight=1.0,
         rowsample=0.5, colsample=1.0, rng=123)
 
-    model, cache = EvoTrees.init_evotree(params1, X_train, Y_train)
-    preds_ini = EvoTrees.predict(model, X_eval)
-    mse_error_ini = mean(abs.(preds_ini .- Y_eval) .^ 2)
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
+    model, cache = EvoTrees.init_evotree(params1, x_train, y_train)
+    preds_ini = EvoTrees.predict(model, x_eval)
+    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 
-    preds = EvoTrees.predict(model, X_eval)
-    mse_error = mean(abs.(preds .- Y_eval) .^ 2)
+    preds = EvoTrees.predict(model, x_eval)
+    mse_error = mean(abs.(preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 end
@@ -163,13 +163,13 @@ end
         max_depth=6, min_weight=10.0,
         rowsample=0.5, colsample=1.0, rng=123)
 
-    model, cache = EvoTrees.init_evotree(params1, X_train, Y_train)
-    preds_ini = EvoTrees.predict(model, X_eval)[:, 1]
-    mse_error_ini = mean(abs.(preds_ini .- Y_eval) .^ 2)
-    model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25)
+    model, cache = EvoTrees.init_evotree(params1, x_train, y_train)
+    preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
+    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 
-    preds = EvoTrees.predict(model, X_eval)[:, 1]
-    mse_error = mean(abs.(preds .- Y_eval) .^ 2)
+    preds = EvoTrees.predict(model, x_eval)[:, 1]
+    mse_error = mean(abs.(preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 end
@@ -182,6 +182,6 @@ end
         max_depth=6, min_weight=1.0,
         rowsample=0.5, colsample=1.0, rng=123)
 
-    model = fit_evotree(params1, X_train, Y_train)
-    features_gain = importance(model, 1:1)
+    model = fit_evotree(params1; x_train, y_train)
+    features_gain = importance(model)
 end

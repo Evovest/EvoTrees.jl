@@ -2,15 +2,16 @@ module EvoTrees
 
 export init_evotree, grow_evotree!, grow_tree, fit_evotree, predict
 export EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
-    EvoTreeRModels, importance, Random
+    importance, Random
 
 using Base.Threads: @threads
 using Statistics
 using StatsBase: sample, sample!, quantile
-using SpecialFunctions: loggamma
 using Random
 using Distributions
 using CategoricalArrays
+using LoopVectorization
+using Tables
 using CUDA
 using CUDA: @allowscalar, allowscalar
 using BSON
@@ -25,6 +26,7 @@ import Base: convert
 
 include("models.jl")
 include("structs.jl")
+
 include("loss.jl")
 include("eval.jl")
 include("predict.jl")
@@ -42,8 +44,8 @@ include("importance.jl")
 include("plot.jl")
 include("MLJ.jl")
 
-function convert(::Type{GBTree}, m::GBTreeGPU)
-    EvoTrees.GBTree([EvoTrees.Tree(Array(tree.feat),
+function convert(::Type{GBTree}, m::GBTreeGPU{L,T,S}) where {L,T,S}
+    EvoTrees.GBTree{L,T,S}([EvoTrees.Tree{L,T}(Array(tree.feat),
             Array(tree.cond_bin),
             Array(tree.cond_float),
             Array(tree.gain),
@@ -52,7 +54,7 @@ function convert(::Type{GBTree}, m::GBTreeGPU)
         m.params,
         m.metric,
         m.K,
-        m.levels)
+        m.info)
 end
 
 function save(model::GBTree, path)

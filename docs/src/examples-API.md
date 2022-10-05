@@ -22,8 +22,8 @@ train_size = 0.8
 𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
 𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
 
-X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
-Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
+x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
+y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 params1 = EvoTreeRegressor(
     loss=:linear, metric=:mse,
@@ -32,8 +32,8 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_eval_linear = predict(model, X_eval)
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_eval_linear = predict(model, x_eval)
 
 # logistic / cross-entropy
 params1 = EvoTreeRegressor(
@@ -43,8 +43,8 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_eval_logistic = predict(model, X_eval)
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_eval_logistic = predict(model, x_eval)
 
 # L1
 params1 = EvoTreeRegressor(
@@ -54,8 +54,8 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_eval_L1 = predict(model, X_eval)
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_eval_L1 = predict(model, x_eval)
 ```
 
 ## Poisson Count
@@ -69,8 +69,8 @@ params1 = EvoTreeCount(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_eval_poisson = predict(model, X_eval)
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_eval_poisson = predict(model, x_eval)
 ```
 
 ## Quantile Regression
@@ -86,8 +86,8 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_train_q50 = predict(model, X_train)
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_train_q50 = predict(model, x_train)
 
 # q20
 params1 = EvoTreeRegressor(
@@ -97,8 +97,8 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_train_q20 = predict(model, X_train)
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_train_q20 = predict(model, x_train)
 
 # q80
 params1 = EvoTreeRegressor(
@@ -108,8 +108,8 @@ params1 = EvoTreeRegressor(
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
-pred_train_q80 = predict(model, X_train)
+model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+pred_train_q80 = predict(model, x_train)
 ```
 
 ## Gaussian Max Likelihood

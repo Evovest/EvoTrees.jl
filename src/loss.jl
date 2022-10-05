@@ -1,5 +1,5 @@
 # linear
-function update_grads!(::Linear, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
+function update_grads!(::Type{Linear}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
     @inbounds for i in eachindex(y)
         δ𝑤[1, i] = 2 * (p[1, i] - y[i]) * δ𝑤[3, i]
         δ𝑤[2, i] = 2 * δ𝑤[3, i]
@@ -7,7 +7,7 @@ function update_grads!(::Linear, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, 
 end
 
 # logistic - on linear predictor
-function update_grads!(::Logistic, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
+function update_grads!(::Type{Logistic}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
     @inbounds for i in eachindex(y)
         pred = sigmoid(p[1, i])
         δ𝑤[1, i] = (pred - y[i]) * δ𝑤[3, i]
@@ -16,7 +16,7 @@ function update_grads!(::Logistic, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}
 end
 
 # Poisson
-function update_grads!(::Poisson, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
+function update_grads!(::Type{Poisson}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
     @inbounds for i in eachindex(y)
         pred = exp(p[1, i])
         δ𝑤[1, i] = (pred - y[i]) * δ𝑤[3, i]
@@ -25,7 +25,7 @@ function update_grads!(::Poisson, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T},
 end
 
 # Gamma
-function update_grads!(::Gamma, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
+function update_grads!(::Type{Gamma}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
     @inbounds for i in eachindex(y)
         pred = exp(p[1, i])
         δ𝑤[1, i] = 2 * (1 - y[i] / pred) * δ𝑤[3, i]
@@ -34,8 +34,8 @@ function update_grads!(::Gamma, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, a
 end
 
 # Tweedie
-function update_grads!(::Tweedie, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
-    rho = T(1.5)
+function update_grads!(::Type{Tweedie}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
+    rho = eltype(p)(1.5)
     @inbounds for i in eachindex(y)
         pred = exp(p[1, i])
         δ𝑤[1, i] = 2 * (pred^(2 - rho) - y[i] * pred^(1 - rho)) * δ𝑤[3, i]
@@ -44,14 +44,14 @@ function update_grads!(::Tweedie, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T},
 end
 
 # L1
-function update_grads!(::L1, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
+function update_grads!(::Type{L1}, δ𝑤::Matrix, p::Matrix, y::Vector; alpha, kwargs...)
     @inbounds for i in eachindex(y)
         δ𝑤[1, i] = (alpha * max(y[i] - p[1, i], 0) - (1 - alpha) * max(p[1, i] - y[i], 0)) * δ𝑤[3, i]
     end
 end
 
 # Softmax
-function update_grads!(::Softmax, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{S}, alpha::T) where {T<:AbstractFloat,S}
+function update_grads!(::Type{Softmax}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
     p .= p .- maximum(p, dims=1)
     sums = sum(exp.(p), dims=1)
     K = (size(δ𝑤, 1) - 1) ÷ 2
@@ -69,7 +69,7 @@ function update_grads!(::Softmax, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{S},
 end
 
 # Quantile
-function update_grads!(::Quantile, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
+function update_grads!(::Type{Quantile}, δ𝑤::Matrix, p::Matrix, y::Vector; alpha, kwargs...)
     @inbounds for i in eachindex(y)
         δ𝑤[1, i] = y[i] > p[1, i] ? alpha * δ𝑤[3, i] : (alpha - 1) * δ𝑤[3, i]
         δ𝑤[2, i] = y[i] - p[1, i] # δ² serves to calculate the quantile value - hence no weighting on δ²
@@ -79,7 +79,7 @@ end
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
-function update_grads!(::Gaussian, δ𝑤::Matrix{T}, p::Matrix{T}, y::Vector{T}, alpha::T) where {T<:AbstractFloat}
+function update_grads!(::Type{Gaussian}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
     @inbounds @simd for i in eachindex(y)
         # first order
         δ𝑤[1, i] = (p[1, i] - y[i]) / exp(2 * p[2, i]) * δ𝑤[5, i]
@@ -116,17 +116,17 @@ end
 # get the gain metric
 ##############################
 # GradientRegression
-function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S<:GradientRegression,T<:AbstractFloat}
+function get_gain(::Type{L}, ∑::Vector{T}, λ::T, K) where {L<:GradientRegression,T<:AbstractFloat}
     ∑[1]^2 / (∑[2] + λ * ∑[3]) / 2
 end
 
 # GaussianRegression
-function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S<:GaussianRegression,T<:AbstractFloat}
+function get_gain(::Type{L}, ∑::Vector{T}, λ::T, K) where {L<:GaussianRegression,T<:AbstractFloat}
     (∑[1]^2 / (∑[3] + λ * ∑[5]) + ∑[2]^2 / (∑[4] + λ * ∑[5])) / 2
 end
 
 # MultiClassRegression
-function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S<:MultiClassRegression,T<:AbstractFloat}
+function get_gain(::Type{L}, ∑::Vector{T}, λ::T, K) where {L<:MultiClassRegression,T<:AbstractFloat}
     gain = zero(T)
     @inbounds for k = 1:K
         gain += ∑[k]^2 / (∑[k+K] + λ * ∑[2*K+1]) / 2
@@ -135,29 +135,29 @@ function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S<:MultiClassRegression,
 end
 
 # QuantileRegression
-function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S<:QuantileRegression,T<:AbstractFloat}
+function get_gain(::Type{L}, ∑::Vector{T}, λ::T, K) where {L<:QuantileRegression,T<:AbstractFloat}
     abs(∑[1])
 end
 
 # L1 Regression
-function get_gain(::S, ∑::Vector{T}, λ::T, K) where {S<:L1Regression,T<:AbstractFloat}
+function get_gain(::Type{L}, ∑::Vector{T}, λ::T, K) where {L<:L1Regression,T<:AbstractFloat}
     abs(∑[1])
 end
 
 
-function update_childs_∑!(::L, nodes, n, bin, feat, K) where {L<:Union{GradientRegression,QuantileRegression,L1Regression}}
+function update_childs_∑!(::Type{L}, nodes, n, bin, feat, K) where {L<:Union{GradientRegression,QuantileRegression,L1Regression}}
     nodes[n<<1].∑ .= nodes[n].hL[feat][(3*bin-2):(3*bin)]
     nodes[n<<1+1].∑ .= nodes[n].hR[feat][(3*bin-2):(3*bin)]
     return nothing
 end
 
-function update_childs_∑!(::L, nodes, n, bin, feat, K) where {L<:GaussianRegression}
+function update_childs_∑!(::Type{L}, nodes, n, bin, feat, K) where {L<:GaussianRegression}
     nodes[n<<1].∑ .= nodes[n].hL[feat][(5*bin-4):(5*bin)]
     nodes[n<<1+1].∑ .= nodes[n].hR[feat][(5*bin-4):(5*bin)]
     return nothing
 end
 
-function update_childs_∑!(::L, nodes, n, bin, feat, K) where {L<:MultiClassRegression}
+function update_childs_∑!(::Type{L}, nodes, n, bin, feat, K) where {L<:MultiClassRegression}
     KK = 2 * K + 1
     nodes[n<<1].∑ .= nodes[n].hL[feat][(KK*(bin-1)+1):(KK*bin)]
     nodes[n<<1+1].∑ .= nodes[n].hR[feat][(KK*(bin-1)+1):(KK*bin)]

@@ -11,7 +11,8 @@ function hist_kernel_grad!(h::CuDeviceArray{T,3}, δ𝑤::CuDeviceMatrix{T}, xid
     ib, j = blockIdx().x, blockIdx().y
     ig, jg = gridDim().x, gridDim().y
 
-    shared = @cuDynamicSharedMem(T, (size(h, 1), size(h, 2)))
+    # shared = @cuDynamicSharedMem(T, (size(h, 1), size(h, 2)))
+    shared = CuDynamicSharedArray(T, (size(h, 1), size(h, 2)))
     fill!(shared, 0)
     sync_threads()
 
@@ -45,7 +46,7 @@ end
 
 # base approach - block built along the cols first, the rows (limit collisions)
 function update_hist_gpu!(
-    ::L,
+    ::Type{L},
     h::CuArray{T,3},
     δ𝑤::CuMatrix{T},
     X_bin::CuMatrix{UInt8},
@@ -77,7 +78,8 @@ function hist_kernel_gauss!(h::CuDeviceArray{T,3}, δ𝑤::CuDeviceMatrix{T}, xi
     ib, j = blockIdx().x, blockIdx().y
     ig, jg = gridDim().x, gridDim().y
 
-    shared = @cuDynamicSharedMem(T, (size(h, 1), size(h, 2)))
+    # shared = @cuDynamicSharedMem(T, (size(h, 1), size(h, 2)))
+    shared = CuDynamicSharedArray(T, (size(h, 1), size(h, 2)))
     fill!(shared, 0)
     sync_threads()
 
@@ -103,7 +105,7 @@ end
 
 # base approach - block built along the cols first, the rows (limit collisions)
 function update_hist_gpu!(
-    ::L,
+    ::Type{L},
     h::CuArray{T,3},
     δ𝑤::CuMatrix{T},
     X_bin::CuMatrix{UInt8},
@@ -208,10 +210,9 @@ end
         GradientRegression
 """
 function update_gains_gpu!(
-    loss::L,
-    node::TrainNodeGPU{T},
-    𝑗::AbstractVector{S},
-    params::EvoTypes, K, monotone_constraints;
+    node::TrainNodeGPU,
+    𝑗::AbstractVector,
+    params::EvoTypes{L,T,S}, K, monotone_constraints;
     MAX_THREADS=512) where {L<:GradientRegression,T,S}
 
     cumsum!(node.hL, node.h, dims=2)
@@ -255,10 +256,9 @@ end
         GaussianRegression
 """
 function update_gains_gpu!(
-    loss::L,
-    node::TrainNodeGPU{T},
-    𝑗::AbstractVector{S},
-    params::EvoTypes, K, monotone_constraints;
+    node::TrainNodeGPU,
+    𝑗::AbstractVector,
+    params::EvoTypes{L,T,S}, K, monotone_constraints;
     MAX_THREADS=512) where {L<:GaussianRegression,T,S}
 
     cumsum!(node.hL, node.h, dims=2)

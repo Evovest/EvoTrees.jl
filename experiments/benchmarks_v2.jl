@@ -1,5 +1,6 @@
+using Revise
 using Statistics
-using StatsBase:sample
+using StatsBase: sample
 using XGBoost
 using EvoTrees
 using BenchmarkTools
@@ -9,59 +10,80 @@ nrounds = 200
 nthread = Base.Threads.nthreads()
 
 @info nthread
+loss = "logistic"
+if loss == "linear"
+    loss_xgb = "reg:squarederror"
+    metric_xgb = "mae"
+    loss_evo = :linear
+    metric_evo = :mae
+elseif loss == "logistic"
+    loss_xgb = "reg:logistic"
+    metric_xgb = "logloss"
+    loss_evo = :logistic
+    metric_evo = :logloss
+end
 
 # xgboost aprams
-params_xgb = ["max_depth" => 5,
-         "eta" => 0.05,
-         "objective" => "reg:squarederror",
-         "print_every_n" => 5,
-         "subsample" => 0.5,
-         "colsample_bytree" => 0.5,
-         "tree_method" => "hist",
-         "max_bin" => 64]
-metrics = ["rmse"]
+params_xgb = [
+    "max_depth" => 5,
+    "eta" => 0.05,
+    "objective" => loss_xgb,
+    "print_every_n" => 5,
+    "subsample" => 0.5,
+    "colsample_bytree" => 0.5,
+    "tree_method" => "hist",
+    "max_bin" => 64,
+]
+metrics = [metric_xgb]
 
 # EvoTrees params
-params_evo = EvoTreeRegressor(T=Float32,
-        loss=:linear, metric=:mse,
-        nrounds=nrounds, alpha=0.5,
-        lambda=0.0, gamma=0.0, eta=0.05,
-        max_depth=6, min_weight=1.0,
-        rowsample=0.5, colsample=0.5, nbins=64)
-
+params_evo = EvoTreeRegressor(
+    T=Float32,
+    loss=loss_evo,
+    metric=metric_evo,
+    nrounds=nrounds,
+    alpha=0.5,
+    lambda=0.0,
+    gamma=0.0,
+    eta=0.05,
+    max_depth=6,
+    min_weight=1.0,
+    rowsample=0.5,
+    colsample=0.5,
+    nbins=64,
+)
 
 nobs = Int(1e6)
 num_feat = Int(100)
 @info "testing with: $nobs observations | $num_feat features."
-X = rand(nobs, num_feat)
-Y = rand(size(X, 1))
+x_train = rand(nobs, num_feat)
+y_train = rand(size(x_train, 1))
 
 @info "xgboost train:"
-@time m_xgb = xgboost(X, nrounds, label=Y, param=params_xgb, metrics=metrics, nthread=nthread, silent=1);
-@btime xgboost($X, $nrounds, label=$Y, param=$params_xgb, metrics=$metrics, nthread=$nthread, silent=1);
+@time m_xgb = xgboost(x_train, nrounds, label=y_train, param=params_xgb, metrics=metrics, nthread=nthread, silent=1);
+@btime xgboost($x_train, $nrounds, label=$y_train, param=$params_xgb, metrics=$metrics, nthread=$nthread, silent=1);
 @info "xgboost predict:"
-@time pred_xgb = XGBoost.predict(m_xgb, X);
-@btime XGBoost.predict($m_xgb, $X);
+@time pred_xgb = XGBoost.predict(m_xgb, x_train);
+@btime XGBoost.predict($m_xgb, $x_train);
 
 @info "evotrees train CPU:"
 params_evo.device = "cpu"
-@time m_evo = fit_evotree(params_evo, X, Y);
-@btime fit_evotree($params_evo, $X, $Y);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=50);
+@btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
 @info "evotrees predict CPU:"
-@time pred_evo = EvoTrees.predict(m_evo, X);
-@btime EvoTrees.predict($m_evo, $X);
+@time pred_evo = EvoTrees.predict(m_evo, x_train);
+@btime EvoTrees.predict($m_evo, $x_train);
 
 CUDA.allowscalar(true)
 @info "evotrees train GPU:"
 params_evo.device = "gpu"
-@time m_evo_gpu = fit_evotree(params_evo, X, Y);
-@btime fit_evotree($params_evo, $X, $Y);
+@time m_evo_gpu = fit_evotree(params_evo; x_train, y_train);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=50);
+@btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
 @info "evotrees predict GPU:"
-@time pred_evo = EvoTrees.predict(m_evo_gpu, X);
-@btime EvoTrees.predict($m_evo_gpu, $X);
+@time pred_evo = EvoTrees.predict(m_evo_gpu, x_train);
+@btime EvoTrees.predict($m_evo_gpu, $x_train);
 
-# W = ones(length(Y))
-# @time m_evo_gpu = fit_evotree(params_evo, X, Y);
-# @time m_evo_gpu = fit_evotree(params_evo, X, Y, W);
-# @time m_evo_gpu = fit_evotree(params_evo, X, Y, W, X_eval = X, Y_eval = Y);
-# @time m_evo_gpu = fit_evotree(params_evo, X, Y, W, X_eval = X, Y_eval = Y, W_eval = W);
+# w_train = ones(length(y_train))
+# @time m_evo_gpu = fit_evotree(params_evo, x_train, y_train);
+# @time m_evo_gpu = fit_evotree(params_evo, x_train, y_train, w_train);

@@ -7,12 +7,13 @@ function importance!(gain::AbstractVector, tree::Union{Tree,TreeGPU})
 end
 
 """
-    importance(model::GBTree, vars::AbstractVector)
+    importance(model::GBTree)
 
 Sorted normalized feature importance based on loss function gain.
 """
-function importance(model::Union{GBTree,GBTreeGPU}, vars::AbstractVector)
-    gain = zeros(length(vars))
+function importance(model::Union{GBTree,GBTreeGPU})
+    fnames = model.info[:fnames]
+    gain = zeros(length(fnames))
 
     # Loop importance over all trees and sort results.
     for tree in model.trees
@@ -20,7 +21,7 @@ function importance(model::Union{GBTree,GBTreeGPU}, vars::AbstractVector)
     end
 
     gain .= gain ./ sum(gain)
-    pairs = collect(Dict(zip(string.(vars), gain)))
+    pairs = collect(Dict(zip(string.(fnames), gain)))
     sort!(pairs, by=x -> -x[2])
 
     return pairs

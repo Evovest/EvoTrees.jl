@@ -1,7 +1,7 @@
 """
     predict_kernel!
 """
-function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L,T}
+function predict_kernel!(::Type{L}, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L,T}
     idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if idx <= size(pred, 2)
@@ -20,7 +20,7 @@ end
     predict_kernel!
         GradientRegression
 """
-function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L<:GradientRegression,T}
+function predict_kernel!(::Type{L}, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L<:GradientRegression,T}
     idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if idx <= size(pred, 2)
@@ -37,7 +37,7 @@ end
     predict_kernel!
         Logistic
 """
-function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L<:Logistic,T}
+function predict_kernel!(::Type{L}, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L<:Logistic,T}
     idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if idx <= size(pred, 2)
@@ -54,7 +54,7 @@ end
     predict_kernel!
         GaussianRegression
 """
-function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L<:GaussianRegression,T}
+function predict_kernel!(::Type{L}, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L<:GaussianRegression,T}
     idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if idx <= size(pred, 2)
@@ -69,61 +69,62 @@ function predict_kernel!(::L, pred::AbstractMatrix{T}, split, feat, cond_float, 
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict!(loss::L, pred::AbstractMatrix{T}, tree::TreeGPU{T}, X::AbstractMatrix, K; MAX_THREADS=1024) where {L,T}
+function predict!(pred::AbstractMatrix{T}, tree::TreeGPU{L,T}, X::AbstractMatrix, K; MAX_THREADS=1024) where {L,T}
     K = size(pred, 1)
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
     blocks = ceil(Int, n / threads)
-    @cuda blocks = blocks threads = threads predict_kernel!(loss, pred, tree.split, tree.feat, tree.cond_float, tree.pred, X, K)
+    @cuda blocks = blocks threads = threads predict_kernel!(L, pred, tree.split, tree.feat, tree.cond_float, tree.pred, X, K)
     CUDA.synchronize()
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict(loss::L, tree::TreeGPU{T}, X::AbstractMatrix, K) where {L,T}
+function predict(tree::TreeGPU{L,T}, X::AbstractMatrix, K) where {L,T}
     pred = CUDA.zeros(T, K, size(X, 1))
-    predict!(loss, pred, tree, X, K)
+    predict!(pred, tree, X, K)
     return pred
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict(model::GBTreeGPU{T}, X::AbstractMatrix) where {T}
+function predict(model::GBTreeGPU{L,T,S}, X::AbstractMatrix) where {L,T,S}
     K = size(model.trees[1].pred, 1)
     pred = CUDA.zeros(T, K, size(X, 1))
     X_gpu = CuArray(X)
     for tree in model.trees
-        predict!(model.params.loss, pred, tree, X_gpu, model.K)
+        predict!(pred, tree, X_gpu, model.K)
     end
-    if typeof(model.params.loss) == Logistic
+    if L == Logistic
         pred .= sigmoid.(pred)
-    elseif typeof(model.params.loss) ∈ [Poisson, Gamma, Tweedie]
+    elseif L ∈ [Poisson, Gamma, Tweedie]
         pred .= exp.(pred)
-    elseif typeof(model.params.loss) == Gaussian
+    elseif L == Gaussian
         pred[2, :] .= exp.(pred[2, :])
-    elseif typeof(model.params.loss) == Softmax
+    elseif L == Softmax
         pred = transpose(reshape(pred, model.K, :))
         for i in axes(pred, 1)
             pred[i, :] .= softmax(pred[i, :])
         end
     end
-    return Array(pred')
+    pred = model.K == 1 ? vec(Array(pred')) : Array(pred')
+    return pred
 end
 
 
 # prediction in Leaf - GradientRegression
-function pred_leaf_gpu!(::S, p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes) where {S<:GradientRegression,T}
+function pred_leaf_gpu!(p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes{L,T,S}) where {L<:GradientRegression,T,S}
     @allowscalar(p[1, n] = -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3]))
     return nothing
 end
-function pred_scalar_gpu!(::S, ∑::AbstractVector{T}, lambda) where {S<:GradientRegression,T}
+function pred_scalar_gpu!(∑::AbstractVector{T}, lambda) where {L<:GradientRegression,T,S}
     @allowscalar(-∑[1] / (∑[2] + lambda * ∑[3]))
 end
 
 # prediction in Leaf - Gaussian
-function pred_leaf_gpu!(::S, p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes) where {S<:GaussianRegression,T}
+function pred_leaf_gpu!(p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes{L,T,S}) where {L<:GaussianRegression,T,S}
     @allowscalar(p[1, n] = -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5]))
     @allowscalar(p[2, n] = -params.eta * ∑[2] / (∑[4] + params.lambda * ∑[5]))
     return nothing
 end
-function pred_scalar_gpu!(::S, ∑::AbstractVector{T}, params::EvoTypes) where {S<:GradientRegression,T}
+function pred_scalar_gpu!(∑::AbstractVector{T}, params::EvoTypes{L,T,S}) where {L<:GradientRegression,T,S}
     @allowscalar(-params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5]))
 end
