@@ -37,7 +37,7 @@ params1 = EvoTreeRegressor(T=Float32,
 @btime model = fit_evotree($params1; $x_train, $y_train);
 @time pred_train = predict(model, x_train);
 @btime pred_train = predict(model, x_train);
-gain = importance(model, 1:100)
+gain = importance(model)
 
 @time model, cache = EvoTrees.init_evotree(params1, x_train, y_train);
 @time EvoTrees.grow_evotree!(model, cache);
@@ -77,17 +77,23 @@ params1 = EvoTreeGaussian(T=Float32,
 # train model
 params1 = EvoTreeRegressor(T=Float32,
     loss=:linear, metric=:mse,
-    nrounds=100,
+    nrounds=10,
     lambda=1.0, gamma=0, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=0.5, nbins=64,
     device="gpu")
 
 # Asus laptop:  10.015568 seconds (13.80 M allocations: 1.844 GiB, 4.00% gc time)
-@time model = EvoTrees.fit_evotree(params1, X_train, Y_train);
-@btime model = EvoTrees.fit_evotree(params1, X_train, Y_train);
+@time model = EvoTrees.fit_evotree(params1; x_train, y_train);
+@btime model = EvoTrees.fit_evotree(params1; x_train, y_train);
 @time model, cache = EvoTrees.init_evotree_gpu(params1, X_train, Y_train);
 @time EvoTrees.grow_evotree!(model, cache);
+
+using MLJBase
+mach1 = machine(EvoTreeRegressor(loss=:linear, device="gpu", max_depth=5, eta=0.01, nrounds=10), x_train, y_train, cache=true)
+mach2 = machine(EvoTreeRegressor(loss=:linear, device="gpu", max_depth=5, eta=0.01, nrounds=10), x_train, y_train, cache=false)
+mach3 = machine(EvoTreeRegressor(loss=:linear, device="gpu", max_depth=5, eta=0.01, nrounds=10), x_train, y_train, cache=false)
+fit!(mach1)
 
 # X_train_32 = Float32.(X_train)
 @time pred_train = EvoTrees.predict(model, X_train);

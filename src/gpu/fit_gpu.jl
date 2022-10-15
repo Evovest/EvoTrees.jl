@@ -1,5 +1,5 @@
 function init_evotree_gpu(params::EvoTypes{L,T,S},
-    X::AbstractMatrix, Y::AbstractVector, W=nothing, offset=nothing; fnames) where {L,T,S}
+    X::AbstractMatrix, Y::AbstractVector, W=nothing, offset=nothing; fnames=nothing) where {L,T,S}
 
     K = 1
     levels = nothing
@@ -106,7 +106,7 @@ function grow_evotree!(evotree::GBTreeGPU{L,T,S}, cache) where {L,T,S}
         predict!(cache.pred, tree, cache.X, cache.K)
     end # end of nrounds
     cache.params.nrounds = params.nrounds
-    # return model, cache
+    CUDA.reclaim()
     return evotree
 end
 
