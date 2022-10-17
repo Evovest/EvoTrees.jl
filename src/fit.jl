@@ -20,7 +20,7 @@ function init_evotree(
         Y = T.(Y)
         μ = [logit(mean(Y))]
         !isnothing(offset) && (offset .= logit.(offset))
-    elseif L ∈ [Poisson, Gamma, Tweedie]
+    elseif L in [Poisson, Gamma, Tweedie]
         Y = T.(Y)
         μ = fill(log(mean(Y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
@@ -38,15 +38,21 @@ function init_evotree(
             Y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
         !isnothing(offset) && (offset .= log.(offset))
-    elseif L == Gaussian
+    elseif L == GaussianDist
         K = 2
         Y = T.(Y)
         μ = [mean(Y), log(std(Y))]
+        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+    elseif L == LogisticDist
+        K = 2
+        Y = T.(Y)
+        μ = [mean(Y), log(std(Y) * sqrt(3) / π)]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     else
         Y = T.(Y)
         μ = [mean(Y)]
     end
+    μ = T.(μ)
 
     # force a neutral bias/initial tree when offset is specified
     !isnothing(offset) && (μ .= 0)
@@ -272,7 +278,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
 
 # Arguments
 
-- `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` comprises EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount or EvoTreeGaussian
+- `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` comprises EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount and EvoTreeMLE.
 
 # Keyword arguments
 
@@ -295,7 +301,6 @@ Main training function. Performs model fitting given configuration `params`, `x_
         - `:poisson`: Poisson deviance. Adapted to `EvoTreeCount` count models.
         - `:gamma`: Gamma deviance. Adapted to regression problem on Gamma like, positively distributed targets.
         - `:tweedie`: Tweedie deviance. Adapted to regression problem on Tweedie like, positively distributed targets with probability mass at `y == 0`.
-
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -333,7 +338,7 @@ function fit_evotree(
         L == Logistic && (offset_eval .= logit.(offset_eval))
         L in [Poisson, Gamma, Tweedie] && (offset_eval .= log.(offset_eval))
         L == Softmax && (offset_eval .= log.(offset_eval))
-        L == Gaussian && (offset_eval[:, 2] .= log.(offset_eval[:, 2]))
+        L in [GaussianDist, LogisticDist] && (offset_eval[:, 2] .= log.(offset_eval[:, 2]))
         offset_eval = T.(offset_eval)
     end
 

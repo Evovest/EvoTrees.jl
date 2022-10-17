@@ -115,7 +115,6 @@ savefig("figures/regression_sinus_gpu.png")
 ###############################
 EvoTrees.CUDA.allowscalar(false)
 params1 = EvoTreeGaussian(T=Float32,
-    loss=:gaussian, metric=:gaussian,
     nrounds=200, nbins=64,
     lambda=1.0, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=5,
@@ -140,4 +139,4 @@ plot!(x_train[:, 1][x_perm], pred_train_gaussian[x_perm, 1], color="navy", linew
 plot!(x_train[:, 1][x_perm], pred_train_gaussian[x_perm, 2], color="darkred", linewidth=1.5, label="sigma")
 plot!(x_train[:, 1][x_perm], pred_q20[x_perm, 1], color="green", linewidth=1.5, label="q20")
 plot!(x_train[:, 1][x_perm], pred_q80[x_perm, 1], color="green", linewidth=1.5, label="q80")
-savefig("figures/gaussian_sinus_gpu.png")
+savefig("figures/gaussian-sinus-gpu.png")

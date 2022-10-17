@@ -13,7 +13,7 @@ function init_evotree_gpu(params::EvoTypes{L,T,S},
         Y = CuArray(T.(Y))
         μ = fill(log(mean(Y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
-    elseif L == Gaussian
+    elseif L == GaussianDist
         K = 2
         Y = CuArray(T.(Y))
         μ = [mean(Y), log(std(Y))]

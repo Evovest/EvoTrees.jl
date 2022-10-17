@@ -200,14 +200,14 @@ savefig("figures/quantiles_sinus.png")
 ###############################
 ## gaussian
 ###############################
-params1 = EvoTreeGaussian(
-    loss=:gaussian, metric=:gaussian,
+params1 = EvoTreeMLE(
+    loss=:gaussian,
     nrounds=200, nbins=64,
     lambda=0.1, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=1.0, colsample=1.0, rng=123)
 
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=10);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=10, metric=:gaussian);
 # @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
 @time pred_train = EvoTrees.predict(model, x_train);
 # @btime pred_train = EvoTrees.predict(model, X_train);
@@ -225,4 +225,35 @@ plot!(x_train[:, 1][x_perm], pred_train[x_perm, 1], color="navy", linewidth=1.5,
 plot!(x_train[:, 1][x_perm], pred_train[x_perm, 2], color="darkred", linewidth=1.5, label="sigma")
 plot!(x_train[:, 1][x_perm], pred_q20[x_perm, 1], color="darkgreen", linewidth=1.5, label="q20")
 plot!(x_train[:, 1][x_perm], pred_q80[x_perm, 1], color="darkgreen", linewidth=1.5, label="q80")
-savefig("figures/gaussian_sinus.png")
+savefig("figures/gaussian-sinus.png")
+
+
+###############################
+## Logistic
+###############################
+params1 = EvoTrees.EvoTreeMLE(
+    loss = :logistic,
+    nrounds=200, nbins=64,
+    lambda=1.0, gamma=0.1, eta=0.05,
+    max_depth=6, min_weight=1.0,
+    rowsample=1.0, colsample=1.0, rng=123)
+
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=10, metric=:logistic);
+# @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
+@time pred_train = EvoTrees.predict(model, x_train);
+# @btime pred_train = EvoTrees.predict(model, X_train);
+
+pred_logistic = [Distributions.Logistic(pred_train[i, 1], pred_train[i, 2]) for i in axes(pred_train, 1)]
+pred_q80 = quantile.(pred_logistic, 0.8)
+pred_q20 = quantile.(pred_logistic, 0.2)
+
+mean(y_train .< pred_q80)
+mean(y_train .< pred_q20)
+
+x_perm = sortperm(x_train[:, 1])
+plot(x_train[:, 1], y_train, ms=0.5, mcolor="darkgray", mswidth=0, background_color=RGB(1, 1, 1), seriestype=:scatter, xaxis=("feature"), yaxis=("target"), legend=true, label="")
+plot!(x_train[:, 1][x_perm], pred_train[x_perm, 1], color="navy", linewidth=1.5, label="mu")
+plot!(x_train[:, 1][x_perm], pred_train[x_perm, 2], color="darkred", linewidth=1.5, label="s")
+plot!(x_train[:, 1][x_perm], pred_q20[x_perm, 1], color="darkgreen", linewidth=1.5, label="q20")
+plot!(x_train[:, 1][x_perm], pred_q80[x_perm, 1], color="darkgreen", linewidth=1.5, label="q80")
+savefig("figures/logistic-sinus.png")

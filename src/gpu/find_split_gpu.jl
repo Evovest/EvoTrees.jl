@@ -111,7 +111,7 @@ function update_hist_gpu!(
     X_bin::CuMatrix{UInt8},
     𝑖::CuVector{S},
     𝑗::CuVector{S}, K;
-    MAX_THREADS=128) where {L<:GaussianRegression,T,S}
+    MAX_THREADS=128) where {L<:MLE2P,T,S}
 
     nbins = size(h, 2)
     thread_i = max(nbins, min(MAX_THREADS, length(𝑖)))
@@ -253,13 +253,13 @@ end
 
 """
     update_gains!
-        GaussianRegression
+        MLE2P
 """
 function update_gains_gpu!(
     node::TrainNodeGPU,
     𝑗::AbstractVector,
     params::EvoTypes{L,T,S}, K, monotone_constraints;
-    MAX_THREADS=512) where {L<:GaussianRegression,T,S}
+    MAX_THREADS=512) where {L<:MLE2P,T,S}
 
     cumsum!(node.hL, node.h, dims=2)
     node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL

@@ -86,6 +86,15 @@ function eval_metric(::Val{:gaussian}, p::AbstractMatrix{T}, y::AbstractVector{T
     return eval
 end
 
+function eval_metric(::Val{:logistic}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha=0.0) where {T<:AbstractFloat}
+    eval = zero(T)
+    @inbounds for i in eachindex(y)
+        eval += -w[i] * (log(1 / 4 * sech(exp(-p[2, i]) * (y[i] - p[1, i]))^2) - p[2, i])
+    end
+    eval /= sum(w)
+    return eval
+end
+
 function eval_metric(::Val{:quantile}, p::AbstractMatrix{T}, y::AbstractVector{T}, w::AbstractVector{T}, alpha=0.0) where {T<:AbstractFloat}
     eval = zero(T)
     for i in eachindex(y)

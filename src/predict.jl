@@ -20,7 +20,7 @@ function predict!(pred::Matrix, tree::Tree{L,T}, X, K) where {L<:Logistic,T}
     return nothing
 end
 
-function predict!(pred::Matrix, tree::Tree{L,T}, X, K) where {L<:GaussianRegression,T}
+function predict!(pred::Matrix, tree::Tree{L,T}, X, K) where {L<:MLE2P,T}
     @inbounds @threads for i in axes(X, 1)
         nid = 1
         @inbounds while tree.split[nid]
@@ -75,7 +75,7 @@ function predict(model::GBTree{L,T,S}, X::AbstractMatrix) where {L,T,S}
         pred .= sigmoid.(pred)
     elseif L ∈ [Poisson, Gamma, Tweedie]
         pred .= exp.(pred)
-    elseif L == Gaussian
+    elseif L in [GaussianDist, LogisticDist]
         pred[2, :] .= exp.(pred[2, :])
     elseif L == Softmax
         @inbounds for i in axes(pred, 2)
@@ -94,12 +94,12 @@ function pred_scalar_cpu!(∑::Vector{T}, params::EvoTypes, K) where {L<:Gradien
     -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3])
 end
 
-# prediction in Leaf - GaussianRegression
-function pred_leaf_cpu!(pred, n, ∑::Vector, params::EvoTypes{L,T,S}, K, δ𝑤, 𝑖) where {L<:GaussianRegression,T,S}
+# prediction in Leaf - MLE2P
+function pred_leaf_cpu!(pred, n, ∑::Vector, params::EvoTypes{L,T,S}, K, δ𝑤, 𝑖) where {L<:MLE2P,T,S}
     pred[1, n] = -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5])
     pred[2, n] = -params.eta * ∑[2] / (∑[4] + params.lambda * ∑[5])
 end
-function pred_scalar_cpu!(∑::Vector{T}, params::EvoTypes{L,T,S}, K) where {L<:GaussianRegression,T,S}
+function pred_scalar_cpu!(∑::Vector{T}, params::EvoTypes{L,T,S}, K) where {L<:MLE2P,T,S}
     -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5])
 end
 

@@ -52,9 +52,9 @@ end
 
 """
     predict_kernel!
-        GaussianRegression
+        MLE2P
 """
-function predict_kernel!(::Type{L}, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L<:GaussianRegression,T}
+function predict_kernel!(::Type{L}, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix, K) where {L<:MLE2P,T}
     idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if idx <= size(pred, 2)
@@ -97,7 +97,7 @@ function predict(model::GBTreeGPU{L,T,S}, X::AbstractMatrix) where {L,T,S}
         pred .= sigmoid.(pred)
     elseif L ∈ [Poisson, Gamma, Tweedie]
         pred .= exp.(pred)
-    elseif L == Gaussian
+    elseif L == GaussianDist
         pred[2, :] .= exp.(pred[2, :])
     elseif L == Softmax
         pred = transpose(reshape(pred, model.K, :))
@@ -119,12 +119,12 @@ function pred_scalar_gpu!(∑::AbstractVector{T}, lambda) where {L<:GradientRegr
     @allowscalar(-∑[1] / (∑[2] + lambda * ∑[3]))
 end
 
-# prediction in Leaf - Gaussian
-function pred_leaf_gpu!(p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes{L,T,S}) where {L<:GaussianRegression,T,S}
+# prediction in Leaf - MLE2P
+function pred_leaf_gpu!(p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes{L,T,S}) where {L<:MLE2P,T,S}
     @allowscalar(p[1, n] = -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5]))
     @allowscalar(p[2, n] = -params.eta * ∑[2] / (∑[4] + params.lambda * ∑[5]))
     return nothing
 end
-function pred_scalar_gpu!(∑::AbstractVector{T}, params::EvoTypes{L,T,S}) where {L<:GradientRegression,T,S}
+function pred_scalar_gpu!(∑::AbstractVector{T}, params::EvoTypes{L,T,S}) where {L<:MLE2P,T,S}
     @allowscalar(-params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5]))
 end

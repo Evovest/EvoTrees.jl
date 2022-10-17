@@ -1,7 +1,7 @@
 module EvoTrees
 
 export init_evotree, grow_evotree!, grow_tree, fit_evotree, predict
-export EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeGaussian,
+export EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeMLE, EvoTreeGaussian,
     importance, Random
 
 using Base.Threads: @threads
