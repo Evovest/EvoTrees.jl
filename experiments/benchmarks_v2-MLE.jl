@@ -13,14 +13,14 @@ nthread = Base.Threads.nthreads()
 
 # EvoTrees params
 params_evo = EvoTreeMLE(
-    T=Float32,
+    T=Float64,
     loss=:gaussian,
     nrounds=nrounds,
     lambda=0.0,
     gamma=0.0,
     eta=0.05,
     max_depth=6,
-    min_weight=1.0,
+    min_weight=100.0,
     rowsample=0.5,
     colsample=0.5,
     nbins=64,
@@ -53,14 +53,14 @@ params_evo.device = "gpu"
 # Logistic
 ################################
 params_evo = EvoTreeMLE(
-    T=Float32,
+    T=Float64,
     loss=:logistic,
     nrounds=nrounds,
     lambda=0.0,
     gamma=0.0,
     eta=0.05,
     max_depth=6,
-    min_weight=1.0,
+    min_weight=100.0,
     rowsample=0.5,
     colsample=0.5,
     nbins=64,

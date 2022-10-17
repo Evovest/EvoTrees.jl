@@ -194,7 +194,7 @@ tree_model = EvoTreeMLE(
     loss=:logistic,
     nrounds=10,
     lambda=1.0, gamma=0.0, eta=0.1,
-    max_depth=6, min_weight=1.0,
+    max_depth=6, min_weight=32.0,
     rowsample=0.5, colsample=0.5, nbins=32)
 
 X = MLJBase.table(X)
