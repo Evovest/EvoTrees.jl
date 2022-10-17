@@ -13,7 +13,7 @@ function init_evotree(params::EvoTypes{L,T,S}, X::AbstractMatrix, Y::AbstractVec
         Y = T.(Y)
         μ = [logit(mean(Y))]
         !isnothing(offset) && (offset .= logit.(offset))
-    elseif L ∈ [Poisson, Gamma, Tweedie]
+    elseif L in [Poisson, Gamma, Tweedie]
         Y = T.(Y)
         μ = fill(log(mean(Y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
@@ -31,15 +31,21 @@ function init_evotree(params::EvoTypes{L,T,S}, X::AbstractMatrix, Y::AbstractVec
             Y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
         !isnothing(offset) && (offset .= log.(offset))
-    elseif L == Gaussian
+    elseif L == GaussianDist
         K = 2
         Y = T.(Y)
         μ = [mean(Y), log(std(Y))]
+        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+    elseif L == LogisticDist
+        K = 2
+        Y = T.(Y)
+        μ = [mean(Y), log(std(Y) * sqrt(3) / π)]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     else
         Y = T.(Y)
         μ = [mean(Y)]
     end
+    μ = T.(μ)
 
     # force a neutral bias/initial tree when offset is specified
     !isnothing(offset) && (μ .= 0)
@@ -229,7 +235,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
 
 # Arguments
 
-- `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` comprises EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount or EvoTreeGaussian
+- `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` comprises EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount and EvoTreeMLE.
 
 # Keyword arguments
 
@@ -241,9 +247,21 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `y_eval::Vector`: vector of evaluation targets of length `#observations`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
+- `metric`: The evaluation metric that wil be tracked on `x_eval`, `y_eval` and optionally `w_eval` / `offset_eval` data. 
+    Supported metrics are: 
+    
+        - `:mse`: mean-squared error. Adapted for general regression models.
+        - `:rmse`: root-mean-squared error (CPU only). Adapted for general regression models.
+        - `:mae`: mean absolute error. Adapted for general regression models.
+        - `:logloss`: Adapted for `:logistic` regression models.
+        - `:mlogloss`: Multi-class cross entropy. Adapted to `EvoTreeClassifier` classification models. 
+        - `:poisson`: Poisson deviance. Adapted to `EvoTreeCount` count models.
+        - `:gamma`: Gamma deviance. Adapted to regression problem on Gamma like, positively distributed targets.
+        - `:tweedie`: Tweedie deviance. Adapted to regression problem on Tweedie like, positively distributed targets with probability mass at `y == 0`.
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
+- `fnames`: the names of the `x_train` features. If provided, should be a vector of string with `length(fnames) = size(x_train, 2)`.
 """
 function fit_evotree(params::EvoTypes{L,T,S};
     x_train::AbstractMatrix, y_train::AbstractVector, w_train=nothing, offset_train=nothing,
@@ -264,10 +282,11 @@ function fit_evotree(params::EvoTypes{L,T,S};
         L == Logistic && (offset_eval .= logit.(offset_eval))
         L in [Poisson, Gamma, Tweedie] && (offset_eval .= log.(offset_eval))
         L == Softmax && (offset_eval .= log.(offset_eval))
-        L == Gaussian && (offset_eval[:, 2] .= log.(offset_eval[:, 2]))
+        L in [GaussianDist, LogisticDist] && (offset_eval[:, 2] .= log.(offset_eval[:, 2]))
         offset_eval = T.(offset_eval)
     end
 
+    !isnothing(metric) ? metric = Symbol(metric) : nothing  
     if !isnothing(metric) && !isnothing(x_eval) && !isnothing(y_eval)
         if params.device == "gpu"
             x_eval = CuArray(T.(x_eval))

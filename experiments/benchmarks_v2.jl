@@ -10,7 +10,7 @@ nrounds = 200
 nthread = Base.Threads.nthreads()
 
 @info nthread
-loss = "logistic"
+loss = "linear"
 if loss == "linear"
     loss_xgb = "reg:squarederror"
     metric_xgb = "mae"
@@ -40,7 +40,6 @@ metrics = [metric_xgb]
 params_evo = EvoTreeRegressor(
     T=Float32,
     loss=loss_evo,
-    metric=metric_evo,
     nrounds=nrounds,
     alpha=0.5,
     lambda=0.0,

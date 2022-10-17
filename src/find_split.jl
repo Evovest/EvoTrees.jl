@@ -121,7 +121,7 @@ end
 
 """
     update_hist!
-        GaussianRegression
+        MLE2P
 """
 function update_hist!(
     ::Type{L},
@@ -129,7 +129,7 @@ function update_hist!(
     δ𝑤::Matrix{T},
     X_bin::Matrix{UInt8},
     𝑖::AbstractVector{S},
-    𝑗::AbstractVector{S}, K) where {L<:GaussianRegression,T,S}
+    𝑗::AbstractVector{S}, K) where {L<:MLE2P,T,S}
 
     @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
@@ -246,9 +246,9 @@ end
 
 """
     hist_gains_cpu!
-        GaussianRegression
+        MLE2P
 """
-function hist_gains_cpu!(::Type{L}, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L<:GaussianRegression,T}
+function hist_gains_cpu!(::Type{L}, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L<:MLE2P,T}
     @inbounds for bin in 1:params.nbins
         i = 5 * bin - 4
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)

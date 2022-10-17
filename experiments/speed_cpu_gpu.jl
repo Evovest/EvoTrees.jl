@@ -1,5 +1,5 @@
 using Statistics
-using StatsBase:sample, sample!
+using StatsBase: sample, sample!
 using EvoTrees
 using BenchmarkTools
 using CUDA
@@ -15,19 +15,26 @@ Y = rand(size(X, 1))
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace=false)
 train_size = 0.8
 𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
-𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1)) + 1:end]
+𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
 
-X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
-Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
+x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
+y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 
 ###########################
 # Tree CPU
 ###########################
 params_c = EvoTreeRegressor(T=Float32,
-    loss=:linear, metric=:none,
+    loss=:linear,
     nrounds=100,
-    λ=1.0, γ=0.1, η=0.1,
+    lambda=1.0, gamma=0.0, eta=0.1,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=0.5, nbins=64);
+
+params_c = EvoTrees.EvoTreeLogistic(T=Float32,
+    loss=:linear,
+    nrounds=100,
+    lambda=1.0, gamma=0.0, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=0.5, nbins=64);
 
@@ -38,7 +45,7 @@ params_c = EvoTreeRegressor(T=Float32,
 #     max_depth=6, min_weight=1.0,
 #     rowsample=0.5, colsample=0.5, nbins=64);
 
-model_c, cache_c = EvoTrees.init_evotree(params_c, X_train, Y_train);
+model_c, cache_c = EvoTrees.init_evotree(params_c, x_train, y_train);
 
 # initialize from cache
 params_c = model_c.params
@@ -55,7 +62,6 @@ sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true);
 
 # build a new tree
 # 897.800 μs (6 allocations: 736 bytes)
-@time EvoTrees.update_grads!(params_c.loss, cache_c.δ𝑤, cache_c.pred, cache_c.Y, params_c.α)
 # @btime EvoTrees.update_grads!($params_c.loss, $cache_c.δ𝑤, $cache_c.pred_cpu, $cache_c.Y_cpu, $params_c.α)
 # ∑ = vec(sum(cache_c.δ[𝑖,:], dims=1))
 # gain = EvoTrees.get_gain(params_c.loss, ∑, params_c.λ)
@@ -64,7 +70,7 @@ sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true);
 
 # 62.530 ms (7229 allocations: 17.43 MiB)
 # 1.25e5: 9.187 ms (7358 allocations: 2.46 MiB)
-tree = EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ)))
+tree = EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.lambda)))
 @time EvoTrees.grow_tree!(tree, cache_c.nodes, params_c, cache_c.δ𝑤, cache_c.edges, cache_c.𝑗, cache_c.left, cache_c.left, cache_c.right, cache_c.X_bin, cache_c.K)
 @btime EvoTrees.grow_tree!($EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ))), $cache_c.nodes, $params_c, $cache_c.δ𝑤, $cache_c.edges, $cache_c.𝑗, $cache_c.left, $cache_c.left, $cache_c.right, $cache_c.X_bin, $cache_c.K)
 

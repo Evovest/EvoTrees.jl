@@ -1,5 +1,5 @@
 function init_evotree_gpu(params::EvoTypes{L,T,S},
-    X::AbstractMatrix, Y::AbstractVector, W=nothing, offset=nothing; fnames) where {L,T,S}
+    X::AbstractMatrix, Y::AbstractVector, W=nothing, offset=nothing; fnames=nothing) where {L,T,S}
 
     K = 1
     levels = nothing
@@ -13,7 +13,7 @@ function init_evotree_gpu(params::EvoTypes{L,T,S},
         Y = CuArray(T.(Y))
         μ = fill(log(mean(Y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
-    elseif L == Gaussian
+    elseif L == GaussianDist
         K = 2
         Y = CuArray(T.(Y))
         μ = [mean(Y), log(std(Y))]
