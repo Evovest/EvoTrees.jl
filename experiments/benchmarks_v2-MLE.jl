@@ -32,7 +32,7 @@ y_train = rand(size(x_train, 1))
 
 @info "evotrees train CPU:"
 params_evo.device = "cpu"
-@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:gaussian, print_every_n=50);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:gaussian, print_every_n=100);
 @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=:gaussian);
 @info "evotrees predict CPU:"
 @time pred_evo = EvoTrees.predict(m_evo, x_train);
@@ -42,7 +42,7 @@ CUDA.allowscalar(true)
 @info "evotrees train GPU:"
 params_evo.device = "gpu"
 @time m_evo_gpu = fit_evotree(params_evo; x_train, y_train);
-@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:gaussian, print_every_n=50);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:gaussian, print_every_n=100);
 @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=:gaussian);
 @info "evotrees predict GPU:"
 @time pred_evo = EvoTrees.predict(m_evo_gpu, x_train);
@@ -72,7 +72,7 @@ y_train = rand(size(x_train, 1))
 
 @info "evotrees train CPU:"
 params_evo.device = "cpu"
-@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:logistic, print_every_n=50);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:logistic, print_every_n=100);
 @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=:logistic);
 @info "evotrees predict CPU:"
 @time pred_evo = EvoTrees.predict(m_evo, x_train);
