@@ -80,14 +80,13 @@ end
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
 function update_grads!(::Type{GaussianDist}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
-    ϵ = eltype(p)(2e-7)
     @inbounds @simd for i in eachindex(y)
         # first order
         δ𝑤[1, i] = (p[1, i] - y[i]) / exp(2 * p[2, i]) * δ𝑤[5, i]
         δ𝑤[2, i] = (1 - (p[1, i] - y[i])^2 / exp(2 * p[2, i])) * δ𝑤[5, i]
         # second order
-        δ𝑤[3, i] = max(ϵ, δ𝑤[5, i] / exp(2 * p[2, i]))
-        δ𝑤[4, i] = max(ϵ, δ𝑤[5, i] * 2 / exp(2 * p[2, i]) * (p[1, i] - y[i])^2)
+        δ𝑤[3, i] = δ𝑤[5, i] / exp(2 * p[2, i])
+        δ𝑤[4, i] = δ𝑤[5, i] * 2 / exp(2 * p[2, i]) * (p[1, i] - y[i])^2
     end
 end
 
@@ -102,8 +101,8 @@ function update_grads!(::Type{LogisticDist}, δ𝑤::Matrix, p::Matrix, y::Vecto
         δ𝑤[1, i] = -tanh((y[i] - p[1, i]) / (2 * exp(p[2, i]))) * exp(-p[2, i]) * δ𝑤[5, i]
         δ𝑤[2, i] = -(exp(-p[2, i]) * (y[i] - p[1, i]) * tanh((y[i] - p[1, i]) / (2 * exp(p[2, i]))) - 1) * δ𝑤[5, i]
         # second order
-        δ𝑤[3, i] = max(ϵ, sech((y[i] - p[1, i]) / (2 * exp(p[2, i])))^2 / (2 * exp(2 * p[2, i])) * δ𝑤[5, i])
-        δ𝑤[4, i] = max(ϵ, (exp(-2 * p[2, i]) * (p[1, i] - y[i]) * (p[1, i] - y[i] + exp(p[2, i]) * sinh(exp(-p[2, i]) * (p[1, i] - y[i])))) / (1 + cosh(exp(-p[2, i]) * (p[1, i] - y[i]))) * δ𝑤[5, i])
+        δ𝑤[3, i] = sech((y[i] - p[1, i]) / (2 * exp(p[2, i])))^2 / (2 * exp(2 * p[2, i])) * δ𝑤[5, i]
+        δ𝑤[4, i] = (exp(-2 * p[2, i]) * (p[1, i] - y[i]) * (p[1, i] - y[i] + exp(p[2, i]) * sinh(exp(-p[2, i]) * (p[1, i] - y[i])))) / (1 + cosh(exp(-p[2, i]) * (p[1, i] - y[i]))) * δ𝑤[5, i]
     end
 end
 
