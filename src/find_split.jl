@@ -298,8 +298,10 @@ function hist_gains_cpu!(
         if bin == params.nbins
             gains[bin] = hL[i]^2 / (hL[i+1] + params.lambda * hL[i+2]) / 2
         elseif hL[i+2] > params.min_weight && hR[i+2] > params.min_weight
-            predL = pred_scalar_cpu!(hL[i:i+2], params, K)
-            predR = pred_scalar_cpu!(hR[i:i+2], params, K)
+            if monotone_constraint != 0
+                predL = pred_scalar_cpu!(view(hL, i:i+2), params, K)
+                predR = pred_scalar_cpu!(view(hR, i:i+2), params, K)
+            end
             if (monotone_constraint == 0) ||
                (monotone_constraint == -1 && predL > predR) ||
                (monotone_constraint == 1 && predL < predR)
@@ -362,8 +364,10 @@ function hist_gains_cpu!(
                     hL[i+1]^2 / (hL[i+3] + params.lambda * hL[i+4])
                 ) / 2
         elseif hL[i+4] > params.min_weight && hR[i+4] > params.min_weight
-            predL = pred_scalar_cpu!(hL[i:i+4], params, K)
-            predR = pred_scalar_cpu!(hR[i:i+4], params, K)
+            if monotone_constraint != 0
+                predL = pred_scalar_cpu!(view(hL, i:i+4), params, K)
+                predR = pred_scalar_cpu!(view(hR, i:i+4), params, K)
+            end
             if (monotone_constraint == 0) ||
                (monotone_constraint == -1 && predL > predR) ||
                (monotone_constraint == 1 && predL < predR)

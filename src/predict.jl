@@ -103,7 +103,7 @@ function pred_leaf_cpu!(
     pred[1, n] = -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3])
 end
 function pred_scalar_cpu!(
-    ∑::Vector{T},
+    ∑::AbstractVector{T},
     params::EvoTypes,
     K,
 ) where {L<:GradientRegression,T,S}
@@ -123,7 +123,7 @@ function pred_leaf_cpu!(
     pred[1, n] = -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5])
     pred[2, n] = -params.eta * ∑[2] / (∑[4] + params.lambda * ∑[5])
 end
-function pred_scalar_cpu!(∑::Vector{T}, params::EvoTypes{L,T,S}, K) where {L<:MLE2P,T,S}
+function pred_scalar_cpu!(∑::AbstractVector{T}, params::EvoTypes{L,T,S}, K) where {L<:MLE2P,T,S}
     -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5])
 end
 
@@ -171,6 +171,6 @@ function pred_leaf_cpu!(
 ) where {L<:L1Regression,T,S}
     pred[1, n] = params.eta * ∑[1] / (∑[3] * (1 + params.lambda))
 end
-function pred_scalar_cpu!(∑::Vector, params::EvoTypes{L,T,S}, K) where {L<:L1Regression,T,S}
+function pred_scalar_cpu!(∑::AbstractVector{T}, params::EvoTypes{L,T,S}, K) where {L<:L1Regression,T,S}
     params.eta * ∑[1] / (∑[3] * (1 + params.lambda))
 end
