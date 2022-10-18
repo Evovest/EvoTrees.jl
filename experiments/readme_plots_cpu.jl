@@ -51,7 +51,7 @@ sqrt(mean((pred_train_linear .- y_train) .^ 2))
 
 # linear weighted
 params1 = EvoTreeRegressor(T=Float64,
-    loss=:linear, metric=:mse,
+    loss=:linear,
     nrounds=200, nbins=64,
     lambda=0.1, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
@@ -61,7 +61,7 @@ params1 = EvoTreeRegressor(T=Float64,
 # W_train = ones(eltype(Y_train), size(Y_train)) .* 5
 w_train = rand(eltype(y_train), size(y_train)) .+ 0
 
-@time model = fit_evotree(params1; x_train, y_train, w_train, x_eval, y_eval, print_every_n=25);
+@time model = fit_evotree(params1; x_train, y_train, w_train, x_eval, y_eval, print_every_n=25, metric=:mse);
 # 67.159 ms (77252 allocations: 28.06 MiB)
 # @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 999);
 # @btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval);
@@ -77,13 +77,13 @@ sqrt(mean((pred_train_linear_w .- y_train) .^ 2))
 
 # logistic / cross-entropy
 params1 = EvoTreeRegressor(
-    loss=:logistic, metric=:logloss,
+    loss=:logistic,
     nrounds=200, nbins=64,
     lambda=0.1, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, metric=:logloss);
 # 218.040 ms (123372 allocations: 34.71 MiB)
 # @btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train_logistic = predict(model, x_train);
@@ -97,7 +97,7 @@ params1 = EvoTreeRegressor(
     lambda=0.0, gamma=0.0, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, metric=:mae);
 @time pred_train_L1 = predict(model, x_train)
 @time pred_eval_L1 = predict(model, x_eval)
 sqrt(mean((pred_train_L1 .- y_train) .^ 2))
@@ -112,34 +112,34 @@ savefig("figures/regression_sinus.png")
 
 # Poisson
 params1 = EvoTreeCount(
-    loss=:poisson, metric=:poisson,
+    loss=:poisson,
     nrounds=200, nbins=64,
     lambda=0.5, gamma=0.1, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, metric=:poisson);
 @time pred_train_poisson = predict(model, x_train);
 sqrt(mean((pred_train_poisson .- y_train) .^ 2))
 
 # Gamma
 params1 = EvoTreeRegressor(
-    loss=:gamma, metric=:gamma,
+    loss=:gamma,
     nrounds=200, nbins=64,
     lambda=0.5, gamma=0.1, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, metric=:gamma);
 @time pred_train_gamma = predict(model, x_train);
 sqrt(mean((pred_train_gamma .- y_train) .^ 2))
 
 # Tweedie
 params1 = EvoTreeRegressor(
-    loss=:tweedie, metric=:tweedie,
+    loss=:tweedie,
     nrounds=200, nbins=64,
     lambda=0.5, gamma=0.1, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, metric=:tweedie);
 @time pred_train_tweedie = predict(model, x_train);
 sqrt(mean((pred_train_tweedie .- y_train) .^ 2))
 
@@ -180,7 +180,7 @@ sum(pred_train_q20 .< y_train) / length(y_train)
 
 # q80
 params1 = EvoTreeRegressor(
-    loss=:quantile, alpha=0.8, metric=:none,
+    loss=:quantile, alpha=0.8,
     nrounds=200, nbins=64,
     lambda=1.0, gamma=0.0, eta=0.05,
     max_depth=6, min_weight=1.0,
@@ -200,14 +200,14 @@ savefig("figures/quantiles_sinus.png")
 ###############################
 ## gaussian
 ###############################
-params1 = EvoTreeGaussian(
-    loss=:gaussian, metric=:gaussian,
+params1 = EvoTreeMLE(
+    loss=:gaussian,
     nrounds=200, nbins=64,
     lambda=0.1, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=1.0, colsample=1.0, rng=123)
 
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=10);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=10, metric=:gaussian);
 # @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
 @time pred_train = EvoTrees.predict(model, x_train);
 # @btime pred_train = EvoTrees.predict(model, X_train);
@@ -225,4 +225,35 @@ plot!(x_train[:, 1][x_perm], pred_train[x_perm, 1], color="navy", linewidth=1.5,
 plot!(x_train[:, 1][x_perm], pred_train[x_perm, 2], color="darkred", linewidth=1.5, label="sigma")
 plot!(x_train[:, 1][x_perm], pred_q20[x_perm, 1], color="darkgreen", linewidth=1.5, label="q20")
 plot!(x_train[:, 1][x_perm], pred_q80[x_perm, 1], color="darkgreen", linewidth=1.5, label="q80")
-savefig("figures/gaussian_sinus.png")
+savefig("figures/gaussian-sinus.png")
+
+
+###############################
+## Logistic
+###############################
+params1 = EvoTrees.EvoTreeMLE(
+    loss = :logistic,
+    nrounds=200, nbins=64,
+    lambda=1.0, gamma=0.1, eta=0.05,
+    max_depth=6, min_weight=1.0,
+    rowsample=1.0, colsample=1.0, rng=123)
+
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=10, metric=:logistic);
+# @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
+@time pred_train = EvoTrees.predict(model, x_train);
+# @btime pred_train = EvoTrees.predict(model, X_train);
+
+pred_logistic = [Distributions.Logistic(pred_train[i, 1], pred_train[i, 2]) for i in axes(pred_train, 1)]
+pred_q80 = quantile.(pred_logistic, 0.8)
+pred_q20 = quantile.(pred_logistic, 0.2)
+
+mean(y_train .< pred_q80)
+mean(y_train .< pred_q20)
+
+x_perm = sortperm(x_train[:, 1])
+plot(x_train[:, 1], y_train, ms=0.5, mcolor="darkgray", mswidth=0, background_color=RGB(1, 1, 1), seriestype=:scatter, xaxis=("feature"), yaxis=("target"), legend=true, label="")
+plot!(x_train[:, 1][x_perm], pred_train[x_perm, 1], color="navy", linewidth=1.5, label="mu")
+plot!(x_train[:, 1][x_perm], pred_train[x_perm, 2], color="darkred", linewidth=1.5, label="s")
+plot!(x_train[:, 1][x_perm], pred_q20[x_perm, 1], color="darkgreen", linewidth=1.5, label="q20")
+plot!(x_train[:, 1][x_perm], pred_q80[x_perm, 1], color="darkgreen", linewidth=1.5, label="q80")
+savefig("figures/logistic-sinus.png")

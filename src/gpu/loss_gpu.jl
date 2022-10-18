@@ -4,8 +4,8 @@ function get_gain_gpu(::Type{L}, ∑::AbstractVector{T}, lambda::T) where {L<:Gr
     return gain
 end
 
-# Gaussian regression
-function get_gain_gpu(::Type{L}, ∑::AbstractVector{T}, lambda::T) where {L<:GaussianRegression,T<:AbstractFloat}
+# MLE regression
+function get_gain_gpu(::Type{L}, ∑::AbstractVector{T}, lambda::T) where {L<:MLE2P,T<:AbstractFloat}
     gain = ∑[1]^2 / (∑[3] + lambda * ∑[5]) / 2 + ∑[2]^2 / (∑[4] + lambda * ∑[5]) / 2
     return gain
 end
@@ -129,7 +129,7 @@ function kernel_gauss_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDe
     return
 end
 
-function update_grads_gpu!(::Type{Gaussian}, δ𝑤::CuMatrix, p::CuMatrix, y::CuVector; MAX_THREADS=1024)
+function update_grads_gpu!(::Type{GaussianDist}, δ𝑤::CuMatrix, p::CuMatrix, y::CuVector; MAX_THREADS=1024)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_gauss_δ𝑤!(δ𝑤, p, y)

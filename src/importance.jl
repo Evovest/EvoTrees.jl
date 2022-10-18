@@ -10,6 +10,7 @@ end
     importance(model::GBTree)
 
 Sorted normalized feature importance based on loss function gain.
+Feature names associated to the model are stored in `model.info[:fnames]` as a string `Vector` and can be updated at any time. Eg: `model.info[:fnames] = new_fnames_vec`.
 """
 function importance(model::Union{GBTree,GBTreeGPU})
     fnames = model.info[:fnames]
@@ -22,7 +23,7 @@ function importance(model::Union{GBTree,GBTreeGPU})
 
     gain .= gain ./ sum(gain)
     pairs = collect(Dict(zip(string.(fnames), gain)))
-    sort!(pairs, by=x -> -x[2])
+    sort!(pairs, by = x -> -x[2])
 
     return pairs
 end

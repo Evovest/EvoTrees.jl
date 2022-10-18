@@ -37,6 +37,7 @@ params1 = EvoTreeRegressor(T=Float32,
     device="gpu")
 
 @time model = fit_evotree(params1; x_train, y_train);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
 model_cpu = convert(EvoTrees.GBTree, model);
 pred_train_linear_gpu = predict(model, x_train)
 pred_train_linear_cpu = predict(model_cpu, x_train)
@@ -115,7 +116,6 @@ savefig("figures/regression_sinus_gpu.png")
 ###############################
 EvoTrees.CUDA.allowscalar(false)
 params1 = EvoTreeGaussian(T=Float32,
-    loss=:gaussian, metric=:gaussian,
     nrounds=200, nbins=64,
     lambda=1.0, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=5,
@@ -123,7 +123,7 @@ params1 = EvoTreeGaussian(T=Float32,
     device="gpu")
 
 @time model = fit_evotree(params1; x_train, y_train);
-# @time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, metric=:gaussian);
 # @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
 @time pred_train_gaussian = EvoTrees.predict(model, x_train)
 
@@ -140,4 +140,4 @@ plot!(x_train[:, 1][x_perm], pred_train_gaussian[x_perm, 1], color="navy", linew
 plot!(x_train[:, 1][x_perm], pred_train_gaussian[x_perm, 2], color="darkred", linewidth=1.5, label="sigma")
 plot!(x_train[:, 1][x_perm], pred_q20[x_perm, 1], color="green", linewidth=1.5, label="q20")
 plot!(x_train[:, 1][x_perm], pred_q80[x_perm, 1], color="green", linewidth=1.5, label="q80")
-savefig("figures/gaussian_sinus_gpu.png")
+savefig("figures/gaussian-sinus-gpu.png")

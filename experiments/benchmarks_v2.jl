@@ -10,7 +10,7 @@ nrounds = 200
 nthread = Base.Threads.nthreads()
 
 @info nthread
-loss = "logistic"
+loss = "linear"
 if loss == "linear"
     loss_xgb = "reg:squarederror"
     metric_xgb = "mae"
@@ -40,7 +40,6 @@ metrics = [metric_xgb]
 params_evo = EvoTreeRegressor(
     T=Float32,
     loss=loss_evo,
-    metric=metric_evo,
     nrounds=nrounds,
     alpha=0.5,
     lambda=0.0,
@@ -68,8 +67,9 @@ y_train = rand(size(x_train, 1))
 
 @info "evotrees train CPU:"
 params_evo.device = "cpu"
-@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=50);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
 @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
+@btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train);
 @info "evotrees predict CPU:"
 @time pred_evo = EvoTrees.predict(m_evo, x_train);
 @btime EvoTrees.predict($m_evo, $x_train);
@@ -78,12 +78,8 @@ CUDA.allowscalar(true)
 @info "evotrees train GPU:"
 params_evo.device = "gpu"
 @time m_evo_gpu = fit_evotree(params_evo; x_train, y_train);
-@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=50);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
 @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
 @info "evotrees predict GPU:"
 @time pred_evo = EvoTrees.predict(m_evo_gpu, x_train);
 @btime EvoTrees.predict($m_evo_gpu, $x_train);
-
-# w_train = ones(length(y_train))
-# @time m_evo_gpu = fit_evotree(params_evo, x_train, y_train);
-# @time m_evo_gpu = fit_evotree(params_evo, x_train, y_train, w_train);

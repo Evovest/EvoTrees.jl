@@ -20,16 +20,21 @@ function get_adj_list(tree::EvoTrees.Tree)
             push!(adj, [])
         end
     end
-    return (map=map, adj=adj)
+    return (map = map, adj = adj)
 end
 
 function get_shapes(tree_layout)
     shapes = Vector(undef, length(tree_layout))
-    for i = 1:length(tree_layout)
+    for i = eachindex(tree_layout)
         x, y = tree_layout[i][1], tree_layout[i][2] # center point
         x_buff = 0.45
         y_buff = 0.45
-        shapes[i] = [(x - x_buff, y + y_buff), (x + x_buff, y + y_buff), (x + x_buff, y - y_buff), (x - x_buff, y - y_buff)]
+        shapes[i] = [
+            (x - x_buff, y + y_buff),
+            (x + x_buff, y + y_buff),
+            (x + x_buff, y - y_buff),
+            (x - x_buff, y - y_buff),
+        ]
     end
     return shapes
 end
@@ -37,13 +42,15 @@ end
 function get_annotations(tree_layout, map, tree, var_names)
     # annotations = Vector{Tuple{Float64, Float64, String, Tuple}}(undef, length(tree_layout))
     annotations = []
-    for i = 1:length(tree_layout)
+    for i = eachindex(tree_layout)
         x, y = tree_layout[i][1], tree_layout[i][2] # center point
         if tree.split[map[i]]
-            feat = isnothing(var_names) ? "feat: " * string(tree.feat[map[i]]) : var_names[tree.feat[map[i]]]
-            txt = "$feat\n" * string(round(tree.cond_float[map[i]], sigdigits=3))
+            feat =
+                isnothing(var_names) ? "feat: " * string(tree.feat[map[i]]) :
+                var_names[tree.feat[map[i]]]
+            txt = "$feat\n" * string(round(tree.cond_float[map[i]], sigdigits = 3))
         else
-            txt = "pred:\n" * string(round(tree.pred[1, map[i]], sigdigits=3))
+            txt = "pred:\n" * string(round(tree.pred[1, map[i]], sigdigits = 3))
         end
         # annotations[i] = (x, y, txt, (9, :white, "helvetica"))
         push!(annotations, (x, y, txt, 10))
@@ -54,16 +61,22 @@ end
 function get_curves(adj, tree_layout, shapes)
     curves = []
     num_curves = sum(length.(adj))
-    for i = 1:length(adj)
-        for j = 1:length(adj[i])
+    for i = eachindex(adj)
+        for j = eachindex(adj[i])
             # curves is a length 2 tuple: (vector Xs, vector Ys)
-            push!(curves, ([tree_layout[i][1], tree_layout[adj[i][j]][1]], [shapes[i][3][2], shapes[adj[i][j]][1][2]]))
+            push!(
+                curves,
+                (
+                    [tree_layout[i][1], tree_layout[adj[i][j]][1]],
+                    [shapes[i][3][2], shapes[adj[i][j]][1][2]],
+                ),
+            )
         end
     end
     return curves
 end
 
-@recipe function plot(tree::EvoTrees.Tree, var_names=nothing)
+@recipe function plot(tree::EvoTrees.Tree, var_names = nothing)
 
     map, adj = EvoTrees.get_adj_list(tree)
     tree_layout = length(adj) == 1 ? [[0.0, 0.0]] : NetworkLayout.buchheim(adj)
@@ -82,7 +95,7 @@ end
     size --> size
     annotations --> annotations
 
-    for i = 1:length(shapes)
+    for i = eachindex(shapes)
         @series begin
             fillcolor = length(adj[i]) == 0 ? "#84DCC6" : "#C8D3D5"
             fillcolor --> fillcolor
@@ -91,7 +104,7 @@ end
         end
     end
 
-    for i = 1:length(curves)
+    for i = eachindex(curves)
         @series begin
             seriestype --> :curves
             return curves[i]
@@ -99,7 +112,7 @@ end
     end
 end
 
-@recipe function plot(model::EvoTrees.GBTree, n=1, var_names=nothing)
+@recipe function plot(model::EvoTrees.GBTree, n = 1, var_names = nothing)
 
     isnothing(var_names)
 
@@ -121,7 +134,7 @@ end
     size --> size
     annotations --> annotations
 
-    for i = 1:length(shapes)
+    for i = eachindex(shapes)
         @series begin
             fillcolor = length(adj[i]) == 0 ? "#84DCC6" : "#C8D3D5"
             fillcolor --> fillcolor
@@ -130,7 +143,7 @@ end
         end
     end
 
-    for i = 1:length(curves)
+    for i = eachindex(curves)
         @series begin
             seriestype --> :curves
             return curves[i]

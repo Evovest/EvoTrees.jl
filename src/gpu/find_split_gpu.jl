@@ -111,7 +111,7 @@ function update_hist_gpu!(
     X_bin::CuMatrix{UInt8},
     𝑖::CuVector{S},
     𝑗::CuVector{S}, K;
-    MAX_THREADS=128) where {L<:GaussianRegression,T,S}
+    MAX_THREADS=128) where {L<:MLE2P,T,S}
 
     nbins = size(h, 2)
     thread_i = max(nbins, min(MAX_THREADS, length(𝑖)))
@@ -237,8 +237,10 @@ function hist_gains_gpu_kernel!(gains::CuDeviceMatrix{T}, hL::CuDeviceArray{T,3}
     if i == nbins
         gains[i, j] = hL[1, i, j]^2 / (hL[2, i, j] + lambda * hL[3, i, j]) / 2
     elseif hL[3, i, j] > min_weight && hR[3, i, j] > min_weight
-        predL = -hL[1, i, j] / (hL[2, i, j] + lambda * hL[3, i, j])
-        predR = -hR[1, i, j] / (hR[2, i, j] + lambda * hR[3, i, j])
+        if monotone_constraint != 0
+            predL = -hL[1, i, j] / (hL[2, i, j] + lambda * hL[3, i, j])
+            predR = -hR[1, i, j] / (hR[2, i, j] + lambda * hR[3, i, j])
+        end
         if (monotone_constraint == 0) ||
            (monotone_constraint == -1 && predL > predR) ||
            (monotone_constraint == 1 && predL < predR)
@@ -253,13 +255,13 @@ end
 
 """
     update_gains!
-        GaussianRegression
+        MLE2P
 """
 function update_gains_gpu!(
     node::TrainNodeGPU,
     𝑗::AbstractVector,
     params::EvoTypes{L,T,S}, K, monotone_constraints;
-    MAX_THREADS=512) where {L<:GaussianRegression,T,S}
+    MAX_THREADS=512) where {L<:MLE2P,T,S}
 
     cumsum!(node.hL, node.h, dims=2)
     node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
@@ -281,8 +283,10 @@ function hist_gains_gpu_kernel_gauss!(gains::CuDeviceMatrix{T}, hL::CuDeviceArra
     if i == nbins
         gains[i, j] = (hL[1, i, j]^2 / (hL[3, i, j] + lambda * hL[5, i, j]) + hL[2, i, j]^2 / (hL[4, i, j] + lambda * hL[5, i, j])) / 2
     elseif hL[5, i, j] > min_weight && hR[5, i, j] > min_weight
-        predL = -hL[1, i, j] / (hL[3, i, j] + lambda * hL[5, i, j])
-        predR = -hR[1, i, j] / (hR[3, i, j] + lambda * hR[5, i, j])
+        if monotone_constraint != 0
+            predL = -hL[1, i, j] / (hL[3, i, j] + lambda * hL[5, i, j])
+            predR = -hR[1, i, j] / (hR[3, i, j] + lambda * hR[5, i, j])
+        end
         if (monotone_constraint == 0) ||
            (monotone_constraint == -1 && predL > predR) ||
            (monotone_constraint == 1 && predL < predR)
