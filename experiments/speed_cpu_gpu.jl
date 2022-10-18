@@ -27,16 +27,16 @@ y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 params_c = EvoTreeRegressor(T=Float32,
     loss=:linear,
     nrounds=100,
-    lambda=1.0, gamma=0.0, eta=0.1,
+    lambda=0.1, gamma=0.0, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=0.5, nbins=64);
 
-params_c = EvoTrees.EvoTreeLogistic(T=Float32,
-    loss=:linear,
-    nrounds=100,
-    lambda=1.0, gamma=0.0, eta=0.1,
-    max_depth=6, min_weight=1.0,
-    rowsample=0.5, colsample=0.5, nbins=64);
+# params_c = EvoTrees.EvoTreeLogistic(T=Float32,
+#     loss=:linear,
+#     nrounds=100,
+#     lambda=1.0, gamma=0.0, eta=0.1,
+#     max_depth=6, min_weight=1.0,
+#     rowsample=0.5, colsample=0.5, nbins=64);
 
 # params_c = EvoTreeGaussian(T=Float32,
 #     loss=:gaussian, metric=:none,
@@ -45,11 +45,11 @@ params_c = EvoTrees.EvoTreeLogistic(T=Float32,
 #     max_depth=6, min_weight=1.0,
 #     rowsample=0.5, colsample=0.5, nbins=64);
 
-model_c, cache_c = EvoTrees.init_evotree(params_c, x_train, y_train);
+model_c, cache_c = EvoTrees.init_evotree(params_c; x_train, y_train);
 
 # initialize from cache
 params_c = model_c.params
-X_size = size(cache_c.X_bin)
+X_size = size(cache_c.x_bin)
 
 # select random rows and cols
 sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace=false, ordered=true);
@@ -60,8 +60,11 @@ sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true);
 𝑖 = cache_c.nodes[1].𝑖
 𝑗 = cache_c.𝑗
 
+L = EvoTrees.Linear
+T = Float32
 # build a new tree
 # 897.800 μs (6 allocations: 736 bytes)
+@time EvoTrees.update_grads!(L, cache_c.δ𝑤, cache_c.pred, cache_c.y; alpha = params_c.alpha)
 # @btime EvoTrees.update_grads!($params_c.loss, $cache_c.δ𝑤, $cache_c.pred_cpu, $cache_c.Y_cpu, $params_c.α)
 # ∑ = vec(sum(cache_c.δ[𝑖,:], dims=1))
 # gain = EvoTrees.get_gain(params_c.loss, ∑, params_c.λ)
@@ -70,8 +73,10 @@ sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true);
 
 # 62.530 ms (7229 allocations: 17.43 MiB)
 # 1.25e5: 9.187 ms (7358 allocations: 2.46 MiB)
-tree = EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.lambda)))
-@time EvoTrees.grow_tree!(tree, cache_c.nodes, params_c, cache_c.δ𝑤, cache_c.edges, cache_c.𝑗, cache_c.left, cache_c.left, cache_c.right, cache_c.X_bin, cache_c.K)
+tree = EvoTrees.Tree{L,T}(params_c.max_depth, model_c.K, zero(typeof(params_c.lambda)))
+@time EvoTrees.grow_tree!(tree, cache_c.nodes, params_c, cache_c.δ𝑤, cache_c.edges, cache_c.𝑗, cache_c.left, cache_c.left, cache_c.right, cache_c.x_bin, cache_c.K, cache_c.monotone_constraints)
+@code_warntype EvoTrees.grow_tree!(tree, cache_c.nodes, params_c, cache_c.δ𝑤, cache_c.edges, cache_c.𝑗, cache_c.left, cache_c.left, cache_c.right, cache_c.x_bin, cache_c.K, cache_c.monotone_constraints)
+
 @btime EvoTrees.grow_tree!($EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ))), $cache_c.nodes, $params_c, $cache_c.δ𝑤, $cache_c.edges, $cache_c.𝑗, $cache_c.left, $cache_c.left, $cache_c.right, $cache_c.X_bin, $cache_c.K)
 
 @time EvoTrees.grow_tree!(EvoTrees.Tree(params_c.max_depth, model_c.K, params_c.λ), params_c, cache_c.δ, cache_c.hist, cache_c.histL, cache_c.histR, cache_c.gains, cache_c.edges, 𝑖, 𝑗, 𝑛, cache_c.X_bin);

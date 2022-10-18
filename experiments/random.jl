@@ -34,12 +34,12 @@ params1 = EvoTreeRegressor(T=Float32,
 # asus laptopt: for 1.25e6 no eval: 9.650007 seconds (893.53 k allocations: 2.391 GiB, 5.52% gc time)
 @time model = fit_evotree(params1; x_train, y_train);
 @time model = fit_evotree(params1; x_train, y_train, metric=:mse, x_eval, y_eval, print_every_n=10);
-@btime model = fit_evotree($params1; $x_train, $y_train);
+@btime model = fit_evotree(params1; x_train, y_train);
 @time pred_train = predict(model, x_train);
 @btime pred_train = predict(model, x_train);
 gain = importance(model)
 
-@time model, cache = EvoTrees.init_evotree(params1, x_train, y_train);
+@time model, cache = EvoTrees.init_evotree(params1; x_train, y_train);
 @time EvoTrees.grow_evotree!(model, cache);
 
 #############################
