@@ -23,7 +23,7 @@ function importance(model::Union{GBTree,GBTreeGPU})
 
     gain .= gain ./ sum(gain)
     pairs = collect(Dict(zip(string.(fnames), gain)))
-    sort!(pairs, by=x -> -x[2])
+    sort!(pairs, by = x -> -x[2])
 
     return pairs
 end

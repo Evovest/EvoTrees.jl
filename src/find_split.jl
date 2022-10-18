@@ -30,7 +30,20 @@ end
     Multi-threaded split_set!
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
 """
-function split_set_chunk!(left, right, 𝑖, bid, nblocks, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights)
+function split_set_chunk!(
+    left,
+    right,
+    𝑖,
+    bid,
+    nblocks,
+    X_bin,
+    feat,
+    cond_bin,
+    offset,
+    chunk_size,
+    lefts,
+    rights,
+)
 
     left_count = 0
     right_count = 0
@@ -53,7 +66,19 @@ function split_set_chunk!(left, right, 𝑖, bid, nblocks, X_bin, feat, cond_bin
     return nothing
 end
 
-function split_views_kernel!(out::Vector{S}, left::Vector{S}, right::Vector{S}, bid, offset, chunk_size, lefts, rights, sum_lefts, cumsum_lefts, cumsum_rights) where {S}
+function split_views_kernel!(
+    out::Vector{S},
+    left::Vector{S},
+    right::Vector{S},
+    bid,
+    offset,
+    chunk_size,
+    lefts,
+    rights,
+    sum_lefts,
+    cumsum_lefts,
+    cumsum_rights,
+) where {S}
     iter = 1
     i_max = lefts[bid]
     bid == 1 ? cumsum_left = 0 : cumsum_left = cumsum_lefts[bid-1]
@@ -72,7 +97,16 @@ function split_views_kernel!(out::Vector{S}, left::Vector{S}, right::Vector{S}, 
     return nothing
 end
 
-function split_set_threads!(out, left, right, 𝑖, X_bin::Matrix{S}, feat, cond_bin, offset) where {S}
+function split_set_threads!(
+    out,
+    left,
+    right,
+    𝑖,
+    X_bin::Matrix{S},
+    feat,
+    cond_bin,
+    offset,
+) where {S}
 
     # iter = Iterators.partition(𝑖, chunk_size)
     nblocks = ceil(Int, min(length(𝑖) / 1024, Threads.nthreads()))
@@ -82,17 +116,45 @@ function split_set_threads!(out, left, right, 𝑖, X_bin::Matrix{S}, feat, cond
     rights = zeros(Int, nblocks)
 
     @threads for bid = 1:nblocks
-        split_set_chunk!(left, right, 𝑖, bid, nblocks, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights)
+        split_set_chunk!(
+            left,
+            right,
+            𝑖,
+            bid,
+            nblocks,
+            X_bin,
+            feat,
+            cond_bin,
+            offset,
+            chunk_size,
+            lefts,
+            rights,
+        )
     end
 
     sum_lefts = sum(lefts)
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
     @threads for bid = 1:nblocks
-        split_views_kernel!(out, left, right, bid, offset, chunk_size, lefts, rights, sum_lefts, cumsum_lefts, cumsum_rights)
+        split_views_kernel!(
+            out,
+            left,
+            right,
+            bid,
+            offset,
+            chunk_size,
+            lefts,
+            rights,
+            sum_lefts,
+            cumsum_lefts,
+            cumsum_rights,
+        )
     end
 
-    return (view(out, offset+1:offset+sum_lefts), view(out, offset+sum_lefts+1:offset+length(𝑖)))
+    return (
+        view(out, offset+1:offset+sum_lefts),
+        view(out, offset+sum_lefts+1:offset+length(𝑖)),
+    )
 end
 
 
@@ -106,8 +168,9 @@ function update_hist!(
     δ𝑤::Matrix{T},
     X_bin::Matrix{UInt8},
     𝑖::AbstractVector{S},
-    𝑗::AbstractVector{S}, K) where {L<:GradientRegression,T,S}
-
+    𝑗::AbstractVector{S},
+    K,
+) where {L<:GradientRegression,T,S}
     @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
             hid = 3 * X_bin[i, j] - 2
@@ -129,8 +192,9 @@ function update_hist!(
     δ𝑤::Matrix{T},
     X_bin::Matrix{UInt8},
     𝑖::AbstractVector{S},
-    𝑗::AbstractVector{S}, K) where {L<:MLE2P,T,S}
-
+    𝑗::AbstractVector{S},
+    K,
+) where {L<:MLE2P,T,S}
     @threads for j in 𝑗
         @inbounds @simd for i in 𝑖
             hid = 5 * X_bin[i, j] - 4
@@ -154,12 +218,13 @@ function update_hist!(
     δ𝑤::Matrix{T},
     X_bin::Matrix{UInt8},
     𝑖::AbstractVector{S},
-    𝑗::AbstractVector{S}, K) where {L,T,S}
-
+    𝑗::AbstractVector{S},
+    K,
+) where {L,T,S}
     @threads for j in 𝑗
         @inbounds for i in 𝑖
             hid = (2 * K + 1) * (X_bin[i, j] - 1)
-            for k in 1:(2*K+1)
+            for k = 1:(2*K+1)
                 hist[j][hid+k] += δ𝑤[k, i]
             end
         end
@@ -180,24 +245,35 @@ Generic fallback
 function update_gains!(
     node::TrainNode,
     𝑗::Vector,
-    params::EvoTypes{L,T,S}, K, monotone_constraints) where {L,T,S}
+    params::EvoTypes{L,T,S},
+    K,
+    monotone_constraints,
+) where {L,T,S}
 
     KK = 2 * K + 1
     @inbounds @threads for j in 𝑗
 
-        @inbounds for k in 1:KK
+        @inbounds for k = 1:KK
             node.hL[j][k] = node.h[j][k]
             node.hR[j][k] = node.∑[k] - node.h[j][k]
         end
 
-        @inbounds for bin in 2:params.nbins
+        @inbounds for bin = 2:params.nbins
             @inbounds for k = 1:KK
                 binid = KK * (bin - 1)
                 node.hL[j][binid+k] = node.hL[j][binid-KK+k] + node.h[j][binid+k]
                 node.hR[j][binid+k] = node.hR[j][binid-KK+k] - node.h[j][binid+k]
             end
         end
-        hist_gains_cpu!(L, view(node.gains, :, j), node.hL[j], node.hR[j], params, K, monotone_constraints[j])
+        hist_gains_cpu!(
+            L,
+            view(node.gains, :, j),
+            node.hL[j],
+            node.hR[j],
+            params,
+            K,
+            monotone_constraints[j],
+        )
     end
     return nothing
 end
@@ -207,8 +283,16 @@ end
     hist_gains_cpu!
         GradientRegression
 """
-function hist_gains_cpu!(::Type{L}, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L<:GradientRegression,T}
-    @inbounds for bin in 1:params.nbins
+function hist_gains_cpu!(
+    ::Type{L},
+    gains::AbstractVector{T},
+    hL::Vector{T},
+    hR::Vector{T},
+    params,
+    K,
+    monotone_constraint,
+) where {L<:GradientRegression,T}
+    @inbounds for bin = 1:params.nbins
         i = 3 * bin - 2
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
         if bin == params.nbins
@@ -219,8 +303,11 @@ function hist_gains_cpu!(::Type{L}, gains::AbstractVector{T}, hL::Vector{T}, hR:
             if (monotone_constraint == 0) ||
                (monotone_constraint == -1 && predL > predR) ||
                (monotone_constraint == 1 && predL < predR)
-                gains[bin] = (hL[i]^2 / (hL[i+1] + params.lambda * hL[i+2]) +
-                              hR[i]^2 / (hR[i+1] + params.lambda * hR[i+2])) / 2
+                gains[bin] =
+                    (
+                        hL[i]^2 / (hL[i+1] + params.lambda * hL[i+2]) +
+                        hR[i]^2 / (hR[i+1] + params.lambda * hR[i+2])
+                    ) / 2
             end
         end
     end
@@ -231,8 +318,16 @@ end
     hist_gains_cpu!
         QuantileRegression/L1Regression
 """
-function hist_gains_cpu!(::Type{L}, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L<:Union{QuantileRegression,L1Regression},T}
-    @inbounds for bin in 1:params.nbins
+function hist_gains_cpu!(
+    ::Type{L},
+    gains::AbstractVector{T},
+    hL::Vector{T},
+    hR::Vector{T},
+    params,
+    K,
+    monotone_constraint,
+) where {L<:Union{QuantileRegression,L1Regression},T}
+    @inbounds for bin = 1:params.nbins
         i = 3 * bin - 2
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
         if bin == params.nbins
@@ -248,23 +343,39 @@ end
     hist_gains_cpu!
         MLE2P
 """
-function hist_gains_cpu!(::Type{L}, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L<:MLE2P,T}
-    @inbounds for bin in 1:params.nbins
+function hist_gains_cpu!(
+    ::Type{L},
+    gains::AbstractVector{T},
+    hL::Vector{T},
+    hR::Vector{T},
+    params,
+    K,
+    monotone_constraint,
+) where {L<:MLE2P,T}
+    @inbounds for bin = 1:params.nbins
         i = 5 * bin - 4
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
         if bin == params.nbins
-            gains[bin] = (hL[i]^2 / (hL[i+2] + params.lambda * hL[i+4]) +
-                          hL[i+1]^2 / (hL[i+3] + params.lambda * hL[i+4])) / 2
+            gains[bin] =
+                (
+                    hL[i]^2 / (hL[i+2] + params.lambda * hL[i+4]) +
+                    hL[i+1]^2 / (hL[i+3] + params.lambda * hL[i+4])
+                ) / 2
         elseif hL[i+4] > params.min_weight && hR[i+4] > params.min_weight
             predL = pred_scalar_cpu!(hL[i:i+4], params, K)
             predR = pred_scalar_cpu!(hR[i:i+4], params, K)
             if (monotone_constraint == 0) ||
                (monotone_constraint == -1 && predL > predR) ||
                (monotone_constraint == 1 && predL < predR)
-                gains[bin] = (hL[i]^2 / (hL[i+2] + params.lambda * hL[i+4]) +
-                              hR[i]^2 / (hR[i+2] + params.lambda * hR[i+4])) / 2 +
-                             (hL[i+1]^2 / (hL[i+3] + params.lambda * hL[i+4]) +
-                              hR[i+1]^2 / (hR[i+3] + params.lambda * hR[i+4])) / 2
+                gains[bin] =
+                    (
+                        hL[i]^2 / (hL[i+2] + params.lambda * hL[i+4]) +
+                        hR[i]^2 / (hR[i+2] + params.lambda * hR[i+4])
+                    ) / 2 +
+                    (
+                        hL[i+1]^2 / (hL[i+3] + params.lambda * hL[i+4]) +
+                        hR[i+1]^2 / (hR[i+3] + params.lambda * hR[i+4])
+                    ) / 2
             end
         end
     end
@@ -275,8 +386,16 @@ end
     hist_gains_cpu!
         Generic
 """
-function hist_gains_cpu!(::Type{L}, gains::AbstractVector{T}, hL::Vector{T}, hR::Vector{T}, params, K, monotone_constraint) where {L,T}
-    @inbounds for bin in 1:params.nbins
+function hist_gains_cpu!(
+    ::Type{L},
+    gains::AbstractVector{T},
+    hL::Vector{T},
+    hR::Vector{T},
+    params,
+    K,
+    monotone_constraint,
+) where {L,T}
+    @inbounds for bin = 1:params.nbins
         i = (2 * K + 1) * (bin - 1)
         # update gain only if there's non null weight on each of left and right side - except for nbins level, which is used as benchmark for split criteria (gain if no split)
         if bin == params.nbins
@@ -290,11 +409,17 @@ function hist_gains_cpu!(::Type{L}, gains::AbstractVector{T}, hL::Vector{T}, hR:
         elseif hL[i+2*K+1] > params.min_weight && hR[i+2*K+1] > params.min_weight
             for k = 1:K
                 if k == 1
-                    gains[bin] = (hL[i+k]^2 / (hL[i+k+K] + params.lambda * hL[i+2*K+1]) +
-                                  hR[i+k]^2 / (hR[i+k+K] + params.lambda * hR[i+2*K+1])) / 2
+                    gains[bin] =
+                        (
+                            hL[i+k]^2 / (hL[i+k+K] + params.lambda * hL[i+2*K+1]) +
+                            hR[i+k]^2 / (hR[i+k+K] + params.lambda * hR[i+2*K+1])
+                        ) / 2
                 else
-                    gains[bin] += (hL[i+k]^2 / (hL[i+k+K] + params.lambda * hL[i+2*K+1]) +
-                                   hR[i+k]^2 / (hR[i+k+K] + params.lambda * hR[i+2*K+1])) / 2
+                    gains[bin] +=
+                        (
+                            hL[i+k]^2 / (hL[i+k+K] + params.lambda * hL[i+2*K+1]) +
+                            hR[i+k]^2 / (hR[i+k+K] + params.lambda * hR[i+2*K+1])
+                        ) / 2
                 end
             end
         end

@@ -37,6 +37,7 @@ params1 = EvoTreeRegressor(T=Float32,
     device="gpu")
 
 @time model = fit_evotree(params1; x_train, y_train);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
 model_cpu = convert(EvoTrees.GBTree, model);
 pred_train_linear_gpu = predict(model, x_train)
 pred_train_linear_cpu = predict(model_cpu, x_train)
@@ -122,7 +123,7 @@ params1 = EvoTreeGaussian(T=Float32,
     device="gpu")
 
 @time model = fit_evotree(params1; x_train, y_train);
-# @time model = fit_evotree(params1, X_train, Y_train, X_eval=X_eval, Y_eval=Y_eval, print_every_n=25);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, metric=:gaussian);
 # @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
 @time pred_train_gaussian = EvoTrees.predict(model, x_train)
 

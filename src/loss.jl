@@ -39,21 +39,24 @@ function update_grads!(::Type{Tweedie}, δ𝑤::Matrix, p::Matrix, y::Vector; kw
     @inbounds for i in eachindex(y)
         pred = exp(p[1, i])
         δ𝑤[1, i] = 2 * (pred^(2 - rho) - y[i] * pred^(1 - rho)) * δ𝑤[3, i]
-        δ𝑤[2, i] = 2 * ((2 - rho) * pred^(2 - rho) - (1 - rho) * y[i] * pred^(1 - rho)) * δ𝑤[3, i]
+        δ𝑤[2, i] =
+            2 * ((2 - rho) * pred^(2 - rho) - (1 - rho) * y[i] * pred^(1 - rho)) * δ𝑤[3, i]
     end
 end
 
 # L1
 function update_grads!(::Type{L1}, δ𝑤::Matrix, p::Matrix, y::Vector; alpha, kwargs...)
     @inbounds for i in eachindex(y)
-        δ𝑤[1, i] = (alpha * max(y[i] - p[1, i], 0) - (1 - alpha) * max(p[1, i] - y[i], 0)) * δ𝑤[3, i]
+        δ𝑤[1, i] =
+            (alpha * max(y[i] - p[1, i], 0) - (1 - alpha) * max(p[1, i] - y[i], 0)) *
+            δ𝑤[3, i]
     end
 end
 
 # Softmax
 function update_grads!(::Type{Softmax}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
-    p .= p .- maximum(p, dims=1)
-    sums = sum(exp.(p), dims=1)
+    p .= p .- maximum(p, dims = 1)
+    sums = sum(exp.(p), dims = 1)
     K = (size(δ𝑤, 1) - 1) ÷ 2
     for i in eachindex(y)
         for k = 1:K
@@ -99,10 +102,22 @@ function update_grads!(::Type{LogisticDist}, δ𝑤::Matrix, p::Matrix, y::Vecto
     @inbounds @simd for i in eachindex(y)
         # first order
         δ𝑤[1, i] = -tanh((y[i] - p[1, i]) / (2 * exp(p[2, i]))) * exp(-p[2, i]) * δ𝑤[5, i]
-        δ𝑤[2, i] = -(exp(-p[2, i]) * (y[i] - p[1, i]) * tanh((y[i] - p[1, i]) / (2 * exp(p[2, i]))) - 1) * δ𝑤[5, i]
+        δ𝑤[2, i] =
+            -(
+                exp(-p[2, i]) *
+                (y[i] - p[1, i]) *
+                tanh((y[i] - p[1, i]) / (2 * exp(p[2, i]))) - 1
+            ) * δ𝑤[5, i]
         # second order
-        δ𝑤[3, i] = sech((y[i] - p[1, i]) / (2 * exp(p[2, i])))^2 / (2 * exp(2 * p[2, i])) * δ𝑤[5, i]
-        δ𝑤[4, i] = (exp(-2 * p[2, i]) * (p[1, i] - y[i]) * (p[1, i] - y[i] + exp(p[2, i]) * sinh(exp(-p[2, i]) * (p[1, i] - y[i])))) / (1 + cosh(exp(-p[2, i]) * (p[1, i] - y[i]))) * δ𝑤[5, i]
+        δ𝑤[3, i] =
+            sech((y[i] - p[1, i]) / (2 * exp(p[2, i])))^2 / (2 * exp(2 * p[2, i])) *
+            δ𝑤[5, i]
+        δ𝑤[4, i] =
+            (
+                exp(-2 * p[2, i]) *
+                (p[1, i] - y[i]) *
+                (p[1, i] - y[i] + exp(p[2, i]) * sinh(exp(-p[2, i]) * (p[1, i] - y[i])))
+            ) / (1 + cosh(exp(-p[2, i]) * (p[1, i] - y[i]))) * δ𝑤[5, i]
     end
 end
 
@@ -132,7 +147,12 @@ end
 # get the gain metric
 ##############################
 # GradientRegression
-function get_gain(::Type{L}, ∑::Vector{T}, λ::T, K) where {L<:GradientRegression,T<:AbstractFloat}
+function get_gain(
+    ::Type{L},
+    ∑::Vector{T},
+    λ::T,
+    K,
+) where {L<:GradientRegression,T<:AbstractFloat}
     ∑[1]^2 / (∑[2] + λ * ∑[3]) / 2
 end
 
@@ -142,7 +162,12 @@ function get_gain(::Type{L}, ∑::Vector{T}, λ::T, K) where {L<:MLE2P,T<:Abstra
 end
 
 # MultiClassRegression
-function get_gain(::Type{L}, ∑::Vector{T}, λ::T, K) where {L<:MultiClassRegression,T<:AbstractFloat}
+function get_gain(
+    ::Type{L},
+    ∑::Vector{T},
+    λ::T,
+    K,
+) where {L<:MultiClassRegression,T<:AbstractFloat}
     gain = zero(T)
     @inbounds for k = 1:K
         gain += ∑[k]^2 / (∑[k+K] + λ * ∑[2*K+1]) / 2
@@ -151,7 +176,12 @@ function get_gain(::Type{L}, ∑::Vector{T}, λ::T, K) where {L<:MultiClassRegre
 end
 
 # QuantileRegression
-function get_gain(::Type{L}, ∑::Vector{T}, λ::T, K) where {L<:QuantileRegression,T<:AbstractFloat}
+function get_gain(
+    ::Type{L},
+    ∑::Vector{T},
+    λ::T,
+    K,
+) where {L<:QuantileRegression,T<:AbstractFloat}
     abs(∑[1])
 end
 
@@ -161,7 +191,14 @@ function get_gain(::Type{L}, ∑::Vector{T}, λ::T, K) where {L<:L1Regression,T<
 end
 
 
-function update_childs_∑!(::Type{L}, nodes, n, bin, feat, K) where {L<:Union{GradientRegression,QuantileRegression,L1Regression}}
+function update_childs_∑!(
+    ::Type{L},
+    nodes,
+    n,
+    bin,
+    feat,
+    K,
+) where {L<:Union{GradientRegression,QuantileRegression,L1Regression}}
     nodes[n<<1].∑ .= nodes[n].hL[feat][(3*bin-2):(3*bin)]
     nodes[n<<1+1].∑ .= nodes[n].hR[feat][(3*bin-2):(3*bin)]
     return nothing

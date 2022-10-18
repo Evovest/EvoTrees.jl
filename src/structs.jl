@@ -19,7 +19,8 @@ function TrainNode(nvars, nbins, K, T)
         [zeros(T, (2 * K + 1) * nbins) for j = 1:nvars],
         [zeros(T, (2 * K + 1) * nbins) for j = 1:nvars],
         [zeros(T, (2 * K + 1) * nbins) for j = 1:nvars],
-        zeros(T, nbins, nvars))
+        zeros(T, nbins, nvars),
+    )
     return node
 end
 
@@ -40,7 +41,8 @@ function Tree{L,T}(x::Vector{T}) where {L,T}
         zeros(T, 1),
         zeros(T, 1),
         reshape(x, :, 1),
-        zeros(Bool, 1))
+        zeros(Bool, 1),
+    )
 end
 
 function Tree{L,T}(depth, K, ::T) where {L,T}
@@ -50,7 +52,7 @@ function Tree{L,T}(depth, K, ::T) where {L,T}
         zeros(T, 2^depth - 1),
         zeros(T, 2^depth - 1),
         zeros(T, K, 2^depth - 1),
-        zeros(Bool, 2^depth - 1)
+        zeros(Bool, 2^depth - 1),
     )
 end
 
@@ -67,6 +69,6 @@ struct GBTree{L,T,S}
     params::EvoTypes
     metric::Metric
     K::Int
-    info
+    info::Any
 end
 (m::GBTree)(x::AbstractMatrix) = predict(m, x)

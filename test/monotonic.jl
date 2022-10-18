@@ -15,7 +15,7 @@
     seed = 123
 
     # train-eval split
-    𝑖_sample = sample(𝑖, size(𝑖, 1), replace=false)
+    𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
     train_size = 0.8
     𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
     𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
@@ -28,27 +28,43 @@
     ######################################
     # benchmark
     params1 = EvoTreeRegressor(
-        device="cpu",
-        loss=:linear, metric=:mse,
-        nrounds=200, nbins=32,
-        lambda=1.0, gamma=0.0, eta=0.05,
-        max_depth=6, min_weight=0.0,
-        rowsample=0.5, colsample=1.0, rng=seed)
+        device = "cpu",
+        loss = :linear,
+        metric = :mse,
+        nrounds = 200,
+        nbins = 32,
+        lambda = 1.0,
+        gamma = 0.0,
+        eta = 0.05,
+        max_depth = 6,
+        min_weight = 0.0,
+        rowsample = 0.5,
+        colsample = 1.0,
+        rng = seed,
+    )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
     preds_ref = predict(model, x_train)
 
     # monotonic constraint
     params1 = EvoTreeRegressor(
-        device="cpu",
-        loss=:linear, metric=:mse,
-        nrounds=200, nbins=32,
-        lambda=1.0, gamma=0.0, eta=0.5,
-        max_depth=6, min_weight=0.0,
-        monotone_constraints=Dict(1 => 1),
-        rowsample=0.5, colsample=1.0, rng=seed)
+        device = "cpu",
+        loss = :linear,
+        metric = :mse,
+        nrounds = 200,
+        nbins = 32,
+        lambda = 1.0,
+        gamma = 0.0,
+        eta = 0.5,
+        max_depth = 6,
+        min_weight = 0.0,
+        monotone_constraints = Dict(1 => 1),
+        rowsample = 0.5,
+        colsample = 1.0,
+        rng = seed,
+    )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
     preds_mono = predict(model, x_train)
 
     # using Plots
@@ -100,27 +116,43 @@
     ######################################
     # benchmark
     params1 = EvoTreeRegressor(
-        device="cpu",
-        loss=:logistic, metric=:logloss,
-        nrounds=200, nbins=32,
-        lambda=0.05, gamma=0.0, eta=0.05,
-        max_depth=6, min_weight=0.0,
-        rowsample=0.5, colsample=1.0, rng=seed)
+        device = "cpu",
+        loss = :logistic,
+        metric = :logloss,
+        nrounds = 200,
+        nbins = 32,
+        lambda = 0.05,
+        gamma = 0.0,
+        eta = 0.05,
+        max_depth = 6,
+        min_weight = 0.0,
+        rowsample = 0.5,
+        colsample = 1.0,
+        rng = seed,
+    )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
     preds_ref = predict(model, x_train)
 
     # monotonic constraint
     params1 = EvoTreeRegressor(
-        device="cpu",
-        loss=:logistic, metric=:logloss,
-        nrounds=200, nbins=32,
-        lambda=0.05, gamma=0.0, eta=0.05,
-        max_depth=6, min_weight=0.0,
-        monotone_constraints=Dict(1 => 1),
-        rowsample=0.5, colsample=1.0, rng=seed)
+        device = "cpu",
+        loss = :logistic,
+        metric = :logloss,
+        nrounds = 200,
+        nbins = 32,
+        lambda = 0.05,
+        gamma = 0.0,
+        eta = 0.05,
+        max_depth = 6,
+        min_weight = 0.0,
+        monotone_constraints = Dict(1 => 1),
+        rowsample = 0.5,
+        colsample = 1.0,
+        rng = seed,
+    )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
     preds_mono = predict(model, x_train)
 
     # using Plots
@@ -172,27 +204,41 @@
     ######################################
     # linear - benchmark
     params1 = EvoTreeGaussian(
-        device="cpu",
-        metric=:gaussian,
-        nrounds=200, nbins=32,
-        lambda=1.0, gamma=0.0, eta=0.05,
-        max_depth=6, min_weight=0.0,
-        rowsample=0.5, colsample=1.0, rng=seed)
+        device = "cpu",
+        metric = :gaussian,
+        nrounds = 200,
+        nbins = 32,
+        lambda = 1.0,
+        gamma = 0.0,
+        eta = 0.05,
+        max_depth = 6,
+        min_weight = 0.0,
+        rowsample = 0.5,
+        colsample = 1.0,
+        rng = seed,
+    )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
     preds_ref = predict(model, x_train)
 
     # monotonic constraint
     params1 = EvoTreeGaussian(
-        device="cpu",
-        metric=:gaussian,
-        nrounds=200, nbins=32,
-        lambda=1.0, gamma=0.0, eta=0.5,
-        max_depth=6, min_weight=0.0,
-        monotone_constraints=Dict(1 => 1),
-        rowsample=0.5, colsample=1.0, rng=seed)
+        device = "cpu",
+        metric = :gaussian,
+        nrounds = 200,
+        nbins = 32,
+        lambda = 1.0,
+        gamma = 0.0,
+        eta = 0.5,
+        max_depth = 6,
+        min_weight = 0.0,
+        monotone_constraints = Dict(1 => 1),
+        rowsample = 0.5,
+        colsample = 1.0,
+        rng = seed,
+    )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
     preds_mono = predict(model, x_train)
 
     # using Plots

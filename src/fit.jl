@@ -4,104 +4,104 @@
 Initialise EvoTree
 """
 function init_evotree(
-    params::EvoTypes{L,T,S},
-    X::AbstractMatrix,
-    Y::AbstractVector,
-    W = nothing,
-    offset = nothing;
+    params::EvoTypes{L,T,S};
+    x_train::AbstractMatrix,
+    y_train::AbstractVector,
+    w_train = nothing,
+    offset_train = nothing,
     fnames = nothing,
 ) where {L,T,S}
 
     K = 1
     levels = nothing
-    X = convert(Matrix{T}, X)
-
+    x = convert(Matrix{T}, x_train)
+    offset = !isnothing(offset_train) ? T.(offset_train) : nothing
     if L == Logistic
-        Y = T.(Y)
-        μ = [logit(mean(Y))]
+        y = T.(y_train)
+        μ = [logit(mean(y))]
         !isnothing(offset) && (offset .= logit.(offset))
     elseif L in [Poisson, Gamma, Tweedie]
-        Y = T.(Y)
-        μ = fill(log(mean(Y)), 1)
+        y = T.(y_train)
+        μ = fill(log(mean(y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == Softmax
-        if eltype(Y) <: CategoricalValue
-            levels = CategoricalArrays.levels(Y)
+        if eltype(y_train) <: CategoricalValue
+            levels = CategoricalArrays.levels(y_train)
             K = length(levels)
             μ = zeros(T, K)
-            Y = UInt32.(CategoricalArrays.levelcode.(Y))
+            y = UInt32.(CategoricalArrays.levelcode.(y_train))
         else
-            levels = sort(unique(Y))
-            yc = CategoricalVector(Y, levels = levels)
+            levels = sort(unique(y_train))
+            yc = CategoricalVector(y_train, levels = levels)
             K = length(levels)
             μ = zeros(T, K)
-            Y = UInt32.(CategoricalArrays.levelcode.(yc))
+            y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianDist
         K = 2
-        Y = T.(Y)
-        μ = [mean(Y), log(std(Y))]
+        y = T.(y_train)
+        μ = [mean(y), log(std(y))]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     elseif L == LogisticDist
         K = 2
-        Y = T.(Y)
-        μ = [mean(Y), log(std(Y) * sqrt(3) / π)]
+        y = T.(y_train)
+        μ = [mean(y), log(std(y) * sqrt(3) / π)]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     else
-        Y = T.(Y)
-        μ = [mean(Y)]
+        y = T.(y_train)
+        μ = [mean(y)]
     end
     μ = T.(μ)
 
     # force a neutral bias/initial tree when offset is specified
     !isnothing(offset) && (μ .= 0)
     # initialize preds
-    X_size = size(X)
-    pred = zeros(T, K, X_size[1])
-    @inbounds for i = 1:X_size[1]
+    x_size = size(x)
+    pred = zeros(T, K, x_size[1])
+    @inbounds for i = 1:x_size[1]
         pred[:, i] .= μ
     end
     !isnothing(offset) && (pred .+= offset')
 
     # init GBTree
     bias = [Tree{L,T}(μ)]
-    fnames = isnothing(fnames) ? ["feat_$i" for i in axes(X, 2)] : string.(fnames)
-    @assert length(fnames) == size(X, 2)
+    fnames = isnothing(fnames) ? ["feat_$i" for i in axes(x, 2)] : string.(fnames)
+    @assert length(fnames) == size(x, 2)
     info = Dict(:fnames => fnames, :levels => levels)
     evotree = GBTree{L,T,S}(bias, params, Metric(), K, info)
 
     # initialize gradients and weights
-    δ𝑤 = zeros(T, 2 * K + 1, X_size[1])
-    W = isnothing(W) ? ones(T, size(Y)) : Vector{T}(W)
-    @assert (length(Y) == length(W) && minimum(W) > 0)
-    δ𝑤[end, :] .= W
+    δ𝑤 = zeros(T, 2 * K + 1, x_size[1])
+    w = isnothing(w_train) ? ones(T, size(y)) : Vector{T}(w_train)
+    @assert (length(y) == length(w) && minimum(w) > 0)
+    δ𝑤[end, :] .= w
 
     # binarize data into quantiles
-    edges = get_edges(X, params.nbins)
-    X_bin = binarize(X, edges)
+    edges = get_edges(x, params.nbins)
+    x_bin = binarize(x, edges)
 
-    𝑖_ = UInt32.(collect(1:X_size[1]))
-    𝑗_ = UInt32.(collect(1:X_size[2]))
-    𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * X_size[2]))
+    𝑖_ = UInt32.(collect(1:x_size[1]))
+    𝑗_ = UInt32.(collect(1:x_size[2]))
+    𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * x_size[2]))
 
     # initialize histograms
-    nodes = [TrainNode(X_size[2], params.nbins, K, T) for n = 1:2^params.max_depth-1]
-    nodes[1].𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * X_size[1]))
+    nodes = [TrainNode(x_size[2], params.nbins, K, T) for n = 1:2^params.max_depth-1]
+    nodes[1].𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * x_size[1]))
     out = zeros(UInt32, length(nodes[1].𝑖))
     left = zeros(UInt32, length(nodes[1].𝑖))
     right = zeros(UInt32, length(nodes[1].𝑖))
 
     # assign monotone contraints in constraints vector
-    monotone_constraints = zeros(Int32, X_size[2])
+    monotone_constraints = zeros(Int32, x_size[2])
     hasproperty(params, :monotone_constraint) && for (k, v) in params.monotone_constraints
         monotone_constraints[k] = v
     end
 
     cache = (
         params = deepcopy(params),
-        X = X,
-        Y = Y,
+        x = x,
+        y = y,
         K = K,
         nodes = nodes,
         pred = pred,
@@ -113,7 +113,7 @@ function init_evotree(
         right = right,
         δ𝑤 = δ𝑤,
         edges = edges,
-        X_bin = X_bin,
+        x_bin = x_bin,
         monotone_constraints = monotone_constraints,
     )
 
@@ -136,7 +136,7 @@ function grow_evotree!(evotree::GBTree{L,T,S}, cache) where {L,T,S}
         sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
 
         # build a new tree
-        update_grads!(L, cache.δ𝑤, cache.pred, cache.Y; alpha = params.alpha)
+        update_grads!(L, cache.δ𝑤, cache.pred, cache.y; alpha = params.alpha)
         # assign a root and grow tree
         tree = Tree{L,T}(params.max_depth, evotree.K, zero(T))
         grow_tree!(
@@ -149,12 +149,12 @@ function grow_evotree!(evotree::GBTree{L,T,S}, cache) where {L,T,S}
             cache.out,
             cache.left,
             cache.right,
-            cache.X_bin,
+            cache.x_bin,
             cache.K,
             cache.monotone_constraints,
         )
         push!(evotree.trees, tree)
-        predict!(cache.pred, tree, cache.X, cache.K)
+        predict!(cache.pred, tree, cache.x, cache.K)
 
     end # end of nrounds
     cache.params.nrounds = params.nrounds
@@ -172,7 +172,7 @@ function grow_tree!(
     out,
     left,
     right,
-    X_bin::AbstractMatrix,
+    x_bin::AbstractMatrix,
     K,
     monotone_constraints,
 ) where {L,T,S}
@@ -207,7 +207,7 @@ function grow_tree!(
                         nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
                     end
                 else
-                    update_hist!(L, nodes[n].h, δ𝑤, X_bin, nodes[n].𝑖, 𝑗, K)
+                    update_hist!(L, nodes[n].h, δ𝑤, x_bin, nodes[n].𝑖, 𝑗, K)
                 end
             end
         end
@@ -236,7 +236,7 @@ function grow_tree!(
                         left,
                         right,
                         nodes[n].𝑖,
-                        X_bin,
+                        x_bin,
                         tree.feat[n],
                         tree.cond_bin[n],
                         offset,
@@ -329,9 +329,9 @@ function fit_evotree(
 
     if params.device == "gpu"
         model, cache =
-            init_evotree_gpu(params, x_train, y_train, w_train, offset_train; fnames)
+            init_evotree_gpu(params; x_train, y_train, w_train, offset_train, fnames)
     else
-        model, cache = init_evotree(params, x_train, y_train, w_train, offset_train; fnames)
+        model, cache = init_evotree(params; x_train, y_train, w_train, offset_train, fnames)
     end
 
     if !isnothing(offset_eval)
@@ -346,14 +346,14 @@ function fit_evotree(
     if !isnothing(metric) && !isnothing(x_eval) && !isnothing(y_eval)
         if params.device == "gpu"
             x_eval = CuArray(T.(x_eval))
-            y_eval = CuArray(eltype(cache.Y).(y_eval))
+            y_eval = CuArray(eltype(cache.y).(y_eval))
             w_eval = isnothing(w_eval) ? CUDA.ones(T, size(y_eval)) : CuArray(T.(w_eval))
             p_eval = predict(model.trees[1], x_eval, model.K)
             !isnothing(offset_eval) && (p_eval .+= CuArray(offset_eval'))
             eval_vec = CUDA.zeros(T, size(y_eval, 1))
         else # params.device == "cpu"
             x_eval = T.(x_eval)
-            y_eval = eltype(cache.Y).(y_eval)
+            y_eval = eltype(cache.y).(y_eval)
             w_eval = isnothing(w_eval) ? ones(T, size(y_eval)) : T.(w_eval)
             p_eval = predict(model.trees[1], x_eval, model.K)
             !isnothing(offset_eval) && (p_eval .+= offset_eval')
