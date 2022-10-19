@@ -74,7 +74,6 @@ params_evo.device = "cpu"
 @time pred_evo = EvoTrees.predict(m_evo, x_train);
 @btime EvoTrees.predict($m_evo, $x_train);
 
-CUDA.allowscalar(true)
 @info "evotrees train GPU:"
 params_evo.device = "gpu"
 @time m_evo_gpu = fit_evotree(params_evo; x_train, y_train);
