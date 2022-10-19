@@ -160,7 +160,7 @@ function grow_tree_gpu!(
     depth = 1
 
     # reset nodes
-    @threads for n in eachindex(nodes)
+    for n in eachindex(nodes)
         nodes[n].h .= 0
         nodes[n].∑ .= 0
         nodes[n].gain = -Inf

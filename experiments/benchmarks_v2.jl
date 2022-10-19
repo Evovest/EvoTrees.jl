@@ -58,12 +58,12 @@ num_feat = Int(100)
 x_train = rand(nobs, num_feat)
 y_train = rand(size(x_train, 1))
 
-@info "xgboost train:"
-@time m_xgb = xgboost(x_train, nrounds, label=y_train, param=params_xgb, metrics=metrics, nthread=nthread, silent=1);
-@btime xgboost($x_train, $nrounds, label=$y_train, param=$params_xgb, metrics=$metrics, nthread=$nthread, silent=1);
-@info "xgboost predict:"
-@time pred_xgb = XGBoost.predict(m_xgb, x_train);
-@btime XGBoost.predict($m_xgb, $x_train);
+# @info "xgboost train:"
+# @time m_xgb = xgboost(x_train, nrounds, label=y_train, param=params_xgb, metrics=metrics, nthread=nthread, silent=1);
+# @btime xgboost($x_train, $nrounds, label=$y_train, param=$params_xgb, metrics=$metrics, nthread=$nthread, silent=1);
+# @info "xgboost predict:"
+# @time pred_xgb = XGBoost.predict(m_xgb, x_train);
+# @btime XGBoost.predict($m_xgb, $x_train);
 
 @info "evotrees train CPU:"
 params_evo.device = "cpu"
@@ -74,7 +74,7 @@ params_evo.device = "cpu"
 @time pred_evo = EvoTrees.predict(m_evo, x_train);
 @btime EvoTrees.predict($m_evo, $x_train);
 
-CUDA.allowscalar(true)
+# CUDA.allowscalar(true)
 @info "evotrees train GPU:"
 params_evo.device = "gpu"
 @time m_evo_gpu = fit_evotree(params_evo; x_train, y_train);

@@ -104,7 +104,7 @@ function pred_leaf_cpu!(
 end
 function pred_scalar_cpu!(
     ∑::AbstractVector{T},
-    params::EvoTypes,
+    params::EvoTypes{L,T,S},
     K,
 ) where {L<:GradientRegression,T,S}
     -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3])
