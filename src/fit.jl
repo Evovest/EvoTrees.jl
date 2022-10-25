@@ -350,7 +350,6 @@ function fit_evotree(
             w_eval = isnothing(w_eval) ? CUDA.ones(T, size(y_eval)) : CuArray(T.(w_eval))
             p_eval = predict(model.trees[1], x_eval, model.K)
             !isnothing(offset_eval) && (p_eval .+= CuArray(offset_eval'))
-            eval_vec = CUDA.zeros(T, size(y_eval, 1))
         else # params.device == "cpu"
             x_eval = T.(x_eval)
             y_eval = eltype(cache.y).(y_eval)
@@ -363,9 +362,10 @@ function fit_evotree(
         metric_best = Metric()
         metric_track.metric =
             eval_metric(Val{metric}(), p_eval, y_eval, w_eval, params.alpha)
-        tracker = (iter = [0], metric = [metric_track.metric])
-        @info "Initial tracking info" iter = model.params.nrounds metric =
-            metric_track.metric
+        if verbosity > 0
+            @info "Initial tracking info" iter = model.params.nrounds metric =
+                metric_track.metric
+        end
     end
 
     while model.params.nrounds < nrounds_max && iter_since_best < early_stopping_rounds
