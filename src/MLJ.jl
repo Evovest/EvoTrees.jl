@@ -215,7 +215,7 @@ Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeReg
 A model is built using [`fit_evotree`](@ref):
 
 ```julia
-model = fit_evotree(params, X_train, Y_train, W_train=nothing; kwargs...).
+model = fit_evotree(config; x_train = X_train, x_train = Y_train, w_train=nothing)
 ```
 
 ## Inference
