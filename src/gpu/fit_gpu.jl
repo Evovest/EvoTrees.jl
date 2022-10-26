@@ -135,7 +135,6 @@ function grow_evotree!(evotree::GBTreeGPU{L,T,S}, cache) where {L,T,S}
         predict!(cache.pred, tree, cache.x, cache.K)
     end # end of nrounds
     cache.params.nrounds = params.nrounds
-    CUDA.reclaim()
     return evotree
 end
 
