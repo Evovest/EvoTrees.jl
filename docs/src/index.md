@@ -1,4 +1,4 @@
-# [EvoTress.jl](https://github.com/Evovest/EvoTrees.jl)
+# [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl)
 
 A Julia implementation of boosted trees with CPU and GPU support. Efficient histogram based algorithms with support for multiple loss functions, including various regressions, multi-classification and Gaussian max likelihood. 
 

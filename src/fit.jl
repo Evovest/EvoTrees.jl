@@ -393,6 +393,10 @@ function fit_evotree(
         model.metric.iter = metric_best.iter
         model.metric.metric = metric_best.metric
     end
+    if params.device == "gpu"
+        GC.gc(true)
+        CUDA.reclaim()
+    end
     params.nrounds = nrounds_max
     return model
 end
