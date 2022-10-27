@@ -119,7 +119,6 @@ MMI.metadata_model(
     target_scitype = AbstractVector{<:MMI.Continuous},
     weights = false,
     path = "EvoTrees.EvoTreeRegressor",
-    descr = EvoTreeRegressor_desc,
 )
 
 MMI.metadata_model(
@@ -131,7 +130,6 @@ MMI.metadata_model(
     target_scitype = AbstractVector{<:MMI.Finite},
     weights = false,
     path = "EvoTrees.EvoTreeClassifier",
-    descr = EvoTreeClassifier_desc,
 )
 
 MMI.metadata_model(
@@ -143,7 +141,6 @@ MMI.metadata_model(
     target_scitype = AbstractVector{<:MMI.Count},
     weights = false,
     path = "EvoTrees.EvoTreeCount",
-    descr = EvoTreeCount_desc,
 )
 
 MMI.metadata_model(
@@ -155,7 +152,6 @@ MMI.metadata_model(
     target_scitype = AbstractVector{<:MMI.Continuous},
     weights = false,
     path = "EvoTrees.EvoTreeGaussian",
-    descr = EvoTreeGaussian_desc,
 )
 
 MMI.metadata_model(
@@ -167,7 +163,6 @@ MMI.metadata_model(
     target_scitype = AbstractVector{<:MMI.Continuous},
     weights = false,
     path = "EvoTrees.EvoTreeMLE",
-    descr = EvoTreeMLE_desc,
 )
 
 """
