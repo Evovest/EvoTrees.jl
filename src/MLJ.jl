@@ -94,11 +94,6 @@ end
 
 
 # Metadata
-const EvoTreeRegressor_desc = "Regression models with various underlying methods: least square, quantile, logistic, gamma (deviance), tweedie (deviance)."
-const EvoTreeClassifier_desc = "Multi-classification with softmax and cross-entropy loss."
-const EvoTreeCount_desc = "Poisson regression fitting λ with deviance minimization."
-const EvoTreeGaussian_desc = "Deprecated - Use EvoTreeMLE with `loss=:normal` instead. Gaussian maximum likelihood of μ and σ."
-const EvoTreeMLE_desc = "Maximum likelihood methods supporting Normal/Gaussian and Logistic distributions."
 
 MMI.metadata_pkg.(
     (EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian),
@@ -119,7 +114,6 @@ MMI.metadata_model(
     target_scitype = AbstractVector{<:MMI.Continuous},
     weights = false,
     path = "EvoTrees.EvoTreeRegressor",
-    descr = EvoTreeRegressor_desc,
 )
 
 MMI.metadata_model(
@@ -131,7 +125,6 @@ MMI.metadata_model(
     target_scitype = AbstractVector{<:MMI.Finite},
     weights = false,
     path = "EvoTrees.EvoTreeClassifier",
-    descr = EvoTreeClassifier_desc,
 )
 
 MMI.metadata_model(
@@ -143,7 +136,6 @@ MMI.metadata_model(
     target_scitype = AbstractVector{<:MMI.Count},
     weights = false,
     path = "EvoTrees.EvoTreeCount",
-    descr = EvoTreeCount_desc,
 )
 
 MMI.metadata_model(
@@ -155,7 +147,6 @@ MMI.metadata_model(
     target_scitype = AbstractVector{<:MMI.Continuous},
     weights = false,
     path = "EvoTrees.EvoTreeGaussian",
-    descr = EvoTreeGaussian_desc,
 )
 
 MMI.metadata_model(
@@ -167,7 +158,6 @@ MMI.metadata_model(
     target_scitype = AbstractVector{<:MMI.Continuous},
     weights = false,
     path = "EvoTrees.EvoTreeMLE",
-    descr = EvoTreeMLE_desc,
 )
 
 """
