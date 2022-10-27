@@ -94,11 +94,6 @@ end
 
 
 # Metadata
-const EvoTreeRegressor_desc = "Regression models with various underlying methods: least square, quantile, logistic, gamma (deviance), tweedie (deviance)."
-const EvoTreeClassifier_desc = "Multi-classification with softmax and cross-entropy loss."
-const EvoTreeCount_desc = "Poisson regression fitting λ with deviance minimization."
-const EvoTreeGaussian_desc = "Deprecated - Use EvoTreeMLE with `loss=:normal` instead. Gaussian maximum likelihood of μ and σ."
-const EvoTreeMLE_desc = "Maximum likelihood methods supporting Normal/Gaussian and Logistic distributions."
 
 MMI.metadata_pkg.(
     (EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian),
