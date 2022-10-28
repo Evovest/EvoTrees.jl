@@ -325,8 +325,6 @@ tree_model = EvoTreeRegressor(
     nbins = 32,
 )
 
-# X = MLJBase.table(X)
-
 # typeof(X)
 mach = machine(tree_model, X, Y, W)
 train, test = partition(eachindex(Y), 0.8, shuffle = true); # 70:30 split
