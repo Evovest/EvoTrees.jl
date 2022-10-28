@@ -1,8 +1,9 @@
-function MMI.fit(model::EvoTypes, verbosity::Int, A, y)
+function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w = nothing)
     if model.device == "gpu"
-        fitresult, cache = init_evotree_gpu(model; x_train = A.matrix, y_train = y)
+        fitresult, cache =
+            init_evotree_gpu(model; x_train = A.matrix, y_train = y, w_train = w)
     else
-        fitresult, cache = init_evotree(model; x_train = A.matrix, y_train = y)
+        fitresult, cache = init_evotree(model; x_train = A.matrix, y_train = y, w_train = w)
     end
     grow_evotree!(fitresult, cache)
     report = (features = A.names,)
@@ -24,14 +25,20 @@ end
 
 
 # Generate names to be used by feature_importances in the report
+MMI.reformat(::EvoTypes, X, y, w) =
+    ((matrix = MMI.matrix(X), names = [name for name ∈ schema(X).names]), y, w)
 MMI.reformat(::EvoTypes, X, y) =
     ((matrix = MMI.matrix(X), names = [name for name ∈ schema(X).names]), y)
 MMI.reformat(::EvoTypes, X) =
     ((matrix = MMI.matrix(X), names = [name for name ∈ schema(X).names]),)
+MMI.reformat(::EvoTypes, X::AbstractMatrix, y, w) =
+    ((matrix = X, names = ["feat_$i" for i = 1:size(X, 2)]), y, w)
 MMI.reformat(::EvoTypes, X::AbstractMatrix, y) =
     ((matrix = X, names = ["feat_$i" for i = 1:size(X, 2)]), y)
 MMI.reformat(::EvoTypes, X::AbstractMatrix) =
     ((matrix = X, names = ["feat_$i" for i = 1:size(X, 2)]),)
+MMI.selectrows(::EvoTypes, I, A, y, w) =
+    ((matrix = view(A.matrix, I, :), names = A.names), view(y, I), view(w, I))
 MMI.selectrows(::EvoTypes, I, A, y) =
     ((matrix = view(A.matrix, I, :), names = A.names), view(y, I))
 MMI.selectrows(::EvoTypes, I, A) = ((matrix = view(A.matrix, I, :), names = A.names),)
@@ -39,14 +46,24 @@ MMI.selectrows(::EvoTypes, I, A) = ((matrix = view(A.matrix, I, :), names = A.na
 # For EarlyStopping.jl support
 MMI.iteration_parameter(::Type{<:EvoTypes}) = :nrounds
 
-function MMI.update(model::EvoTypes, verbosity::Integer, fitresult, cache, A, y)
+function MMI.update(
+    model::EvoTypes,
+    verbosity::Integer,
+    fitresult,
+    cache,
+    A,
+    y,
+    w = nothing,
+)
     if okay_to_continue(model, cache.params)
         grow_evotree!(fitresult, cache)
     else
         if model.device == "gpu"
-            fitresult, cache = init_evotree_gpu(model; x_train = A.matrix, y_train = y)
+            fitresult, cache =
+                init_evotree_gpu(model; x_train = A.matrix, y_train = y, w_train = w)
         else
-            fitresult, cache = init_evotree(model; x_train = A.matrix, y_train = y)
+            fitresult, cache =
+                init_evotree(model; x_train = A.matrix, y_train = y, w_train = w)
         end
         grow_evotree!(fitresult, cache)
     end
@@ -86,6 +103,7 @@ end
 
 # Feature Importances
 MMI.reports_feature_importances(::Type{<:EvoTypes}) = true
+MMI.supports_weights(::Type{<:EvoTypes}) = true
 
 function MMI.feature_importances(m::EvoTypes, fitresult, report)
     fi_pairs = importance(fitresult)
@@ -96,7 +114,7 @@ end
 # Metadata
 
 MMI.metadata_pkg.(
-    (EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian),
+    (EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian, EvoTreeMLE),
     name = "EvoTrees",
     uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5",
     url = "https://github.com/Evovest/EvoTrees.jl",
@@ -112,7 +130,7 @@ MMI.metadata_model(
         AbstractMatrix{MMI.Continuous},
     },
     target_scitype = AbstractVector{<:MMI.Continuous},
-    weights = false,
+    weights = true,
     path = "EvoTrees.EvoTreeRegressor",
 )
 
@@ -123,7 +141,7 @@ MMI.metadata_model(
         AbstractMatrix{MMI.Continuous},
     },
     target_scitype = AbstractVector{<:MMI.Finite},
-    weights = false,
+    weights = true,
     path = "EvoTrees.EvoTreeClassifier",
 )
 
@@ -134,7 +152,7 @@ MMI.metadata_model(
         AbstractMatrix{MMI.Continuous},
     },
     target_scitype = AbstractVector{<:MMI.Count},
-    weights = false,
+    weights = true,
     path = "EvoTrees.EvoTreeCount",
 )
 
@@ -145,7 +163,7 @@ MMI.metadata_model(
         AbstractMatrix{MMI.Continuous},
     },
     target_scitype = AbstractVector{<:MMI.Continuous},
-    weights = false,
+    weights = true,
     path = "EvoTrees.EvoTreeGaussian",
 )
 
@@ -156,7 +174,7 @@ MMI.metadata_model(
         AbstractMatrix{MMI.Continuous},
     },
     target_scitype = AbstractVector{<:MMI.Continuous},
-    weights = false,
+    weights = true,
     path = "EvoTrees.EvoTreeMLE",
 )
 
