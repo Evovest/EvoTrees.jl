@@ -78,8 +78,7 @@ function eval_metric(::Val{:gaussian}, p::CuMatrix{T}, y::CuVector{T}, w::CuVect
 end
 
 """
-    
-Poisson Deviance
+    Poisson Deviance
 """
 function eval_poisson_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
@@ -101,8 +100,7 @@ function eval_metric(::Val{:poisson}, p::CuMatrix{T}, y::CuVector{T}, w::CuVecto
 end
 
 """
-    
-Gamma Deviance
+    Gamma Deviance
 """
 function eval_gamma_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
@@ -123,8 +121,7 @@ function eval_metric(::Val{:gamma}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{
 end
 
 """
-    
-Tweedie Deviance
+    Tweedie Deviance
 """
 function eval_tweedie_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
