@@ -197,7 +197,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 
 # Internal API
 
-Do `params = EvoTreeRegressor()` to construct an instance with default hyper-parameters.
+Do `config = EvoTreeRegressor()` to construct an instance with default hyper-parameters.
 Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeRegressor(loss=...).
 
 ## Training model
@@ -205,7 +205,7 @@ Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeReg
 A model is built using [`fit_evotree`](@ref):
 
 ```julia
-model = fit_evotree(params, X_train, Y_train, W_train=nothing; kwargs...).
+model = fit_evotree(config; x_train, y_train, kwargs...)
 ```
 
 ## Inference
@@ -267,11 +267,11 @@ The fields of `report(mach)` are:
 ```
 # Internal API
 using EvoTrees
-params = EvoTreeRegressor(max_depth=5, nbins=32, nrounds=100)
+config = EvoTreeRegressor(max_depth=5, nbins=32, nrounds=100)
 nobs, nfeats = 1_000, 5
-X, y = randn(nobs, nfeats), rand(nobs)
-model = fit_evotree(params, X, y)
-preds = EvoTrees.predict(model, X)
+x_train, y_train = randn(nobs, nfeats), rand(nobs)
+model = fit_evotree(config; x_train, y_train)
+preds = EvoTrees.predict(model, x_train)
 ```
 
 ```
@@ -310,7 +310,7 @@ EvoTreeClassifier is used to perform multi-class classification, using cross-ent
 
 # Internal API
 
-Do `params = EvoTreeClassifier()` to construct an instance with default hyper-parameters.
+Do `config = EvoTreeClassifier()` to construct an instance with default hyper-parameters.
 Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeClassifier(max_depth=...).
 
 ## Training model
@@ -318,7 +318,7 @@ Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeCla
 A model is built using [`fit_evotree`](@ref):
 
 ```julia
-model = fit_evotree(params, X_train, Y_train, W_train=nothing; kwargs...).
+model = fit_evotree(config; x_train, y_train, kwargs...)
 ```
 
 ## Inference
@@ -384,11 +384,11 @@ The fields of `report(mach)` are:
 ```
 # Internal API
 using EvoTrees
-params = EvoTreeClassifier(max_depth=5, nbins=32, nrounds=100)
+config = EvoTreeClassifier(max_depth=5, nbins=32, nrounds=100)
 nobs, nfeats = 1_000, 5
-X, y = randn(nobs, nfeats), rand(1:3, nobs)
-model = fit_evotree(params, X, y)
-preds = EvoTrees.predict(model, X)
+x_train, y_train = randn(nobs, nfeats), rand(1:3, nobs)
+model = fit_evotree(config; x_train, y_train)
+preds = EvoTrees.predict(model, x_train)
 ```
 
 ```
@@ -431,7 +431,7 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
 
 # Internal API
 
-Do `params = EvoTreeCount()` to construct an instance with default hyper-parameters.
+Do `config = EvoTreeCount()` to construct an instance with default hyper-parameters.
 Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeCount(max_depth=...).
 
 ## Training model
@@ -439,7 +439,7 @@ Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeCou
 A model is built using [`fit_evotree`](@ref):
 
 ```julia
-model = fit_evotree(params, X_train, Y_train, W_train=nothing; kwargs...).
+model = fit_evotree(config; x_train, y_train, kwargs...)
 ```
 
 ## Inference
@@ -506,11 +506,11 @@ The fields of `report(mach)` are:
 ```
 # Internal API
 using EvoTrees
-params = EvoTreeCount(max_depth=5, nbins=32, nrounds=100)
+config = EvoTreeCount(max_depth=5, nbins=32, nrounds=100)
 nobs, nfeats = 1_000, 5
-X, y = randn(nobs, nfeats), rand(0:2, nobs)
-model = fit_evotree(params, X, y)
-preds = EvoTrees.predict(model, X)
+x_train, y_train = randn(nobs, nfeats), rand(0:2, nobs)
+model = fit_evotree(config; x_train, y_train)
+preds = EvoTrees.predict(model, x_train)
 ```
 
 ```
@@ -558,7 +558,7 @@ EvoTreeGaussian is used to perform Gaussian probabilistic regression, fitting μ
 
 # Internal API
 
-Do `params = EvoTreeGaussian()` to construct an instance with default hyper-parameters.
+Do `config = EvoTreeGaussian()` to construct an instance with default hyper-parameters.
 Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeGaussian(max_depth=...).
 
 ## Training model
@@ -566,7 +566,7 @@ Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeGau
 A model is built using [`fit_evotree`](@ref):
 
 ```julia
-fit_evotree(params, X_train, Y_train, W_train=nothing; kwargs...).
+model = fit_evotree(config; x_train, y_train, kwargs...)
 ```
 
 ## Inference
@@ -641,9 +641,9 @@ The fields of `report(mach)` are:
 using EvoTrees
 params = EvoTreeGaussian(max_depth=5, nbins=32, nrounds=100)
 nobs, nfeats = 1_000, 5
-X, y = randn(nobs, nfeats), rand(nobs)
-model = fit_evotree(params, X, y)
-preds = EvoTrees.predict(model, X)
+x_train, y_train = randn(nobs, nfeats), rand(nobs)
+model = fit_evotree(params; x_train, y_train)
+preds = EvoTrees.predict(model, x_train)
 ```
 
 ```
@@ -672,7 +672,7 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distributions is spec
 # Hyper-parameters
 
 `loss=:gaussian`:         Loss to be be minimized during training. One of:
-  - `:normal`/ `gaussian`
+  - `:normal`/ `:gaussian`
   - `:logistic`
 - `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
 - `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
@@ -685,14 +685,14 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distributions is spec
 - `colsample=1.0`:              Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
-  !Experimental feature: note that for Gaussian regression, constraints may not be enforce systematically.
+  !Experimental feature: note that for MLE regression, constraints may not be enforced systematically.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `metric::Symbol=:none`:       Metric that is to be tracked during the training process. One of: `:none`, `:gaussian`.
+- `metric::Symbol=:none`:       Metric that is to be tracked during the training process. One of: `:none`, `:gaussian`, `:logistic`.
 - `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
 # Internal API
 
-Do `params = EvoTreeMLE()` to construct an instance with default hyper-parameters.
+Do `config = EvoTreeMLE()` to construct an instance with default hyper-parameters.
 Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeMLE(max_depth=...).
 
 ## Training model
@@ -700,7 +700,7 @@ Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeMLE
 A model is built using [`fit_evotree`](@ref):
 
 ```julia
-fit_evotree(params, X_train, Y_train, W_train=nothing; kwargs...).
+model = fit_evotree(config; x_train, y_train, kwargs...)
 ```
 
 ## Inference
@@ -722,11 +722,11 @@ model(X)
 From MLJ, the type can be imported using:
 
 ```julia
-EvoTreeGaussian = @load EvoTreeGaussian pkg=EvoTrees
+EvoTreeMLE = @load EvoTreeMLE pkg=EvoTrees
 ```
 
-Do `model = EvoTreeGaussian()` to construct an instance with default hyper-parameters.
-Provide keyword arguments to override hyper-parameter defaults, as in `EvoTreeGaussian(loss=...)`.
+Do `model = EvoTreeMLE()` to construct an instance with default hyper-parameters.
+Provide keyword arguments to override hyper-parameter defaults, as in `EvoTreeMLE(loss=...)`.
 
 ## Training data
 
@@ -748,7 +748,7 @@ Train the machine using `fit!(mach, rows=...)`.
 
 ## Operations
 
-- `predict(mach, Xnew)`: returns a vector of Gaussian distributions given features `Xnew` having the same scitype as `X` above.
+- `predict(mach, Xnew)`: returns a vector of Gaussian or Logistic distributions (according to provided `loss`) given features `Xnew` having the same scitype as `X` above.
 Predictions are probabilistic.
 
 Specific metrics can also be predicted using:
@@ -773,18 +773,18 @@ The fields of `report(mach)` are:
 ```
 # Internal API
 using EvoTrees
-params = EvoTreeGaussian(max_depth=5, nbins=32, nrounds=100)
+config = EvoTreeMLE(max_depth=5, nbins=32, nrounds=100)
 nobs, nfeats = 1_000, 5
-X, y = randn(nobs, nfeats), rand(nobs)
-model = fit_evotree(params, X, y)
-preds = EvoTrees.predict(model, X)
+x_train, y_train = randn(nobs, nfeats), rand(nobs)
+model = fit_evotree(config; x_train, y_train)
+preds = EvoTrees.predict(model, x_train)
 ```
 
 ```
 # MLJ Interface
 using MLJ
-EvoTreeGaussian = @load EvoTreeGaussian pkg=EvoTrees
-model = EvoTreeGaussian(max_depth=5, nbins=32, nrounds=100)
+EvoTreeMLE = @load EvoTreeMLE pkg=EvoTrees
+model = EvoTreeMLE(max_depth=5, nbins=32, nrounds=100)
 X, y = @load_boston
 mach = machine(model, X, y) |> fit!
 preds = predict(mach, X)
