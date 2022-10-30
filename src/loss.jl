@@ -1,53 +1,53 @@
 # linear
 function update_grads!(::Type{Linear}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
-    @inbounds for i in eachindex(y)
-        δ𝑤[1, i] = 2 * (p[1, i] - y[i]) * δ𝑤[3, i]
-        δ𝑤[2, i] = 2 * δ𝑤[3, i]
+    @threads for i in eachindex(y)
+        @inbounds δ𝑤[1, i] = 2 * (p[1, i] - y[i]) * δ𝑤[3, i]
+        @inbounds δ𝑤[2, i] = 2 * δ𝑤[3, i]
     end
 end
 
 # logistic - on linear predictor
 function update_grads!(::Type{Logistic}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
-    @inbounds for i in eachindex(y)
-        pred = sigmoid(p[1, i])
-        δ𝑤[1, i] = (pred - y[i]) * δ𝑤[3, i]
-        δ𝑤[2, i] = pred * (1 - pred) * δ𝑤[3, i]
+    @threads for i in eachindex(y)
+        @inbounds pred = sigmoid(p[1, i])
+        @inbounds δ𝑤[1, i] = (pred - y[i]) * δ𝑤[3, i]
+        @inbounds δ𝑤[2, i] = pred * (1 - pred) * δ𝑤[3, i]
     end
 end
 
 # Poisson
 function update_grads!(::Type{Poisson}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
-    @inbounds for i in eachindex(y)
-        pred = exp(p[1, i])
-        δ𝑤[1, i] = (pred - y[i]) * δ𝑤[3, i]
-        δ𝑤[2, i] = pred * δ𝑤[3, i]
+    @threads for i in eachindex(y)
+        @inbounds pred = exp(p[1, i])
+        @inbounds δ𝑤[1, i] = (pred - y[i]) * δ𝑤[3, i]
+        @inbounds δ𝑤[2, i] = pred * δ𝑤[3, i]
     end
 end
 
 # Gamma
 function update_grads!(::Type{Gamma}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
-    @inbounds for i in eachindex(y)
-        pred = exp(p[1, i])
-        δ𝑤[1, i] = 2 * (1 - y[i] / pred) * δ𝑤[3, i]
-        δ𝑤[2, i] = 2 * y[i] / pred * δ𝑤[3, i]
+    @threads for i in eachindex(y)
+        @inbounds pred = exp(p[1, i])
+        @inbounds δ𝑤[1, i] = 2 * (1 - y[i] / pred) * δ𝑤[3, i]
+        @inbounds δ𝑤[2, i] = 2 * y[i] / pred * δ𝑤[3, i]
     end
 end
 
 # Tweedie
 function update_grads!(::Type{Tweedie}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
     rho = eltype(p)(1.5)
-    @inbounds for i in eachindex(y)
-        pred = exp(p[1, i])
-        δ𝑤[1, i] = 2 * (pred^(2 - rho) - y[i] * pred^(1 - rho)) * δ𝑤[3, i]
-        δ𝑤[2, i] =
+    @threads for i in eachindex(y)
+        @inbounds pred = exp(p[1, i])
+        @inbounds δ𝑤[1, i] = 2 * (pred^(2 - rho) - y[i] * pred^(1 - rho)) * δ𝑤[3, i]
+        @inbounds δ𝑤[2, i] =
             2 * ((2 - rho) * pred^(2 - rho) - (1 - rho) * y[i] * pred^(1 - rho)) * δ𝑤[3, i]
     end
 end
 
 # L1
 function update_grads!(::Type{L1}, δ𝑤::Matrix, p::Matrix, y::Vector; alpha, kwargs...)
-    @inbounds for i in eachindex(y)
-        δ𝑤[1, i] =
+    @threads for i in eachindex(y)
+        @inbounds δ𝑤[1, i] =
             (alpha * max(y[i] - p[1, i], 0) - (1 - alpha) * max(p[1, i] - y[i], 0)) *
             δ𝑤[3, i]
     end
@@ -55,11 +55,11 @@ end
 
 # Softmax
 function update_grads!(::Type{Softmax}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
-    p .= p .- maximum(p, dims = 1)
-    sums = sum(exp.(p), dims = 1)
+    p .= p .- maximum(p, dims=1)
+    sums = sum(exp.(p), dims=1)
     K = (size(δ𝑤, 1) - 1) ÷ 2
-    for i in eachindex(y)
-        for k = 1:K
+    @threads for i in eachindex(y)
+        @inbounds for k = 1:K
             # δ𝑤[k, i] = (exp(p[k, i]) / sums[i] - (onehot(y[i], 1:K))) * δ𝑤[2 * K + 1, i]
             if k == y[i]
                 δ𝑤[k, i] = (exp(p[k, i]) / sums[i] - 1) * δ𝑤[2*K+1, i]
@@ -73,9 +73,9 @@ end
 
 # Quantile
 function update_grads!(::Type{Quantile}, δ𝑤::Matrix, p::Matrix, y::Vector; alpha, kwargs...)
-    @inbounds for i in eachindex(y)
-        δ𝑤[1, i] = y[i] > p[1, i] ? alpha * δ𝑤[3, i] : (alpha - 1) * δ𝑤[3, i]
-        δ𝑤[2, i] = y[i] - p[1, i] # δ² serves to calculate the quantile value - hence no weighting on δ²
+    @threads for i in eachindex(y)
+        @inbounds δ𝑤[1, i] = y[i] > p[1, i] ? alpha * δ𝑤[3, i] : (alpha - 1) * δ𝑤[3, i]
+        @inbounds δ𝑤[2, i] = y[i] - p[1, i] # δ² serves to calculate the quantile value - hence no weighting on δ²
     end
 end
 
@@ -83,13 +83,13 @@ end
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
 function update_grads!(::Type{GaussianDist}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
-    @inbounds @simd for i in eachindex(y)
+    @threads for i in eachindex(y)
         # first order
-        δ𝑤[1, i] = (p[1, i] - y[i]) / exp(2 * p[2, i]) * δ𝑤[5, i]
-        δ𝑤[2, i] = (1 - (p[1, i] - y[i])^2 / exp(2 * p[2, i])) * δ𝑤[5, i]
+        @inbounds δ𝑤[1, i] = (p[1, i] - y[i]) / exp(2 * p[2, i]) * δ𝑤[5, i]
+        @inbounds δ𝑤[2, i] = (1 - (p[1, i] - y[i])^2 / exp(2 * p[2, i])) * δ𝑤[5, i]
         # second order
-        δ𝑤[3, i] = δ𝑤[5, i] / exp(2 * p[2, i])
-        δ𝑤[4, i] = δ𝑤[5, i] * 2 / exp(2 * p[2, i]) * (p[1, i] - y[i])^2
+        @inbounds δ𝑤[3, i] = δ𝑤[5, i] / exp(2 * p[2, i])
+        @inbounds δ𝑤[4, i] = δ𝑤[5, i] * 2 / exp(2 * p[2, i]) * (p[1, i] - y[i])^2
     end
 end
 
@@ -99,20 +99,20 @@ end
 # pred[i][2] = log(s)
 function update_grads!(::Type{LogisticDist}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
     ϵ = eltype(p)(2e-7)
-    @inbounds @simd for i in eachindex(y)
+    @threads for i in eachindex(y)
         # first order
-        δ𝑤[1, i] = -tanh((y[i] - p[1, i]) / (2 * exp(p[2, i]))) * exp(-p[2, i]) * δ𝑤[5, i]
-        δ𝑤[2, i] =
+        @inbounds δ𝑤[1, i] = -tanh((y[i] - p[1, i]) / (2 * exp(p[2, i]))) * exp(-p[2, i]) * δ𝑤[5, i]
+        @inbounds δ𝑤[2, i] =
             -(
                 exp(-p[2, i]) *
                 (y[i] - p[1, i]) *
                 tanh((y[i] - p[1, i]) / (2 * exp(p[2, i]))) - 1
             ) * δ𝑤[5, i]
         # second order
-        δ𝑤[3, i] =
+        @inbounds δ𝑤[3, i] =
             sech((y[i] - p[1, i]) / (2 * exp(p[2, i])))^2 / (2 * exp(2 * p[2, i])) *
             δ𝑤[5, i]
-        δ𝑤[4, i] =
+        @inbounds δ𝑤[4, i] =
             (
                 exp(-2 * p[2, i]) *
                 (p[1, i] - y[i]) *
