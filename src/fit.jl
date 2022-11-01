@@ -4,15 +4,14 @@
 Initialise EvoTree
 """
 function init_evotree(
-    params::EvoTypes{L,T,S};
+    params::EvoTypes{L,K,T};
     x_train::AbstractMatrix,
     y_train::AbstractVector,
     w_train = nothing,
     offset_train = nothing,
     fnames = nothing,
-) where {L,T,S}
+) where {L,K,T}
 
-    K = 1
     levels = nothing
     x = convert(Matrix{T}, x_train)
     offset = !isnothing(offset_train) ? T.(offset_train) : nothing
@@ -27,24 +26,21 @@ function init_evotree(
     elseif L == Softmax
         if eltype(y_train) <: CategoricalValue
             levels = CategoricalArrays.levels(y_train)
-            K = length(levels)
             μ = zeros(T, K)
             y = UInt32.(CategoricalArrays.levelcode.(y_train))
         else
             levels = sort(unique(y_train))
             yc = CategoricalVector(y_train, levels = levels)
-            K = length(levels)
             μ = zeros(T, K)
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
+        @assert K == length(levels)
         !isnothing(offset) && (offset .= log.(offset))
-    elseif L == GaussianDist
-        K = 2
+    elseif L == GaussianMLE
         y = T.(y_train)
         μ = [mean(y), log(std(y))]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
-    elseif L == LogisticDist
-        K = 2
+    elseif L == LogisticMLE
         y = T.(y_train)
         μ = [mean(y), log(std(y) * sqrt(3) / π)]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
@@ -65,11 +61,11 @@ function init_evotree(
     !isnothing(offset) && (pred .+= offset')
 
     # init GBTree
-    bias = [Tree{L,T}(μ)]
+    bias = [Tree{L,K,T}(μ)]
     fnames = isnothing(fnames) ? ["feat_$i" for i in axes(x, 2)] : string.(fnames)
     @assert length(fnames) == size(x, 2)
     info = Dict(:fnames => fnames, :levels => levels)
-    evotree = GBTree{L,T,S}(bias, params, Metric(), K, info)
+    evotree = GBTree{L,K,T}(bias, info)
 
     # initialize gradients and weights
     δ𝑤 = zeros(T, 2 * K + 1, x_size[1])
@@ -99,7 +95,7 @@ function init_evotree(
     end
 
     cache = (
-        params = deepcopy(params),
+        info = Dict(:nrounds => 0),
         x = x,
         y = y,
         K = K,
@@ -116,56 +112,44 @@ function init_evotree(
         x_bin = x_bin,
         monotone_constraints = monotone_constraints,
     )
-
-    cache.params.nrounds = 0
-
     return evotree, cache
 end
 
 
-function grow_evotree!(evotree::GBTree{L,T,S}, cache) where {L,T,S}
+function grow_evotree!(evotree::GBTree{L,K,T}, cache, params::EvoTypes{L,K,T}) where {L,K,T}
 
-    # initialize from cache
-    params = evotree.params
-    δnrounds = params.nrounds - cache.params.nrounds
+    # select random rows and cols
+    sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace = false, ordered = true)
+    sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
 
-    # loop over nrounds
-    for i = 1:δnrounds
-        # select random rows and cols
-        sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace = false, ordered = true)
-        sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
-
-        # build a new tree
-        update_grads!(L, cache.δ𝑤, cache.pred, cache.y; alpha = params.alpha)
-        # assign a root and grow tree
-        tree = Tree{L,T}(params.max_depth, evotree.K, zero(T))
-        grow_tree!(
-            tree,
-            cache.nodes,
-            params,
-            cache.δ𝑤,
-            cache.edges,
-            cache.𝑗,
-            cache.out,
-            cache.left,
-            cache.right,
-            cache.x_bin,
-            cache.K,
-            cache.monotone_constraints,
-        )
-        push!(evotree.trees, tree)
-        predict!(cache.pred, tree, cache.x, cache.K)
-
-    end # end of nrounds
-    cache.params.nrounds = params.nrounds
+    # build a new tree
+    update_grads!(L, cache.δ𝑤, cache.pred, cache.y; alpha = params.alpha)
+    # assign a root and grow tree
+    tree = Tree{L,K,T}(params.max_depth)
+    grow_tree!(
+        tree,
+        cache.nodes,
+        params,
+        cache.δ𝑤,
+        cache.edges,
+        cache.𝑗,
+        cache.out,
+        cache.left,
+        cache.right,
+        cache.x_bin,
+        cache.monotone_constraints,
+    )
+    push!(evotree.trees, tree)
+    predict!(cache.pred, tree, cache.x)
+    cache[:info][:nrounds] += 1
     return nothing
 end
 
 # grow a single tree
 function grow_tree!(
-    tree::Tree{L,T},
+    tree::Tree{L,K,T},
     nodes::Vector{TrainNode{T}},
-    params::EvoTypes{L,T,S},
+    params::EvoTypes{L,K,T},
     δ𝑤::Matrix{T},
     edges,
     𝑗,
@@ -173,9 +157,8 @@ function grow_tree!(
     left,
     right,
     x_bin::AbstractMatrix,
-    K,
     monotone_constraints,
-) where {L,T,S}
+) where {L,K,T}
 
     # reset nodes
     @threads for n in eachindex(nodes)
@@ -214,7 +197,7 @@ function grow_tree!(
 
         for n ∈ sort(n_current)
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
-                pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, K, δ𝑤, nodes[n].𝑖)
+                pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, δ𝑤, nodes[n].𝑖)
             else
                 # histogram subtraction
                 update_gains!(nodes[n], 𝑗, params, K, monotone_constraints)
@@ -227,7 +210,7 @@ function grow_tree!(
                 end
                 tree.split[n] = tree.cond_bin[n] != 0
                 if !tree.split[n]
-                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, K, δ𝑤, nodes[n].𝑖)
+                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, δ𝑤, nodes[n].𝑖)
                     popfirst!(n_next)
                 else
                     # println("typeof(nodes[n].𝑖): ", typeof(nodes[n].𝑖))
@@ -307,7 +290,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `fnames`: the names of the `x_train` features. If provided, should be a vector of string with `length(fnames) = size(x_train, 2)`.
 """
 function fit_evotree(
-    params::EvoTypes{L,T,S};
+    params::EvoTypes{L,K,T};
     x_train::AbstractMatrix,
     y_train::AbstractVector,
     w_train = nothing,
@@ -321,82 +304,48 @@ function fit_evotree(
     print_every_n = 9999,
     verbosity = 1,
     fnames = nothing,
-) where {L,T,S}
+    return_logger = false,
+) where {L,K,T}
 
-    nrounds_max = params.nrounds
-    params.nrounds = 0
-    iter_since_best = 0
-
+    # initialize model and cache
     if params.device == "gpu"
-        model, cache =
-            init_evotree_gpu(params; x_train, y_train, w_train, offset_train, fnames)
+        m, cache = init_evotree_gpu(params; x_train, y_train, w_train, offset_train, fnames)
     else
-        model, cache = init_evotree(params; x_train, y_train, w_train, offset_train, fnames)
+        m, cache = init_evotree(params; x_train, y_train, w_train, offset_train, fnames)
     end
 
-    if !isnothing(offset_eval)
-        L == Logistic && (offset_eval .= logit.(offset_eval))
-        L in [Poisson, Gamma, Tweedie] && (offset_eval .= log.(offset_eval))
-        L == Softmax && (offset_eval .= log.(offset_eval))
-        L in [GaussianDist, LogisticDist] && (offset_eval[:, 2] .= log.(offset_eval[:, 2]))
-        offset_eval = T.(offset_eval)
-    end
-
-    !isnothing(metric) ? metric = Symbol(metric) : nothing
+    # initialize callback and logger if tracking eval data
+    logger = nothing
     if !isnothing(metric) && !isnothing(x_eval) && !isnothing(y_eval)
-        if params.device == "gpu"
-            x_eval = CuArray(T.(x_eval))
-            y_eval = CuArray(eltype(cache.y).(y_eval))
-            w_eval = isnothing(w_eval) ? CUDA.ones(T, size(y_eval)) : CuArray(T.(w_eval))
-            p_eval = predict(model.trees[1], x_eval, model.K)
-            !isnothing(offset_eval) && (p_eval .+= CuArray(offset_eval'))
-        else # params.device == "cpu"
-            x_eval = T.(x_eval)
-            y_eval = eltype(cache.y).(y_eval)
-            w_eval = isnothing(w_eval) ? ones(T, size(y_eval)) : T.(w_eval)
-            p_eval = predict(model.trees[1], x_eval, model.K)
-            !isnothing(offset_eval) && (p_eval .+= offset_eval')
-        end
-        # initialize metric
-        metric_track = Metric()
-        metric_best = Metric()
-        metric_track.metric =
-            eval_metric(Val{metric}(), p_eval, y_eval, w_eval, params.alpha)
-        if verbosity > 0
-            @info "Initial tracking info" iter = model.params.nrounds metric =
-                metric_track.metric
-        end
+        cb = CallBack(params; x_eval, y_eval, w_eval, offset_eval, metric)
+        logger = init_logger(;
+            T,
+            metric,
+            maximise = is_maximise(cb.feval),
+            early_stopping_rounds,
+        )
+        cb(logger, 0, m.trees[end])
+        (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
     end
 
-    while model.params.nrounds < nrounds_max && iter_since_best < early_stopping_rounds
-        model.params.nrounds += 1
-        grow_evotree!(model, cache)
-        # callback function
-        if !isnothing(metric) && !isnothing(x_eval) && !isnothing(y_eval)
-            predict!(p_eval, model.trees[model.params.nrounds+1], x_eval, model.K)
-            metric_track.metric =
-                eval_metric(Val{metric}(), p_eval, y_eval, w_eval, params.alpha)
-            if metric_track.metric < metric_best.metric
-                metric_best.metric = metric_track.metric
-                metric_best.iter = model.params.nrounds
-                iter_since_best = 0
-            else
-                iter_since_best += 1
+    # train loop
+    for iter = 1:params.nrounds
+        grow_evotree!(m, cache, params)
+        if !isnothing(logger)
+            cb(logger, iter, m.trees[end])
+            if iter % print_every_n == 0 && verbosity > 0
+                @info "iter $iter" metric = logger[:metrics][end]
             end
-            if model.params.nrounds % print_every_n == 0 && verbosity > 0
-                @info "Tracking info" iter = model.params.nrounds metric =
-                    metric_track.metric
-            end
+            (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
         end # end of callback
-    end
-    if !isnothing(metric) && !isnothing(x_eval) && !isnothing(y_eval)
-        model.metric.iter = metric_best.iter
-        model.metric.metric = metric_best.metric
     end
     if params.device == "gpu"
         GC.gc(true)
         CUDA.reclaim()
     end
-    params.nrounds = nrounds_max
-    return model
+    if return_logger
+        return (m, logger)
+    else
+        return m
+    end
 end

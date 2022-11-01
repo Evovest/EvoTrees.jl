@@ -1,13 +1,12 @@
 function init_evotree_gpu(
-    params::EvoTypes{L,T,S};
+    params::EvoTypes{L,K,T};
     x_train::AbstractMatrix,
     y_train::AbstractVector,
     w_train = nothing,
     offset_train = nothing,
     fnames = nothing,
-) where {L,T,S}
+) where {L,K,T}
 
-    K = 1
     levels = nothing
     x = convert(Matrix{T}, x_train)
 
@@ -20,8 +19,7 @@ function init_evotree_gpu(
         y = CuArray(T.(y_train))
         μ = fill(log(mean(y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
-    elseif L == GaussianDist
-        K = 2
+    elseif L == GaussianMLE
         y = CuArray(T.(y_train))
         μ = [mean(y), log(std(y))]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
@@ -39,11 +37,11 @@ function init_evotree_gpu(
     !isnothing(offset) && (pred .+= CuArray(offset'))
 
     # init GBTree
-    bias = [TreeGPU{L,T}(CuArray(μ))]
+    bias = [TreeGPU{L,K,T}(CuArray(μ))]
     fnames = isnothing(fnames) ? ["feat_$i" for i in axes(x, 2)] : string.(fnames)
     @assert length(fnames) == size(x, 2)
     info = Dict(:fnames => fnames, :levels => levels)
-    evotree = GBTreeGPU{L,T,S}(bias, params, Metric(), K, info)
+    evotree = GBTreeGPU{L,K,T}(bias, info)
 
     # initialize gradients and weights
     δ𝑤 = CUDA.zeros(T, 2 * K + 1, x_size[1])
@@ -74,11 +72,10 @@ function init_evotree_gpu(
 
     # store cache
     cache = (
-        params = deepcopy(params),
+        info = Dict(:nrounds => 0),
         x = CuArray(x),
         x_bin = x_bin,
         y = y,
-        K = K,
         nodes = nodes,
         pred = pred,
         𝑖_ = 𝑖_,
@@ -93,56 +90,48 @@ function init_evotree_gpu(
         monotone_constraints = CuArray(monotone_constraints),
     )
 
-    cache.params.nrounds = 0
-
     return evotree, cache
 end
 
 
-function grow_evotree!(evotree::GBTreeGPU{L,T,S}, cache) where {L,T,S}
+function grow_evotree!(
+    evotree::GBTreeGPU{L,K,T},
+    cache,
+    params::EvoTypes{L,K,T},
+) where {L,K,T}
+    # select random rows and cols
+    sample!(params.rng, cache.𝑖_, cache.𝑖, replace = false, ordered = true)
+    sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
+    cache.nodes[1].𝑖 .= CuArray(cache.𝑖)
 
-    # initialize from cache
-    params = evotree.params
-    δnrounds = params.nrounds - cache.params.nrounds
-
-    # loop over nrounds
-    for i = 1:δnrounds
-        # select random rows and cols
-        sample!(params.rng, cache.𝑖_, cache.𝑖, replace = false, ordered = true)
-        sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
-        cache.nodes[1].𝑖 .= CuArray(cache.𝑖)
-
-        # build a new tree
-        update_grads_gpu!(L, cache.δ𝑤, cache.pred, cache.y)
-        # # assign a root and grow tree
-        tree = TreeGPU{L,T}(params.max_depth, evotree.K, zero(T))
-        grow_tree_gpu!(
-            tree,
-            cache.nodes,
-            params,
-            cache.δ𝑤,
-            cache.edges,
-            CuVector(cache.𝑗),
-            cache.out,
-            cache.left,
-            cache.right,
-            cache.x_bin,
-            cache.K,
-            cache.monotone_constraints,
-        )
-        push!(evotree.trees, tree)
-        # update predctions
-        predict!(cache.pred, tree, cache.x, cache.K)
-    end # end of nrounds
-    cache.params.nrounds = params.nrounds
-    return evotree
+    # build a new tree
+    update_grads_gpu!(L, cache.δ𝑤, cache.pred, cache.y)
+    # # assign a root and grow tree
+    tree = TreeGPU{L,K,T}(params.max_depth)
+    grow_tree_gpu!(
+        tree,
+        cache.nodes,
+        params,
+        cache.δ𝑤,
+        cache.edges,
+        CuVector(cache.𝑗),
+        cache.out,
+        cache.left,
+        cache.right,
+        cache.x_bin,
+        cache.monotone_constraints,
+    )
+    push!(evotree.trees, tree)
+    predict!(cache.pred, tree, cache.x)
+    cache[:info][:nrounds] += 1
+    return nothing
 end
 
 # grow a single tree - grow through all depth
 function grow_tree_gpu!(
-    tree::TreeGPU{L,T},
+    tree::TreeGPU{L,K,T},
     nodes,
-    params::EvoTypes{L,T,S},
+    params::EvoTypes{L,K,T},
     δ𝑤::AbstractMatrix,
     edges,
     𝑗,
@@ -150,9 +139,8 @@ function grow_tree_gpu!(
     left,
     right,
     x_bin::AbstractMatrix,
-    K,
     monotone_constraints,
-) where {L,T,S}
+) where {L,K,T}
 
     n_next = [1]
     n_current = copy(n_next)

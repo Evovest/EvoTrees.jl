@@ -44,16 +44,13 @@ include("importance.jl")
 include("plot.jl")
 include("MLJ.jl")
 
-function convert(::Type{GBTree}, m::GBTreeGPU{L,T,S}) where {L,T,S}
-    EvoTrees.GBTree{L,T,S}([EvoTrees.Tree{L,T}(Array(tree.feat),
+function convert(::Type{GBTree}, m::GBTreeGPU{L,K,T}) where {L,K,T}
+    EvoTrees.GBTree{L,K,T}([EvoTrees.Tree{L,K,T}(Array(tree.feat),
             Array(tree.cond_bin),
             Array(tree.cond_float),
             Array(tree.gain),
             Array(tree.pred),
             Array(tree.split)) for tree in m.trees],
-        m.params,
-        m.metric,
-        m.K,
         m.info)
 end
 

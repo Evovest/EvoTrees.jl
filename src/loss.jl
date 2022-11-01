@@ -82,7 +82,7 @@ end
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
-function update_grads!(::Type{GaussianDist}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
+function update_grads!(::Type{GaussianMLE}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
     @threads for i in eachindex(y)
         # first order
         @inbounds δ𝑤[1, i] = (p[1, i] - y[i]) / exp(2 * p[2, i]) * δ𝑤[5, i]
@@ -97,7 +97,7 @@ end
 # pdf = 
 # pred[i][1] = μ
 # pred[i][2] = log(s)
-function update_grads!(::Type{LogisticDist}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
+function update_grads!(::Type{LogisticMLE}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
     ϵ = eltype(p)(2e-7)
     @threads for i in eachindex(y)
         # first order
