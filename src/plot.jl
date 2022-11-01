@@ -112,9 +112,7 @@ end
     end
 end
 
-@recipe function plot(model::EvoTrees.GBTree, n = 1, var_names = nothing)
-
-    isnothing(var_names)
+@recipe function plot(model::EvoTrees.EvoTree, n = 1; var_names = model.info[:fnames])
 
     tree = model.trees[n]
     map, adj = EvoTrees.get_adj_list(tree)

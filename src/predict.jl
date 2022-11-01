@@ -36,7 +36,7 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:MLE2P,K,T}
 end
 
 """
-    predict!(::L, pred::Matrix{T}, tree::Tree{T}, X, K)
+    predict!(pred::Matrix, tree::Tree, X)
 
 Generic fallback to add predictions of `tree` to existing `pred` matrix.
 """
@@ -55,7 +55,7 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L,K,T}
 end
 
 """
-    predict(loss::L, tree::Tree{T}, X::AbstractMatrix, K)
+    predict(tree::Tree{L,K,T}, X::AbstractMatrix)
 
 Prediction from a single tree - assign each observation to its final leaf.
 """
@@ -66,11 +66,11 @@ function predict(tree::Tree{L,K,T}, X::AbstractMatrix) where {L,K,T}
 end
 
 """
-    predict(model::GBTree{T}, X::AbstractMatrix)
+    predict(model::EvoTree, X::AbstractMatrix)
 
-Predictions from an EvoTrees model - sums the predictions from all trees composing the model.
+Predictions from an EvoTree model - sums the predictions from all trees composing the model.
 """
-function predict(model::GBTree{L,K,T}, X::AbstractMatrix) where {L,K,T}
+function predict(model::EvoTree{L,K,T}, X::AbstractMatrix) where {L,K,T}
     pred = zeros(T, K, size(X, 1))
     for tree in model.trees
         predict!(pred, tree, X)

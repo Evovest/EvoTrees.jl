@@ -60,12 +60,12 @@ function init_evotree(
     end
     !isnothing(offset) && (pred .+= offset')
 
-    # init GBTree
+    # init EvoTree
     bias = [Tree{L,K,T}(μ)]
     fnames = isnothing(fnames) ? ["feat_$i" for i in axes(x, 2)] : string.(fnames)
     @assert length(fnames) == size(x, 2)
     info = Dict(:fnames => fnames, :levels => levels)
-    evotree = GBTree{L,K,T}(bias, info)
+    evotree = EvoTree{L,K,T}(bias, info)
 
     # initialize gradients and weights
     δ𝑤 = zeros(T, 2 * K + 1, x_size[1])
@@ -116,7 +116,7 @@ function init_evotree(
 end
 
 
-function grow_evotree!(evotree::GBTree{L,K,T}, cache, params::EvoTypes{L,K,T}) where {L,K,T}
+function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,K,T}) where {L,K,T}
 
     # select random rows and cols
     sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace = false, ordered = true)

@@ -57,8 +57,9 @@ function Tree{L,K,T}(depth::Int) where {L,K,T}
 end
 
 # gradient-boosted tree is formed by a vector of trees
-struct GBTree{L,K,T}
+struct EvoTree{L,K,T}
     trees::Vector{Tree{L,K,T}}
     info::Dict
 end
-(m::GBTree)(x::AbstractMatrix) = predict(m, x)
+(m::EvoTree)(x::AbstractMatrix) = predict(m, x)
+get_types(::EvoTree{L,K,T}) where {L,K,T} = (L,K,T)

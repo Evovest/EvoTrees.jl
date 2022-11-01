@@ -85,7 +85,7 @@ function predict(tree::TreeGPU{L,K,T}, X::AbstractMatrix) where {L,K,T}
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict(model::GBTreeGPU{L,K,T}, X::AbstractMatrix) where {L,K,T}
+function predict(model::EvoTreeGPU{L,K,T}, X::AbstractMatrix) where {L,K,T}
     pred = CUDA.zeros(T, K, size(X, 1))
     X_gpu = CuArray(X)
     for tree in model.trees

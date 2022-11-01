@@ -13,7 +13,8 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w = nothing)
 end
 
 function okay_to_continue(model, fitresult, cache)
-    model.nrounds - cache[:info][:nrounds] >= 0
+    return model.nrounds - cache[:info][:nrounds] >= 0 &&
+           all(get_types(model) .== get_types(fitresult))
 end
 
 # Generate names to be used by feature_importances in the report
@@ -51,19 +52,10 @@ function MMI.update(
         while cache[:info][:nrounds] < model.nrounds
             grow_evotree!(fitresult, cache, model)
         end
+        report = (features = A.names,)
     else
-        if model.device == "gpu"
-            fitresult, cache =
-                init_evotree_gpu(model; x_train = A.matrix, y_train = y, w_train = w)
-        else
-            fitresult, cache =
-                init_evotree(model; x_train = A.matrix, y_train = y, w_train = w)
-        end
-        while cache[:info][:nrounds] < model.nrounds
-            grow_evotree!(fitresult, cache, model)
-        end
+      fitresult, cache, report = fit(model, verbosity, A, y, w)
     end
-    report = (features = A.names,)
     return fitresult, cache, report
 end
 
@@ -102,7 +94,7 @@ MMI.reports_feature_importances(::Type{<:EvoTypes}) = true
 MMI.supports_weights(::Type{<:EvoTypes}) = true
 
 function MMI.feature_importances(m::EvoTypes, fitresult, report)
-    fi_pairs = importance(fitresult)
+    fi_pairs = importance(fitresult, fnames=report[:features])
     return fi_pairs
 end
 

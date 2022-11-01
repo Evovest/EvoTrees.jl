@@ -54,8 +54,9 @@ TreeGPU{L,K,T}(depth::Int) where {L,K,T} = TreeGPU{L,K,T}(
 )
 
 # gradient-boosted tree is formed by a vector of trees
-struct GBTreeGPU{L,K,T}
+struct EvoTreeGPU{L,K,T}
     trees::Vector{TreeGPU{L,K,T}}
     info::Any
 end
-(m::GBTreeGPU)(x::AbstractMatrix) = predict(m, x)
+(m::EvoTreeGPU)(x::AbstractMatrix) = predict(m, x)
+get_types(::EvoTreeGPU{L,K,T}) where {L,K,T} = (L,K,T)

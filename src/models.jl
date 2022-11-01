@@ -200,7 +200,6 @@ mutable struct EvoTreeClassifier{L<:ModelType,K,T} <: MMI.Probabilistic
     alpha::T
     rng::Any
     device::Any
-    num_class::Int
 end
 
 function EvoTreeClassifier(; kwargs...)
@@ -241,8 +240,9 @@ function EvoTreeClassifier(; kwargs...)
     args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
     L = Softmax
     T = args[:T]
+    K = args[:num_class]
 
-    model = EvoTreeClassifier{L,num_class,T}(
+    model = EvoTreeClassifier{L,K,T}(
         args[:nrounds],
         T(args[:lambda]),
         T(args[:gamma]),
@@ -426,3 +426,5 @@ const EvoTypes{L,K,T} = Union{
     EvoTreeGaussian{L,K,T},
     EvoTreeMLE{L,K,T},
 }
+
+get_types(::EvoTypes{L,K,T}) where {L,K,T} = (L,K,T)

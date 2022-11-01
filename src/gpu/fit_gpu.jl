@@ -36,12 +36,12 @@ function init_evotree_gpu(
     pred .= CuArray(μ)
     !isnothing(offset) && (pred .+= CuArray(offset'))
 
-    # init GBTree
+    # init EvoTree
     bias = [TreeGPU{L,K,T}(CuArray(μ))]
     fnames = isnothing(fnames) ? ["feat_$i" for i in axes(x, 2)] : string.(fnames)
     @assert length(fnames) == size(x, 2)
     info = Dict(:fnames => fnames, :levels => levels)
-    evotree = GBTreeGPU{L,K,T}(bias, info)
+    evotree = EvoTreeGPU{L,K,T}(bias, info)
 
     # initialize gradients and weights
     δ𝑤 = CUDA.zeros(T, 2 * K + 1, x_size[1])
@@ -95,7 +95,7 @@ end
 
 
 function grow_evotree!(
-    evotree::GBTreeGPU{L,K,T},
+    evotree::EvoTreeGPU{L,K,T},
     cache,
     params::EvoTypes{L,K,T},
 ) where {L,K,T}

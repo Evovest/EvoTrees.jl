@@ -1,6 +1,6 @@
 module EvoTrees
 
-export init_evotree, grow_evotree!, grow_tree, fit_evotree, predict
+export init_evotree, grow_evotree!, fit_evotree
 export EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeMLE, EvoTreeGaussian,
     importance, Random
 
@@ -44,8 +44,8 @@ include("importance.jl")
 include("plot.jl")
 include("MLJ.jl")
 
-function convert(::Type{GBTree}, m::GBTreeGPU{L,K,T}) where {L,K,T}
-    EvoTrees.GBTree{L,K,T}([EvoTrees.Tree{L,K,T}(Array(tree.feat),
+function convert(::Type{EvoTree}, m::EvoTreeGPU{L,K,T}) where {L,K,T}
+    EvoTrees.EvoTree{L,K,T}([EvoTrees.Tree{L,K,T}(Array(tree.feat),
             Array(tree.cond_bin),
             Array(tree.cond_float),
             Array(tree.gain),
@@ -54,11 +54,11 @@ function convert(::Type{GBTree}, m::GBTreeGPU{L,K,T}) where {L,K,T}
         m.info)
 end
 
-function save(model::GBTree, path)
+function save(model::EvoTree, path)
     BSON.bson(path, Dict(:model => model))
 end
 
-function save(model::GBTreeGPU, path)
+function save(model::EvoTreeGPU, path)
     m = convert(GBTree, model)
     save(m, path)
 end
