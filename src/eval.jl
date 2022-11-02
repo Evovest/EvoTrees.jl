@@ -230,7 +230,7 @@ function (cb::CallBack)(logger, iter, tree)
     predict!(cb.p, tree, cb.x)
     metric = cb.feval(cb.p, cb.y, cb.w)
     update_logger!(logger, iter, metric)
-    return logger[:early_stopping_rounds] <= logger[:iter_since_best]
+    return nothing
 end
 
 function CallBack(
@@ -268,7 +268,7 @@ function init_logger(; T, metric, maximise, early_stopping_rounds)
         :name => String(metric),
         :maximise => maximise,
         :early_stopping_rounds => early_stopping_rounds,
-        :niter => 0,
+        :nrounds => 0,
         :iter => Int[],
         :metrics => T[],
         :iter_since_best => 0,
@@ -279,7 +279,7 @@ function init_logger(; T, metric, maximise, early_stopping_rounds)
 end
 
 function update_logger!(logger, iter, metric)
-    logger[:niter] = iter
+    logger[:nrounds] = iter
     push!(logger[:iter], iter)
     push!(logger[:metrics], metric)
     if iter == 0
