@@ -77,9 +77,11 @@ config = EvoTreeClassifier(
     lambda = 0.0,
     gamma = 0.0,
     nbins = 32,
-    nrounds = 20,
+    nrounds = 100,
 )
 model = fit_evotree(config; x_train, y_train);
+model = fit_evotree(config; x_train, y_train, x_eval = x_train, y_eval = y_train, metric=:mlogloss, print_every_n=5);
+
 pred = predict(model, X_matrix)
 pred_cat = pred .> 0.5
 sum((y_train .== "B") .== pred_cat[:, 1]) / length(y_train)

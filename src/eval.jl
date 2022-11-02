@@ -219,11 +219,11 @@ is_maximise(::typeof(logistic_mle)) = true
 is_maximise(::typeof(wmae)) = false
 is_maximise(::typeof(gini)) = true
 
-struct CallBack{F,M,V}
+struct CallBack{F,M,V,Y}
     feval::F
     x::M
     p::M
-    y::V
+    y::Y
     w::V
 end
 function (cb::CallBack)(logger, iter, tree)
@@ -244,7 +244,20 @@ function CallBack(
     feval = metric_dict[metric]
     x = convert(Matrix{T}, x_eval)
     p = zeros(T, K, length(y_eval))
-    y = convert(Vector{T}, y_eval)
+    if L == Softmax
+        if eltype(y_eval) <: CategoricalValue
+            levels = CategoricalArrays.levels(y_eval)
+            μ = zeros(T, K)
+            y = UInt32.(CategoricalArrays.levelcode.(y_eval))
+        else
+            levels = sort(unique(y_eval))
+            yc = CategoricalVector(y_eval, levels = levels)
+            μ = zeros(T, K)
+            y = UInt32.(CategoricalArrays.levelcode.(yc))
+        end
+    else
+        y = convert(Vector{T}, y_eval)
+    end
     w = isnothing(w_eval) ? ones(T, size(y)) : convert(Vector{T}, w_eval)
 
     if !isnothing(offset_eval)
