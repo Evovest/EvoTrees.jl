@@ -161,11 +161,13 @@ function grow_tree!(
 ) where {L,K,T}
 
     # reset nodes
-    @threads for n in eachindex(nodes)
-        [nodes[n].h[j] .= 0 for j in 𝑗]
-        nodes[n].∑ .= 0
-        nodes[n].gain = 0
-        fill!(nodes[n].gains, -Inf)
+    @threads for n in nodes
+        for j in 𝑗
+            n.h[j] .= 0
+        end
+        n.∑ .= 0
+        n.gain = 0
+        n.gains .= -Inf
     end
 
     # reset
@@ -174,7 +176,7 @@ function grow_tree!(
     depth = 1
 
     # initialize summary stats
-    nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims = 2))
+    nodes[1].∑ .= @views vec(sum(δ𝑤[:, nodes[1].𝑖], dims = 2))
     nodes[1].gain = get_gain(L, nodes[1].∑, params.lambda, K)
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
@@ -185,9 +187,13 @@ function grow_tree!(
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
-                        nodes[n].h .= nodes[n>>1].h .- nodes[n+1].h
+                        for (v1, v2, v3) in zip(nodes[n].h, nodes[n>>1].h, nodes[n+1].h)
+                            @. v1 = v2 - v3
+                        end
                     else
-                        nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
+                        for (v1, v2, v3) in zip(nodes[n].h, nodes[n>>1].h, nodes[n-1].h)
+                            @. v1 = v2 - v3
+                        end
                     end
                 else
                     update_hist!(L, nodes[n].h, δ𝑤, x_bin, nodes[n].𝑖, 𝑗, K)
