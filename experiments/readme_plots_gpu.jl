@@ -6,7 +6,7 @@ using Random
 using Plots
 using Revise
 using EvoTrees
-using EvoTrees: sigmoid, logit
+using EvoTrees: predict, sigmoid, logit
 # using ProfileView
 
 # prepare a dataset

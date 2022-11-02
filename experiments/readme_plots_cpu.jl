@@ -5,7 +5,7 @@ using Distributions
 using Random
 using Plots
 using EvoTrees
-using EvoTrees: sigmoid, logit
+using EvoTrees: predict, sigmoid, logit
 # using ProfileView
 
 # prepare a dataset
