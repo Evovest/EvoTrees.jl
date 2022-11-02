@@ -215,7 +215,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric = :quantile,
+        metric = :wmae,
         print_every_n = 25,
     )
 
@@ -248,7 +248,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric = :poisson,
+        metric = :poisson_deviance,
         print_every_n = 25,
     )
 
@@ -316,7 +316,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric = :logistic,
+        metric = :logistic_mle,
         print_every_n = 25,
     )
 

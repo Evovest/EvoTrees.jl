@@ -64,8 +64,14 @@ mean(abs.(pred_test - selectrows(Y, test)))
 ##################################################
 X, y = @load_crabs
 
-tree_model =
-    EvoTreeClassifier(max_depth = 4, eta = 0.05, lambda = 0.0, gamma = 0.0, nrounds = 10)
+tree_model = EvoTreeClassifier(
+    max_depth = 4,
+    eta = 0.05,
+    lambda = 0.0,
+    gamma = 0.0,
+    nrounds = 10,
+    num_class = 2,
+)
 
 # @load EvoTreeRegressor
 mach = machine(tree_model, X, y)
@@ -273,7 +279,7 @@ end
 
 # Test that feature importances work for Classifier
 X, y = MLJBase.make_blobs(100, 3)
-model = EvoTreeClassifier()
+model = EvoTreeClassifier(num_class = 3)
 m = machine(model, X, y)
 fit!(m)
 

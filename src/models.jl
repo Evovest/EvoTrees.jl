@@ -12,23 +12,23 @@ struct Tweedie <: GradientRegression end
 struct L1 <: L1Regression end
 struct Quantile <: QuantileRegression end
 struct Softmax <: MultiClassRegression end
-struct GaussianDist <: MLE2P end
-struct LogisticDist <: MLE2P end
+struct GaussianMLE <: MLE2P end
+struct LogisticMLE <: MLE2P end
 
 # make a Random Number Generator object
 mk_rng(rng::Random.AbstractRNG) = rng
 mk_rng(rng::T) where {T<:Integer} = Random.MersenneTwister(rng)
 
-mutable struct EvoTreeRegressor{L<:ModelType,T<:AbstractFloat,S<:Int} <: MMI.Deterministic
-    nrounds::S
+mutable struct EvoTreeRegressor{L<:ModelType,K,T} <: MMI.Deterministic
+    nrounds::Int
     lambda::T
     gamma::T
     eta::T
-    max_depth::S
+    max_depth::Int
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
-    nbins::S
+    nbins::Int
     alpha::T
     monotone_constraints::Any
     rng::Any
@@ -93,7 +93,7 @@ function EvoTreeRegressor(; kwargs...)
         )
     end
 
-    model = EvoTreeRegressor{L,T,Int}(
+    model = EvoTreeRegressor{L,1,T}(
         args[:nrounds],
         T(args[:lambda]),
         T(args[:gamma]),
@@ -113,16 +113,16 @@ function EvoTreeRegressor(; kwargs...)
 end
 
 
-mutable struct EvoTreeCount{L<:ModelType,T<:AbstractFloat,S<:Int} <: MMI.Probabilistic
-    nrounds::S
+mutable struct EvoTreeCount{L<:ModelType,K,T} <: MMI.Probabilistic
+    nrounds::Int
     lambda::T
     gamma::T
     eta::T
-    max_depth::S
+    max_depth::Int
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
-    nbins::S
+    nbins::Int
     alpha::T
     monotone_constraints::Any
     rng::Any
@@ -168,7 +168,7 @@ function EvoTreeCount(; kwargs...)
     L = Poisson
     T = args[:T]
 
-    model = EvoTreeCount{L,T,Int}(
+    model = EvoTreeCount{L,1,T}(
         args[:nrounds],
         T(args[:lambda]),
         T(args[:gamma]),
@@ -187,16 +187,16 @@ function EvoTreeCount(; kwargs...)
     return model
 end
 
-mutable struct EvoTreeClassifier{L<:ModelType,T<:AbstractFloat,S<:Int} <: MMI.Probabilistic
-    nrounds::S
+mutable struct EvoTreeClassifier{L<:ModelType,K,T} <: MMI.Probabilistic
+    nrounds::Int
     lambda::T
     gamma::T
     eta::T
-    max_depth::S
+    max_depth::Int
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
-    nbins::S
+    nbins::Int
     alpha::T
     rng::Any
     device::Any
@@ -219,6 +219,7 @@ function EvoTreeClassifier(; kwargs...)
         :alpha => 0.5,
         :rng => 123,
         :device => "cpu",
+        :num_class => 2
     )
 
     args_ignored = setdiff(keys(kwargs), keys(args))
@@ -239,8 +240,9 @@ function EvoTreeClassifier(; kwargs...)
     args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
     L = Softmax
     T = args[:T]
+    K = args[:num_class]
 
-    model = EvoTreeClassifier{L,T,Int}(
+    model = EvoTreeClassifier{L,K,T}(
         args[:nrounds],
         T(args[:lambda]),
         T(args[:gamma]),
@@ -258,16 +260,16 @@ function EvoTreeClassifier(; kwargs...)
     return model
 end
 
-mutable struct EvoTreeMLE{L<:ModelType,T<:AbstractFloat,S<:Int} <: MMI.Probabilistic
-    nrounds::S
+mutable struct EvoTreeMLE{L<:ModelType,K,T} <: MMI.Probabilistic
+    nrounds::Int
     lambda::T
     gamma::T
     eta::T
-    max_depth::S
+    max_depth::Int
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
-    nbins::S
+    nbins::Int
     alpha::T
     monotone_constraints::Any
     rng::Any
@@ -315,16 +317,16 @@ function EvoTreeMLE(; kwargs...)
     T = args[:T]
 
     if args[:loss] in [:gaussian, :normal]
-        L = GaussianDist
+        L = GaussianMLE
     elseif args[:loss] == :logistic
-        L = LogisticDist
+        L = LogisticMLE
     else
         error(
             "Invalid loss: $(args[:loss]). Only `:normal`, `:gaussian` and `:logistic` are supported at the moment by EvoTreeMLE.",
         )
     end
 
-    model = EvoTreeMLE{L,T,Int}(
+    model = EvoTreeMLE{L,2,T}(
         args[:nrounds],
         T(args[:lambda]),
         T(args[:gamma]),
@@ -344,16 +346,16 @@ function EvoTreeMLE(; kwargs...)
 end
 
 
-mutable struct EvoTreeGaussian{L<:ModelType,T<:AbstractFloat,S<:Int} <: MMI.Probabilistic
-    nrounds::S
+mutable struct EvoTreeGaussian{L<:ModelType,K,T} <: MMI.Probabilistic
+    nrounds::Int
     lambda::T
     gamma::T
     eta::T
-    max_depth::S
+    max_depth::Int
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
-    nbins::S
+    nbins::Int
     alpha::T
     monotone_constraints::Any
     rng::Any
@@ -395,10 +397,10 @@ function EvoTreeGaussian(; kwargs...)
     end
 
     args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
-    L = GaussianDist
+    L = GaussianMLE
     T = args[:T]
 
-    model = EvoTreeGaussian{L,T,Int}(
+    model = EvoTreeGaussian{L,2,T}(
         args[:nrounds],
         T(args[:lambda]),
         T(args[:gamma]),
@@ -417,11 +419,12 @@ function EvoTreeGaussian(; kwargs...)
     return model
 end
 
-# const EvoTypes = Union{EvoTreeRegressor,EvoTreeCount,EvoTreeClassifier,EvoTreeGaussian}
-const EvoTypes{L,T,S} = Union{
-    EvoTreeRegressor{L,T,S},
-    EvoTreeCount{L,T,S},
-    EvoTreeClassifier{L,T,S},
-    EvoTreeGaussian{L,T,S},
-    EvoTreeMLE{L,T,S},
+const EvoTypes{L,K,T} = Union{
+    EvoTreeRegressor{L,K,T},
+    EvoTreeCount{L,K,T},
+    EvoTreeClassifier{L,K,T},
+    EvoTreeGaussian{L,K,T},
+    EvoTreeMLE{L,K,T},
 }
+
+get_types(::EvoTypes{L,K,T}) where {L,K,T} = (L,K,T)

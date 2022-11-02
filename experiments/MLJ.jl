@@ -24,18 +24,24 @@ X = DataFrame(X)
 
 # @load EvoTreeRegressor
 # linear regression
-tree_model = EvoTreeRegressor(max_depth=5, eta=0.05, nrounds=10)
+tree_model = EvoTreeRegressor(max_depth = 5, eta = 0.05, nrounds = 10)
 # logistic regression
-tree_model = EvoTreeRegressor(loss=:logistic, max_depth=5, eta=0.05, nrounds=10)
+tree_model = EvoTreeRegressor(loss = :logistic, max_depth = 5, eta = 0.05, nrounds = 10)
 # quantile regression
-tree_model = EvoTreeRegressor(loss=:quantile, alpha=0.75, max_depth=5, eta=0.05, nrounds=10)
+tree_model = EvoTreeRegressor(
+    loss = :quantile,
+    alpha = 0.75,
+    max_depth = 5,
+    eta = 0.05,
+    nrounds = 10,
+)
 
 tree = machine(tree_model, X, y)
-train, test = partition(eachindex(y), 0.7, shuffle=true); # 70:30 split
-fit!(tree, rows=train, verbosity=1)
+train, test = partition(eachindex(y), 0.7, shuffle = true); # 70:30 split
+fit!(tree, rows = train, verbosity = 1)
 
 tree.model.nrounds += 10
-fit!(tree, rows=train, verbosity=1)
+fit!(tree, rows = train, verbosity = 1)
 
 # predict on train data
 pred_train = predict(tree, selectrows(X, train))
@@ -61,25 +67,34 @@ println(mean(abs.(pred_test - selectrows(Y, test))))
 # X = Tables.table(X)
 # X_matrix = MLJBase.matrix(X)
 
-X, y = @load_crabs
-X_matrix = matrix(X)
+X, y_train = @load_crabs
+x_train = matrix(X)
 
 # define hyperparameters
-tree_model = EvoTreeClassifier(max_depth=4, η=0.05, λ=0.0, γ=0.0, nbins=32, nrounds=20, metric=:none)
-model = fit_evotree(tree_model, X_matrix, y);
+config = EvoTreeClassifier(
+    max_depth = 4,
+    eta = 0.05,
+    lambda = 0.0,
+    gamma = 0.0,
+    nbins = 32,
+    nrounds = 20,
+)
+model = fit_evotree(config; x_train, y_train);
 pred = predict(model, X_matrix)
 pred_cat = pred .> 0.5
-sum((y .== "B") .== pred_cat[:,1]) / length(y)
+sum((y_train .== "B") .== pred_cat[:, 1]) / length(y_train)
 
 # @load EvoTreeRegressor
-tree = machine(tree_model, X, y)
-train, test = partition(eachindex(y), 0.7, shuffle=true); # 70:30 split
-fit!(tree, rows=train, verbosity=1)
-report(tree)[:feature_importances]
+mach = machine(config, X, y_train)
+train, test = partition(eachindex(y), 0.7, shuffle = true); # 70:30 split
+fit!(mach, rows = train, verbosity = 1)
+rpt = report(mach)
+MLJBase.feature_importances(config, mach.fitresult, rpt)
 
-tree.model.nrounds += 10
-fit!(tree, rows=train, verbosity=1)
-report(tree)[:feature_importances]
+mach.model.nrounds += 10
+fit!(mach, rows = train, verbosity = 1)
+rpt = report(mach)
+MLJBase.feature_importances(config, mach.fitresult, rpt)
 
 pred_train = predict(tree, selectrows(X, train))
 pred_train_mode = predict_mode(tree, selectrows(X, train))
@@ -109,21 +124,28 @@ Y = rand(size(X, 1))
 𝑖 = collect(1:size(X, 1))
 
 # train-eval split
-𝑖_sample = sample(𝑖, size(𝑖, 1), replace=false)
+𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
 train_size = 0.8
 𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
-𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1)) + 1:end]
+𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
 
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # @load EvoTreeRegressor
 tree_model = EvoTreeRegressor(
-    loss=:linear, metric=:mae,
-    nrounds=10,
-    λ=0.0, γ=0.0, η=0.1,
-    max_depth=6, min_weight=1.0,
-    rowsample=0.5, colsample=0.5, nbins=32)
+    loss = :linear,
+    metric = :mae,
+    nrounds = 10,
+    λ = 0.0,
+    γ = 0.0,
+    η = 0.1,
+    max_depth = 6,
+    min_weight = 1.0,
+    rowsample = 0.5,
+    colsample = 0.5,
+    nbins = 32,
+)
 
 X = Tables.table(X);
 X = Tables.rowtable(X);
@@ -132,20 +154,20 @@ X = Tables.rowtable(X);
 
 # typeof(X)
 @time tree = machine(tree_model, X, Y);
-train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
-@time fit!(tree, rows=train, verbosity=1, force=true)
+train, test = partition(eachindex(Y), 0.8, shuffle = true); # 70:30 split
+@time fit!(tree, rows = train, verbosity = 1, force = true)
 
 using LossFunctions
 using MLJ
-r = range(tree_model, :nrounds, lower=1, upper=100)
+r = range(tree_model, :nrounds, lower = 1, upper = 100)
 m = rms
-@time curve = learning_curve!(evo, range=r, resolution=100, measure=m)
+@time curve = learning_curve!(evo, range = r, resolution = 100, measure = m)
 
 tree.model.nrounds += 1
 @time update(tree.model, 0, tree.fitresult, tree.cache, X, Y);
 
 tree.model.nrounds += 1
-@time fit!(tree, rows=train, verbosity=1)
+@time fit!(tree, rows = train, verbosity = 1)
 # @time MLJBase.fit!(tree, rows=train, verbosity=1)
 
 # yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
@@ -162,21 +184,28 @@ Y = rand(UInt8, size(X, 1))
 𝑖 = collect(1:size(X, 1))
 
 # train-eval split
-𝑖_sample = sample(𝑖, size(𝑖, 1), replace=false)
+𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
 train_size = 0.8
 𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
-𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1)) + 1:end]
+𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
 
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # @load EvoTreeRegressor
 tree_model = EvoTreeCount(
-    loss=:poisson, metric=:poisson,
-    nrounds=10,
-    λ=0.0, γ=0.0, η=0.1,
-    max_depth=6, min_weight=1.0,
-    rowsample=0.5, colsample=0.5, nbins=32)
+    loss = :poisson,
+    metric = :poisson,
+    nrounds = 10,
+    λ = 0.0,
+    γ = 0.0,
+    η = 0.1,
+    max_depth = 6,
+    min_weight = 1.0,
+    rowsample = 0.5,
+    colsample = 0.5,
+    nbins = 32,
+)
 
 X = Tables.table(X)
 X = Tables.rowtable(X)
@@ -185,14 +214,14 @@ X_matrix = MLJBase.matrix(X)
 
 # typeof(X)
 @time tree = machine(tree_model, X, Y)
-train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
-@time fit!(tree, rows=train, verbosity=1, force=true)
+train, test = partition(eachindex(Y), 0.8, shuffle = true); # 70:30 split
+@time fit!(tree, rows = train, verbosity = 1, force = true)
 
 tree.model.nrounds += 10
 @time MLJBase.update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
 
 tree.model.nrounds += 10
-@time fit!(tree, rows=train, verbosity=1)
+@time fit!(tree, rows = train, verbosity = 1)
 # @time MLJBase.fit!(tree, rows=train, verbosity=1)
 
 # yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
@@ -210,35 +239,42 @@ Y = rand(size(X, 1))
 𝑖 = collect(1:size(X, 1))
 
 # train-eval split
-𝑖_sample = sample(𝑖, size(𝑖, 1), replace=false)
+𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
 train_size = 0.8
 𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
-𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1)) + 1:end]
+𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
 
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # @load EvoTreeRegressor
 tree_model = EvoTreeGaussian(
-    loss=:gaussian, metric=:gaussian,
-    nrounds=10,
-    λ=0.0, γ=0.0, η=0.1,
-    max_depth=6, min_weight=1.0,
-    rowsample=0.5, colsample=0.5, nbins=32)
+    loss = :gaussian,
+    metric = :gaussian,
+    nrounds = 10,
+    λ = 0.0,
+    γ = 0.0,
+    η = 0.1,
+    max_depth = 6,
+    min_weight = 1.0,
+    rowsample = 0.5,
+    colsample = 0.5,
+    nbins = 32,
+)
 
 X = Tables.table(X)
 X_matrix = MLJBase.matrix(X)
 
 # typeof(X)
 @time tree = machine(tree_model, X, Y)
-train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
-@time fit!(tree, rows=train, verbosity=1, force=true)
+train, test = partition(eachindex(Y), 0.8, shuffle = true); # 70:30 split
+@time fit!(tree, rows = train, verbosity = 1, force = true)
 
 tree.model.nrounds += 10
 @time MLJBase.update(tree.model, 0, tree.fitresult, tree.cache, X, Y)
 
 tree.model.nrounds += 10
-@time fit!(tree, rows=train, verbosity=1)
+@time fit!(tree, rows = train, verbosity = 1)
 # @time MLJBase.fit!(tree, rows=train, verbosity=1)
 
 # yhat = MLJBase.predict(tree.model, tree.fitresult, MLJ.selectrows(X,test))
@@ -266,11 +302,18 @@ Y = rand(size(X, 1))
 
 # @load EvoTreeRegressor
 tree_model = EvoTreeRegressor(
-    loss=:linear, metric=:mae,
-    nrounds=10,
-    λ=0.0, γ=0.0, η=0.1,
-    max_depth=6, min_weight=1.0,
-    rowsample=0.5, colsample=0.5, nbins=32)
+    loss = :linear,
+    metric = :mae,
+    nrounds = 10,
+    λ = 0.0,
+    γ = 0.0,
+    η = 0.1,
+    max_depth = 6,
+    min_weight = 1.0,
+    rowsample = 0.5,
+    colsample = 0.5,
+    nbins = 32,
+)
 
 X = Tables.table(X);
 # X = Tables.rowtable(X);
@@ -279,8 +322,8 @@ X = Tables.table(X);
 
 # typeof(X)
 @time tree = machine(tree_model, X, Y);
-train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
-@time fit!(tree, rows=train, verbosity=1, force=false)
+train, test = partition(eachindex(Y), 0.8, shuffle = true); # 70:30 split
+@time fit!(tree, rows = train, verbosity = 1, force = false)
 
 tree.model.nrounds += 1
-@time fit!(tree, rows=train, verbosity=1)
+@time fit!(tree, rows = train, verbosity = 1)

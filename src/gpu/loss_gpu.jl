@@ -129,7 +129,7 @@ function kernel_gauss_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDe
     return
 end
 
-function update_grads_gpu!(::Type{GaussianDist}, δ𝑤::CuMatrix, p::CuMatrix, y::CuVector; MAX_THREADS=1024)
+function update_grads_gpu!(::Type{GaussianMLE}, δ𝑤::CuMatrix, p::CuMatrix, y::CuVector; MAX_THREADS=1024)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_gauss_δ𝑤!(δ𝑤, p, y)

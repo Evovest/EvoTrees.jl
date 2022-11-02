@@ -1,5 +1,6 @@
 using Statistics
 using EvoTrees
+using EvoTrees: predict
 using Random
 using Test
 

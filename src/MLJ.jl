@@ -5,24 +5,17 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w = nothing)
     else
         fitresult, cache = init_evotree(model; x_train = A.matrix, y_train = y, w_train = w)
     end
-    grow_evotree!(fitresult, cache)
+    while cache[:info][:nrounds] < model.nrounds
+        grow_evotree!(fitresult, cache, model)
+    end
     report = (features = A.names,)
     return fitresult, cache, report
 end
 
-function okay_to_continue(new, old)
-    new.nrounds - old.nrounds >= 0 &&
-        new.lambda == old.lambda &&
-        new.gamma == old.gamma &&
-        new.max_depth == old.max_depth &&
-        new.min_weight == old.min_weight &&
-        new.rowsample == old.rowsample &&
-        new.colsample == old.colsample &&
-        new.nbins == old.nbins &&
-        new.alpha == old.alpha &&
-        new.device == old.device
+function okay_to_continue(model, fitresult, cache)
+    return model.nrounds - cache[:info][:nrounds] >= 0 &&
+           all(get_types(model) .== get_types(fitresult))
 end
-
 
 # Generate names to be used by feature_importances in the report
 MMI.reformat(::EvoTypes, X, y, w) =
@@ -55,19 +48,14 @@ function MMI.update(
     y,
     w = nothing,
 )
-    if okay_to_continue(model, cache.params)
-        grow_evotree!(fitresult, cache)
-    else
-        if model.device == "gpu"
-            fitresult, cache =
-                init_evotree_gpu(model; x_train = A.matrix, y_train = y, w_train = w)
-        else
-            fitresult, cache =
-                init_evotree(model; x_train = A.matrix, y_train = y, w_train = w)
+    if okay_to_continue(model, fitresult, cache)
+        while cache[:info][:nrounds] < model.nrounds
+            grow_evotree!(fitresult, cache, model)
         end
-        grow_evotree!(fitresult, cache)
+        report = (features = A.names,)
+    else
+      fitresult, cache, report = fit(model, verbosity, A, y, w)
     end
-    report = (features = A.names,)
     return fitresult, cache, report
 end
 
@@ -91,12 +79,12 @@ function predict(::EvoTreeGaussian, fitresult, A)
     return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
-function predict(::EvoTreeMLE{L,T,S}, fitresult, A) where {L<:GaussianDist,T,S}
+function predict(::EvoTreeMLE{L,T,S}, fitresult, A) where {L<:GaussianMLE,T,S}
     pred = predict(fitresult, A.matrix)
     return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
-function predict(::EvoTreeMLE{L,T,S}, fitresult, A) where {L<:LogisticDist,T,S}
+function predict(::EvoTreeMLE{L,T,S}, fitresult, A) where {L<:LogisticMLE,T,S}
     pred = predict(fitresult, A.matrix)
     return [Distributions.Logistic(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
@@ -106,7 +94,7 @@ MMI.reports_feature_importances(::Type{<:EvoTypes}) = true
 MMI.supports_weights(::Type{<:EvoTypes}) = true
 
 function MMI.feature_importances(m::EvoTypes, fitresult, report)
-    fi_pairs = importance(fitresult)
+    fi_pairs = importance(fitresult, fnames=report[:features])
     return fi_pairs
 end
 

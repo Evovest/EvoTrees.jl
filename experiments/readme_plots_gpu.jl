@@ -38,6 +38,7 @@ params1 = EvoTreeRegressor(T=Float32,
 
 @time model = fit_evotree(params1; x_train, y_train);
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
+# model, logger = fit_evotree(params1; x_train, y_train, metric=:mse, x_eval, y_eval, early_stopping_rounds=20, print_every_n=10, return_logger=true);
 model_cpu = convert(EvoTrees.GBTree, model);
 pred_train_linear_gpu = predict(model, x_train)
 pred_train_linear_cpu = predict(model_cpu, x_train)

@@ -27,8 +27,8 @@ x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
 y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # linear
-params1 = EvoTreeRegressor(T=Float64,
-    loss=:linear, metric=:mse,
+params1 = EvoTreeRegressor(T=Float32,
+    loss=:linear,
     nrounds=200, nbins=64,
     lambda=0.1, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
@@ -42,12 +42,14 @@ params1 = EvoTreeRegressor(T=Float64,
 # Profile.clear()  # in case we have any previous profiling data
 # @profile fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 # ProfileView.view()
+model, logger = fit_evotree(params1; x_train, y_train, metric=:mse, x_eval, y_eval, early_stopping_rounds=20, print_every_n=10, return_logger=true);
+plot(logger[:metrics])
 
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
 @time pred_train_linear = predict(model, x_train);
 @time pred_eval_linear = predict(model, x_eval)
-mean(abs.(pred_train_linear .- y_train))
-sqrt(mean((pred_train_linear .- y_train) .^ 2))
+mean((pred_train_linear .- y_train) .^ 2)
+mean((pred_eval_linear .- y_eval) .^ 2)
 
 # linear weighted
 params1 = EvoTreeRegressor(T=Float64,
@@ -60,7 +62,6 @@ params1 = EvoTreeRegressor(T=Float64,
 
 # W_train = ones(eltype(Y_train), size(Y_train)) .* 5
 w_train = rand(eltype(y_train), size(y_train)) .+ 0
-
 @time model = fit_evotree(params1; x_train, y_train, w_train, x_eval, y_eval, print_every_n=25, metric=:mse);
 # 67.159 ms (77252 allocations: 28.06 MiB)
 # @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 999);

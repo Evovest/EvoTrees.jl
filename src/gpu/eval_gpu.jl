@@ -8,7 +8,7 @@ function eval_mse_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDe
     end
     return nothing
 end
-function eval_metric(::Val{:mse}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function mse(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
@@ -28,7 +28,7 @@ function eval_mae_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDe
     end
     return nothing
 end
-function eval_metric(::Val{:mae}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function mae(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
@@ -48,7 +48,7 @@ function eval_logloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::
     end
     return nothing
 end
-function eval_metric(::Val{:logloss}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function logloss(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
@@ -68,7 +68,7 @@ function eval_gaussian_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y:
     end
     return nothing
 end
-function eval_metric(::Val{:gaussian}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function gaussian_mle(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
@@ -90,7 +90,7 @@ function eval_poisson_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::
     return nothing
 end
 
-function eval_metric(::Val{:poisson}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function poisson_deviance(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
@@ -111,7 +111,7 @@ function eval_gamma_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::Cu
     return nothing
 end
 
-function eval_metric(::Val{:gamma}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function gamma_deviance(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
@@ -134,7 +134,7 @@ function eval_tweedie_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::
     return nothing
 end
 
-function eval_metric(::Val{:tweedie}, p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, alpha; MAX_THREADS=1024) where {T<:AbstractFloat}
+function tweedie_deviance(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
