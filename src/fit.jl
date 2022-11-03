@@ -116,7 +116,11 @@ function init_evotree(
 end
 
 
-function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,K,T}) where {L,K,T}
+function grow_evotree!(
+    evotree::EvoTree{L,K,T},
+    cache,
+    params::EvoTypes{L,K,T},
+) where {L,K,T}
 
     # select random rows and cols
     sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace = false, ordered = true)
