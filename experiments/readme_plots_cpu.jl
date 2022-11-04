@@ -203,12 +203,12 @@ savefig("figures/quantiles_sinus.png")
 ###############################
 params1 = EvoTreeMLE(
     loss=:gaussian,
-    nrounds=200, nbins=64,
+    nrounds=300, nbins=64,
     lambda=0.1, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=1.0, colsample=1.0, rng=123)
 
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=10, metric=:gaussian);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, early_stopping_rounds = 50, metric=:gaussian);
 # @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
 @time pred_train = EvoTrees.predict(model, x_train);
 # @btime pred_train = EvoTrees.predict(model, X_train);
@@ -239,7 +239,7 @@ params1 = EvoTrees.EvoTreeMLE(
     max_depth=6, min_weight=1.0,
     rowsample=1.0, colsample=1.0, rng=123)
 
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=10, metric=:logistic);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, early_stopping_rounds = 50, metric=:logistic_mle);
 # @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
 @time pred_train = EvoTrees.predict(model, x_train);
 # @btime pred_train = EvoTrees.predict(model, X_train);

@@ -70,7 +70,7 @@ function init_evotree_gpu(
     𝑗_ = UInt32.(collect(1:x_size[2]))
     𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * x_size[2]))
 
-    # initializde histograms
+    # initialize histograms
     nodes = [TrainNodeGPU(x_size[2], params.nbins, K, T) for n = 1:2^params.max_depth-1]
     nodes[1].𝑖 = CUDA.zeros(eltype(𝑖_), ceil(Int, params.rowsample * x_size[1]))
     out = CUDA.zeros(UInt32, length(nodes[1].𝑖))
@@ -163,8 +163,10 @@ function grow_tree_gpu!(
     for n in eachindex(nodes)
         nodes[n].h .= 0
         nodes[n].∑ .= 0
-        nodes[n].gain = -Inf
-        fill!(nodes[n].gains, -Inf)
+        nodes[n].gain = T(0)
+        nodes[n].gains .= 0
+        # nodes[n].gain = -Inf
+        # fill!(nodes[n].gains, -Inf,
     end
 
     # initialize summary stats
@@ -186,7 +188,7 @@ function grow_tree_gpu!(
                         CUDA.synchronize()
                     end
                 else
-                    update_hist_gpu!(L, nodes[n].h, δ𝑤, x_bin, nodes[n].𝑖, 𝑗, K)
+                    update_hist_gpu!(nodes[n].h, δ𝑤, x_bin, nodes[n].𝑖, 𝑗)
                 end
             end
         end
@@ -197,8 +199,11 @@ function grow_tree_gpu!(
                @allowscalar(nodes[n].∑[end] <= params.min_weight)
                 pred_leaf_gpu!(tree.pred, n, Array(nodes[n].∑), params)
             else
-                update_gains_gpu!(nodes[n], 𝑗, params, K, monotone_constraints)
+                update_gains!(nodes[n], 𝑗, params, monotone_constraints)
+                # @info "hL" nodes[n].hL
+                # @info "gains" nodes[n].gains
                 best = findmax(nodes[n].gains)
+                # @info "best" best
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.gamma
                     allowscalar() do
                         tree.gain[n] = best[1]

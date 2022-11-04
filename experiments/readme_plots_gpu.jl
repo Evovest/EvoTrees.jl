@@ -123,7 +123,7 @@ params1 = EvoTreeGaussian(T=Float32,
     device="gpu")
 
 @time model = fit_evotree(params1; x_train, y_train);
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, metric=:gaussian);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, early_stopping_rounds = 50, metric=:gaussian);
 # @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
 @time pred_train_gaussian = EvoTrees.predict(model, x_train)
 

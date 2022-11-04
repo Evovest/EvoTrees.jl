@@ -176,7 +176,7 @@ function kernel_gauss_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDe
         # first order gradients
         δ𝑤[1, i] = (p[1, i] - y[i]) / exp(2 * p[2, i]) * δ𝑤[5, i]
         δ𝑤[2, i] = (1 - (p[1, i] - y[i])^2 / exp(2 * p[2, i])) * δ𝑤[5, i]
-        # second order gradients
+        # # second order gradients
         δ𝑤[3, i] = δ𝑤[5, i] / exp(2 * p[2, i])
         δ𝑤[4, i] = 2 * δ𝑤[5, i] / exp(2 * p[2, i]) * (p[1, i] - y[i])^2
     end
