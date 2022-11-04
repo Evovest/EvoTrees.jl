@@ -129,42 +129,6 @@ function update_grads_gpu!(
     return
 end
 
-
-#####################
-# Softmax
-#####################
-function kernel_softmax_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-    K = (size(δ𝑤, 1) - 1) ÷ 2
-    if i <= length(y)
-        @inbounds for k = 1:K
-            if k == y[i]
-                δ𝑤[k, i] = (p[k, i] - 1) * δ𝑤[2*K+1, i]
-            else
-                δ𝑤[k, i] = p[k, i] * δ𝑤[2*K+1, i]
-            end
-            δ𝑤[k+K, i] = (1 - p[k, i]) * δ𝑤[2*K+1, i]
-        end
-    end
-    return
-end
-function update_grads_gpu!(
-    ::Type{Softmax},
-    δ𝑤::CuMatrix,
-    p::CuMatrix,
-    y::CuVector;
-    MAX_THREADS = 1024,
-)
-    p .= p .- maximum(p, dims = 1)
-    p_prob = exp.(p) ./ sum(exp.(p), dims = 1)
-    threads = min(MAX_THREADS, length(y))
-    blocks = ceil(Int, (length(y)) / threads)
-    @cuda blocks = blocks threads = threads kernel_softmax_δ𝑤!(δ𝑤, p_prob, y)
-    CUDA.synchronize()
-    return
-end
-
-
 ################################################################################
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ

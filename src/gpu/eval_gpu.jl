@@ -142,25 +142,3 @@ function tweedie_deviance(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_TH
     CUDA.synchronize()
     return sum(eval) / sum(w)
 end
-
-
-"""
-    mlogloss
-"""
-function mlogloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector, w::CuDeviceVector{T}) where {T<:AbstractFloat}
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-    if i <= length(y)
-        @inbounds eval[i] -= w[i] * log(p[y[i], i])
-    end
-    return nothing
-end
-
-function mlogloss(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
-    eval = similar(w)
-    p_prob = exp.(p) ./ sum(exp.(p), dims = 1)
-    threads = min(MAX_THREADS, length(y))
-    blocks = ceil(Int, length(y) / threads)
-    @cuda blocks = blocks threads = threads mlogloss_kernel!(eval, p_prob, y, w)
-    CUDA.synchronize()
-    return sum(eval) / sum(w)
-end

@@ -149,11 +149,6 @@ function predict(
         pred .= exp.(pred)
     elseif L == GaussianMLE
         pred[2, :] .= exp.(pred[2, :])
-    elseif L == Softmax
-        pred = transpose(reshape(pred, K, :))
-        for i in axes(pred, 1)
-            pred[i, :] .= softmax(pred[i, :])
-        end
     end
     pred = K == 1 ? vec(Array(pred')) : Array(pred')
     return pred
@@ -180,18 +175,5 @@ function pred_leaf_gpu!(
 ) where {L<:MLE2P,K,T}
     @allowscalar(p[1, n] = -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5]))
     @allowscalar(p[2, n] = -params.eta * ∑[2] / (∑[4] + params.lambda * ∑[5]))
-    return nothing
-end
-
-# prediction in Leaf - MultiClassRegression
-function pred_leaf_gpu!(
-    p::AbstractMatrix{T},
-    n,
-    ∑::AbstractVector{T},
-    params::EvoTypes{L,K,T},
-) where {L<:MultiClassRegression,K,T}
-    @allowscalar(
-        p[:, n] .= -params.eta .* ∑[1:K] ./ (∑[(K+1):(2*K)] .+ params.lambda .* ∑[2*K+1])
-    )
     return nothing
 end
