@@ -66,14 +66,17 @@ function predict(tree::Tree{L,K,T}, X::AbstractMatrix) where {L,K,T}
 end
 
 """
-    predict(model::EvoTree, X::AbstractMatrix)
+    predict(model::EvoTree, X::AbstractMatrix; ntree_limit = length(model.trees))
 
 Predictions from an EvoTree model - sums the predictions from all trees composing the model.
+Use `ntree_limit=N` to only predict with the first `N` trees.
 """
-function predict(model::EvoTree{L,K,T}, X::AbstractMatrix) where {L,K,T}
+function predict(model::EvoTree{L,K,T}, X::AbstractMatrix; ntree_limit = length(model.trees)) where {L,K,T}
     pred = zeros(T, K, size(X, 1))
-    for tree in model.trees
-        predict!(pred, tree, X)
+    ntrees = length(model.trees)
+    ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
+    for i in 1:ntree_limit
+        predict!(pred, model.trees[i], X)
     end
     if L == Logistic
         pred .= sigmoid.(pred)
