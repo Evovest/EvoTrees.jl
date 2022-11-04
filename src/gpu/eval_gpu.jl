@@ -143,25 +143,24 @@ function tweedie_deviance(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_TH
     return sum(eval) / sum(w)
 end
 
-# function eval_metric(::Val{:mlogloss}, pred::AbstractMatrix{T}, y::Vector{S}, alpha=0.0) where {T <: AbstractFloat, S <: Integer}
-#     eval = zero(T)
-#     L = length(y)
-#     K = size(pred,2)
-#     # pred = pred - maximum.(pred)
-#     @inbounds for i in 1:L
-#         pred[i] = pred[i] .- maximum(pred[i])
-#         soft_pred = exp.(pred[i]) / sum(exp.(pred[i]))
-#         eval -= log(soft_pred[y[i]])
-#     end
-#     eval /= length(y)
-#     return eval
-# end
 
-# function eval_metric(::Val{:quantile}, pred::AbstractMatrix{T}, y::AbstractVector{T}, alpha=0.0) where T <: AbstractFloat
-#     eval = zero(T)
-#     for i in 1:length(y)
-#         eval += alpha * max(y[i] - pred[i,1], zero(T)) + (1-alpha) * max(pred[i,1] - y[i], zero(T))
-#     end
-#     eval /= length(y)
-#     return eval
-# end
+"""
+    mlogloss
+"""
+function mlogloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector, w::CuDeviceVector{T}) where {T<:AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= length(y)
+        @inbounds eval[i] -= w[i] * log(p[y[i], i])
+    end
+    return nothing
+end
+
+function mlogloss(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
+    eval = similar(w)
+    p_prob = exp.(p) ./ sum(exp.(p), dims = 1)
+    threads = min(MAX_THREADS, length(y))
+    blocks = ceil(Int, length(y) / threads)
+    @cuda blocks = blocks threads = threads mlogloss_kernel!(eval, p_prob, y, w)
+    CUDA.synchronize()
+    return sum(eval) / sum(w)
+end

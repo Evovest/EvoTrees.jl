@@ -1,8 +1,92 @@
 """
+    hist_kernel_gauss!
+"""
+function hist_kernel_softmax!(
+    h::CuDeviceArray{T,3},
+    δ𝑤::CuDeviceMatrix{T},
+    xid::CuDeviceMatrix{UInt8},
+    𝑖::CuDeviceVector{S},
+    𝑗::CuDeviceVector{S},
+) where {T,S}
+
+    nbins = size(h, 2)
+    K = size(h, 1)
+    KK = 2 * K + 1
+
+    it, k = threadIdx().x, threadIdx().y
+    id, jd = blockDim().x, blockDim().y
+    ib, j = blockIdx().x, blockIdx().y
+    ig, jg = gridDim().x, gridDim().y
+
+    shared = CuDynamicSharedArray(T, (size(h, 1), size(h, 2)))
+    fill!(shared, 0)
+    sync_threads()
+
+    i_tot = length(𝑖)
+    iter = 0
+    @inbounds while iter * id * ig < i_tot
+        i = it + id * (ib - 1) + iter * id * ig
+        @inbounds if i <= length(𝑖) && j <= length(𝑗)
+            i_idx = 𝑖[i]
+            @inbounds for k = 1:KK
+                CUDA.atomic_add!(
+                    pointer(shared, (xid[i_idx, 𝑗[j]] - 1) * KK + k),
+                    δ𝑤[k, i_idx],
+                )
+            end
+        end
+        iter += 1
+    end
+    sync_threads()
+    # loop over i blocks
+    if it <= nbins
+        @inbounds hid = Base._to_linear_index(h, k, it, 𝑗[j])
+        @inbounds for k = 1:KK
+            CUDA.atomic_add!(pointer(h, hid + k - 1), shared[k, it])
+        end
+    end
+    sync_threads()
+    return nothing
+end
+
+# base approach - block built along the cols first, the rows (limit collisions)
+function update_hist_gpu!(
+    ::Type{L},
+    h::CuArray{T,3},
+    δ𝑤::CuMatrix{T},
+    X_bin::CuMatrix{UInt8},
+    𝑖::CuVector{S},
+    𝑗::CuVector{S},
+    K;
+    MAX_THREADS = 256,
+) where {L<:Softmax,T,S}
+
+    nbins = size(h, 2)
+    thread_i = max(nbins, min(MAX_THREADS, length(𝑖)))
+    threads = (thread_i, 1)
+    blocks = (4, length(𝑗))
+    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * nbins hist_kernel_softmax!(
+        h,
+        δ𝑤,
+        X_bin,
+        𝑖,
+        𝑗,
+    )
+    CUDA.synchronize()
+    return nothing
+end
+
+
+"""
     build a single histogram containing all grads and weight information
 """
-function hist_kernel_grad!(h::CuDeviceArray{T,3}, δ𝑤::CuDeviceMatrix{T}, xid::CuDeviceMatrix{UInt8},
-    𝑖::CuDeviceVector{S}, 𝑗::CuDeviceVector{S}) where {T,S}
+function hist_kernel_grad!(
+    h::CuDeviceArray{T,3},
+    δ𝑤::CuDeviceMatrix{T},
+    xid::CuDeviceMatrix{UInt8},
+    𝑖::CuDeviceVector{S},
+    𝑗::CuDeviceVector{S},
+) where {T,S}
 
     nbins = size(h, 2)
 
@@ -51,25 +135,38 @@ function update_hist_gpu!(
     δ𝑤::CuMatrix{T},
     X_bin::CuMatrix{UInt8},
     𝑖::CuVector{S},
-    𝑗::CuVector{S}, K;
-    MAX_THREADS=256) where {L<:GradientRegression,T,S}
+    𝑗::CuVector{S},
+    K;
+    MAX_THREADS = 256,
+) where {L<:GradientRegression,T,S}
 
     nbins = size(h, 2)
     thread_i = max(nbins, min(MAX_THREADS, length(𝑖)))
     threads = (thread_i, 1)
     blocks = (8, length(𝑗))
     # println("threads: ", threads, " | blocks: ", blocks)
-    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * nbins hist_kernel_grad!(h, δ𝑤, X_bin, 𝑖, 𝑗)
+    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * nbins hist_kernel_grad!(
+        h,
+        δ𝑤,
+        X_bin,
+        𝑖,
+        𝑗,
+    )
     CUDA.synchronize()
     return nothing
 end
 
 
 """
-    build a single histogram containing all grads and weight information
+    hist_kernel_gauss!
 """
-function hist_kernel_gauss!(h::CuDeviceArray{T,3}, δ𝑤::CuDeviceMatrix{T}, xid::CuDeviceMatrix{UInt8},
-    𝑖::CuDeviceVector{S}, 𝑗::CuDeviceVector{S}) where {T,S}
+function hist_kernel_gauss!(
+    h::CuDeviceArray{T,3},
+    δ𝑤::CuDeviceMatrix{T},
+    xid::CuDeviceMatrix{UInt8},
+    𝑖::CuDeviceVector{S},
+    𝑗::CuDeviceVector{S},
+) where {T,S}
 
     nbins = size(h, 2)
 
@@ -110,14 +207,22 @@ function update_hist_gpu!(
     δ𝑤::CuMatrix{T},
     X_bin::CuMatrix{UInt8},
     𝑖::CuVector{S},
-    𝑗::CuVector{S}, K;
-    MAX_THREADS=128) where {L<:MLE2P,T,S}
+    𝑗::CuVector{S},
+    K;
+    MAX_THREADS = 128,
+) where {L<:MLE2P,T,S}
 
     nbins = size(h, 2)
     thread_i = max(nbins, min(MAX_THREADS, length(𝑖)))
     threads = (thread_i, 5)
     blocks = (8, length(𝑗))
-    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * nbins hist_kernel_gauss!(h, δ𝑤, X_bin, 𝑖, 𝑗)
+    @cuda blocks = blocks threads = threads shmem = sizeof(T) * size(h, 1) * nbins hist_kernel_gauss!(
+        h,
+        δ𝑤,
+        X_bin,
+        𝑖,
+        𝑗,
+    )
     CUDA.synchronize()
     return nothing
 end
@@ -126,7 +231,18 @@ end
     Multi-threads split_set!
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
 """
-function split_chunk_kernel!(left::CuDeviceVector{S}, right::CuDeviceVector{S}, 𝑖::CuDeviceVector{S}, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights) where {S}
+function split_chunk_kernel!(
+    left::CuDeviceVector{S},
+    right::CuDeviceVector{S},
+    𝑖::CuDeviceVector{S},
+    X_bin,
+    feat,
+    cond_bin,
+    offset,
+    chunk_size,
+    lefts,
+    rights,
+) where {S}
 
     it = threadIdx().x
     bid = blockIdx().x
@@ -155,7 +271,18 @@ function split_chunk_kernel!(left::CuDeviceVector{S}, right::CuDeviceVector{S}, 
     return nothing
 end
 
-function split_views_kernel!(out::CuDeviceVector{S}, left::CuDeviceVector{S}, right::CuDeviceVector{S}, offset, chunk_size, lefts, rights, sum_lefts, cumsum_lefts, cumsum_rights) where {S}
+function split_views_kernel!(
+    out::CuDeviceVector{S},
+    left::CuDeviceVector{S},
+    right::CuDeviceVector{S},
+    offset,
+    chunk_size,
+    lefts,
+    rights,
+    sum_lefts,
+    cumsum_lefts,
+    cumsum_rights,
+) where {S}
 
     it = threadIdx().x
     bid = blockIdx().x
@@ -192,16 +319,41 @@ function split_set_threads_gpu!(out, left, right, 𝑖, X_bin, feat, cond_bin, o
     rights = CUDA.zeros(Int, nblocks)
 
     # threads = 1
-    @cuda blocks = nblocks threads = 1 split_chunk_kernel!(left, right, 𝑖, X_bin, feat, cond_bin, offset, chunk_size, lefts, rights)
+    @cuda blocks = nblocks threads = 1 split_chunk_kernel!(
+        left,
+        right,
+        𝑖,
+        X_bin,
+        feat,
+        cond_bin,
+        offset,
+        chunk_size,
+        lefts,
+        rights,
+    )
     CUDA.synchronize()
 
     sum_lefts = sum(lefts)
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
-    @cuda blocks = nblocks threads = 1 split_views_kernel!(out, left, right, offset, chunk_size, lefts, rights, sum_lefts, cumsum_lefts, cumsum_rights)
+    @cuda blocks = nblocks threads = 1 split_views_kernel!(
+        out,
+        left,
+        right,
+        offset,
+        chunk_size,
+        lefts,
+        rights,
+        sum_lefts,
+        cumsum_lefts,
+        cumsum_rights,
+    )
 
     CUDA.synchronize()
-    return (view(out, offset+1:offset+sum_lefts), view(out, offset+sum_lefts+1:offset+length(𝑖)))
+    return (
+        view(out, offset+1:offset+sum_lefts),
+        view(out, offset+sum_lefts+1:offset+length(𝑖)),
+    )
 end
 
 
@@ -212,23 +364,41 @@ end
 function update_gains_gpu!(
     node::TrainNodeGPU,
     𝑗::AbstractVector,
-    params::EvoTypes{L,T,S}, K, monotone_constraints;
-    MAX_THREADS=512) where {L<:GradientRegression,T,S}
+    params::EvoTypes{L,T,S},
+    K,
+    monotone_constraints;
+    MAX_THREADS = 512,
+) where {L<:GradientRegression,T,S}
 
-    cumsum!(node.hL, node.h, dims=2)
+    cumsum!(node.hL, node.h, dims = 2)
     node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
-    # cumsum!(view(node.hL, :, :, :), view(node.h, :, :, :), dims=2)
-    # cumsum!(view(histR, :, :, :, nid), reverse!(view(hist, :, :, :, nid), dims=2), dims=2)
-    # view(node.hR, :, :, :) .= view(node.hL, :, params.nbins:params.nbins, :) .- view(node.hL, :, :, :)
 
     threads = min(params.nbins, MAX_THREADS)
     blocks = length(𝑗)
-    @cuda blocks = blocks threads = threads hist_gains_gpu_kernel!(node.gains, node.hL, node.hR, 𝑗, params.nbins, params.lambda, params.min_weight, monotone_constraints)
+    @cuda blocks = blocks threads = threads hist_gains_gpu_kernel!(
+        node.gains,
+        node.hL,
+        node.hR,
+        𝑗,
+        params.nbins,
+        params.lambda,
+        params.min_weight,
+        monotone_constraints,
+    )
     CUDA.synchronize()
     return nothing
 end
 
-function hist_gains_gpu_kernel!(gains::CuDeviceMatrix{T}, hL::CuDeviceArray{T,3}, hR::CuDeviceArray{T,3}, 𝑗::CuDeviceVector{S}, nbins, lambda, min_weight, monotone_constraints) where {T,S}
+function hist_gains_gpu_kernel!(
+    gains::CuDeviceMatrix{T},
+    hL::CuDeviceArray{T,3},
+    hR::CuDeviceArray{T,3},
+    𝑗::CuDeviceVector{S},
+    nbins,
+    lambda,
+    min_weight,
+    monotone_constraints,
+) where {T,S}
 
     i = threadIdx().x
     j = 𝑗[blockIdx().x]
@@ -244,8 +414,11 @@ function hist_gains_gpu_kernel!(gains::CuDeviceMatrix{T}, hL::CuDeviceArray{T,3}
         if (monotone_constraint == 0) ||
            (monotone_constraint == -1 && predL > predR) ||
            (monotone_constraint == 1 && predL < predR)
-            gains[i, j] = (hL[1, i, j]^2 / (hL[2, i, j] + lambda * hL[3, i, j]) +
-                           hR[1, i, j]^2 / (hR[2, i, j,] + lambda * hR[3, i, j])) / 2
+            gains[i, j] =
+                (
+                    hL[1, i, j]^2 / (hL[2, i, j] + lambda * hL[3, i, j]) +
+                    hR[1, i, j]^2 / (hR[2, i, j] + lambda * hR[3, i, j])
+                ) / 2
         end
     end
     sync_threads()
@@ -260,28 +433,53 @@ end
 function update_gains_gpu!(
     node::TrainNodeGPU,
     𝑗::AbstractVector,
-    params::EvoTypes{L,T,S}, K, monotone_constraints;
-    MAX_THREADS=512) where {L<:MLE2P,T,S}
+    params::EvoTypes{L,T,S},
+    K,
+    monotone_constraints;
+    MAX_THREADS = 512,
+) where {L<:MLE2P,T,S}
 
-    cumsum!(node.hL, node.h, dims=2)
+    cumsum!(node.hL, node.h, dims = 2)
     node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
 
     thread_i = min(params.nbins, MAX_THREADS)
     threads = thread_i
     blocks = length(𝑗)
-    @cuda blocks = blocks threads = threads hist_gains_gpu_kernel_gauss!(node.gains, node.hL, node.hR, 𝑗, params.nbins, params.lambda, params.min_weight, monotone_constraints)
+    @cuda blocks = blocks threads = threads hist_gains_gpu_kernel_gauss!(
+        node.gains,
+        node.hL,
+        node.hR,
+        𝑗,
+        params.nbins,
+        params.lambda,
+        params.min_weight,
+        monotone_constraints,
+    )
     CUDA.synchronize()
     return nothing
 end
 
-function hist_gains_gpu_kernel_gauss!(gains::CuDeviceMatrix{T}, hL::CuDeviceArray{T,3}, hR::CuDeviceArray{T,3}, 𝑗::CuDeviceVector{S}, nbins, lambda, min_weight, monotone_constraints) where {T,S}
+function hist_gains_gpu_kernel_gauss!(
+    gains::CuDeviceMatrix{T},
+    hL::CuDeviceArray{T,3},
+    hR::CuDeviceArray{T,3},
+    𝑗::CuDeviceVector{S},
+    nbins,
+    lambda,
+    min_weight,
+    monotone_constraints,
+) where {T,S}
 
     i = threadIdx().x
     j = 𝑗[blockIdx().x]
     monotone_constraint = monotone_constraints[j]
 
     if i == nbins
-        gains[i, j] = (hL[1, i, j]^2 / (hL[3, i, j] + lambda * hL[5, i, j]) + hL[2, i, j]^2 / (hL[4, i, j] + lambda * hL[5, i, j])) / 2
+        gains[i, j] =
+            (
+                hL[1, i, j]^2 / (hL[3, i, j] + lambda * hL[5, i, j]) +
+                hL[2, i, j]^2 / (hL[4, i, j] + lambda * hL[5, i, j])
+            ) / 2
     elseif hL[5, i, j] > min_weight && hR[5, i, j] > min_weight
         if monotone_constraint != 0
             predL = -hL[1, i, j] / (hL[3, i, j] + lambda * hL[5, i, j])
@@ -290,10 +488,94 @@ function hist_gains_gpu_kernel_gauss!(gains::CuDeviceMatrix{T}, hL::CuDeviceArra
         if (monotone_constraint == 0) ||
            (monotone_constraint == -1 && predL > predR) ||
            (monotone_constraint == 1 && predL < predR)
-            gains[i, j] = (hL[1, i, j]^2 / (hL[3, i, j] + lambda * hL[5, i, j]) +
-                           hR[1, i, j]^2 / (hR[3, i, j,] + lambda * hR[5, i, j])) / 2 +
-                          (hL[2, i, j]^2 / (hL[4, i, j] + lambda * hL[5, i, j]) +
-                           hR[2, i, j]^2 / (hR[4, i, j,] + lambda * hR[5, i, j])) / 2
+            gains[i, j] =
+                (
+                    hL[1, i, j]^2 / (hL[3, i, j] + lambda * hL[5, i, j]) +
+                    hR[1, i, j]^2 / (hR[3, i, j] + lambda * hR[5, i, j])
+                ) / 2 +
+                (
+                    hL[2, i, j]^2 / (hL[4, i, j] + lambda * hL[5, i, j]) +
+                    hR[2, i, j]^2 / (hR[4, i, j] + lambda * hR[5, i, j])
+                ) / 2
+        end
+    end
+    sync_threads()
+    return nothing
+end
+
+
+
+"""
+    update_gains!
+        Softmax
+"""
+function update_gains_gpu!(
+    node::TrainNodeGPU,
+    𝑗::AbstractVector,
+    params::EvoTypes{L,T,S},
+    K,
+    monotone_constraints;
+    MAX_THREADS = 512,
+) where {L<:Softmax,T,S}
+
+    cumsum!(node.hL, node.h, dims = 2)
+    node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
+
+    thread_i = min(params.nbins, MAX_THREADS)
+    threads = thread_i
+    blocks = length(𝑗)
+    @cuda blocks = blocks threads = threads hist_gains_gpu_kernel_softmax!(
+        node.gains,
+        node.hL,
+        node.hR,
+        𝑗,
+        params.nbins,
+        params.lambda,
+        params.min_weight,
+        monotone_constraints,
+    )
+    CUDA.synchronize()
+    return nothing
+end
+
+function hist_gains_gpu_kernel_softmax!(
+    gains::CuDeviceMatrix{T},
+    hL::CuDeviceArray{T,3},
+    hR::CuDeviceArray{T,3},
+    𝑗::CuDeviceVector{S},
+    nbins,
+    lambda,
+    min_weight,
+    monotone_constraints,
+) where {T,S}
+
+    i = threadIdx().x
+    j = 𝑗[blockIdx().x]
+    monotone_constraint = monotone_constraints[j]
+
+    if i == nbins
+        gains[i, j] =
+            (
+                hL[1, i, j]^2 / (hL[3, i, j] + lambda * hL[5, i, j]) +
+                hL[2, i, j]^2 / (hL[4, i, j] + lambda * hL[5, i, j])
+            ) / 2
+    elseif hL[5, i, j] > min_weight && hR[5, i, j] > min_weight
+        if monotone_constraint != 0
+            predL = -hL[1, i, j] / (hL[3, i, j] + lambda * hL[5, i, j])
+            predR = -hR[1, i, j] / (hR[3, i, j] + lambda * hR[5, i, j])
+        end
+        if (monotone_constraint == 0) ||
+           (monotone_constraint == -1 && predL > predR) ||
+           (monotone_constraint == 1 && predL < predR)
+            gains[i, j] =
+                (
+                    hL[1, i, j]^2 / (hL[3, i, j] + lambda * hL[5, i, j]) +
+                    hR[1, i, j]^2 / (hR[3, i, j] + lambda * hR[5, i, j])
+                ) / 2 +
+                (
+                    hL[2, i, j]^2 / (hL[4, i, j] + lambda * hL[5, i, j]) +
+                    hR[2, i, j]^2 / (hR[4, i, j] + lambda * hR[5, i, j])
+                ) / 2
         end
     end
     sync_threads()

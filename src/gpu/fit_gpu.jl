@@ -19,6 +19,19 @@ function init_evotree_gpu(
         y = CuArray(T.(y_train))
         μ = fill(log(mean(y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
+    elseif L == Softmax
+        if eltype(y_train) <: CategoricalValue
+            levels = CategoricalArrays.levels(y_train)
+            μ = zeros(T, K)
+            y = CuArray(UInt32.(CategoricalArrays.levelcode.(y_train)))
+        else
+            levels = sort(unique(y_train))
+            yc = CategoricalVector(y_train, levels = levels)
+            μ = zeros(T, K)
+            y = CuArray(UInt32.(CategoricalArrays.levelcode.(yc)))
+        end
+        @assert K == length(levels)
+        !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
         y = CuArray(T.(y_train))
         μ = [mean(y), log(std(y))]

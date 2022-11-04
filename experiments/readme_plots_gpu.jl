@@ -39,7 +39,7 @@ params1 = EvoTreeRegressor(T=Float32,
 @time model = fit_evotree(params1; x_train, y_train);
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
 # model, logger = fit_evotree(params1; x_train, y_train, metric=:mse, x_eval, y_eval, early_stopping_rounds=20, print_every_n=10, return_logger=true);
-model_cpu = convert(EvoTrees.GBTree, model);
+model_cpu = convert(EvoTrees.EvoTree, model);
 pred_train_linear_gpu = predict(model, x_train)
 pred_train_linear_cpu = predict(model_cpu, x_train)
 sum(pred_train_linear_gpu .- pred_train_linear_cpu)
@@ -115,7 +115,6 @@ savefig("figures/regression_sinus_gpu.png")
 ###############################
 ## gaussian
 ###############################
-EvoTrees.CUDA.allowscalar(false)
 params1 = EvoTreeGaussian(T=Float32,
     nrounds=200, nbins=64,
     lambda=1.0, gamma=0.1, eta=0.05,
