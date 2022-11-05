@@ -4,12 +4,13 @@ using EvoTrees
 using XGBoost
 using StatsBase: sample
 
-using AWS: @service
+using AWS: AWSCredentials, AWSConfig, @service
 @service S3
-aws_config = AWS.AWSConfig()
+aws_creds = AWSCredentials(ENV["AWS_ACCESS_KEY_ID_JDB"], ENV["AWS_SECRET_ACCESS_KEY_JDB"])
+aws_config = AWSConfig(; creds=aws_creds, region="ca-central-1")
+
 path = "share/data/insurance-aicrowd.csv"
 raw = S3.get_object("jeremiedb", path, Dict("response-content-type" => "application/octet-stream"); aws_config)
-
 df = DataFrame(CSV.File(raw))
 transform!(df, "claim_amount" => ByRow(x -> x > 0 ? 1.0f0 : 0.0f0) => "event")
 
@@ -39,7 +40,7 @@ y_train = Vector{Float32}(df_train[:, target])
 y_eval = Vector{Float32}(df_eval[:, target])
 
 config = EvoTreeRegressor(T=Float32,
-    loss=:logistic, metric=:logloss,
+    loss=:logistic,
     lambda=0.02,
     gamma=0,
     nbins=32,
@@ -48,8 +49,8 @@ config = EvoTreeRegressor(T=Float32,
     colsample=0.8,
     nrounds=400, eta=0.05)
 
-@time m = fit_evotree(config; x_train, y_train, print_every_n=25);
-# @time m = fit_evotree(config; x_train, y_train, x_eval, y_eval, print_every_n=25);
+# @time m = fit_evotree(config; x_train, y_train, print_every_n=25);
+@time m = fit_evotree(config; x_train, y_train, x_eval, y_eval, early_stopping_rounds = 50, print_every_n=25, metric=:logloss);
 pred_eval_evo = m(x_eval) |> vec
 
 params_xgb = [

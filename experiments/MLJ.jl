@@ -55,18 +55,6 @@ println(mean(abs.(pred_test - selectrows(Y, test))))
 ##################################################
 ### classif
 ##################################################
-# features = rand(10_000) .* 5 .- 2
-# X = reshape(features, (size(features)[1], 1))
-# Y = sin.(features) .* 0.5 .+ 0.5
-# Y = logit(Y) + randn(size(Y))
-# Y = sigmoid(Y)
-# y = Int.(round.(Y)) .+ 1
-# y = _levels[y]
-# # y = string.(y)
-# y = CategoricalArray(y, ordered=false)
-# X = Tables.table(X)
-# X_matrix = MLJBase.matrix(X)
-
 X, y_train = @load_crabs
 x_train = matrix(X)
 
@@ -78,17 +66,18 @@ config = EvoTreeClassifier(
     gamma = 0.0,
     nbins = 32,
     nrounds = 100,
+    device = "cpu"
 )
 model = fit_evotree(config; x_train, y_train);
 model = fit_evotree(config; x_train, y_train, x_eval = x_train, y_eval = y_train, metric=:mlogloss, print_every_n=5);
 
-pred = predict(model, X_matrix)
+pred = predict(model, x_train)
 pred_cat = pred .> 0.5
 sum((y_train .== "B") .== pred_cat[:, 1]) / length(y_train)
 
 # @load EvoTreeRegressor
 mach = machine(config, X, y_train)
-train, test = partition(eachindex(y), 0.7, shuffle = true); # 70:30 split
+train, test = partition(eachindex(y_train), 0.7, shuffle = true); # 70:30 split
 fit!(mach, rows = train, verbosity = 1)
 rpt = report(mach)
 MLJBase.feature_importances(config, mach.fitresult, rpt)

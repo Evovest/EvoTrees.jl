@@ -142,26 +142,3 @@ function tweedie_deviance(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_TH
     CUDA.synchronize()
     return sum(eval) / sum(w)
 end
-
-# function eval_metric(::Val{:mlogloss}, pred::AbstractMatrix{T}, y::Vector{S}, alpha=0.0) where {T <: AbstractFloat, S <: Integer}
-#     eval = zero(T)
-#     L = length(y)
-#     K = size(pred,2)
-#     # pred = pred - maximum.(pred)
-#     @inbounds for i in 1:L
-#         pred[i] = pred[i] .- maximum(pred[i])
-#         soft_pred = exp.(pred[i]) / sum(exp.(pred[i]))
-#         eval -= log(soft_pred[y[i]])
-#     end
-#     eval /= length(y)
-#     return eval
-# end
-
-# function eval_metric(::Val{:quantile}, pred::AbstractMatrix{T}, y::AbstractVector{T}, alpha=0.0) where T <: AbstractFloat
-#     eval = zero(T)
-#     for i in 1:length(y)
-#         eval += alpha * max(y[i] - pred[i,1], zero(T)) + (1-alpha) * max(pred[i,1] - y[i], zero(T))
-#     end
-#     eval /= length(y)
-#     return eval
-# end

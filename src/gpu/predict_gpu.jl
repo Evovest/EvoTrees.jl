@@ -1,30 +1,47 @@
-# """
-#     predict_kernel!
-# """
-# function predict_kernel!(::Type{L}, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix) where {L,K,T}
-#     idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-#     nid = 1
-#     @inbounds if idx <= size(pred, 2)
-#         while split[nid]
-#             X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
-#         end
-#         @inbounds for k = 1:K
-#             pred[k, idx] += leaf_pred[k, nid]
-#         end
-#     end
-#     sync_threads()
-#     return nothing
-# end
+"""
+    predict_kernel!
+"""
+function predict_kernel!(
+    ::Type{L},
+    pred::AbstractMatrix{T},
+    split,
+    feat,
+    cond_float,
+    leaf_pred::AbstractMatrix{T},
+    X::CuDeviceMatrix,
+) where {L,T}
+    idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    nid = 1
+    K = size(pred, 1)
+    @inbounds if idx <= size(pred, 2)
+        @inbounds while split[nid]
+            X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
+        end
+        @inbounds for k = 1:K
+            pred[k, idx] += leaf_pred[k, nid]
+        end
+    end
+    sync_threads()
+    return nothing
+end
 
 """
     predict_kernel!
         GradientRegression
 """
-function predict_kernel!(::Type{L}, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix) where {L<:GradientRegression,T}
+function predict_kernel!(
+    ::Type{L},
+    pred::AbstractMatrix{T},
+    split,
+    feat,
+    cond_float,
+    leaf_pred::AbstractMatrix{T},
+    X::CuDeviceMatrix,
+) where {L<:GradientRegression,T}
     idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if idx <= size(pred, 2)
-        while split[nid]
+        @inbounds while split[nid]
             X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
         pred[1, idx] += leaf_pred[1, nid]
@@ -37,11 +54,19 @@ end
     predict_kernel!
         Logistic
 """
-function predict_kernel!(::Type{L}, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix) where {L<:Logistic,T}
+function predict_kernel!(
+    ::Type{L},
+    pred::AbstractMatrix{T},
+    split,
+    feat,
+    cond_float,
+    leaf_pred::AbstractMatrix{T},
+    X::CuDeviceMatrix,
+) where {L<:Logistic,T}
     idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if idx <= size(pred, 2)
-        while split[nid]
+        @inbounds while split[nid]
             X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
         pred[1, idx] = min(15, max(-15, pred[1, idx] + leaf_pred[1, nid]))
@@ -54,11 +79,19 @@ end
     predict_kernel!
         MLE2P
 """
-function predict_kernel!(::Type{L}, pred::AbstractMatrix{T}, split, feat, cond_float, leaf_pred::AbstractMatrix{T}, X::CuDeviceMatrix) where {L<:MLE2P,T}
+function predict_kernel!(
+    ::Type{L},
+    pred::AbstractMatrix{T},
+    split,
+    feat,
+    cond_float,
+    leaf_pred::AbstractMatrix{T},
+    X::CuDeviceMatrix,
+) where {L<:MLE2P,T}
     idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if idx <= size(pred, 2)
-        while split[nid]
+        @inbounds while split[nid]
             X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
         pred[1, idx] += leaf_pred[1, nid]
@@ -69,11 +102,24 @@ function predict_kernel!(::Type{L}, pred::AbstractMatrix{T}, split, feat, cond_f
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict!(pred::AbstractMatrix{T}, tree::TreeGPU{L,K,T}, X::AbstractMatrix; MAX_THREADS=1024) where {L,K,T}
+function predict!(
+    pred::AbstractMatrix{T},
+    tree::TreeGPU{L,K,T},
+    X::AbstractMatrix;
+    MAX_THREADS = 1024,
+) where {L,K,T}
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
     blocks = ceil(Int, n / threads)
-    @cuda blocks = blocks threads = threads predict_kernel!(L, pred, tree.split, tree.feat, tree.cond_float, tree.pred, X)
+    @cuda blocks = blocks threads = threads predict_kernel!(
+        L,
+        pred,
+        tree.split,
+        tree.feat,
+        tree.cond_float,
+        tree.pred,
+        X,
+    )
     CUDA.synchronize()
 end
 
@@ -85,11 +131,17 @@ function predict(tree::TreeGPU{L,K,T}, X::AbstractMatrix) where {L,K,T}
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict(model::EvoTreeGPU{L,K,T}, X::AbstractMatrix) where {L,K,T}
+function predict(
+    model::EvoTreeGPU{L,K,T},
+    X::AbstractMatrix;
+    ntree_limit = length(model.trees),
+) where {L,K,T}
     pred = CUDA.zeros(T, K, size(X, 1))
     X_gpu = CuArray(X)
-    for tree in model.trees
-        predict!(pred, tree, X_gpu)
+    ntrees = length(model.trees)
+    ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
+    for i = 1:ntree_limit
+        predict!(pred, model.trees[i], X_gpu)
     end
     if L == Logistic
         pred .= sigmoid.(pred)
@@ -97,11 +149,6 @@ function predict(model::EvoTreeGPU{L,K,T}, X::AbstractMatrix) where {L,K,T}
         pred .= exp.(pred)
     elseif L == GaussianMLE
         pred[2, :] .= exp.(pred[2, :])
-    elseif L == Softmax
-        pred = transpose(reshape(pred, K, :))
-        for i in axes(pred, 1)
-            pred[i, :] .= softmax(pred[i, :])
-        end
     end
     pred = K == 1 ? vec(Array(pred')) : Array(pred')
     return pred
@@ -109,13 +156,23 @@ end
 
 
 # prediction in Leaf - GradientRegression
-function pred_leaf_gpu!(p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes{L,K,T}) where {L<:GradientRegression,K,T}
+function pred_leaf_gpu!(
+    p::AbstractMatrix{T},
+    n,
+    ∑::AbstractVector{T},
+    params::EvoTypes{L,K,T},
+) where {L<:GradientRegression,K,T}
     @allowscalar(p[1, n] = -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3]))
     return nothing
 end
 
 # prediction in Leaf - MLE2P
-function pred_leaf_gpu!(p::AbstractMatrix{T}, n, ∑::AbstractVector{T}, params::EvoTypes{L,K,T}) where {L<:MLE2P,K,T}
+function pred_leaf_gpu!(
+    p::AbstractMatrix{T},
+    n,
+    ∑::AbstractVector{T},
+    params::EvoTypes{L,K,T},
+) where {L<:MLE2P,K,T}
     @allowscalar(p[1, n] = -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5]))
     @allowscalar(p[2, n] = -params.eta * ∑[2] / (∑[4] + params.lambda * ∑[5]))
     return nothing

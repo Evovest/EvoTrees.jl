@@ -4,6 +4,31 @@ using EvoTrees
 using BenchmarkTools
 using CUDA
 
+
+# allocations on transfer
+function gpu_to_cpu(dst, src)
+    copy!(dst, src)
+end
+function cpu_to_gpu(dst, src)
+    copy!(dst, src)
+end
+
+x1c = zeros(1000, 1000)
+x1g = CUDA.rand(1000, 1000)
+@time gpu_to_cpu(x1c, x1g);
+CUDA.@time gpu_to_cpu(x1c, x1g);
+
+x1c = rand(1000, 1000)
+x1g = CUDA.zeros(1000, 1000)
+@time cpu_to_gpu(x1g, x1c);
+CUDA.@time cpu_to_gpu(x1g, x1c);
+
+function reshape_gpu(x)
+    reshape(x, 4, size(x, 1) ÷ 4, size(x,2))
+end
+x2 = CUDA.@time reshape_gpu(x1g);
+reshape(x1g, 4, 250, 1000)
+
 # prepare a dataset
 features = rand(Int(1.25e6), 100)
 # features = rand(100, 10)
