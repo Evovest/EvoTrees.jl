@@ -44,23 +44,18 @@ end
 # index_f.(x1, i1)
 
 # base approach - block built along the cols first, the rows (limit collisions)
-function update_hist_gpu!(h∇, ∇, x_bin, 𝑖, 𝑗; MAX_THREADS = 256, MAX_BLOCKS = 1024)
-    # target hists are shapes: 
-    # ∇: K,2,nbins,nvars
-    # W: nbins,nvars
+function update_hist_gpu!(h∇, ∇, x_bin, 𝑖, 𝑗; MAX_THREADS=256, MAX_BLOCKS=1024)
     tz = min(64, size(h∇, 1))
     ty = min(length(𝑗), cld(MAX_THREADS, tz))
     tx = min(length(𝑖), cld(MAX_THREADS, tz * ty))
     threads = (tx, ty, tz)
     # @info "threads" threads
-    # @info "length(𝑖)" length(𝑖)
     by = cld(length(𝑗), ty)
     bx = min(cld(MAX_BLOCKS, by), cld(length(𝑖), tx))
     blocks = (bx, by, 1)
     # @info "blocks" blocks
     @cuda blocks = blocks threads = threads hist_kernel!(h∇, ∇, x_bin, 𝑖, 𝑗)
     CUDA.synchronize()
-    # @info "h∇" h∇
     return nothing
 end
 
@@ -204,10 +199,10 @@ function update_gains!(
     𝑗::AbstractVector,
     params::EvoTypes{L,K,T},
     monotone_constraints;
-    MAX_THREADS = 512,
+    MAX_THREADS=512
 ) where {L,K,T}
 
-    cumsum!(node.hL, node.h, dims = 2)
+    cumsum!(node.hL, node.h, dims=2)
     node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
 
     threads = min(params.nbins, MAX_THREADS)

@@ -149,11 +149,6 @@ function predict(
         pred .= exp.(pred)
     elseif L == GaussianMLE
         pred[2, :] .= exp.(pred[2, :])
-    elseif L == Softmax
-        pred = transpose(reshape(pred, K, :))
-        for i in axes(pred, 1)
-            pred[i, :] .= softmax(pred[i, :])
-        end
     end
     pred = K == 1 ? vec(Array(pred')) : Array(pred')
     return pred
