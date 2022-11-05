@@ -30,14 +30,14 @@ y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 # linear
 params1 = EvoTreeRegressor(T=Float32,
     loss=:linear,
-    nrounds=200, nbins=64,
-    lambda=0.5, gamma=0.1, eta=0.1,
+    nrounds=500, nbins=64,
+    lambda=0.1, gamma=0.1, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.1, colsample=1.0,
     device="gpu")
 
 @time model = fit_evotree(params1; x_train, y_train);
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25, early_stopping_rounds=50);
 # model, logger = fit_evotree(params1; x_train, y_train, metric=:mse, x_eval, y_eval, early_stopping_rounds=20, print_every_n=10, return_logger=true);
 model_cpu = convert(EvoTrees.EvoTree, model);
 pred_train_linear_gpu = predict(model, x_train)
@@ -52,39 +52,39 @@ sqrt(mean((pred_train_linear .- y_train) .^ 2))
 # logistic / cross-entropy
 params1 = EvoTreeRegressor(T=Float32,
     loss=:logistic,
-    nrounds=200, nbins=64,
-    lambda=0.5, gamma=0.1, eta=0.1,
+    nrounds=500, nbins=64,
+    lambda=0.1, gamma=0.1, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0,
     device="gpu")
 
-@time model = fit_evotree(params1; x_train, y_train);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:logloss, print_every_n=25, early_stopping_rounds=50);
 @time pred_train_logistic = predict(model, x_train)
 sqrt(mean((pred_train_logistic .- y_train) .^ 2))
 
 # poisson
 params1 = EvoTreeCount(T=Float32,
     loss=:poisson,
-    nrounds=200, nbins=64,
-    lambda=0.5, gamma=0.1, eta=0.1,
+    nrounds=500, nbins=64,
+    lambda=0.1, gamma=0.1, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0,
     device="gpu")
 
-@time model = fit_evotree(params1; x_train, y_train);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:poisson, print_every_n=25, early_stopping_rounds=50);
 @time pred_train_poisson = predict(model, x_train)
 sqrt(mean((pred_train_poisson .- y_train) .^ 2))
 
 # gamma
 params1 = EvoTreeRegressor(T=Float32,
     loss=:gamma,
-    nrounds=200, nbins=64,
-    lambda=0.5, gamma=0.1, eta=0.1,
+    nrounds=500, nbins=64,
+    lambda=0.1, gamma=0.1, eta=0.03,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0,
     device="gpu")
 
-@time model = fit_evotree(params1; x_train, y_train);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:gamma, print_every_n=25, early_stopping_rounds=50);
 @time pred_train_gamma = predict(model, x_train)
 sqrt(mean((pred_train_gamma .- y_train) .^ 2))
 
@@ -92,13 +92,13 @@ sqrt(mean((pred_train_gamma .- y_train) .^ 2))
 # tweedie
 params1 = EvoTreeRegressor(T=Float32,
     loss=:tweedie,
-    nrounds=200, nbins=64,
-    lambda=0.5, gamma=0.1, eta=0.1,
+    nrounds=500, nbins=64,
+    lambda=0.1, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0,
     device="gpu")
 
-@time model = fit_evotree(params1; x_train, y_train);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:tweedie, print_every_n=25, early_stopping_rounds=50);
 @time pred_train_tweedie = predict(model, x_train)
 sqrt(mean((pred_train_tweedie .- y_train) .^ 2))
 
@@ -116,8 +116,8 @@ savefig("figures/regression_sinus_gpu.png")
 ## gaussian
 ###############################
 params1 = EvoTreeGaussian(T=Float32,
-    nrounds=200, nbins=64,
-    lambda=1.0, gamma=0.1, eta=0.05,
+    nrounds=500, nbins=64,
+    lambda=0.1, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=5,
     rowsample=0.5, colsample=1.0, rng=123,
     device="gpu")

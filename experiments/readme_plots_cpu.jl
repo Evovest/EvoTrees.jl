@@ -30,12 +30,12 @@ y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 params1 = EvoTreeRegressor(T=Float32,
     loss=:linear,
     nrounds=200, nbins=64,
-    lambda=0.1, gamma=0.1, eta=0.05,
+    lambda=0.01, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0,
     rng=123)
 
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25, early_stopping_rounds=20);
 # 67.159 ms (77252 allocations: 28.06 MiB)
 # @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 999);
 # @btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval);
@@ -54,7 +54,7 @@ mean((pred_eval_linear .- y_eval) .^ 2)
 # linear weighted
 params1 = EvoTreeRegressor(T=Float64,
     loss=:linear,
-    nrounds=200, nbins=64,
+    nrounds=500, nbins=64,
     lambda=0.1, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0,
@@ -62,7 +62,7 @@ params1 = EvoTreeRegressor(T=Float64,
 
 # W_train = ones(eltype(Y_train), size(Y_train)) .* 5
 w_train = rand(eltype(y_train), size(y_train)) .+ 0
-@time model = fit_evotree(params1; x_train, y_train, w_train, x_eval, y_eval, print_every_n=25, metric=:mse);
+@time model = fit_evotree(params1; x_train, y_train, w_train, x_eval, y_eval, print_every_n=25, early_stopping_rounds = 50, metric=:mse);
 # 67.159 ms (77252 allocations: 28.06 MiB)
 # @time model = fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 999);
 # @btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval);
@@ -84,7 +84,7 @@ params1 = EvoTreeRegressor(
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, metric=:logloss);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, early_stopping_rounds = 50, metric=:logloss);
 # 218.040 ms (123372 allocations: 34.71 MiB)
 # @btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train_logistic = predict(model, x_train);
@@ -94,11 +94,11 @@ sqrt(mean((pred_train_logistic .- y_train) .^ 2))
 # L1
 params1 = EvoTreeRegressor(
     loss=:L1, alpha=0.5,
-    nrounds=200, nbins=64,
-    lambda=0.0, gamma=0.0, eta=0.05,
+    nrounds=500, nbins=64,
+    lambda=0.0, gamma=0.0, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, metric=:mae);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, early_stopping_rounds = 50, metric=:mae);
 @time pred_train_L1 = predict(model, x_train)
 @time pred_eval_L1 = predict(model, x_eval)
 sqrt(mean((pred_train_L1 .- y_train) .^ 2))
@@ -114,33 +114,33 @@ savefig("figures/regression_sinus.png")
 # Poisson
 params1 = EvoTreeCount(
     loss=:poisson,
-    nrounds=200, nbins=64,
-    lambda=0.5, gamma=0.1, eta=0.1,
+    nrounds=500, nbins=64,
+    lambda=0.1, gamma=0.1, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, metric=:poisson);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, early_stopping_rounds = 50, metric=:poisson);
 @time pred_train_poisson = predict(model, x_train);
 sqrt(mean((pred_train_poisson .- y_train) .^ 2))
 
 # Gamma
 params1 = EvoTreeRegressor(
     loss=:gamma,
-    nrounds=200, nbins=64,
-    lambda=0.5, gamma=0.1, eta=0.1,
+    nrounds=500, nbins=64,
+    lambda=0.1, gamma=0.1, eta=0.02,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, metric=:gamma);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, early_stopping_rounds = 50, metric=:gamma);
 @time pred_train_gamma = predict(model, x_train);
 sqrt(mean((pred_train_gamma .- y_train) .^ 2))
 
 # Tweedie
 params1 = EvoTreeRegressor(
     loss=:tweedie,
-    nrounds=200, nbins=64,
+    nrounds=500, nbins=64,
     lambda=0.5, gamma=0.1, eta=0.1,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, metric=:tweedie);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, early_stopping_rounds = 50, metric=:tweedie);
 @time pred_train_tweedie = predict(model, x_train);
 sqrt(mean((pred_train_tweedie .- y_train) .^ 2))
 
@@ -158,11 +158,11 @@ savefig("figures/regression_sinus2.png")
 # q50
 params1 = EvoTreeRegressor(
     loss=:quantile, alpha=0.5,
-    nrounds=200, nbins=64,
-    lambda=1.0, gamma=0.0, eta=0.05,
+    nrounds=500, nbins=64,
+    lambda=0.1, gamma=0.0, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, early_stopping_rounds = 50, metric=:mae);
 # 116.822 ms (74496 allocations: 36.41 MiB) for 100 iterations
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train_q50 = predict(model, x_train)
@@ -171,8 +171,8 @@ sum(pred_train_q50 .< y_train) / length(y_train)
 # q20
 params1 = EvoTreeRegressor(
     loss=:quantile, alpha=0.2,
-    nrounds=200, nbins=64,
-    lambda=1.0, gamma=0.0, eta=0.05,
+    nrounds=300, nbins=64,
+    lambda=0.1, gamma=0.0, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
@@ -182,8 +182,8 @@ sum(pred_train_q20 .< y_train) / length(y_train)
 # q80
 params1 = EvoTreeRegressor(
     loss=:quantile, alpha=0.8,
-    nrounds=200, nbins=64,
-    lambda=1.0, gamma=0.0, eta=0.05,
+    nrounds=300, nbins=64,
+    lambda=0.1, gamma=0.0, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
@@ -203,7 +203,7 @@ savefig("figures/quantiles_sinus.png")
 ###############################
 params1 = EvoTreeMLE(
     loss=:gaussian,
-    nrounds=300, nbins=64,
+    nrounds=500, nbins=64,
     lambda=0.1, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=1.0, colsample=1.0, rng=123)
@@ -234,8 +234,8 @@ savefig("figures/gaussian-sinus.png")
 ###############################
 params1 = EvoTrees.EvoTreeMLE(
     loss = :logistic,
-    nrounds=200, nbins=64,
-    lambda=1.0, gamma=0.1, eta=0.05,
+    nrounds=500, nbins=64,
+    lambda=1.0, gamma=0.1, eta=0.03,
     max_depth=6, min_weight=1.0,
     rowsample=1.0, colsample=1.0, rng=123)
 
