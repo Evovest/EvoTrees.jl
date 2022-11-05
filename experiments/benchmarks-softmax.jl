@@ -7,22 +7,13 @@ using BenchmarkTools
 using CUDA
 
 nrounds = 200
-num_class = 10
+num_class = 5
 nthread = Base.Threads.nthreads()
 
 @info nthread
-loss = "linear"
-if loss == "linear"
-    loss_xgb = "reg:squarederror"
-    metric_xgb = "mae"
-    loss_evo = :linear
-    metric_evo = :mae
-elseif loss == "logistic"
-    loss_xgb = "reg:logistic"
-    metric_xgb = "logloss"
-    loss_evo = :logistic
-    metric_evo = :logloss
-end
+loss_xgb = "reg:logistic"
+metric_xgb = "mlogloss"
+metric_evo = :mlogloss
 
 # xgboost aprams
 # params_xgb = [
@@ -40,18 +31,17 @@ end
 # EvoTrees params
 params_evo = EvoTreeClassifier(
     T=Float32,
-    loss=loss_evo,
     nrounds=nrounds,
     alpha=0.5,
     lambda=0.0,
     gamma=0.0,
     eta=0.05,
     max_depth=6,
-    min_weight=1.0,
+    min_weight=10.0,
     rowsample=0.5,
     colsample=0.5,
     nbins=64,
-    num_class = num_class
+    num_class=num_class
 )
 
 nobs = Int(1e6)

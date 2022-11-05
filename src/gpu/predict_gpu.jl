@@ -106,7 +106,7 @@ function predict!(
     pred::AbstractMatrix{T},
     tree::TreeGPU{L,K,T},
     X::AbstractMatrix;
-    MAX_THREADS = 1024,
+    MAX_THREADS=1024
 ) where {L,K,T}
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
@@ -134,7 +134,7 @@ end
 function predict(
     model::EvoTreeGPU{L,K,T},
     X::AbstractMatrix;
-    ntree_limit = length(model.trees),
+    ntree_limit=length(model.trees)
 ) where {L,K,T}
     pred = CUDA.zeros(T, K, size(X, 1))
     X_gpu = CuArray(X)
@@ -190,8 +190,10 @@ function pred_leaf_gpu!(
     ∑::AbstractVector{T},
     params::EvoTypes{L,K,T},
 ) where {L<:MultiClassRegression,K,T}
-    @allowscalar(
-        p[:, n] .= -params.eta .* ∑[1:K] ./ (∑[(K+1):(2*K)] .+ params.lambda .* ∑[2*K+1])
-    )
+    @inbounds for k = 1:K
+        @allowscalar(
+            p[k, n] = -params.eta * ∑[k] / (∑[k+K] + params.lambda * ∑[end])
+        )
+    end
     return nothing
 end

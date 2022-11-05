@@ -50,6 +50,7 @@ function mlogloss(
     kwargs...,
 ) where {T}
     eval = zero(T)
+    p .= p .- maximum(p, dims = 1)
     p_prob = exp.(p) ./ sum(exp.(p), dims = 1)
     @inbounds for i in eachindex(y)
         eval -= w[i] * log(p_prob[y[i], i])

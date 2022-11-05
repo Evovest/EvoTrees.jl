@@ -58,6 +58,9 @@ println(mean(abs.(pred_test - selectrows(Y, test))))
 X, y_train = @load_crabs
 x_train = matrix(X)
 
+using CUDA
+CUDA.allowscalar(false)
+
 # define hyperparameters
 config = EvoTreeClassifier(
     max_depth = 4,
@@ -65,11 +68,11 @@ config = EvoTreeClassifier(
     lambda = 0.0,
     gamma = 0.0,
     nbins = 32,
-    nrounds = 100,
-    device = "gpu"
+    nrounds = 200,
+    device = "cpu"
 )
 model = fit_evotree(config; x_train, y_train);
-model = fit_evotree(config; x_train, y_train, x_eval = x_train, y_eval = y_train, metric=:mlogloss, print_every_n=5);
+model = fit_evotree(config; x_train, y_train, x_eval = x_train, y_eval = y_train, metric=:mlogloss, print_every_n=10, early_stopping_rounds=25);
 
 pred = predict(model, x_train)
 pred_cat = pred .> 0.5
