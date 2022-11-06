@@ -105,7 +105,7 @@ function grow_evotree!(
     cache.nodes[1].𝑖 .= CuArray(cache.𝑖)
 
     # build a new tree
-    update_grads_gpu!(L, cache.δ𝑤, cache.pred, cache.y)
+    update_grads_gpu!(cache.δ𝑤, cache.pred, cache.y, params)
     # # assign a root and grow tree
     tree = TreeGPU{L,K,T}(params.max_depth)
     grow_tree_gpu!(

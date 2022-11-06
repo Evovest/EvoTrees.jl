@@ -4,22 +4,24 @@
 Initialise EvoTree
 """
 function init_evotree(
-    params::EvoTypes{L,K,T};
+    params::EvoTypes{L,T};
     x_train::AbstractMatrix,
     y_train::AbstractVector,
     w_train = nothing,
     offset_train = nothing,
     fnames = nothing,
-) where {L,K,T}
+) where {L,T}
 
     levels = nothing
     x = convert(Matrix{T}, x_train)
     offset = !isnothing(offset_train) ? T.(offset_train) : nothing
     if L == Logistic
+        K = 1
         y = T.(y_train)
         μ = [logit(mean(y))]
         !isnothing(offset) && (offset .= logit.(offset))
     elseif L in [Poisson, Gamma, Tweedie]
+        K = 1
         y = T.(y_train)
         μ = fill(log(mean(y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
@@ -34,17 +36,20 @@ function init_evotree(
             μ = zeros(T, K)
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
-        @assert K == length(levels)
+        K = length(levels)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
+        K = 2
         y = T.(y_train)
         μ = [mean(y), log(std(y))]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     elseif L == LogisticMLE
+        K = 2
         y = T.(y_train)
         μ = [mean(y), log(std(y) * sqrt(3) / π)]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     else
+        K = 1
         y = T.(y_train)
         μ = [mean(y)]
     end
@@ -119,7 +124,7 @@ end
 function grow_evotree!(
     evotree::EvoTree{L,K,T},
     cache,
-    params::EvoTypes{L,K,T},
+    params::EvoTypes{L,T},
 ) where {L,K,T}
 
     # select random rows and cols
@@ -127,7 +132,7 @@ function grow_evotree!(
     sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
 
     # build a new tree
-    update_grads!(L, cache.δ𝑤, cache.pred, cache.y; alpha = params.alpha)
+    update_grads!(cache.δ𝑤, cache.pred, cache.y, params)
     # assign a root and grow tree
     tree = Tree{L,K,T}(params.max_depth)
     grow_tree!(
@@ -153,7 +158,7 @@ end
 function grow_tree!(
     tree::Tree{L,K,T},
     nodes::Vector{TrainNode{T}},
-    params::EvoTypes{L,K,T},
+    params::EvoTypes{L,T},
     δ𝑤::Matrix{T},
     edges,
     𝑗,
@@ -300,7 +305,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `fnames`: the names of the `x_train` features. If provided, should be a vector of string with `length(fnames) = size(x_train, 2)`.
 """
 function fit_evotree(
-    params::EvoTypes{L,K,T};
+    params::EvoTypes{L,T};
     x_train::AbstractMatrix,
     y_train::AbstractVector,
     w_train = nothing,
@@ -315,7 +320,7 @@ function fit_evotree(
     verbosity = 1,
     fnames = nothing,
     return_logger = false,
-) where {L,K,T}
+) where {L,T}
 
     # initialize model and cache
     if params.device == "gpu"

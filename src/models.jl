@@ -19,7 +19,7 @@ struct LogisticMLE <: MLE2P end
 mk_rng(rng::Random.AbstractRNG) = rng
 mk_rng(rng::T) where {T<:Integer} = Random.MersenneTwister(rng)
 
-mutable struct EvoTreeRegressor{L<:ModelType,K,T} <: MMI.Deterministic
+mutable struct EvoTreeRegressor{L<:ModelType,T} <: MMI.Deterministic
     nrounds::Int
     lambda::T
     gamma::T
@@ -93,7 +93,7 @@ function EvoTreeRegressor(; kwargs...)
         )
     end
 
-    model = EvoTreeRegressor{L,1,T}(
+    model = EvoTreeRegressor{L,T}(
         args[:nrounds],
         T(args[:lambda]),
         T(args[:gamma]),
@@ -113,7 +113,7 @@ function EvoTreeRegressor(; kwargs...)
 end
 
 
-mutable struct EvoTreeCount{L<:ModelType,K,T} <: MMI.Probabilistic
+mutable struct EvoTreeCount{L<:ModelType,T} <: MMI.Probabilistic
     nrounds::Int
     lambda::T
     gamma::T
@@ -168,7 +168,7 @@ function EvoTreeCount(; kwargs...)
     L = Poisson
     T = args[:T]
 
-    model = EvoTreeCount{L,1,T}(
+    model = EvoTreeCount{L,T}(
         args[:nrounds],
         T(args[:lambda]),
         T(args[:gamma]),
@@ -187,7 +187,7 @@ function EvoTreeCount(; kwargs...)
     return model
 end
 
-mutable struct EvoTreeClassifier{L<:ModelType,K,T} <: MMI.Probabilistic
+mutable struct EvoTreeClassifier{L<:ModelType,T} <: MMI.Probabilistic
     nrounds::Int
     lambda::T
     gamma::T
@@ -218,8 +218,7 @@ function EvoTreeClassifier(; kwargs...)
         :nbins => 32,
         :alpha => 0.5,
         :rng => 123,
-        :device => "cpu",
-        :num_class => 2
+        :device => "cpu"
     )
 
     args_ignored = setdiff(keys(kwargs), keys(args))
@@ -240,9 +239,8 @@ function EvoTreeClassifier(; kwargs...)
     args[:rng] = mk_rng(args[:rng])::Random.AbstractRNG
     L = Softmax
     T = args[:T]
-    K = args[:num_class]
 
-    model = EvoTreeClassifier{L,K,T}(
+    model = EvoTreeClassifier{L,T}(
         args[:nrounds],
         T(args[:lambda]),
         T(args[:gamma]),
@@ -260,7 +258,7 @@ function EvoTreeClassifier(; kwargs...)
     return model
 end
 
-mutable struct EvoTreeMLE{L<:ModelType,K,T} <: MMI.Probabilistic
+mutable struct EvoTreeMLE{L<:ModelType,T} <: MMI.Probabilistic
     nrounds::Int
     lambda::T
     gamma::T
@@ -326,7 +324,7 @@ function EvoTreeMLE(; kwargs...)
         )
     end
 
-    model = EvoTreeMLE{L,2,T}(
+    model = EvoTreeMLE{L,T}(
         args[:nrounds],
         T(args[:lambda]),
         T(args[:gamma]),
@@ -346,7 +344,7 @@ function EvoTreeMLE(; kwargs...)
 end
 
 
-mutable struct EvoTreeGaussian{L<:ModelType,K,T} <: MMI.Probabilistic
+mutable struct EvoTreeGaussian{L<:ModelType,T} <: MMI.Probabilistic
     nrounds::Int
     lambda::T
     gamma::T
@@ -400,7 +398,7 @@ function EvoTreeGaussian(; kwargs...)
     L = GaussianMLE
     T = args[:T]
 
-    model = EvoTreeGaussian{L,2,T}(
+    model = EvoTreeGaussian{L,T}(
         args[:nrounds],
         T(args[:lambda]),
         T(args[:gamma]),
@@ -419,12 +417,12 @@ function EvoTreeGaussian(; kwargs...)
     return model
 end
 
-const EvoTypes{L,K,T} = Union{
-    EvoTreeRegressor{L,K,T},
-    EvoTreeCount{L,K,T},
-    EvoTreeClassifier{L,K,T},
-    EvoTreeGaussian{L,K,T},
-    EvoTreeMLE{L,K,T},
+const EvoTypes{L,T} = Union{
+    EvoTreeRegressor{L,T},
+    EvoTreeCount{L,T},
+    EvoTreeClassifier{L,T},
+    EvoTreeGaussian{L,T},
+    EvoTreeMLE{L,T},
 }
 
-get_types(::EvoTypes{L,K,T}) where {L,K,T} = (L,K,T)
+get_types(::EvoTypes{L,T}) where {L,T} = (L,T)
