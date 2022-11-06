@@ -72,8 +72,8 @@ y_train = rand(size(x_train, 1))
 
 @info "evotrees train CPU:"
 params_evo.device = "cpu"
-@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:logistic, print_every_n=100);
-@btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=:logistic);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:logistic_mle, print_every_n=100);
+@btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=:logistic_mle);
 @info "evotrees predict CPU:"
 @time pred_evo = EvoTrees.predict(m_evo, x_train);
 @btime EvoTrees.predict($m_evo, $x_train);

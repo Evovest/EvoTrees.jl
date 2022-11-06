@@ -50,6 +50,7 @@ function mlogloss(
     kwargs...,
 ) where {T}
     eval = zero(T)
+    p .= p .- maximum(p, dims = 1)
     p_prob = exp.(p) ./ sum(exp.(p), dims = 1)
     @inbounds for i in eachindex(y)
         eval -= w[i] * log(p_prob[y[i], i])
@@ -119,7 +120,7 @@ function gaussian_mle(
 ) where {T}
     eval = zero(T)
     @inbounds for i in eachindex(y)
-        eval += w[i] * (p[2, i] + (y[i] - p[1, i])^2 / (2 * exp(2 * p[2, i])))
+        eval -= w[i] * (p[2, i] + (y[i] - p[1, i])^2 / (2 * exp(2 * p[2, i])))
     end
     eval /= sum(w)
     return eval
@@ -133,7 +134,7 @@ function logistic_mle(
 ) where {T}
     eval = zero(T)
     @inbounds for i in eachindex(y)
-        eval += -w[i] * (log(1 / 4 * sech(exp(-p[2, i]) * (y[i] - p[1, i]))^2) - p[2, i])
+        eval += w[i] * (log(1 / 4 * sech(exp(-p[2, i]) * (y[i] - p[1, i]))^2) - p[2, i])
     end
     eval /= sum(w)
     return eval

@@ -1,10 +1,25 @@
+using Revise
+using EvoTrees
 # using CUDA
 using CUDA
+using BenchmarkTools
 # using Flux
 # using GeometricFlux
 
-nbins = 32
-ncol = 100
+nobs = 500_000
+nbins = 64
+ncol = 50
+
+h∇ = CUDA.zeros(Float32, 3, nbins, ncol)
+∇ = CUDA.rand(Float32, 3, nobs)
+x_bin = CuArray(rand(UInt32.(1:nbins), nobs, ncol))
+𝑖 = CuArray(UInt32.(1:nobs))
+𝑗 = CuArray(UInt32.(1:ncol))
+
+h∇ .= 0
+CUDA.@time EvoTrees.update_hist_gpu!(h∇, ∇, x_bin, 𝑖, 𝑗)
+@btime EvoTrees.update_hist_gpu!($h∇, $∇, $x_bin, $𝑖, $𝑗)
+
 items = Int(1e6)
 hist = zeros(Float32, nbins, ncol)
 δ = rand(Float32, items)

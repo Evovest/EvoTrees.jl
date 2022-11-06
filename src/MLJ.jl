@@ -312,7 +312,7 @@ EvoTreeClassifier is used to perform multi-class classification, using cross-ent
 - `colsample=1.0`:              Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `device="cpu"`:               Hardware device to use for computations. Only CPU is supported at the moment.
+- `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
 # Internal API
 
