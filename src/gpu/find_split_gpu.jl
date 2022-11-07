@@ -197,17 +197,17 @@ end
 function update_gains!(
     node::TrainNodeGPU,
     𝑗::AbstractVector,
-    params::EvoTypes{L,K,T},
+    params::EvoTypes{L,T},
     monotone_constraints;
     MAX_THREADS=512
-) where {L,K,T}
+) where {L,T}
 
     cumsum!(node.hL, node.h, dims=2)
     node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
 
     threads = min(params.nbins, MAX_THREADS)
     blocks = length(𝑗)
-    @cuda blocks = blocks threads = threads hist_gains_kernel!(
+    @cuda blocks = blocks threads = threads update_gains_kernel!(
         node.gains,
         node.hL,
         node.hR,
@@ -221,16 +221,16 @@ function update_gains!(
     return nothing
 end
 
-function hist_gains_kernel!(
+function update_gains_kernel!(
     gains::CuDeviceMatrix{T},
     hL::CuDeviceArray{T,3},
     hR::CuDeviceArray{T,3},
-    𝑗::CuDeviceVector{S},
+    𝑗::CuDeviceVector,
     nbins,
     lambda,
     min_weight,
     monotone_constraints,
-) where {T,S}
+) where {T}
     bin = threadIdx().x
     j = 𝑗[blockIdx().x]
     monotone_constraint = monotone_constraints[j]

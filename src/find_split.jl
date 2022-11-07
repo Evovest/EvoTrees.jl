@@ -245,10 +245,10 @@ Generic fallback
 function update_gains!(
     node::TrainNode,
     𝑗::Vector,
-    params::EvoTypes{L,T,S},
+    params::EvoTypes{L,T},
     K,
     monotone_constraints,
-) where {L,T,S}
+) where {L,T}
 
     KK = 2 * K + 1
     @inbounds @threads for j in 𝑗
@@ -265,8 +265,7 @@ function update_gains!(
                 node.hR[j][binid+k] = node.hR[j][binid-KK+k] - node.h[j][binid+k]
             end
         end
-        hist_gains_cpu!(
-            L,
+        update_gains_cpu!(
             view(node.gains, :, j),
             node.hL[j],
             node.hR[j],
@@ -280,15 +279,14 @@ end
 
 
 """
-    hist_gains_cpu!
+    update_gains_cpu!
         GradientRegression
 """
-function hist_gains_cpu!(
-    ::Type{L},
+function update_gains_cpu!(
     gains::AbstractVector{T},
     hL::Vector{T},
     hR::Vector{T},
-    params,
+    params::EvoTypes{L,T},
     K,
     monotone_constraint,
 ) where {L<:GradientRegression,T}
@@ -317,15 +315,14 @@ function hist_gains_cpu!(
 end
 
 """
-    hist_gains_cpu!
+    update_gains_cpu!
         QuantileRegression/L1Regression
 """
-function hist_gains_cpu!(
-    ::Type{L},
+function update_gains_cpu!(
     gains::AbstractVector{T},
     hL::Vector{T},
     hR::Vector{T},
-    params,
+    params::EvoTypes{L,T},
     K,
     monotone_constraint,
 ) where {L<:Union{QuantileRegression,L1Regression},T}
@@ -342,15 +339,14 @@ function hist_gains_cpu!(
 end
 
 """
-    hist_gains_cpu!
+    update_gains_cpu!
         MLE2P
 """
-function hist_gains_cpu!(
-    ::Type{L},
+function update_gains_cpu!(
     gains::AbstractVector{T},
     hL::Vector{T},
     hR::Vector{T},
-    params,
+    params::EvoTypes{L,T},
     K,
     monotone_constraint,
 ) where {L<:MLE2P,T}
@@ -387,15 +383,14 @@ function hist_gains_cpu!(
 end
 
 """
-    hist_gains_cpu!
+    update_gains_cpu!
         Generic
 """
-function hist_gains_cpu!(
-    ::Type{L},
+function update_gains_cpu!(
     gains::AbstractVector{T},
     hL::Vector{T},
     hR::Vector{T},
-    params,
+    params::EvoTypes{L,T},
     K,
     monotone_constraint,
 ) where {L,T}

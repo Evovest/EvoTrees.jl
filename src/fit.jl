@@ -28,15 +28,14 @@ function init_evotree(
     elseif L == Softmax
         if eltype(y_train) <: CategoricalValue
             levels = CategoricalArrays.levels(y_train)
-            μ = zeros(T, K)
             y = UInt32.(CategoricalArrays.levelcode.(y_train))
         else
             levels = sort(unique(y_train))
             yc = CategoricalVector(y_train, levels = levels)
-            μ = zeros(T, K)
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
         K = length(levels)
+        μ = zeros(T, K)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
         K = 2
@@ -70,7 +69,7 @@ function init_evotree(
     fnames = isnothing(fnames) ? ["feat_$i" for i in axes(x, 2)] : string.(fnames)
     @assert length(fnames) == size(x, 2)
     info = Dict(:fnames => fnames, :levels => levels)
-    evotree = EvoTree{L,K,T}(bias, info)
+    m = EvoTree{L,K,T}(bias, info)
 
     # initialize gradients and weights
     δ𝑤 = zeros(T, 2 * K + 1, x_size[1])
@@ -117,15 +116,11 @@ function init_evotree(
         x_bin = x_bin,
         monotone_constraints = monotone_constraints,
     )
-    return evotree, cache
+    return m, cache
 end
 
 
-function grow_evotree!(
-    evotree::EvoTree{L,K,T},
-    cache,
-    params::EvoTypes{L,T},
-) where {L,K,T}
+function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) where {L,K,T}
 
     # select random rows and cols
     sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace = false, ordered = true)
@@ -176,7 +171,7 @@ function grow_tree!(
         end
         n.∑ .= 0
         n.gain = 0
-        n.gains .= -Inf
+        n.gains .= 0
     end
 
     # reset
@@ -332,7 +327,7 @@ function fit_evotree(
     # initialize callback and logger if tracking eval data
     logger = nothing
     if !isnothing(metric) && !isnothing(x_eval) && !isnothing(y_eval)
-        cb = CallBack(params; x_eval, y_eval, w_eval, offset_eval, metric)
+        cb = CallBack(params, m; x_eval, y_eval, w_eval, offset_eval, metric)
         logger = init_logger(;
             T,
             metric,

@@ -1,42 +1,45 @@
 function init_evotree_gpu(
-    params::EvoTypes{L,K,T};
+    params::EvoTypes{L,T};
     x_train::AbstractMatrix,
     y_train::AbstractVector,
     w_train = nothing,
     offset_train = nothing,
     fnames = nothing,
-) where {L,K,T}
+) where {L,T}
 
     levels = nothing
     x = convert(Matrix{T}, x_train)
 
     offset = !isnothing(offset_train) ? T.(offset_train) : nothing
     if L == Logistic
+        K = 1
         y = CuArray(T.(y_train))
         μ = [logit(mean(y))]
         !isnothing(offset) && (offset .= logit.(offset))
     elseif L ∈ [Poisson, Gamma, Tweedie]
+        K = 1
         y = CuArray(T.(y_train))
         μ = fill(log(mean(y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == Softmax
         if eltype(y_train) <: CategoricalValue
             levels = CategoricalArrays.levels(y_train)
-            μ = zeros(T, K)
             y = CuArray(UInt32.(CategoricalArrays.levelcode.(y_train)))
         else
             levels = sort(unique(y_train))
             yc = CategoricalVector(y_train, levels = levels)
-            μ = zeros(T, K)
             y = CuArray(UInt32.(CategoricalArrays.levelcode.(yc)))
         end
-        @assert K == length(levels)
+        K = length(levels)
+        μ = zeros(T, K)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
+        K = 2
         y = CuArray(T.(y_train))
         μ = [mean(y), log(std(y))]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     else
+        K = 1
         y = CuArray(T.(y_train))
         μ = [mean(y)]
     end
@@ -54,7 +57,7 @@ function init_evotree_gpu(
     fnames = isnothing(fnames) ? ["feat_$i" for i in axes(x, 2)] : string.(fnames)
     @assert length(fnames) == size(x, 2)
     info = Dict(:fnames => fnames, :levels => levels)
-    evotree = EvoTreeGPU{L,K,T}(bias, info)
+    m = EvoTreeGPU{L,K,T}(bias, info)
 
     # initialize gradients and weights
     δ𝑤 = CUDA.zeros(T, 2 * K + 1, x_size[1])
@@ -103,14 +106,14 @@ function init_evotree_gpu(
         monotone_constraints = CuArray(monotone_constraints),
     )
 
-    return evotree, cache
+    return m, cache
 end
 
 
 function grow_evotree!(
     evotree::EvoTreeGPU{L,K,T},
     cache,
-    params::EvoTypes{L,K,T},
+    params::EvoTypes{L,T},
 ) where {L,K,T}
     # select random rows and cols
     sample!(params.rng, cache.𝑖_, cache.𝑖, replace = false, ordered = true)
@@ -144,7 +147,7 @@ end
 function grow_tree_gpu!(
     tree::TreeGPU{L,K,T},
     nodes,
-    params::EvoTypes{L,K,T},
+    params::EvoTypes{L,T},
     δ𝑤::AbstractMatrix,
     edges,
     𝑗,
@@ -165,8 +168,6 @@ function grow_tree_gpu!(
         nodes[n].∑ .= 0
         nodes[n].gain = T(0)
         nodes[n].gains .= 0
-        # nodes[n].gain = -Inf
-        # fill!(nodes[n].gains, -Inf,
     end
 
     # initialize summary stats

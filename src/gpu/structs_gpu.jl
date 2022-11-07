@@ -59,4 +59,4 @@ struct EvoTreeGPU{L,K,T}
     info::Any
 end
 (m::EvoTreeGPU)(x::AbstractMatrix) = predict(m, x)
-get_types(::EvoTreeGPU{L,K,T}) where {L,K,T} = (L,K,T)
+get_types(::EvoTreeGPU{L,K,T}) where {L,K,T} = (L,T)

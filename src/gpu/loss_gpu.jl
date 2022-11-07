@@ -10,12 +10,12 @@ function kernel_linear_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::CuD
     return
 end
 function update_grads_gpu!(
-    ::Type{Linear},
     δ𝑤::CuMatrix,
     p::CuMatrix,
-    y::CuVector;
+    y::CuVector,
+    ::EvoTreeRegressor{L,T};
     MAX_THREADS = 1024,
-)
+) where {L<:Linear,T}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_linear_δ𝑤!(δ𝑤, p, y)
@@ -36,12 +36,12 @@ function kernel_logistic_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::C
     return
 end
 function update_grads_gpu!(
-    ::Type{Logistic},
     δ𝑤::CuMatrix,
     p::CuMatrix,
-    y::CuVector;
+    y::CuVector,
+    ::EvoTreeRegressor{L,T};
     MAX_THREADS = 1024,
-)
+) where {L<:Logistic,T}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_logistic_δ𝑤!(δ𝑤, p, y)
@@ -62,12 +62,12 @@ function kernel_poisson_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::Cu
     return
 end
 function update_grads_gpu!(
-    ::Type{Poisson},
     δ𝑤::CuMatrix,
     p::CuMatrix,
-    y::CuVector;
+    y::CuVector,
+    ::EvoTreeCount{L,T};
     MAX_THREADS = 1024,
-)
+) where {L<:Poisson,T}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_poisson_δ𝑤!(δ𝑤, p, y)
@@ -88,12 +88,12 @@ function kernel_gamma_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDe
     return
 end
 function update_grads_gpu!(
-    ::Type{Gamma},
     δ𝑤::CuMatrix,
     p::CuMatrix,
-    y::CuVector;
+    y::CuVector,
+    ::EvoTreeRegressor{L,T};
     MAX_THREADS = 1024,
-)
+) where {L<:Gamma,T}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_gamma_δ𝑤!(δ𝑤, p, y)
@@ -116,12 +116,12 @@ function kernel_tweedie_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::Cu
     return
 end
 function update_grads_gpu!(
-    ::Type{Tweedie},
     δ𝑤::CuMatrix,
     p::CuMatrix,
-    y::CuVector;
+    y::CuVector,
+    ::EvoTreeRegressor{L,T};
     MAX_THREADS = 1024,
-)
+) where {L<:Tweedie,T}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_tweedie_δ𝑤!(δ𝑤, p, y)
@@ -149,12 +149,12 @@ function kernel_softmax_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::Cu
     return
 end
 function update_grads_gpu!(
-    ::Type{Softmax},
     δ𝑤::CuMatrix,
     p::CuMatrix,
-    y::CuVector;
+    y::CuVector,
+    ::EvoTreeClassifier{L,T};
     MAX_THREADS = 1024,
-)
+) where {L<:Softmax,T}
     p .= p .- maximum(p, dims = 1)
     p_prob = exp.(p) ./ sum(exp.(p), dims = 1)
     threads = min(MAX_THREADS, length(y))
@@ -184,19 +184,18 @@ function kernel_gauss_δ𝑤!(δ𝑤::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDe
 end
 
 function update_grads_gpu!(
-    ::Type{GaussianMLE},
     δ𝑤::CuMatrix,
     p::CuMatrix,
-    y::CuVector;
+    y::CuVector,
+    ::Union{EvoTreeGaussian{L,T},EvoTreeMLE{L,T}};
     MAX_THREADS = 1024,
-)
+) where {L<:GaussianMLE,T}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)
     @cuda blocks = blocks threads = threads kernel_gauss_δ𝑤!(δ𝑤, p, y)
     CUDA.synchronize()
     return
 end
-
 
 function update_childs_∑_gpu!(::Type{L}, nodes, n, bin, feat) where {L}
     nodes[n<<1].∑ .= nodes[n].hL[:, bin, feat]

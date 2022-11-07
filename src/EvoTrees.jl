@@ -25,8 +25,8 @@ import MLJModelInterface: fit, update, predict, schema
 import Base: convert
 
 include("models.jl")
-include("structs.jl")
 
+include("structs.jl")
 include("loss.jl")
 include("eval.jl")
 include("predict.jl")
@@ -40,6 +40,7 @@ include("gpu/predict_gpu.jl")
 include("gpu/find_split_gpu.jl")
 include("gpu/fit_gpu.jl")
 
+include("callback.jl")
 include("importance.jl")
 include("plot.jl")
 include("MLJ.jl")
@@ -59,7 +60,7 @@ function save(model::EvoTree, path)
 end
 
 function save(model::EvoTreeGPU, path)
-    m = convert(GBTree, model)
+    m = convert(EvoTree, model)
     save(m, path)
 end
 

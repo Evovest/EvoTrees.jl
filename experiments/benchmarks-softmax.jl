@@ -42,8 +42,7 @@ params_evo = EvoTreeClassifier(
     min_weight=10.0,
     rowsample=0.5,
     colsample=0.5,
-    nbins=64,
-    num_class=num_class
+    nbins=64
 )
 
 nobs = Int(1e6)
