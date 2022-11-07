@@ -8,7 +8,6 @@ using CategoricalArrays
 using Distributions
 using EvoTrees
 using EvoTrees: logit, sigmoid
-# import EvoTrees: EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount, EvoTreeGaussian
 
 ##################################################
 ### Regression - small data
@@ -74,7 +73,7 @@ config = EvoTreeClassifier(
 model = fit_evotree(config; x_train, y_train);
 model = fit_evotree(config; x_train, y_train, x_eval = x_train, y_eval = y_train, metric=:mlogloss, print_every_n=10, early_stopping_rounds=25);
 
-pred = predict(model, x_train)
+pred = model(x_train)
 pred_cat = pred .> 0.5
 sum((y_train .== "B") .== pred_cat[:, 1]) / length(y_train)
 
@@ -90,16 +89,16 @@ fit!(mach, rows = train, verbosity = 1)
 rpt = report(mach)
 MLJBase.feature_importances(config, mach.fitresult, rpt)
 
-pred_train = predict(tree, selectrows(X, train))
-pred_train_mode = predict_mode(tree, selectrows(X, train))
-println(cross_entropy(pred_train, selectrows(y, train)) |> mean)
-println(sum(pred_train_mode .== y[train]))
+pred_train = EvoTrees.predict(mach, selectrows(X, train))
+pred_train_mode = predict_mode(mach, selectrows(X, train))
+println(cross_entropy(pred_train, selectrows(y_train, train)) |> mean)
+println(sum(pred_train_mode .== y_train[train]) / length(train))
 
-pred_test = predict(tree, selectrows(X, test))
-pred_test_mode = predict_mode(tree, selectrows(X, test))
-println(cross_entropy(pred_test, selectrows(y, test)) |> mean)
-println(sum(pred_test_mode .== y[test]))
-pred_test_mode = predict_mode(tree, selectrows(X, test))
+pred_test = EvoTrees.predict(mach, selectrows(X, test))
+pred_test_mode = predict_mode(mach, selectrows(X, test))
+println(cross_entropy(pred_test, selectrows(y_train, test)) |> mean)
+println(sum(pred_test_mode .== y_train[test]) / length(test))
+pred_test_mode = predict_mode(mach, selectrows(X, test))
 
 # using LossFunctions, Plots
 # evo_model = EvoTreeClassifier(max_depth=6, η=0.05, λ=1.0, γ=0.0, nrounds=10, nbins=64)

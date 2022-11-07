@@ -1,5 +1,10 @@
 # linear
-function update_grads!(::Type{Linear}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
+function update_grads!(
+    δ𝑤::Matrix,
+    p::Matrix,
+    y::Vector,
+    ::EvoTreeRegressor{L,T}
+) where {L<:Linear,T}
     @threads for i in eachindex(y)
         @inbounds δ𝑤[1, i] = 2 * (p[1, i] - y[i]) * δ𝑤[3, i]
         @inbounds δ𝑤[2, i] = 2 * δ𝑤[3, i]
@@ -7,7 +12,7 @@ function update_grads!(::Type{Linear}, δ𝑤::Matrix, p::Matrix, y::Vector; kwa
 end
 
 # logistic - on linear predictor
-function update_grads!(::Type{Logistic}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
+function update_grads!(δ𝑤::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T}) where {L<:Logistic,T}
     @threads for i in eachindex(y)
         @inbounds pred = sigmoid(p[1, i])
         @inbounds δ𝑤[1, i] = (pred - y[i]) * δ𝑤[3, i]
@@ -16,7 +21,7 @@ function update_grads!(::Type{Logistic}, δ𝑤::Matrix, p::Matrix, y::Vector; k
 end
 
 # Poisson
-function update_grads!(::Type{Poisson}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
+function update_grads!(δ𝑤::Matrix, p::Matrix, y::Vector, ::EvoTreeCount{L,T}) where {L<:Poisson,T}
     @threads for i in eachindex(y)
         @inbounds pred = exp(p[1, i])
         @inbounds δ𝑤[1, i] = (pred - y[i]) * δ𝑤[3, i]
@@ -25,7 +30,7 @@ function update_grads!(::Type{Poisson}, δ𝑤::Matrix, p::Matrix, y::Vector; kw
 end
 
 # Gamma
-function update_grads!(::Type{Gamma}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
+function update_grads!(δ𝑤::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T}) where {L<:Gamma,T}
     @threads for i in eachindex(y)
         @inbounds pred = exp(p[1, i])
         @inbounds δ𝑤[1, i] = 2 * (1 - y[i] / pred) * δ𝑤[3, i]
@@ -34,7 +39,7 @@ function update_grads!(::Type{Gamma}, δ𝑤::Matrix, p::Matrix, y::Vector; kwar
 end
 
 # Tweedie
-function update_grads!(::Type{Tweedie}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
+function update_grads!(δ𝑤::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T}) where {L<:Tweedie,T}
     rho = eltype(p)(1.5)
     @threads for i in eachindex(y)
         @inbounds pred = exp(p[1, i])
@@ -45,18 +50,17 @@ function update_grads!(::Type{Tweedie}, δ𝑤::Matrix, p::Matrix, y::Vector; kw
 end
 
 # L1
-function update_grads!(::Type{L1}, δ𝑤::Matrix, p::Matrix, y::Vector; alpha, kwargs...)
+function update_grads!(δ𝑤::Matrix, p::Matrix, y::Vector, params::EvoTreeRegressor{L,T}) where {L<:L1,T}
     @threads for i in eachindex(y)
         @inbounds δ𝑤[1, i] =
-            (alpha * max(y[i] - p[1, i], 0) - (1 - alpha) * max(p[1, i] - y[i], 0)) *
+            (params.alpha * max(y[i] - p[1, i], 0) - (1 - params.alpha) * max(p[1, i] - y[i], 0)) *
             δ𝑤[3, i]
     end
 end
 
 # Softmax
-function update_grads!(::Type{Softmax}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
-    p .= p .- maximum(p, dims=1)
-    sums = sum(exp.(p), dims=1)
+function update_grads!(δ𝑤::Matrix, p::Matrix, y::Vector, ::EvoTreeClassifier{L,T}) where {L<:Softmax,T}
+    sums = sum(exp.(p), dims = 1)
     K = (size(δ𝑤, 1) - 1) ÷ 2
     @threads for i in eachindex(y)
         @inbounds for k = 1:K
@@ -72,9 +76,9 @@ function update_grads!(::Type{Softmax}, δ𝑤::Matrix, p::Matrix, y::Vector; kw
 end
 
 # Quantile
-function update_grads!(::Type{Quantile}, δ𝑤::Matrix, p::Matrix, y::Vector; alpha, kwargs...)
+function update_grads!(δ𝑤::Matrix, p::Matrix, y::Vector, params::EvoTreeRegressor{L,T}) where {L<:Quantile,T}
     @threads for i in eachindex(y)
-        @inbounds δ𝑤[1, i] = y[i] > p[1, i] ? alpha * δ𝑤[3, i] : (alpha - 1) * δ𝑤[3, i]
+        @inbounds δ𝑤[1, i] = y[i] > p[1, i] ? params.alpha * δ𝑤[3, i] : (params.alpha - 1) * δ𝑤[3, i]
         @inbounds δ𝑤[2, i] = y[i] - p[1, i] # δ² serves to calculate the quantile value - hence no weighting on δ²
     end
 end
@@ -82,7 +86,7 @@ end
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
-function update_grads!(::Type{GaussianMLE}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
+function update_grads!(δ𝑤::Matrix, p::Matrix, y::Vector, ::Union{EvoTreeGaussian{L,T},EvoTreeMLE{L,T}}) where {L<:GaussianMLE,T}
     @threads for i in eachindex(y)
         # first order
         @inbounds δ𝑤[1, i] = (p[1, i] - y[i]) / exp(2 * p[2, i]) * δ𝑤[5, i]
@@ -97,11 +101,12 @@ end
 # pdf = 
 # pred[i][1] = μ
 # pred[i][2] = log(s)
-function update_grads!(::Type{LogisticMLE}, δ𝑤::Matrix, p::Matrix, y::Vector; kwargs...)
+function update_grads!(δ𝑤::Matrix, p::Matrix, y::Vector, ::EvoTreeMLE{L,T}) where {L<:LogisticMLE,T}
     ϵ = eltype(p)(2e-7)
     @threads for i in eachindex(y)
         # first order
-        @inbounds δ𝑤[1, i] = -tanh((y[i] - p[1, i]) / (2 * exp(p[2, i]))) * exp(-p[2, i]) * δ𝑤[5, i]
+        @inbounds δ𝑤[1, i] =
+            -tanh((y[i] - p[1, i]) / (2 * exp(p[2, i]))) * exp(-p[2, i]) * δ𝑤[5, i]
         @inbounds δ𝑤[2, i] =
             -(
                 exp(-p[2, i]) *

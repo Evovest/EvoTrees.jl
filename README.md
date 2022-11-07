@@ -87,8 +87,8 @@ config = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5, 
     colsample=1.0)
-model = fit_evotree(config; x_train = x_train, y_train = y_train)
-preds = predict(model, x_eval)
+m = fit_evotree(config; x_train, y_train)
+preds = m(x_train)
 ```
 
 ## Feature importance
@@ -96,7 +96,7 @@ preds = predict(model, x_eval)
 Returns the normalized gain by feature.
 
 ```julia
-features_gain = importance(model)
+features_gain = importance(m)
 ```
 
 ## Plot
@@ -104,7 +104,7 @@ features_gain = importance(model)
 Plot a given tree of the model:
 
 ```julia
-plot(model, 2)
+plot(m, 2)
 ```
 
 ![](figures/plot_tree.png)
@@ -114,6 +114,8 @@ Note that 1st tree is used to set the bias so the first real tree is #2.
 ## Save/Load
 
 ```julia
-EvoTrees.save(model, "data/model.bson")
-model = EvoTrees.load("data/model.bson");
+EvoTrees.save(m, "data/model.bson")
+m = EvoTrees.load("data/model.bson");
 ```
+
+A GPU model should be converted into a CPU one before saving: `m_cpu = convert(EvoTree, m_gpu)`.

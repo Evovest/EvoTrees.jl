@@ -70,7 +70,6 @@ tree_model = EvoTreeClassifier(
     lambda = 0.0,
     gamma = 0.0,
     nrounds = 10,
-    num_class = 2,
 )
 
 # @load EvoTreeRegressor
@@ -279,7 +278,7 @@ end
 
 # Test that feature importances work for Classifier
 X, y = MLJBase.make_blobs(100, 3)
-model = EvoTreeClassifier(num_class = 3)
+model = EvoTreeClassifier()
 m = machine(model, X, y)
 fit!(m)
 

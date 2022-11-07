@@ -62,4 +62,4 @@ struct EvoTree{L,K,T}
     info::Dict
 end
 (m::EvoTree)(x::AbstractMatrix) = predict(m, x)
-get_types(::EvoTree{L,K,T}) where {L,K,T} = (L,K,T)
+get_types(::EvoTree{L,K,T}) where {L,K,T} = (L,T)

@@ -79,12 +79,12 @@ function predict(::EvoTreeGaussian, fitresult, A)
     return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
-function predict(::EvoTreeMLE{L,T,S}, fitresult, A) where {L<:GaussianMLE,T,S}
+function predict(::EvoTreeMLE{L,T}, fitresult, A) where {L<:GaussianMLE,T}
     pred = predict(fitresult, A.matrix)
     return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
-function predict(::EvoTreeMLE{L,T,S}, fitresult, A) where {L<:LogisticMLE,T,S}
+function predict(::EvoTreeMLE{L,T}, fitresult, A) where {L<:LogisticMLE,T}
     pred = predict(fitresult, A.matrix)
     return [Distributions.Logistic(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end

@@ -39,11 +39,10 @@ params_evo = EvoTreeClassifier(
     gamma=0.0,
     eta=0.05,
     max_depth=6,
-    min_weight=10.0,
+    min_weight=1.0,
     rowsample=0.5,
     colsample=0.5,
-    nbins=64,
-    num_class=num_class
+    nbins=64
 )
 
 nobs = Int(1e6)
@@ -65,7 +64,7 @@ params_evo.device = "cpu"
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
 # @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
-# @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train);
+@time fit_evotree(params_evo; x_train, y_train);
 @info "evotrees predict CPU:"
 @time pred_evo = EvoTrees.predict(m_evo, x_train);
 @btime EvoTrees.predict($m_evo, $x_train);

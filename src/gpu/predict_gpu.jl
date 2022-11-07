@@ -106,7 +106,7 @@ function predict!(
     pred::AbstractMatrix{T},
     tree::TreeGPU{L,K,T},
     X::AbstractMatrix;
-    MAX_THREADS=1024
+    MAX_THREADS = 1024,
 ) where {L,K,T}
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
@@ -123,6 +123,28 @@ function predict!(
     CUDA.synchronize()
 end
 
+function predict!(
+    pred::AbstractMatrix{T},
+    tree::TreeGPU{L,K,T},
+    X::AbstractMatrix;
+    MAX_THREADS = 1024,
+) where {L<:Softmax,K,T}
+    n = size(pred, 2)
+    threads = min(MAX_THREADS, n)
+    blocks = ceil(Int, n / threads)
+    @cuda blocks = blocks threads = threads predict_kernel!(
+        L,
+        pred,
+        tree.split,
+        tree.feat,
+        tree.cond_float,
+        tree.pred,
+        X,
+    )
+    CUDA.synchronize()
+    pred .= max.(-15, pred .- maximum(pred, dims = 1))
+end
+
 # prediction from single tree - assign each observation to its final leaf
 function predict(tree::TreeGPU{L,K,T}, X::AbstractMatrix) where {L,K,T}
     pred = CUDA.zeros(T, K, size(X, 1))
@@ -132,16 +154,16 @@ end
 
 # prediction from single tree - assign each observation to its final leaf
 function predict(
-    model::EvoTreeGPU{L,K,T},
+    m::EvoTreeGPU{L,K,T},
     X::AbstractMatrix;
-    ntree_limit=length(model.trees)
+    ntree_limit = length(m.trees),
 ) where {L,K,T}
     pred = CUDA.zeros(T, K, size(X, 1))
     X_gpu = CuArray(X)
-    ntrees = length(model.trees)
+    ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
     for i = 1:ntree_limit
-        predict!(pred, model.trees[i], X_gpu)
+        predict!(pred, m.trees[i], X_gpu)
     end
     if L == Logistic
         pred .= sigmoid.(pred)
@@ -160,8 +182,8 @@ function pred_leaf_gpu!(
     p::AbstractMatrix{T},
     n,
     ∑::AbstractVector{T},
-    params::EvoTypes{L,K,T},
-) where {L<:GradientRegression,K,T}
+    params::EvoTypes{L,T},
+) where {L<:GradientRegression,T}
     @allowscalar(p[1, n] = -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3]))
     return nothing
 end
@@ -171,8 +193,8 @@ function pred_leaf_gpu!(
     p::AbstractMatrix{T},
     n,
     ∑::AbstractVector{T},
-    params::EvoTypes{L,K,T},
-) where {L<:MLE2P,K,T}
+    params::EvoTypes{L,T},
+) where {L<:MLE2P,T}
     @allowscalar(p[1, n] = -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5]))
     @allowscalar(p[2, n] = -params.eta * ∑[2] / (∑[4] + params.lambda * ∑[5]))
     return nothing
@@ -183,12 +205,11 @@ function pred_leaf_gpu!(
     p::AbstractMatrix{T},
     n,
     ∑::AbstractVector{T},
-    params::EvoTypes{L,K,T},
-) where {L<:MultiClassRegression,K,T}
+    params::EvoTypes{L,T},
+) where {L<:MultiClassRegression,T}
+    K = size(p, 1)
     @inbounds for k = 1:K
-        @allowscalar(
-            p[k, n] = -params.eta * ∑[k] / (∑[k+K] + params.lambda * ∑[end])
-        )
+        @allowscalar(p[k, n] = -params.eta * ∑[k] / (∑[k+K] + params.lambda * ∑[end]))
     end
     return nothing
 end
