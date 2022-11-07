@@ -1,8 +1,14 @@
 module EvoTrees
 
-export init_evotree, grow_evotree!, fit_evotree
-export EvoTreeRegressor, EvoTreeCount, EvoTreeClassifier, EvoTreeMLE, EvoTreeGaussian, EvoTree, EvoTreeGPU,
-    importance, Random
+export init_evotree, grow_evotree!, fit_evotree, importance
+export EvoTreeRegressor,
+    EvoTreeCount,
+    EvoTreeClassifier,
+    EvoTreeMLE,
+    EvoTreeGaussian,
+    EvoTree,
+    EvoTreeGPU,
+    Random
 
 using Base.Threads: @threads
 using Statistics
@@ -46,13 +52,19 @@ include("plot.jl")
 include("MLJ.jl")
 
 function convert(::Type{EvoTree}, m::EvoTreeGPU{L,K,T}) where {L,K,T}
-    EvoTrees.EvoTree{L,K,T}([EvoTrees.Tree{L,K,T}(Array(tree.feat),
-            Array(tree.cond_bin),
-            Array(tree.cond_float),
-            Array(tree.gain),
-            Array(tree.pred),
-            Array(tree.split)) for tree in m.trees],
-        m.info)
+    EvoTrees.EvoTree{L,K,T}(
+        [
+            EvoTrees.Tree{L,K,T}(
+                Array(tree.feat),
+                Array(tree.cond_bin),
+                Array(tree.cond_float),
+                Array(tree.gain),
+                Array(tree.pred),
+                Array(tree.split),
+            ) for tree in m.trees
+        ],
+        m.info,
+    )
 end
 
 function save(model::EvoTree, path)
