@@ -155,7 +155,6 @@ function update_grads_gpu!(
     ::EvoTreeClassifier{L,T};
     MAX_THREADS = 1024,
 ) where {L<:Softmax,T}
-    p .= p .- maximum(p, dims = 1)
     p_prob = exp.(p) ./ sum(exp.(p), dims = 1)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)

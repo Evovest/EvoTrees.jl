@@ -40,6 +40,26 @@ end
 
 Generic fallback to add predictions of `tree` to existing `pred` matrix.
 """
+function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:Softmax,K,T}
+    @inbounds @threads for i in axes(X, 1)
+        nid = 1
+        @inbounds while tree.split[nid]
+            X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 :
+            nid = nid << 1 + 1
+        end
+        @inbounds for k = 1:K
+            pred[k, i] += tree.pred[k, nid]
+        end
+        @views pred[:, i] .= max.(-15, pred[:, i] .- maximum(pred[:, i]))
+    end
+    return nothing
+end
+
+"""
+    predict!(pred::Matrix, tree::Tree, X)
+
+Generic fallback to add predictions of `tree` to existing `pred` matrix.
+"""
 function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L,K,T}
     @inbounds @threads for i in axes(X, 1)
         nid = 1

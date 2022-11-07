@@ -157,7 +157,6 @@ end
 
 function mlogloss(p::CuMatrix{T}, y::CuVector, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     eval = similar(w)
-    p .= p .- maximum(p, dims = 1)
     p_prob = exp.(p) ./ sum(exp.(p), dims = 1)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)

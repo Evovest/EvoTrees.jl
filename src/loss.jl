@@ -60,7 +60,6 @@ end
 
 # Softmax
 function update_grads!(δ𝑤::Matrix, p::Matrix, y::Vector, ::EvoTreeClassifier{L,T}) where {L<:Softmax,T}
-    p .= p .- maximum(p, dims = 1)
     sums = sum(exp.(p), dims = 1)
     K = (size(δ𝑤, 1) - 1) ÷ 2
     @threads for i in eachindex(y)

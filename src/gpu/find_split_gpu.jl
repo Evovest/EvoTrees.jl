@@ -36,13 +36,6 @@ end
 """
 @inline index_f(x, i) = x[i]
 
-# x1 = rand(3,2)
-# i1 = rand(1:2, 3)
-# index_f(1:2, 2)
-# index_f(x1, i1)
-# index_f.(x1, i1)
-# index_f.(x1, i1)
-
 # base approach - block built along the cols first, the rows (limit collisions)
 function update_hist_gpu!(h∇, ∇, x_bin, 𝑖, 𝑗; MAX_THREADS=256, MAX_BLOCKS=1024)
     tz = min(64, size(h∇, 1))
@@ -143,11 +136,9 @@ function split_views_kernel!(
 end
 
 function split_set_threads_gpu!(out, left, right, 𝑖, X_bin, feat, cond_bin, offset)
-    𝑖_size = length(𝑖)
 
     nblocks = ceil(Int, min(length(𝑖) / 128, 2^10))
     chunk_size = floor(Int, length(𝑖) / nblocks)
-
     lefts = CUDA.zeros(Int, nblocks)
     rights = CUDA.zeros(Int, nblocks)
 

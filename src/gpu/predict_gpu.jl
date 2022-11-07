@@ -123,6 +123,28 @@ function predict!(
     CUDA.synchronize()
 end
 
+function predict!(
+    pred::AbstractMatrix{T},
+    tree::TreeGPU{L,K,T},
+    X::AbstractMatrix;
+    MAX_THREADS = 1024,
+) where {L<:Softmax,K,T}
+    n = size(pred, 2)
+    threads = min(MAX_THREADS, n)
+    blocks = ceil(Int, n / threads)
+    @cuda blocks = blocks threads = threads predict_kernel!(
+        L,
+        pred,
+        tree.split,
+        tree.feat,
+        tree.cond_float,
+        tree.pred,
+        X,
+    )
+    CUDA.synchronize()
+    pred .= max.(-15, pred .- maximum(pred, dims = 1))
+end
+
 # prediction from single tree - assign each observation to its final leaf
 function predict(tree::TreeGPU{L,K,T}, X::AbstractMatrix) where {L,K,T}
     pred = CUDA.zeros(T, K, size(X, 1))
