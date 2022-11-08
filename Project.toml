@@ -1,6 +1,6 @@
-authors = ["jeremiedb <jeremie.db@evovest.com>"]
 name = "EvoTrees"
 uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
+authors = ["jeremiedb <jeremie.db@evovest.com>"]
 version = "0.13.0"
 
 [deps]
@@ -33,8 +33,9 @@ julia = "1.6"
 [extras]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 MLJBase = "a7f614a8-145f-11e9-1d2a-a57a1082229d"
+MLJTestIntegration = "697918b4-fdc1-4f9e-8ff9-929724cee270"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 docs = ["Documenter"]
-test = ["Test", "MLJBase"]
+test = ["Test", "MLJBase", "MLJTestIntegration"]
