@@ -2,6 +2,46 @@ using StatsBase: sample
 using EvoTrees: sigmoid, logit
 using MLJBase
 
+using MLJTestIntegration
+
+@testset "generic interface tests" begin
+    @testset "EvoTreeRegressor, EvoTreeMLE, EvoTreeGaussian" begin
+        failures, summary = MLJTestIntegration.test(
+            [EvoTreeRegressor, EvoTreeMLE, EvoTreeGaussian],
+            MLJTestIntegration.make_regression()...;
+            mod=@__MODULE__,
+            verbosity=0, # bump to debug
+            throw=false, # set to true to debug
+        )
+        @test isempty(failures)
+    end
+    @testset "EvoTreeCount" begin
+        failures, summary = MLJTestIntegration.test(
+            [EvoTreeCount],
+            MLJTestIntegration.make_count()...;
+            mod=@__MODULE__,
+            verbosity=0, # bump to debug
+            throw=false, # set to true to debug
+        )
+        @test isempty(failures)
+    end
+    @testset "EvoTreeClassifier" begin
+        for data in [
+            MLJTestIntegration.make_binary(),
+            MLJTestIntegration.make_multiclass(),
+        ]
+            failures, summary = MLJTestIntegration.test(
+                [EvoTreeClassifier],
+                data...;
+                mod=@__MODULE__,
+                verbosity=0, # bump to debug
+                throw=false, # set to true to debug
+            )
+            @test isempty(failures)
+        end
+    end
+end
+
 ##################################################
 ### Regression - small data
 ##################################################
