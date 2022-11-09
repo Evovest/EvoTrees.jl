@@ -83,14 +83,15 @@ function init_evotree(
 
     𝑖_ = UInt32.(collect(1:x_size[1]))
     𝑗_ = UInt32.(collect(1:x_size[2]))
-    𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * x_size[2]))
+    𝑗 = zeros(UInt32, ceil(Int, params.colsample * x_size[2]))
 
     # initialize histograms
     nodes = [TrainNode(x_size[2], params.nbins, K, T) for n = 1:2^params.max_depth-1]
-    nodes[1].𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * x_size[1]))
-    out = zeros(UInt32, length(nodes[1].𝑖))
-    left = zeros(UInt32, length(nodes[1].𝑖))
-    right = zeros(UInt32, length(nodes[1].𝑖))
+    𝑖 = zeros(UInt32, ceil(Int, params.rowsample * x_size[1]))
+    # nodes[1].𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * x_size[1]))
+    out = zeros(UInt32, length(𝑖))
+    left = zeros(UInt32, length(𝑖))
+    right = zeros(UInt32, length(𝑖))
 
     # assign monotone contraints in constraints vector
     monotone_constraints = zeros(Int32, x_size[2])
@@ -106,6 +107,7 @@ function init_evotree(
         nodes = nodes,
         pred = pred,
         𝑖_ = 𝑖_,
+        𝑖 = 𝑖,
         𝑗_ = 𝑗_,
         𝑗 = 𝑗,
         out = out,
@@ -123,7 +125,9 @@ end
 function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) where {L,K,T}
 
     # select random rows and cols
-    sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace = false, ordered = true)
+    sample!(params.rng, cache[:𝑖_], cache[:𝑖], replace = false, ordered = true)
+    cache[:nodes][1].𝑖 = view(cache[:𝑖], 1:length(cache[:𝑖]))
+    # sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace = false, ordered = true)
     sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
 
     # build a new tree
@@ -152,7 +156,7 @@ end
 # grow a single tree
 function grow_tree!(
     tree::Tree{L,K,T},
-    nodes::Vector{TrainNode{T}},
+    nodes::Vector{TrainNode{T,I}},
     params::EvoTypes{L,T},
     δ𝑤::Matrix{T},
     edges,
@@ -162,7 +166,7 @@ function grow_tree!(
     right,
     x_bin::AbstractMatrix,
     monotone_constraints,
-) where {L,K,T}
+) where {L,K,T,I}
 
     # reset nodes
     @threads for n in nodes
@@ -184,7 +188,7 @@ function grow_tree!(
     nodes[1].gain = get_gain(L, nodes[1].∑, params.lambda, K)
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
-        offset = Int(0) # identifies breakpoint for each node set within a depth
+        offset = 0 # identifies breakpoint for each node set within a depth
 
         if depth < params.max_depth
             for n_id in eachindex(n_current)
@@ -232,10 +236,10 @@ function grow_tree!(
                         x_bin,
                         tree.feat[n],
                         tree.cond_bin[n],
-                        offset::Int,
+                        offset,
                     )
                     nodes[n<<1].𝑖, nodes[n<<1+1].𝑖 = _left, _right
-                    offset += length(nodes[n].𝑖)::Int
+                    offset += length(nodes[n].𝑖)
                     update_childs_∑!(L, nodes, n, best[2][1], best[2][2], K)
                     nodes[n<<1].gain = get_gain(L, nodes[n<<1].∑, params.lambda, K)
                     nodes[n<<1+1].gain = get_gain(L, nodes[n<<1+1].∑, params.lambda, K)

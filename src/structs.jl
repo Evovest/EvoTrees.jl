@@ -1,9 +1,9 @@
 """
     Carries training information for a given tree node
 """
-mutable struct TrainNode{T<:AbstractFloat}
+mutable struct TrainNode{T<:AbstractFloat, I<:SubArray{UInt32,1}}
     gain::T
-    𝑖::Union{Nothing,AbstractVector{UInt32}}
+    𝑖::I
     ∑::Vector{T}
     h::Vector{Vector{T}}
     hL::Vector{Vector{T}}
@@ -12,9 +12,9 @@ mutable struct TrainNode{T<:AbstractFloat}
 end
 
 function TrainNode(nvars, nbins, K, T)
-    node = TrainNode{T}(
+    node = TrainNode(
         zero(T),
-        nothing,
+        view(UInt32.(1:1), 1:1),
         zeros(T, 2 * K + 1),
         [zeros(T, (2 * K + 1) * nbins) for j = 1:nvars],
         [zeros(T, (2 * K + 1) * nbins) for j = 1:nvars],

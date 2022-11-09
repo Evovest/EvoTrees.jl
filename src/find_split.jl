@@ -33,18 +33,17 @@ end
 function split_set_chunk!(
     left,
     right,
-    𝑖::AbstractVector{UInt32},
+    𝑖,
     bid,
     nblocks,
     X_bin,
     feat,
     cond_bin,
-    offset::Int,
+    offset,
     chunk_size,
     lefts,
     rights,
 )
-
     left_count = 0
     right_count = 0
     i = chunk_size * (bid - 1) + 1
@@ -67,9 +66,9 @@ function split_set_chunk!(
 end
 
 function split_views_kernel!(
-    out::Vector{S},
-    left::Vector{S},
-    right::Vector{S},
+    out,
+    left,
+    right,
     bid,
     offset,
     chunk_size,
@@ -78,7 +77,7 @@ function split_views_kernel!(
     sum_lefts,
     cumsum_lefts,
     cumsum_rights,
-) where {S}
+)
     iter = 1
     i_max = lefts[bid]
     bid == 1 ? cumsum_left = 0 : cumsum_left = cumsum_lefts[bid-1]
@@ -98,16 +97,15 @@ function split_views_kernel!(
 end
 
 function split_set_threads!(
-    out::AbstractVector{UInt32},
-    left::AbstractVector{UInt32},
-    right::AbstractVector{UInt32},
-    𝑖::AbstractVector{UInt32},
-    X_bin::Matrix{S},
+    out,
+    left,
+    right,
+    𝑖,
+    X_bin,
     feat,
     cond_bin,
     offset,
-) where {S}
-
+)
     # iter = Iterators.partition(𝑖, chunk_size)
     nblocks = ceil(Int, min(length(𝑖) / 1024, Threads.nthreads()))
     chunk_size = floor(Int, length(𝑖) / nblocks)
@@ -135,6 +133,7 @@ function split_set_threads!(
     sum_lefts = sum(lefts)
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
+
     @threads for bid = 1:nblocks
         split_views_kernel!(
             out,
@@ -152,8 +151,8 @@ function split_set_threads!(
     end
 
     return (
-        view(out, offset+1:offset+sum_lefts)::AbstractVector{UInt32},
-        view(out, offset+sum_lefts+1:offset+length(𝑖))::AbstractVector{UInt32},
+        view(out, offset+1:offset+sum_lefts),
+        view(out, offset+sum_lefts+1:offset+length(𝑖)),
     )
 end
 

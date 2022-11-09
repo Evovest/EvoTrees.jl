@@ -21,7 +21,6 @@ train_size = 0.8
 x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
 y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 
-
 ###########################
 # Tree CPU
 ###########################
@@ -34,7 +33,7 @@ params_c = EvoTreeRegressor(
     eta=0.1,
     max_depth=6,
     min_weight=1.0,
-    rowsample=1.0,
+    rowsample=0.5,
     colsample=0.5,
     nbins=64,
 );
@@ -43,7 +42,7 @@ params_c = EvoTreeRegressor(
 
 @time for i in 1:100
     EvoTrees.grow_evotree!(model_c, cache_c, params_c);
-end 
+end
 
 # initialize from cache
 X_size = size(cache_c.x_bin)
@@ -51,7 +50,12 @@ X_size = size(cache_c.x_bin)
 # select random rows and cols
 # i: 6.801 ms (2 allocations: 288 bytes)
 # j: 771.576 ns (2 allocations: 288 bytes)
-sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace=false, ordered=true);
+function set_i()
+    sample!(params_c.rng, cache_c.𝑖_, cache_c[:𝑖], replace = false, ordered = true)
+    cache_c.nodes[1].𝑖 = view(cache_c[:𝑖], 1:length(cache_c[:𝑖]))
+end
+@time set_i();
+# sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace=false, ordered=true);
 sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true);
 # @btime sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace=false, ordered=true);
 # @btime sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true);
@@ -70,8 +74,10 @@ T = Float32
 # gain = EvoTrees.get_gain(params_c.loss, ∑, params_c.λ)
 # assign a root and grow tree
 # train_nodes[1] = EvoTrees.TrainNode(UInt32(0), UInt32(1), ∑, gain)
+# cache_c.nodes[1].∑ .= @views vec(sum(cache_c.δ𝑤[:, cache_c.nodes[1].𝑖], dims = 2))
 
-# 14.173 ms (6808 allocations: 634.27 KiB)
+# 14.173 ms (6808 allocations: 634.27 KiB): rowsample 0.5
+# 21.882 ms (6376 allocations: 597.23 KiB): rowsample 1.0
 tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
 @time EvoTrees.grow_tree!(
     tree,
@@ -114,20 +120,6 @@ tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
     $cache_c.monotone_constraints,
 )
 
-@btime EvoTrees.grow_tree!(
-    EvoTrees.Tree($params_c.max_depth, $model_c.K, $params_c.λ),
-    $params_c,
-    $cache_c.δ,
-    $cache_c.hist,
-    $cache_c.histL,
-    $cache_c.histR,
-    $cache_c.gains,
-    $cache_c.edges,
-    $𝑖,
-    $𝑗,
-    $𝑛,
-    $cache_c.X_bin,
-);
 @code_warntype EvoTrees.grow_tree!(
     EvoTrees.Tree(params_c.max_depth, model_c.K, params_c.λ),
     params_c,
@@ -144,7 +136,7 @@ tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
 );
 
 # push!(model_c.trees, tree)
-# 983.533 μs (75 allocations: 7.17 KiB)
+# 990.817 μs (75 allocations: 7.17 KiB)
 @btime EvoTrees.predict!(cache_c.pred, tree, cache_c.x)
 
 δ𝑤, edges, x_bin, nodes, out, left, right, monotone_constraints = cache_c.δ𝑤,
