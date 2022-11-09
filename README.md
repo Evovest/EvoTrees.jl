@@ -41,11 +41,11 @@ julia> Pkg.add("EvoTrees")
 
 Data consists of randomly generated float32. Training is performed on 200 iterations. Code to reproduce is [here](https://github.com/Evovest/EvoTrees.jl/blob/master/experiments/benchmarks_v2.jl). 
 
-EvoTrees: v0.8.4
-XGBoost: v1.1.1
+EvoTrees: v0.13.0
+XGBoost: v1.7.1
 
-CPU: 16 threads on AMD Threadripper 3970X
-GPU: NVIDIA RTX 2080
+CPU: 12 threads on AMD Ryzen 5900x
+GPU: NVIDIA RTX A4000
 
 ### Training: 
 
@@ -53,8 +53,8 @@ GPU: NVIDIA RTX 2080
 |---------------------|:------------:|:--------:|:------------:|
 | 100K x 100          |     1.10s    |   1.80s  |     3.14s    |
 | 500K x 100          |     4.83s    |   4.98s  |     4.98s    |
-| 1M x 100            |     9.84s    |   9.89s  |     7.37s    |
-| 5M x 100            |     45.5s    |   53.8s  |     25.8s    |
+| 1M x 100            |     13.3s    |   8.61s  |     6.96s    |
+| 5M x 100            |     45.5s    |   44.8s  |     22.5s    |
 
 ### Inference:
 
@@ -62,8 +62,8 @@ GPU: NVIDIA RTX 2080
 |---------------------|:------------:|:--------:|:------------:|
 | 100K x 100          |    0.164s    |  0.026s  |    0.013s    |
 | 500K x 100          |    0.796s    |  0.175s  |    0.055s    |
-| 1M x 100            |     1.59s    |  0.396s  |    0.108s    |
-| 5M x 100            |     7.96s    |   2.15s  |    0.543s    |
+| 1M x 100            |    1.17s     |  0.634s  |    0.114s    |
+| 5M x 100            |    7.96s     |  3.48s   |    0.508s    |
 
 
 ## MLJ Integration

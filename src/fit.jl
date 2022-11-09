@@ -184,7 +184,7 @@ function grow_tree!(
     nodes[1].gain = get_gain(L, nodes[1].∑, params.lambda, K)
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
-        offset = 0 # identifies breakpoint for each node set within a depth
+        offset = Int(0) # identifies breakpoint for each node set within a depth
 
         if depth < params.max_depth
             for n_id in eachindex(n_current)
@@ -232,10 +232,10 @@ function grow_tree!(
                         x_bin,
                         tree.feat[n],
                         tree.cond_bin[n],
-                        offset,
+                        offset::Int,
                     )
                     nodes[n<<1].𝑖, nodes[n<<1+1].𝑖 = _left, _right
-                    offset += length(nodes[n].𝑖)
+                    offset += length(nodes[n].𝑖)::Int
                     update_childs_∑!(L, nodes, n, best[2][1], best[2][2], K)
                     nodes[n<<1].gain = get_gain(L, nodes[n<<1].∑, params.lambda, K)
                     nodes[n<<1+1].gain = get_gain(L, nodes[n<<1+1].∑, params.lambda, K)

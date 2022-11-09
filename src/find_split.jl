@@ -33,13 +33,13 @@ end
 function split_set_chunk!(
     left,
     right,
-    𝑖,
+    𝑖::AbstractVector{UInt32},
     bid,
     nblocks,
     X_bin,
     feat,
     cond_bin,
-    offset,
+    offset::Int,
     chunk_size,
     lefts,
     rights,
@@ -98,10 +98,10 @@ function split_views_kernel!(
 end
 
 function split_set_threads!(
-    out,
-    left,
-    right,
-    𝑖,
+    out::AbstractVector{UInt32},
+    left::AbstractVector{UInt32},
+    right::AbstractVector{UInt32},
+    𝑖::AbstractVector{UInt32},
     X_bin::Matrix{S},
     feat,
     cond_bin,
@@ -152,8 +152,8 @@ function split_set_threads!(
     end
 
     return (
-        view(out, offset+1:offset+sum_lefts),
-        view(out, offset+sum_lefts+1:offset+length(𝑖)),
+        view(out, offset+1:offset+sum_lefts)::AbstractVector{UInt32},
+        view(out, offset+sum_lefts+1:offset+length(𝑖))::AbstractVector{UInt32},
     )
 end
 

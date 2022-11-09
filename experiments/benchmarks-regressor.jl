@@ -3,6 +3,7 @@ using Statistics
 using StatsBase: sample
 using XGBoost
 using EvoTrees
+using DataFrames
 using BenchmarkTools
 using CUDA
 
@@ -24,17 +25,17 @@ elseif loss == "logistic"
 end
 
 # xgboost aprams
-params_xgb = [
-    "max_depth" => 5,
-    "eta" => 0.05,
-    "objective" => loss_xgb,
-    "print_every_n" => 5,
-    "subsample" => 0.5,
-    "colsample_bytree" => 0.5,
-    "tree_method" => "hist",
-    "max_bin" => 64,
-]
-metrics = [metric_xgb]
+params_xgb = Dict(
+    :max_depth => 5,
+    :eta => 0.05,
+    :objective => loss_xgb,
+    :print_every_n => 5,
+    :subsample => 0.5,
+    :colsample_bytree => 0.5,
+    :tree_method => "hist",
+    :max_bin => 64,
+)
+# metrics = [metric_xgb]
 
 # EvoTrees params
 params_evo = EvoTreeRegressor(
@@ -59,7 +60,9 @@ x_train = rand(nobs, num_feat)
 y_train = rand(size(x_train, 1))
 
 @info "xgboost train:"
-@time m_xgb = xgboost(x_train, nrounds, label=y_train, param=params_xgb, metrics=metrics, nthread=nthread, silent=1);
+dtrain = DMatrix(x_train, label = y_train)
+watchlist = Dict("train"=>dtrain)
+@time m_xgb = xgboost(dtrain; watchlist=watchlist, num_round = nrounds, threads = 8, verbosity = 0, params_xgb...);
 @btime xgboost($x_train, $nrounds, label=$y_train, param=$params_xgb, metrics=$metrics, nthread=$nthread, silent=1);
 @info "xgboost predict:"
 @time pred_xgb = XGBoost.predict(m_xgb, x_train);
