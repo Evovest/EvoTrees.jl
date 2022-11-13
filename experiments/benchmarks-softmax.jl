@@ -17,17 +17,18 @@ metric_evo = :mlogloss
 
 
 # xgboost aprams
-params_xgb = [
-    "max_depth" => 5,
-    "eta" => 0.05,
-    "objective" => loss_xgb,
-    "print_every_n" => 5,
-    "subsample" => 0.5,
-    "colsample_bytree" => 0.5,
-    "tree_method" => "hist",
-    "max_bin" => 64,
-    "num_class" => num_class,
-]
+params_xgb = Dict(
+    :num_round => nrounds,
+    :max_depth => 5,
+    :eta => 0.05,
+    :objective => loss_xgb,
+    :print_every_n => 5,
+    :subsample => 0.5,
+    :colsample_bytree => 0.5,
+    :tree_method => "hist",
+    :max_bin => 64,
+    :num_class => num_class,
+)
 metrics = [metric_xgb]
 
 # EvoTrees params
@@ -52,9 +53,9 @@ x_train = rand(nobs, num_feat)
 y_train = rand(1:num_class, size(x_train, 1))
 
 @info "xgboost train:"
-@time m_xgb = xgboost(x_train, nrounds, label=y_train .- 1 , param=params_xgb, metrics=metrics, nthread=nthread, silent=1);
-@time m_xgb = xgboost(x_train, nrounds, label=y_train .- 1 , param=params_xgb, metrics=metrics, nthread=nthread, silent=1);
-# @btime xgboost($x_train, $nrounds, label=$y_train .- 1, param=$params_xgb, metrics=$metrics, nthread=$nthread, silent=1);
+dtrain = DMatrix(x_train, y_train .- 1)
+watchlist = Dict("train" => DMatrix(x_train, y_train .- 1))
+@time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, params_xgb...);
 @info "xgboost predict:"
 @time pred_xgb = XGBoost.predict(m_xgb, x_train);
 @btime XGBoost.predict($m_xgb, $x_train);

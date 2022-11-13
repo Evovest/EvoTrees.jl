@@ -60,7 +60,7 @@ end
 
 # Softmax
 function update_grads!(δ𝑤::Matrix, p::Matrix, y::Vector, ::EvoTreeClassifier{L,T}) where {L<:Softmax,T}
-    sums = sum(exp.(p), dims = 1)
+    sums = sum(exp.(p), dims=1)
     K = (size(δ𝑤, 1) - 1) ÷ 2
     @threads for i in eachindex(y)
         @inbounds for k = 1:K
@@ -153,71 +153,39 @@ end
 ##############################
 # GradientRegression
 function get_gain(
-    ::Type{L},
-    ∑::Vector{T},
-    λ::T,
-    K,
-) where {L<:GradientRegression,T<:AbstractFloat}
-    ∑[1]^2 / (∑[2] + λ * ∑[3]) / 2
+    params::EvoTypes{L,T},
+    ∑::AbstractVector{T},
+) where {L<:GradientRegression,T}
+    ∑[1]^2 / (∑[2] + params.lambda * ∑[3]) / 2
 end
 
 # GaussianRegression
-function get_gain(::Type{L}, ∑::Vector{T}, λ::T, K) where {L<:MLE2P,T<:AbstractFloat}
-    (∑[1]^2 / (∑[3] + λ * ∑[5]) + ∑[2]^2 / (∑[4] + λ * ∑[5])) / 2
+function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:MLE2P,T}
+    (∑[1]^2 / (∑[3] + params.lambda * ∑[5]) + ∑[2]^2 / (∑[4] + params.lambda * ∑[5])) / 2
 end
 
 # MultiClassRegression
 function get_gain(
-    ::Type{L},
-    ∑::Vector{T},
-    λ::T,
-    K,
-) where {L<:MultiClassRegression,T<:AbstractFloat}
+    params::EvoTypes{L,T},
+    ∑::AbstractVector{T},
+) where {L<:MultiClassRegression,T}
     gain = zero(T)
+    K = (length(∑) - 1) ÷ 2
     @inbounds for k = 1:K
-        gain += ∑[k]^2 / (∑[k+K] + λ * ∑[2*K+1]) / 2
+        gain += ∑[k]^2 / (∑[k+K] + params.lambda * ∑[2*K+1]) / 2
     end
     return gain
 end
 
 # QuantileRegression
 function get_gain(
-    ::Type{L},
-    ∑::Vector{T},
-    λ::T,
-    K,
-) where {L<:QuantileRegression,T<:AbstractFloat}
+    params::EvoTypes{L,T},
+    ∑::AbstractVector{T},
+) where {L<:QuantileRegression,T}
     abs(∑[1])
 end
 
 # L1 Regression
-function get_gain(::Type{L}, ∑::Vector{T}, λ::T, K) where {L<:L1Regression,T<:AbstractFloat}
+function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:L1Regression,T}
     abs(∑[1])
-end
-
-
-function update_childs_∑!(
-    ::Type{L},
-    nodes,
-    n,
-    bin,
-    feat,
-    K,
-) where {L<:Union{GradientRegression,QuantileRegression,L1Regression}}
-    nodes[n<<1].∑ .= nodes[n].hL[feat][(3*bin-2):(3*bin)]
-    nodes[n<<1+1].∑ .= nodes[n].hR[feat][(3*bin-2):(3*bin)]
-    return nothing
-end
-
-function update_childs_∑!(::Type{L}, nodes, n, bin, feat, K) where {L<:MLE2P}
-    nodes[n<<1].∑ .= nodes[n].hL[feat][(5*bin-4):(5*bin)]
-    nodes[n<<1+1].∑ .= nodes[n].hR[feat][(5*bin-4):(5*bin)]
-    return nothing
-end
-
-function update_childs_∑!(::Type{L}, nodes, n, bin, feat, K) where {L<:MultiClassRegression}
-    KK = 2 * K + 1
-    nodes[n<<1].∑ .= nodes[n].hL[feat][(KK*(bin-1)+1):(KK*bin)]
-    nodes[n<<1+1].∑ .= nodes[n].hR[feat][(KK*(bin-1)+1):(KK*bin)]
-    return nothing
 end
