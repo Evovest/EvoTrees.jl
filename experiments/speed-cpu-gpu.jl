@@ -39,20 +39,6 @@ params_c = EvoTreeRegressor(
     nbins = 64,
 );
 
-# params_c = EvoTrees.EvoTreeLogistic(T=Float32,
-#     loss=:linear,
-#     nrounds=100,
-#     lambda=1.0, gamma=0.0, eta=0.1,
-#     max_depth=6, min_weight=1.0,
-#     rowsample=0.5, colsample=0.5, nbins=64);
-
-# params_c = EvoTreeGaussian(T=Float32,
-#     loss=:gaussian, metric=:none,
-#     nrounds=100,
-#     λ=1.0, γ=0.1, η=0.1,
-#     max_depth=6, min_weight=1.0,
-#     rowsample=0.5, colsample=0.5, nbins=64);
-
 model_c, cache_c = EvoTrees.init_evotree(params_c; x_train, y_train);
 
 # initialize from cache
@@ -72,15 +58,10 @@ K = 1
 T = Float32
 # build a new tree
 # 897.800 μs (6 allocations: 736 bytes)
-@time EvoTrees.update_grads!(L, cache_c.δ𝑤, cache_c.pred, cache_c.y; alpha = params_c.alpha)
+@time EvoTrees.update_grads!(cache_c.δ𝑤, cache_c.pred, cache_c.y, params_c)
 # @btime EvoTrees.update_grads!($params_c.loss, $cache_c.δ𝑤, $cache_c.pred_cpu, $cache_c.Y_cpu, $params_c.α)
-# ∑ = vec(sum(cache_c.δ[𝑖,:], dims=1))
-# gain = EvoTrees.get_gain(params_c.loss, ∑, params_c.λ)
-# assign a root and grow tree
-# train_nodes[1] = EvoTrees.TrainNode(UInt32(0), UInt32(1), ∑, gain)
 
-# 62.530 ms (7229 allocations: 17.43 MiB)
-# 1.25e5: 9.187 ms (7358 allocations: 2.46 MiB)
+# 12.058 ms (2998 allocations: 284.89 KiB)
 tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
 @time EvoTrees.grow_tree!(
     tree,
@@ -108,9 +89,8 @@ tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
     cache_c.x_bin,
     cache_c.monotone_constraints,
 )
-
 @btime EvoTrees.grow_tree!(
-    $EvoTrees.Tree(params_c.max_depth, model_c.K, zero(typeof(params_c.λ))),
+    $EvoTrees.Tree{L,K,T}(params_c.max_depth),
     $cache_c.nodes,
     $params_c,
     $cache_c.δ𝑤,
@@ -119,85 +99,42 @@ tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
     $cache_c.left,
     $cache_c.left,
     $cache_c.right,
-    $cache_c.X_bin,
-    $cache_c.K,
+    $cache_c.x_bin,
+    $cache_c.monotone_constraints,
 )
 
-@time EvoTrees.grow_tree!(
-    EvoTrees.Tree(params_c.max_depth, model_c.K, params_c.λ),
-    params_c,
-    cache_c.δ,
-    cache_c.hist,
-    cache_c.histL,
-    cache_c.histR,
-    cache_c.gains,
-    cache_c.edges,
-    𝑖,
-    𝑗,
-    𝑛,
-    cache_c.X_bin,
-);
-@btime EvoTrees.grow_tree!(
-    EvoTrees.Tree($params_c.max_depth, $model_c.K, $params_c.λ),
-    $params_c,
-    $cache_c.δ,
-    $cache_c.hist,
-    $cache_c.histL,
-    $cache_c.histR,
-    $cache_c.gains,
-    $cache_c.edges,
-    $𝑖,
-    $𝑗,
-    $𝑛,
-    $cache_c.X_bin,
-);
-@code_warntype EvoTrees.grow_tree!(
-    EvoTrees.Tree(params_c.max_depth, model_c.K, params_c.λ),
-    params_c,
-    cache_c.δ,
-    cache_c.hist,
-    cache_c.histL,
-    cache_c.histR,
-    cache_c.gains,
-    cache_c.edges,
-    𝑖,
-    𝑗,
-    𝑛,
-    cache_c.X_bin,
-);
-
 # push!(model_c.trees, tree)
-# 1.883 ms (83 allocations: 13.77 KiB)
-@btime EvoTrees.predict!(model_c.params.loss, cache_c.pred_cpu, tree, cache_c.X, model_c.K)
+# 993.447 μs (75 allocations: 7.17 KiB)
+@btime EvoTrees.predict!(cache_c.pred, tree, cache_c.x)
 
-δ𝑤, edges, x_bin, nodes, out, left, right = cache_c.δ𝑤,
+δ𝑤, edges, x_bin, nodes, out, left, right, monotone_constraints = cache_c.δ𝑤,
 cache_c.edges,
 cache_c.x_bin,
 cache_c.nodes,
 cache_c.out,
 cache_c.left,
-cache_c.right;
+cache_c.right,
+cache_c.monotone_constraints;
 
-# 7.914 ms (49 allocations: 5.36 KiB)
+# Float32: 2.984 ms (73 allocations: 6.52 KiB)
+# Float64: 5.020 ms (73 allocations: 6.52 KiB)
 @time EvoTrees.update_hist!(L, nodes[1].h, δ𝑤, x_bin, 𝑖, 𝑗, K)
 @btime EvoTrees.update_hist!($L, $nodes[1].h, $δ𝑤, $x_bin, $𝑖, $𝑗, $K)
 @btime EvoTrees.update_hist!($nodes[1].h, $δ𝑤, $X_bin, $nodes[1].𝑖, $𝑗)
 @code_warntype EvoTrees.update_hist!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛)
 
 j = 1
-# 8.399 μs (80 allocations: 13.42 KiB)
 n = 1
 nodes[1].∑ .= vec(sum(δ𝑤[:, 𝑖], dims = 2))
-EvoTrees.update_gains!(params_c.loss, nodes[n], 𝑗, params_c, K)
-nodes[1].gains
-# findmax(nodes[1].gains) #1.25e5: 36.500 μs (81 allocations: 8.22 KiB)
-@btime EvoTrees.update_gains!($params_c.loss, $nodes[n], $𝑗, $params_c, $K)
-@code_warntype EvoTrees.update_gains!(params_c.loss, nodes[n], 𝑗, params_c, K)
+@time EvoTrees.update_gains!(nodes[n], 𝑗, params_c, K, monotone_constraints)
+# 12.160 μs (0 allocations: 0 bytes)
+@btime EvoTrees.update_gains!($nodes[n], $𝑗, $params_c, $K, $monotone_constraints)
+nodes[1].gains;
+# @code_warntype EvoTrees.update_gains!(nodes[n], 𝑗, params_c, K, monotone_constraints)
 
-#1.25e5: 14.100 μs (1 allocation: 32 bytes)
+# 5.793 μs (1 allocation: 32 bytes)
 best = findmax(nodes[n].gains)
 @btime best = findmax(nodes[n].gains)
-@btime best = findmax(view(nodes[n].gains, :, 𝑗))
 
 tree.cond_bin[n] = best[2][1]
 tree.feat[n] = best[2][2]
@@ -219,13 +156,13 @@ offset = 0
 )
 @code_warntype EvoTrees.split_set!(left, right, 𝑖, X_bin, tree.feat[n], tree.cond_bin[n])
 
-# 1.25e5: 227.200 μs (22 allocations: 1.44 KiB)
+# 186.294 μs (151 allocations: 15.06 KiB)
 @time EvoTrees.split_set_threads!(
     out,
     left,
     right,
     𝑖,
-    X_bin,
+    x_bin,
     tree.feat[n],
     tree.cond_bin[n],
     offset,
@@ -235,11 +172,10 @@ offset = 0
     $left,
     $right,
     $𝑖,
-    $X_bin,
+    $x_bin,
     $tree.feat[n],
     $tree.cond_bin[n],
     $offset,
-    Int(2e15),
 )
 
 ###################################################

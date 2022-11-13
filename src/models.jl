@@ -39,7 +39,7 @@ function EvoTreeRegressor(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :T => Float64,
+        :T => Float32,
         :loss => :linear,
         :nrounds => 10,
         :lambda => 0.0,
@@ -133,7 +133,7 @@ function EvoTreeCount(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :T => Float64,
+        :T => Float32,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
@@ -206,7 +206,7 @@ function EvoTreeClassifier(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :T => Float64,
+        :T => Float32,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split

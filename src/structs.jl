@@ -5,9 +5,9 @@ mutable struct TrainNode{T<:AbstractFloat}
     gain::T
     𝑖::Union{Nothing,AbstractVector{UInt32}}
     ∑::Vector{T}
-    h::Vector{Vector{T}}
-    hL::Vector{Vector{T}}
-    hR::Vector{Vector{T}}
+    h::Array{T,3}
+    hL::Array{T,3}
+    hR::Array{T,3}
     gains::Matrix{T}
 end
 
@@ -16,9 +16,9 @@ function TrainNode(nvars, nbins, K, T)
         zero(T),
         nothing,
         zeros(T, 2 * K + 1),
-        [zeros(T, (2 * K + 1) * nbins) for j = 1:nvars],
-        [zeros(T, (2 * K + 1) * nbins) for j = 1:nvars],
-        [zeros(T, (2 * K + 1) * nbins) for j = 1:nvars],
+        zeros(T, 2 * K + 1, nbins, nvars),
+        zeros(T, 2 * K + 1, nbins, nvars),
+        zeros(T, 2 * K + 1, nbins, nvars),
         zeros(T, nbins, nvars),
     )
     return node

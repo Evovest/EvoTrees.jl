@@ -39,31 +39,31 @@ julia> Pkg.add("EvoTrees")
 
 ## Performance
 
-Data consists of randomly generated float32. Training is performed on 200 iterations. Code to reproduce is [here](https://github.com/Evovest/EvoTrees.jl/blob/master/experiments/benchmarks_v2.jl). 
+Data consists of randomly generated float32. Training is performed on 200 iterations. Code to reproduce is [here](https://github.com/Evovest/EvoTrees.jl/blob/main/experiments/benchmarks-regressor.jl). 
 
-EvoTrees: v0.8.4
-XGBoost: v1.1.1
+EvoTrees: v0.13.1
+XGBoost: v2.0.2
 
-CPU: 16 threads on AMD Threadripper 3970X
-GPU: NVIDIA RTX 2080
+CPU: 12 threads on AMD Ryzen 5900X
+GPU: NVIDIA RTX A4000
 
 ### Training: 
 
 | Dimensions   / Algo | XGBoost Hist | EvoTrees | EvoTrees GPU |
 |---------------------|:------------:|:--------:|:------------:|
-| 100K x 100          |     1.10s    |   1.80s  |     3.14s    |
-| 500K x 100          |     4.83s    |   4.98s  |     4.98s    |
-| 1M x 100            |     9.84s    |   9.89s  |     7.37s    |
-| 5M x 100            |     45.5s    |   53.8s  |     25.8s    |
+| 100K x 100          |     1.31s    |   1.17s  |     3.20s    |
+| 500K x 100          |     6.73s    |   4.77s  |     4.81s    |
+| 1M x 100            |     13.27s   |   8.42s  |     6.71s    |
+| 5M x 100            |     67.3s    |   43.6s  |     21.7s    |
 
 ### Inference:
 
 | Dimensions   / Algo | XGBoost Hist | EvoTrees | EvoTrees GPU |
 |---------------------|:------------:|:--------:|:------------:|
-| 100K x 100          |    0.164s    |  0.026s  |    0.013s    |
-| 500K x 100          |    0.796s    |  0.175s  |    0.055s    |
-| 1M x 100            |     1.59s    |  0.396s  |    0.108s    |
-| 5M x 100            |     7.96s    |   2.15s  |    0.543s    |
+| 100K x 100          |    0.125s    |  0.030s  |    0.008s    |
+| 500K x 100          |    0.550s    |  0.209s  |    0.031s    |
+| 1M x 100            |    1.10s     |  0.410s  |    0.074s    |
+| 5M x 100            |    5.44s     |  2.14s   |    0.302s    |
 
 
 ## MLJ Integration

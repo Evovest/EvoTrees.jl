@@ -2,9 +2,9 @@ function init_evotree_gpu(
     params::EvoTypes{L,T};
     x_train::AbstractMatrix,
     y_train::AbstractVector,
-    w_train = nothing,
-    offset_train = nothing,
-    fnames = nothing,
+    w_train=nothing,
+    offset_train=nothing,
+    fnames=nothing
 ) where {L,T}
 
     levels = nothing
@@ -27,7 +27,7 @@ function init_evotree_gpu(
             y = CuArray(UInt32.(CategoricalArrays.levelcode.(y_train)))
         else
             levels = sort(unique(y_train))
-            yc = CategoricalVector(y_train, levels = levels)
+            yc = CategoricalVector(y_train, levels=levels)
             y = CuArray(UInt32.(CategoricalArrays.levelcode.(yc)))
         end
         K = length(levels)
@@ -88,22 +88,22 @@ function init_evotree_gpu(
 
     # store cache
     cache = (
-        info = Dict(:nrounds => 0),
-        x = CuArray(x),
-        x_bin = x_bin,
-        y = y,
-        nodes = nodes,
-        pred = pred,
-        𝑖_ = 𝑖_,
-        𝑗_ = 𝑗_,
-        𝑗 = 𝑗,
-        𝑖 = Array(nodes[1].𝑖),
-        out = out,
-        left = left,
-        right = right,
-        δ𝑤 = δ𝑤,
-        edges = edges,
-        monotone_constraints = CuArray(monotone_constraints),
+        info=Dict(:nrounds => 0),
+        x=CuArray(x),
+        x_bin=x_bin,
+        y=y,
+        nodes=nodes,
+        pred=pred,
+        𝑖_=𝑖_,
+        𝑗_=𝑗_,
+        𝑗=𝑗,
+        𝑖=Array(nodes[1].𝑖),
+        out=out,
+        left=left,
+        right=right,
+        δ𝑤=δ𝑤,
+        edges=edges,
+        monotone_constraints=CuArray(monotone_constraints),
     )
 
     return m, cache
@@ -116,8 +116,8 @@ function grow_evotree!(
     params::EvoTypes{L,T},
 ) where {L,K,T}
     # select random rows and cols
-    sample!(params.rng, cache.𝑖_, cache.𝑖, replace = false, ordered = true)
-    sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
+    sample!(params.rng, cache.𝑖_, cache.𝑖, replace=false, ordered=true)
+    sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
     cache.nodes[1].𝑖 .= CuArray(cache.𝑖)
 
     # build a new tree
@@ -171,8 +171,8 @@ function grow_tree_gpu!(
     end
 
     # initialize summary stats
-    nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims = 2))
-    nodes[1].gain = get_gain(L, Array(nodes[1].∑), params.lambda, K) # should use a GPU version?
+    nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].𝑖], dims=2))
+    nodes[1].gain = get_gain(params, Array(nodes[1].∑)) # should use a GPU version?
 
     # grow while there are remaining active nodes - TO DO histogram substraction hits issue on GPU
     while length(n_current) > 0 && depth <= params.max_depth
@@ -223,7 +223,7 @@ function grow_tree_gpu!(
                         out,
                         left,
                         right,
-                        @allowscalar(nodes[n]).𝑖,
+                        nodes[n].𝑖,
                         x_bin,
                         @allowscalar(tree.feat[n]),
                         @allowscalar(tree.cond_bin[n]),
@@ -231,13 +231,9 @@ function grow_tree_gpu!(
                     )
                     nodes[n<<1].𝑖, nodes[n<<1+1].𝑖 = _left, _right
                     offset += length(nodes[n].𝑖)
-                    # println("length(_left): ", length(_left), " | length(_right): ", length(_right))
-                    # println("best: ", best)
                     update_childs_∑_gpu!(L, nodes, n, best[2][1], best[2][2])
-                    nodes[n<<1].gain = get_gain(L, Array(nodes[n<<1].∑), params.lambda, K)
-                    nodes[n<<1+1].gain =
-                        get_gain(L, Array(nodes[n<<1+1].∑), params.lambda, K)
-
+                    nodes[n<<1].gain = get_gain(params, Array(nodes[n<<1].∑))
+                    nodes[n<<1+1].gain = get_gain(params, Array(nodes[n<<1+1].∑))
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
                         push!(n_next, n << 1 + 1)
