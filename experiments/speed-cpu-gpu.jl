@@ -48,7 +48,6 @@ X_size = size(cache_c.x_bin)
 sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace = false, ordered = true);
 sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace = false, ordered = true);
 # @btime sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace=false, ordered=true);
-# @btime sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true);
 
 𝑖 = cache_c.nodes[1].𝑖
 𝑗 = cache_c.𝑗
@@ -58,8 +57,170 @@ K = 1
 T = Float32
 # build a new tree
 # 897.800 μs (6 allocations: 736 bytes)
-@time EvoTrees.update_grads!(cache_c.δ𝑤, cache_c.pred, cache_c.y, params_c)
+@time EvoTrees.update_grads!(cache_c.δ𝑤, cache_c.pred, cache_c.y, cache_c.w, params_c)
 # @btime EvoTrees.update_grads!($params_c.loss, $cache_c.δ𝑤, $cache_c.pred_cpu, $cache_c.Y_cpu, $params_c.α)
+
+
+######################################################
+# sampling experiements
+######################################################
+# 7.892 ms (0 allocations: 0 bytes)
+@btime sample!(
+    $params_c.rng,
+    $cache_c.𝑖_,
+    $cache_c.nodes[1].𝑖,
+    replace = false,
+    ordered = true,
+);
+
+# 21.684 ms (2 allocations: 7.63 MiB)
+@btime sample!(
+    $params_c.rng,
+    $cache_c.𝑖_,
+    $cache_c.nodes[1].𝑖,
+    replace = false,
+    ordered = false,
+);
+
+# 27.441 ms (0 allocations: 0 bytes)
+@btime sample!(
+    $params_c.rng,
+    $cache_c.𝑖_,
+    $cache_c.nodes[1].𝑖,
+    replace = true,
+    ordered = true,
+);
+
+src = zeros(Bool, length(cache_c.𝑖_))
+target = zeros(Bool, length(cache_c.𝑖_))
+
+# 58.000 μs (3 allocations: 976.69 KiB)
+@btime rand(Bool, length(src));
+# 1.452 ms (3 allocations: 7.63 MiB)
+@btime rand(Float64, length(src));
+# 507.800 μs (3 allocations: 3.81 MiB)
+@btime rand(Float32, length(src));
+@btime rand(Float16, length(src));
+# 500.000 μs (3 allocations: 3.81 MiB)
+@btime rand(UInt32, length(src));
+# 244.800 μs (3 allocations: 1.91 MiB)
+@btime rand(UInt16, length(src));
+# 62.000 μs (3 allocations: 976.69 KiB)
+@btime rand(UInt8, length(src));
+
+using Base.Threads: @threads, @spawn
+function get_rand!(mask)
+    @threads for i in eachindex(mask)
+        @inbounds mask[i] = rand(UInt8)
+    end
+end
+mask = zeros(UInt8, length(cache_c.𝑖_))
+# 126.100 μs (48 allocations: 5.08 KiB)
+@btime get_rand!($mask)
+
+function mask!(∇, w, mask, rowsample)
+    cond = round(UInt8, 255 * rowsample)
+    @threads for i in eachindex(mask)
+        @inbounds mask[i] <= cond ? ∇[end, i] = w[i] : ∇[:, i] .= 0
+    end
+end
+mask!(cache_c.δ𝑤, cache_c.w, mask, params_c.rowsample)
+@code_warntype mask!(cache_c.δ𝑤, cache_c.w, mask, params_c.rowsample)
+# 787.100 μs (51 allocations: 5.53 KiB)
+@btime mask!($cache_c.δ𝑤, cache_c.w, $mask, $params_c.rowsample)
+
+function sample_is(is_out, mask, rowsample)
+    cond = round(UInt8, 255 * rowsample)
+    count = 0
+    @inbounds for i in eachindex(is_out)
+        if mask[i] <= cond
+            count += 1
+            is_out[count] = i
+        end
+    end
+    return view(is_out, 1:count)
+end
+is_out = zeros(UInt32, length(cache_c.𝑖_))
+is_view = sample_is(is_out, mask, params_c.rowsample);
+@code_warntype sample_is(is_out, mask, params_c.rowsample)
+# 3.235 ms (0 allocations: 0 bytes)
+@time sample_is(is_out, mask, params_c.rowsample);
+@btime sample_is($is_out, $mask, $params_c.rowsample);
+
+
+function sample_is_kernel!(bid, chunk_size, nblocks, counts, mask, cond, is_out)
+    i_start = chunk_size * (bid - 1) + 1
+    i_stop = (bid == nblocks) ? length(is_out) : i_start + chunk_size - 1
+    @inbounds for i = i_start:i_stop
+        if mask[i] <= cond
+            is_out[i_start+counts[bid]] = i
+            counts[bid] += 1
+        end
+    end
+end
+
+function sample_is_threaded(is_out, mask, rowsample)
+
+    cond = round(UInt8, 255 * rowsample)
+    nblocks = ceil(Int, min(length(is_out) / 100_000, Threads.nthreads()))
+    chunk_size = ceil(Int, length(is_out) / nblocks)
+    counts = zeros(Int, nblocks)
+
+    @sync for bid in eachindex(counts)
+        @spawn sample_is_kernel!(bid, chunk_size, nblocks, counts, mask, cond, is_out)
+    end
+    # return is_out
+    
+    count = 0
+    @inbounds for bid in eachindex(counts)
+        i_start = chunk_size * (bid - 1) + 1
+        view(is_out, count+1:(count+counts[bid])) .=
+            view(is_out, i_start:(i_start+counts[bid]-1))
+        count += counts[bid]
+    end
+    return view(is_out, 1:count)
+end
+is_out = zeros(UInt32, length(cache_c.𝑖_))
+is_view = sample_is_threaded(is_out, mask, params_c.rowsample);
+# @code_warntype sample_is_threaded(cache_c.δ𝑤, cache_c.w, mask, params_c.rowsample)
+# 787.100 μs (51 allocations: 5.53 KiB)
+@time sample_is_threaded(is_out, mask, params_c.rowsample);
+@btime sample_is_threaded($is_out, $mask, $params_c.rowsample);
+
+
+function get_rand_kernel(target)
+    tix = threadIdx().x
+    bdx = blockDim().x
+    bix = blockIdx().x
+    gdx = gridDim().x
+
+    i_max = length(target)
+    niter = cld(i_max, bdx * gdx)
+    for iter = 1:niter
+        i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
+        if i <= i_max
+            target[i] = rand(UInt8)
+        end
+    end
+    # sync_threads()
+end
+
+function get_rand_gpu(target)
+    threads = (1024,)
+    blocks = (256,)
+    @cuda threads = threads blocks = blocks get_rand_kernel(target)
+    CUDA.synchronize()
+end
+target = CUDA.zeros(UInt8, length(cache_c.𝑖_))
+@btime get_rand_gpu(target)
+
+CUDA.@time CUDA.rand(Float16, length(src));
+
+
+##########################################################
+
+get_rand!(cache_c.mask) # udpate random
+mask!(cache_c.δ𝑤, cache_c.w, cache_c.mask, params_c.rowsample)
 
 # 12.058 ms (2998 allocations: 284.89 KiB)
 tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
@@ -118,10 +279,35 @@ cache_c.monotone_constraints;
 
 # Float32: 2.984 ms (73 allocations: 6.52 KiB)
 # Float64: 5.020 ms (73 allocations: 6.52 KiB)
-@time EvoTrees.update_hist!(L, nodes[1].h, δ𝑤, x_bin, 𝑖, 𝑗, K)
-@btime EvoTrees.update_hist!($L, $nodes[1].h, $δ𝑤, $x_bin, $𝑖, $𝑗, $K)
-@btime EvoTrees.update_hist!($nodes[1].h, $δ𝑤, $X_bin, $nodes[1].𝑖, $𝑗)
-@code_warntype EvoTrees.update_hist!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛)
+mask = rand(Bool, length(𝑖))
+@time EvoTrees.update_hist!(L, nodes[1].h, δ𝑤, x_bin, 𝑖, 𝑗, mask)
+@btime EvoTrees.update_hist!($L, $nodes[1].h, $δ𝑤, $x_bin, $𝑖, $𝑗)
+@code_warntype EvoTrees.update_hist!(L, nodes[1].h, δ𝑤, x_bin, 𝑖, 𝑗)
+
+
+mask = rand(Bool, 1000000)
+x = rand(1000000)
+y = rand(1000000)
+idx = rand(1:1000000, 100000)
+idx = sample(1:1000000, 100000, ordered = true)
+
+function myadd1(x, y, idx, mask)
+    @inbounds for i in eachindex(idx)
+        y[idx[i]] += x[idx[i]]
+    end
+end
+# 794.200 μs (0 allocations: 0 bytes)
+@btime myadd1($x, $y, $idx, $mask)
+
+function myadd2(x, y, idx, mask)
+    @inbounds for i in eachindex(idx)
+        if mask[i] == true
+            y[idx[i]] += x[idx[i]]
+        end
+    end
+end
+@btime myadd2($x, $y, $idx, $mask)
+
 
 j = 1
 n = 1

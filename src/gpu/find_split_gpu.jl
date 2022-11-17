@@ -12,7 +12,6 @@ function hist_kernel!(h∇, ∇, x_bin, 𝑖, 𝑗)
         jdx = 𝑗[j]
         i_max = length(𝑖)
         niter = cld(i_max, bdx * gdx)
-        iter = 0
         @inbounds for iter = 1:niter
             i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
             if i <= length(𝑖)

@@ -21,7 +21,8 @@ end
 function binarize(X, edges)
     X_bin = zeros(UInt8, size(X))
     @threads for i = 1:size(X, 2)
-        @inbounds X_bin[:, i] .= searchsortedlast.(Ref(edges[i][1:end-1]), view(X, :, i)) .+ 1
+        @inbounds X_bin[:, i] .=
+            searchsortedlast.(Ref(edges[i][1:end-1]), view(X, :, i)) .+ 1
     end
     return X_bin
 end
@@ -167,7 +168,7 @@ function update_hist!(
     ∇::Matrix{T},
     x_bin::Matrix,
     is::AbstractVector,
-    js::AbstractVector
+    js::AbstractVector,
 ) where {L<:GradientRegression,T}
     @threads for j in js
         @inbounds @simd for i in is
@@ -190,7 +191,7 @@ function update_hist!(
     ∇::Matrix{T},
     x_bin::Matrix,
     is::AbstractVector,
-    js::AbstractVector
+    js::AbstractVector,
 ) where {L<:MLE2P,T}
     @threads for j in js
         @inbounds @simd for i in is
@@ -215,7 +216,7 @@ function update_hist!(
     ∇::Matrix{T},
     x_bin::Matrix,
     is::AbstractVector,
-    js::AbstractVector
+    js::AbstractVector,
 ) where {L,T}
     @threads for j in js
         @inbounds for i in is
@@ -280,7 +281,9 @@ function update_gains!(
                    (monotone_constraint == -1 && predL > predR) ||
                    (monotone_constraint == 1 && predL < predR)
 
-                    gains[bin, j] = get_gain(params, view(hL, :, bin, j)) + get_gain(params, view(hR, :, bin, j))
+                    gains[bin, j] =
+                        get_gain(params, view(hL, :, bin, j)) +
+                        get_gain(params, view(hR, :, bin, j))
                 end
             end
         end

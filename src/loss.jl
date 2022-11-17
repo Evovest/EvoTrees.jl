@@ -3,11 +3,12 @@ function update_grads!(
     δ𝑤::Matrix,
     p::Matrix,
     y::Vector,
+    w::Vector,
     ::EvoTreeRegressor{L,T}
 ) where {L<:Linear,T}
     @threads for i in eachindex(y)
-        @inbounds δ𝑤[1, i] = 2 * (p[1, i] - y[i]) * δ𝑤[3, i]
-        @inbounds δ𝑤[2, i] = 2 * δ𝑤[3, i]
+        @inbounds δ𝑤[1, i] = 2 * (p[1, i] - y[i]) * w[i]
+        @inbounds δ𝑤[2, i] = 2 * w[i]
     end
 end
 
