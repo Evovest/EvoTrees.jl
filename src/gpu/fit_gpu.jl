@@ -119,9 +119,7 @@ function grow_evotree!(
     # compute gradients
     update_grads_gpu!(cache.δ𝑤, cache.pred, cache.y, params) # needs to be computed after mask - to be move before using original w
     # subsample rows
-    out = subsample_gpu(cache.𝑖_, cache.mask, params.rowsample)
     cache.nodes[1].𝑖 = subsample_gpu(cache.𝑖_, cache.mask, params.rowsample)
-    # @info "node i" length = length(cache.nodes[1].𝑖) min = Int(minimum(cache.nodes[1].𝑖)) max = Int(maximum(cache.nodes[1].𝑖))
     # subsample cols
     sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
 
