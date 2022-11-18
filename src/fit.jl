@@ -81,17 +81,17 @@ function init_evotree(
     edges = get_edges(x, params.nbins)
     x_bin = binarize(x, edges)
 
-    𝑖_ = UInt32.(collect(1:x_size[1]))
+    # 𝑖_ = UInt32.(1:x_size[1])
+    𝑖_ = zeros(UInt32, x_size[1])
+    mask = zeros(UInt8, x_size[1])
     𝑗_ = UInt32.(collect(1:x_size[2]))
     𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * x_size[2]))
-    mask = zeros(UInt8, x_size[1])
 
     # initialize histograms
     nodes = [TrainNode(x_size[2], params.nbins, K, T) for n = 1:2^params.max_depth-1]
-    nodes[1].𝑖 = UInt32.(1:x_size[1])
-    out = zeros(UInt32, length(nodes[1].𝑖))
-    left = zeros(UInt32, length(nodes[1].𝑖))
-    right = zeros(UInt32, length(nodes[1].𝑖))
+    out = zeros(UInt32, x_size[1])
+    left = zeros(UInt32, x_size[1])
+    right = zeros(UInt32, x_size[1])
 
     # assign monotone contraints in constraints vector
     monotone_constraints = zeros(Int32, x_size[2])
@@ -122,42 +122,70 @@ function init_evotree(
     return m, cache
 end
 
+
+"""
+    get_rand!(mask)
+
+Assign new UInt8 random numbers to mask. Serves as a basis to rowsampling.
+"""
 function get_rand!(mask)
     @threads for i in eachindex(mask)
         @inbounds mask[i] = rand(UInt8)
     end
 end
-function mask!(∇, w, mask, rowsample)
+
+"""
+    subsample(out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat)
+
+Returns a view of selected rows ids.
+"""
+function subsample(out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat)
+    get_rand!(mask)
     cond = round(UInt8, 255 * rowsample)
-    @threads for i in eachindex(mask)
-        @inbounds mask[i] <= cond ? ∇[end, i] = w[i] : ∇[:, i] .= 0
+    chunk_size = cld(length(out), min(length(out) ÷ 1024, Threads.nthreads()))
+    nblocks = cld(length(out), chunk_size)
+    counts = zeros(Int, nblocks)
+
+    @threads for bid = 1:nblocks
+        i_start = chunk_size * (bid - 1) + 1
+        i_stop = bid == nblocks ? length(out) : i_start + chunk_size - 1
+        count = 0
+        i = i_start
+        for i = i_start:i_stop
+            if mask[i] <= cond
+                out[i_start+count] = i
+                count += 1
+            end
+        end
+        counts[bid] = count
     end
-end
-function sample_is(is, is_out, mask, rowsample)
-    cond = round(UInt8, 255 * rowsample)
-    count = 0
-    @inbounds for i in eachindex(is)
-        if mask[i] <= cond
-            count += 1
-            is_out[count] = is[i]
+    counts_cum = cumsum(counts) .- counts
+    @threads for bid = 1:nblocks
+        count_cum = counts_cum[bid]
+        i_start = chunk_size * (bid - 1)
+        @inbounds for i = 1:counts[bid]
+            out[count_cum+i] = out[i_start+i]
         end
     end
-    return view(is_out, 1:count)
+    return view(out, 1:sum(counts))
 end
 
+"""
+    grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) where {L,K,T}
+
+Given a instantiate
+"""
 function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) where {L,K,T}
 
-    update_grads!(cache.δ𝑤, cache.pred, cache.y, cache.w, params) # needs to be computed after mask - to be move before using original w
-
+    # compute gradients
+    update_grads!(cache.δ𝑤, cache.pred, cache.y, params) # needs to be computed after mask - to be move before using original w
     # subsample rows
-    get_rand!(cache.mask) # udpate random
-    cache.nodes[1].𝑖 = sample_is(1:length(cache.𝑖_), cache.𝑖_, cache.mask, params.rowsample)
-    # sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace = false, ordered = true)
+    cache.nodes[1].𝑖 = subsample(cache.𝑖_, cache.mask, params.rowsample)
 
     # subsample cols
     sample!(params.rng, cache.𝑗_, cache.𝑗, replace = false, ordered = true)
 
-    # assign a root and grow tree
+    # instantiate a tree then grow it
     tree = Tree{L,K,T}(params.max_depth)
     grow_tree!(
         tree,

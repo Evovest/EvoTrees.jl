@@ -57,6 +57,7 @@ params_evo = EvoTreeRegressor(
     rowsample=0.5,
     colsample=0.5,
     nbins=64,
+    rng = 123,
 )
 
 @info "xgboost train:"

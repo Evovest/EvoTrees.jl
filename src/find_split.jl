@@ -42,8 +42,6 @@ function split_set_chunk!(
     cond_bin,
     offset,
     chunk_size,
-    lefts,
-    rights,
 )
 
     left_count = 0
@@ -62,9 +60,7 @@ function split_set_chunk!(
         end
         i += 1
     end
-    @inbounds lefts[bid] = left_count
-    @inbounds rights[bid] = right_count
-    return nothing
+    return left_count, right_count
 end
 
 function split_views_kernel!(
@@ -109,14 +105,14 @@ function split_set_threads!(
     offset,
 ) where {S}
 
-    nblocks = ceil(Int, min(length(is) / 1024, Threads.nthreads()))
-    chunk_size = floor(Int, length(is) / nblocks)
+    chunk_size = cld(length(is), min(cld(length(is), 1024), Threads.nthreads()))
+    nblocks = cld(length(is), chunk_size)
 
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
     @threads for bid = 1:nblocks
-        split_set_chunk!(
+        lefts[bid], rights[bid] = split_set_chunk!(
             left,
             right,
             is,
@@ -127,8 +123,6 @@ function split_set_threads!(
             cond_bin,
             offset,
             chunk_size,
-            lefts,
-            rights,
         )
     end
 

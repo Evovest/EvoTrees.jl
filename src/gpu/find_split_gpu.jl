@@ -107,11 +107,7 @@ function split_views_kernel!(
     cumsum_rights,
 ) where {S}
 
-    it = threadIdx().x
     bid = blockIdx().x
-    gdim = gridDim().x
-
-    # bsize = lefts[bid] + rights[bid]
     bid == 1 ? cumsum_left = 0 : cumsum_left = cumsum_lefts[bid-1]
     bid == 1 ? cumsum_right = 0 : cumsum_right = cumsum_rights[bid-1]
 
@@ -134,8 +130,8 @@ end
 
 function split_set_threads_gpu!(out, left, right, 𝑖, X_bin, feat, cond_bin, offset)
 
-    nblocks = ceil(Int, min(length(𝑖) / 128, 2^10))
-    chunk_size = floor(Int, length(𝑖) / nblocks)
+    chunk_size = cld(length(𝑖), min(cld(length(𝑖), 128), 2048))
+    nblocks = cld(length(𝑖), chunk_size)
     lefts = CUDA.zeros(Int, nblocks)
     rights = CUDA.zeros(Int, nblocks)
 

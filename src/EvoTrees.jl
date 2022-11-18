@@ -10,7 +10,7 @@ export EvoTreeRegressor,
     EvoTreeGPU,
     Random
 
-using Base.Threads: @threads
+using Base.Threads: @threads, @spawn
 using Statistics
 using StatsBase: sample, sample!, quantile
 using Random
@@ -44,6 +44,7 @@ include("gpu/loss_gpu.jl")
 include("gpu/eval_gpu.jl")
 include("gpu/predict_gpu.jl")
 include("gpu/find_split_gpu.jl")
+include("gpu/subsample.jl")
 include("gpu/fit_gpu.jl")
 
 include("callback.jl")

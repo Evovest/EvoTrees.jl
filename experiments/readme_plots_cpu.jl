@@ -36,7 +36,7 @@ params1 = EvoTreeRegressor(T=Float32,
     rng=123)
 
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25, early_stopping_rounds=20);
-# laptop: 42.721 ms (226219 allocations: 19.68 MiB)
+# laptop: 51.651 ms (237548 allocations: 23.94 MiB)
 @btime model = fit_evotree(params1; x_train, y_train, x_eval = x_eval, y_eval = y_eval, metric = :mse, print_every_n = 999, verbosity=0);
 # Profile.clear()  # in case we have any previous profiling data
 # @profile fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
