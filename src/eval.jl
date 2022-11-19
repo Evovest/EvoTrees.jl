@@ -2,7 +2,7 @@ function mse(
     p::AbstractMatrix{T},
     y::AbstractVector,
     w::AbstractVector;
-    kwargs...,
+    kwargs...
 ) where {T}
     eval = zero(T)
     @inbounds for i in eachindex(y)
@@ -18,7 +18,7 @@ function mae(
     p::AbstractMatrix{T},
     y::AbstractVector,
     w::AbstractVector;
-    kwargs...,
+    kwargs...
 ) where {T}
     eval = zero(T)
     @inbounds for i in eachindex(y)
@@ -47,10 +47,10 @@ function mlogloss(
     p::AbstractMatrix{T},
     y::AbstractVector,
     w::AbstractVector;
-    kwargs...,
+    kwargs...
 ) where {T}
     eval = zero(T)
-    p_prob = exp.(p) ./ sum(exp.(p), dims = 1)
+    p_prob = exp.(p) ./ sum(exp.(p), dims=1)
     @inbounds for i in eachindex(y)
         eval -= w[i] * log(p_prob[y[i], i])
     end
@@ -62,7 +62,7 @@ function poisson_deviance(
     p::AbstractMatrix{T},
     y::AbstractVector,
     w::AbstractVector;
-    kwargs...,
+    kwargs...
 ) where {T}
     eval = zero(T)
     ϵ = eps(T)
@@ -78,7 +78,7 @@ function gamma_deviance(
     p::AbstractMatrix{T},
     y::AbstractVector,
     w::AbstractVector;
-    kwargs...,
+    kwargs...
 ) where {T}
     eval = zero(T)
     @inbounds for i in eachindex(y)
@@ -93,7 +93,7 @@ function tweedie_deviance(
     p::AbstractMatrix{T},
     y::AbstractVector,
     w::AbstractVector;
-    kwargs...,
+    kwargs...
 ) where {T}
     eval = zero(T)
     rho = T(1.5)
@@ -115,7 +115,7 @@ function gaussian_mle(
     p::AbstractMatrix{T},
     y::AbstractVector,
     w::AbstractVector;
-    kwargs...,
+    kwargs...
 ) where {T}
     eval = zero(T)
     @inbounds for i in eachindex(y)
@@ -129,7 +129,7 @@ function logistic_mle(
     p::AbstractMatrix{T},
     y::AbstractVector,
     w::AbstractVector;
-    kwargs...,
+    kwargs...
 ) where {T}
     eval = zero(T)
     @inbounds for i in eachindex(y)
@@ -143,8 +143,8 @@ function wmae(
     p::AbstractMatrix{T},
     y::AbstractVector,
     w::AbstractVector;
-    alpha = 0.5,
-    kwargs...,
+    alpha=0.5,
+    kwargs...
 ) where {T}
     eval = zero(T)
     for i in eachindex(y)

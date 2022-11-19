@@ -183,10 +183,10 @@ function update_gains!(
     js::AbstractVector,
     params::EvoTypes{L,T},
     monotone_constraints;
-    MAX_THREADS = 512,
+    MAX_THREADS=512
 ) where {L,T}
 
-    cumsum!(node.hL, node.h, dims = 2)
+    cumsum!(node.hL, node.h, dims=2)
     node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
 
     threads = min(params.nbins, MAX_THREADS)

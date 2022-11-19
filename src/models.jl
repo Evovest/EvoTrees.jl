@@ -425,4 +425,4 @@ const EvoTypes{L,T} = Union{
     EvoTreeMLE{L,T},
 }
 
-get_types(::EvoTypes{L,T}) where {L,T} = (L,T)
+get_types(::EvoTypes{L,T}) where {L,T} = (L, T)

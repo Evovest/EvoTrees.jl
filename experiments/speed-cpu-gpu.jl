@@ -22,7 +22,6 @@ train_size = 0.8
 x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
 y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 
-
 ###########################
 # Tree CPU
 ###########################
@@ -35,7 +34,7 @@ params_c = EvoTreeRegressor(
     eta = 0.1,
     max_depth = 6,
     min_weight = 1.0,
-    rowsample = 1.0,
+    rowsample = 0.5,
     colsample = 0.5,
     nbins = 64,
 );
@@ -45,22 +44,21 @@ model_c, cache_c = EvoTrees.init_evotree(params_c; x_train, y_train);
 # initialize from cache
 X_size = size(cache_c.x_bin)
 
-# select random rows and cols
-sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace = false, ordered = true);
-sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace = false, ordered = true);
-# @btime sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace=false, ordered=true);
-
-𝑖 = cache_c.nodes[1].𝑖
-𝑗 = cache_c.𝑗
-
-L = EvoTrees.Linear
-K = 1
-T = Float32
-# build a new tree
 # 897.800 μs (6 allocations: 736 bytes)
 @time EvoTrees.update_grads!(cache_c.δ𝑤, cache_c.pred, cache_c.y, params_c)
 # @btime EvoTrees.update_grads!($params_c.loss, $cache_c.δ𝑤, $cache_c.pred_cpu, $cache_c.Y_cpu, $params_c.α)
 
+# select random rows and cols
+cache_c.nodes[1].is = EvoTrees.subsample(cache_c.is, cache_c.mask, params_c.rowsample);
+sample!(params_c.rng, cache_c.js_, cache_c.js, replace = false, ordered = true);
+# @btime sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace=false, ordered=true);
+
+is = cache_c.nodes[1].is
+js = cache_c.js
+
+L = EvoTrees.Linear
+K = 1
+T = Float32
 
 ######################################################
 # sampling experiements
@@ -306,10 +304,6 @@ Int(maximum(out_view))
 # end subsample tests
 ##########################################################
 
-cache_c.nodes[1].𝑖 = subsample(cache_c.𝑖_, cache_c.mask, params_c.rowsample)
-# subsample cols
-sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace = false, ordered = true)
-
 # 12.058 ms (2998 allocations: 284.89 KiB)
 tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
 @time EvoTrees.grow_tree!(
@@ -318,7 +312,7 @@ tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
     params_c,
     cache_c.δ𝑤,
     cache_c.edges,
-    cache_c.𝑗,
+    cache_c.js,
     cache_c.left,
     cache_c.left,
     cache_c.right,
@@ -331,7 +325,7 @@ tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
     params_c,
     cache_c.δ𝑤,
     cache_c.edges,
-    cache_c.𝑗,
+    cache_c.js,
     cache_c.left,
     cache_c.left,
     cache_c.right,
@@ -344,7 +338,7 @@ tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
     $params_c,
     $cache_c.δ𝑤,
     $cache_c.edges,
-    $cache_c.𝑗,
+    $cache_c.js,
     $cache_c.left,
     $cache_c.left,
     $cache_c.right,

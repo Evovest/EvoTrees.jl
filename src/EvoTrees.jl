@@ -37,6 +37,7 @@ include("loss.jl")
 include("eval.jl")
 include("predict.jl")
 include("find_split.jl")
+include("subsample.jl")
 include("fit.jl")
 
 include("gpu/structs_gpu.jl")

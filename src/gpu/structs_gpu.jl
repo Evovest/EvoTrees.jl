@@ -1,9 +1,9 @@
 """
     Carries training information for a given tree node
 """
-mutable struct TrainNodeGPU{T<:AbstractFloat}
+mutable struct TrainNodeGPU{T<:AbstractFloat,S}
     gain::T
-    is::Union{Nothing,AbstractVector{UInt32}}
+    is::S
     ∑::AbstractVector{T}
     h::AbstractArray{T,3}
     hL::AbstractArray{T,3}
@@ -11,10 +11,10 @@ mutable struct TrainNodeGPU{T<:AbstractFloat}
     gains::AbstractMatrix{T}
 end
 
-function TrainNodeGPU(nvars, nbins, K, T)
-    node = TrainNodeGPU{T}(
+function TrainNodeGPU(nvars, nbins, K, is, T)
+    node = TrainNodeGPU(
         zero(T),
-        nothing,
+        is,
         CUDA.zeros(T, 2 * K + 1),
         CUDA.zeros(T, (2 * K + 1), nbins, nvars),
         CUDA.zeros(T, (2 * K + 1), nbins, nvars),
@@ -59,4 +59,4 @@ struct EvoTreeGPU{L,K,T}
     info::Any
 end
 (m::EvoTreeGPU)(x::AbstractMatrix) = predict(m, x)
-get_types(::EvoTreeGPU{L,K,T}) where {L,K,T} = (L,T)
+get_types(::EvoTreeGPU{L,K,T}) where {L,K,T} = (L, T)

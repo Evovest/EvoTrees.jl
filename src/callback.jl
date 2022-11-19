@@ -18,8 +18,8 @@ function CallBack(
     metric,
     x_eval,
     y_eval,
-    w_eval = nothing,
-    offset_eval = nothing,
+    w_eval=nothing,
+    offset_eval=nothing
 ) where {L,K,T}
     feval = metric_dict[metric]
     x = convert(Matrix{T}, x_eval)
@@ -31,7 +31,7 @@ function CallBack(
             y = UInt32.(CategoricalArrays.levelcode.(y_eval))
         else
             levels = sort(unique(y_eval))
-            yc = CategoricalVector(y_eval, levels = levels)
+            yc = CategoricalVector(y_eval, levels=levels)
             μ = zeros(T, K)
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         end

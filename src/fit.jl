@@ -7,9 +7,9 @@ function init_evotree(
     params::EvoTypes{L,T};
     x_train::AbstractMatrix,
     y_train::AbstractVector,
-    w_train = nothing,
-    offset_train = nothing,
-    fnames = nothing,
+    w_train=nothing,
+    offset_train=nothing,
+    fnames=nothing
 ) where {L,T}
 
     levels = nothing
@@ -31,7 +31,7 @@ function init_evotree(
             y = UInt32.(CategoricalArrays.levelcode.(y_train))
         else
             levels = sort(unique(y_train))
-            yc = CategoricalVector(y_train, levels = levels)
+            yc = CategoricalVector(y_train, levels=levels)
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
         K = length(levels)
@@ -72,10 +72,10 @@ function init_evotree(
     m = EvoTree{L,K,T}(bias, info)
 
     # initialize gradients and weights
-    δ𝑤 = zeros(T, 2 * K + 1, x_size[1])
+    ∇ = zeros(T, 2 * K + 1, x_size[1])
     w = isnothing(w_train) ? ones(T, size(y)) : Vector{T}(w_train)
     @assert (length(y) == length(w) && minimum(w) > 0)
-    δ𝑤[end, :] .= w
+    ∇[end, :] .= w
 
     # binarize data into quantiles
     edges = get_edges(x, params.nbins)
@@ -88,7 +88,7 @@ function init_evotree(
     js = zeros(UInt32, ceil(Int, params.colsample * x_size[2]))
 
     # initialize histograms
-    nodes = [TrainNode(x_size[2], params.nbins, K, T) for n = 1:2^params.max_depth-1]
+    nodes = [TrainNode(x_size[2], params.nbins, K, view(is, 1:0), T) for n = 1:2^params.max_depth-1]
     out = zeros(UInt32, x_size[1])
     left = zeros(UInt32, x_size[1])
     right = zeros(UInt32, x_size[1])
@@ -100,74 +100,26 @@ function init_evotree(
     end
 
     cache = (
-        info = Dict(:nrounds => 0),
-        x = x,
-        y = y,
-        w = w,
-        K = K,
-        nodes = nodes,
-        pred = pred,
-        is = is,
-        mask = mask,
-        js_ = js_,
-        js = js,
-        out = out,
-        left = left,
-        right = right,
-        δ𝑤 = δ𝑤,
-        edges = edges,
-        x_bin = x_bin,
-        monotone_constraints = monotone_constraints,
+        info=Dict(:nrounds => 0),
+        x=x,
+        y=y,
+        w=w,
+        K=K,
+        nodes=nodes,
+        pred=pred,
+        is=is,
+        mask=mask,
+        js_=js_,
+        js=js,
+        out=out,
+        left=left,
+        right=right,
+        ∇=∇,
+        edges=edges,
+        x_bin=x_bin,
+        monotone_constraints=monotone_constraints,
     )
     return m, cache
-end
-
-
-"""
-    get_rand!(mask)
-
-Assign new UInt8 random numbers to mask. Serves as a basis to rowsampling.
-"""
-function get_rand!(mask)
-    @threads for i in eachindex(mask)
-        @inbounds mask[i] = rand(UInt8)
-    end
-end
-
-"""
-    subsample(out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat)
-
-Returns a view of selected rows ids.
-"""
-function subsample(out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat)
-    get_rand!(mask)
-    cond = round(UInt8, 255 * rowsample)
-    chunk_size = cld(length(out), min(cld(length(out), 1024), Threads.nthreads()))
-    nblocks = cld(length(out), chunk_size)
-    counts = zeros(Int, nblocks)
-
-    @threads for bid = 1:nblocks
-        i_start = chunk_size * (bid - 1) + 1
-        i_stop = bid == nblocks ? length(out) : i_start + chunk_size - 1
-        count = 0
-        i = i_start
-        for i = i_start:i_stop
-            if mask[i] <= cond
-                out[i_start+count] = i
-                count += 1
-            end
-        end
-        counts[bid] = count
-    end
-    counts_cum = cumsum(counts) .- counts
-    @threads for bid = 1:nblocks
-        count_cum = counts_cum[bid]
-        i_start = chunk_size * (bid - 1)
-        @inbounds for i = 1:counts[bid]
-            out[count_cum+i] = out[i_start+i]
-        end
-    end
-    return view(out, 1:sum(counts))
 end
 
 """
@@ -178,12 +130,12 @@ Given a instantiate
 function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) where {L,K,T}
 
     # compute gradients
-    update_grads!(cache.δ𝑤, cache.pred, cache.y, params) # needs to be computed after mask - to be move before using original w
+    update_grads!(cache.∇, cache.pred, cache.y, params)
     # subsample rows
     cache.nodes[1].is = subsample(cache.is, cache.mask, params.rowsample)
 
     # subsample cols
-    sample!(params.rng, cache.js_, cache.js, replace = false, ordered = true)
+    sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
 
     # instantiate a tree then grow it
     tree = Tree{L,K,T}(params.max_depth)
@@ -191,7 +143,7 @@ function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) wh
         tree,
         cache.nodes,
         params,
-        cache.δ𝑤,
+        cache.∇,
         cache.edges,
         cache.js,
         cache.out,
@@ -209,9 +161,9 @@ end
 # grow a single tree
 function grow_tree!(
     tree::Tree{L,K,T},
-    nodes::Vector{TrainNode{T}},
+    nodes::Vector{TrainNode{T,S}},
     params::EvoTypes{L,T},
-    δ𝑤::Matrix{T},
+    ∇::Matrix{T},
     edges,
     js,
     out,
@@ -219,7 +171,7 @@ function grow_tree!(
     right,
     x_bin::AbstractMatrix,
     monotone_constraints,
-) where {L,K,T}
+) where {L,K,T,S}
 
     # reset nodes
     @threads for n in nodes
@@ -235,7 +187,7 @@ function grow_tree!(
     depth = 1
 
     # initialize summary stats
-    nodes[1].∑ .= @views vec(sum(δ𝑤[:, nodes[1].is], dims = 2))
+    nodes[1].∑ .= @views vec(sum(∇[:, nodes[1].is], dims=2))
     nodes[1].gain = get_gain(params, nodes[1].∑)
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
@@ -251,14 +203,14 @@ function grow_tree!(
                         nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
                     end
                 else
-                    update_hist!(L, nodes[n].h, δ𝑤, x_bin, nodes[n].is, js)
+                    update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
             end
         end
 
         for n ∈ sort(n_current)
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
-                pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, δ𝑤, nodes[n].is)
+                pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             else
                 # histogram subtraction
                 update_gains!(nodes[n], js, params, K, monotone_constraints)
@@ -271,7 +223,7 @@ function grow_tree!(
                 end
                 tree.split[n] = tree.cond_bin[n] != 0
                 if !tree.split[n]
-                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, δ𝑤, nodes[n].is)
+                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
                     popfirst!(n_next)
                 else
                     # println("typeof(nodes[n].𝑖): ", typeof(nodes[n].𝑖))
@@ -358,18 +310,18 @@ function fit_evotree(
     params::EvoTypes{L,T};
     x_train::AbstractMatrix,
     y_train::AbstractVector,
-    w_train = nothing,
-    offset_train = nothing,
-    x_eval = nothing,
-    y_eval = nothing,
-    w_eval = nothing,
-    offset_eval = nothing,
-    metric = nothing,
-    early_stopping_rounds = 9999,
-    print_every_n = 9999,
-    verbosity = 1,
-    fnames = nothing,
-    return_logger = false,
+    w_train=nothing,
+    offset_train=nothing,
+    x_eval=nothing,
+    y_eval=nothing,
+    w_eval=nothing,
+    offset_eval=nothing,
+    metric=nothing,
+    early_stopping_rounds=9999,
+    print_every_n=9999,
+    verbosity=1,
+    fnames=nothing,
+    return_logger=false
 ) where {L,T}
 
     # initialize model and cache
@@ -392,8 +344,8 @@ function fit_evotree(
         logger = init_logger(;
             T,
             metric,
-            maximise = is_maximise(cb.feval),
-            early_stopping_rounds,
+            maximise=is_maximise(cb.feval),
+            early_stopping_rounds
         )
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]

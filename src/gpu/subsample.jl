@@ -77,5 +77,10 @@ function subsample_gpu(out::CuVector, mask::CuVector, rowsample::AbstractFloat)
         chunk_size,
     )
     CUDA.synchronize()
-    return view(out, 1:sum(counts))
+    counts_sum = sum(counts)
+    if counts_cum == 0
+        @error "no subsample observation - choose larger rowsample"
+    else
+        return view(out, 1:counts_sum)
+    end
 end

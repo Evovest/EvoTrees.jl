@@ -2,9 +2,9 @@ function init_evotree_gpu(
     params::EvoTypes{L,T};
     x_train::AbstractMatrix,
     y_train::AbstractVector,
-    w_train = nothing,
-    offset_train = nothing,
-    fnames = nothing,
+    w_train=nothing,
+    offset_train=nothing,
+    fnames=nothing
 ) where {L,T}
 
     levels = nothing
@@ -27,7 +27,7 @@ function init_evotree_gpu(
             y = CuArray(UInt32.(CategoricalArrays.levelcode.(y_train)))
         else
             levels = sort(unique(y_train))
-            yc = CategoricalVector(y_train, levels = levels)
+            yc = CategoricalVector(y_train, levels=levels)
             y = CuArray(UInt32.(CategoricalArrays.levelcode.(yc)))
         end
         K = length(levels)
@@ -60,10 +60,10 @@ function init_evotree_gpu(
     m = EvoTreeGPU{L,K,T}(bias, info)
 
     # initialize gradients and weights
-    δ𝑤 = CUDA.zeros(T, 2 * K + 1, x_size[1])
+    ∇ = CUDA.zeros(T, 2 * K + 1, x_size[1])
     w = isnothing(w_train) ? CUDA.ones(T, size(y)) : CuVector{T}(w_train)
     @assert (length(y) == length(w) && minimum(w) > 0)
-    δ𝑤[end, :] .= w
+    ∇[end, :] .= w
 
     # binarize data into quantiles
     edges = get_edges(x, params.nbins)
@@ -75,7 +75,7 @@ function init_evotree_gpu(
     js = zeros(eltype(js_), ceil(Int, params.colsample * x_size[2]))
 
     # initialize histograms
-    nodes = [TrainNodeGPU(x_size[2], params.nbins, K, T) for n = 1:2^params.max_depth-1]
+    nodes = [TrainNodeGPU(x_size[2], params.nbins, K, view(is, 1:0), T) for n = 1:2^params.max_depth-1]
     out = CUDA.zeros(UInt32, x_size[1])
     left = CUDA.zeros(UInt32, x_size[1])
     right = CUDA.zeros(UInt32, x_size[1])
@@ -88,22 +88,22 @@ function init_evotree_gpu(
 
     # store cache
     cache = (
-        info = Dict(:nrounds => 0),
-        x = CuArray(x),
-        x_bin = x_bin,
-        y = y,
-        nodes = nodes,
-        pred = pred,
-        is = is,
-        mask = mask,
-        js_ = js_,
-        js = js,
-        out = out,
-        left = left,
-        right = right,
-        δ𝑤 = δ𝑤,
-        edges = edges,
-        monotone_constraints = CuArray(monotone_constraints),
+        info=Dict(:nrounds => 0),
+        x=CuArray(x),
+        x_bin=x_bin,
+        y=y,
+        nodes=nodes,
+        pred=pred,
+        is=is,
+        mask=mask,
+        js_=js_,
+        js=js,
+        out=out,
+        left=left,
+        right=right,
+        ∇=∇,
+        edges=edges,
+        monotone_constraints=CuArray(monotone_constraints),
     )
 
     return m, cache
@@ -117,11 +117,11 @@ function grow_evotree!(
 ) where {L,K,T}
 
     # compute gradients
-    update_grads_gpu!(cache.δ𝑤, cache.pred, cache.y, params) # needs to be computed after mask - to be move before using original w
+    update_grads_gpu!(cache.∇, cache.pred, cache.y, params)
     # subsample rows
     cache.nodes[1].is = subsample_gpu(cache.is, cache.mask, params.rowsample)
     # subsample cols
-    sample!(params.rng, cache.js_, cache.js, replace = false, ordered = true)
+    sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
 
     # assign a root and grow tree
     tree = TreeGPU{L,K,T}(params.max_depth)
@@ -129,7 +129,7 @@ function grow_evotree!(
         tree,
         cache.nodes,
         params,
-        cache.δ𝑤,
+        cache.∇,
         cache.edges,
         CuVector(cache.js),
         cache.out,
@@ -149,7 +149,7 @@ function grow_tree_gpu!(
     tree::TreeGPU{L,K,T},
     nodes,
     params::EvoTypes{L,T},
-    δ𝑤::AbstractMatrix,
+    ∇::AbstractMatrix,
     edges,
     js,
     out,
@@ -172,7 +172,7 @@ function grow_tree_gpu!(
     end
 
     # initialize summary stats
-    nodes[1].∑ .= vec(sum(δ𝑤[:, nodes[1].is], dims = 2))
+    nodes[1].∑ .= vec(sum(∇[:, nodes[1].is], dims=2))
     nodes[1].gain = get_gain(params, Array(nodes[1].∑)) # should use a GPU version?
 
     # grow while there are remaining active nodes - TO DO histogram substraction hits issue on GPU
@@ -190,7 +190,7 @@ function grow_tree_gpu!(
                         CUDA.synchronize()
                     end
                 else
-                    update_hist_gpu!(nodes[n].h, δ𝑤, x_bin, nodes[n].is, js)
+                    update_hist_gpu!(nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
             end
         end
