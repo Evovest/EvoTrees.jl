@@ -19,12 +19,12 @@ end
 # Transform X matrix into a UInt8 binarized matrix
 ####################################################
 function binarize(X, edges)
-    X_bin = zeros(UInt8, size(X))
+    x_bin = zeros(UInt8, size(X))
     @threads for i = 1:size(X, 2)
-        @inbounds X_bin[:, i] .=
+        @inbounds x_bin[:, i] .=
             searchsortedlast.(Ref(edges[i][1:end-1]), view(X, :, i)) .+ 1
     end
-    return X_bin
+    return x_bin
 end
 
 """
@@ -37,7 +37,7 @@ function split_set_chunk!(
     is,
     bid,
     nblocks,
-    X_bin,
+    x_bin,
     feat,
     cond_bin,
     offset,
@@ -51,7 +51,7 @@ function split_set_chunk!(
     i_max = i + bsize - 1
 
     @inbounds while i <= i_max
-        if X_bin[is[i], feat] <= cond_bin
+        if x_bin[is[i], feat] <= cond_bin
             left_count += 1
             left[offset+chunk_size*(bid-1)+left_count] = is[i]
         else
@@ -228,7 +228,7 @@ end
     update_gains!(
         loss::L,
         node::TrainNode{T},
-        𝑗::Vector,
+        js::Vector,
         params::EvoTypes, K, monotone_constraints) where {L,T,S}
 
 Generic fallback
@@ -269,7 +269,7 @@ function update_gains!(
             if hL[end, bin, j] > params.min_weight && hR[end, bin, j] > params.min_weight
                 if monotone_constraint != 0
                     predL = pred_scalar(view(hL, :, bin, j), params)
-                    predR = pred_scalar(view(hL, :, bin, j), params)
+                    predR = pred_scalar(view(hR, :, bin, j), params)
                 end
                 if (monotone_constraint == 0) ||
                    (monotone_constraint == -1 && predL > predR) ||

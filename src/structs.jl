@@ -3,7 +3,7 @@
 """
 mutable struct TrainNode{T<:AbstractFloat}
     gain::T
-    𝑖::Union{Nothing,AbstractVector{UInt32}}
+    is::Union{Nothing,AbstractVector{UInt32}}
     ∑::Vector{T}
     h::Array{T,3}
     hL::Array{T,3}

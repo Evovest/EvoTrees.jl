@@ -30,7 +30,7 @@
     params1 = EvoTreeRegressor(
         device="cpu",
         loss=:linear,
-        nrounds=20,
+        nrounds=200,
         nbins=32,
         lambda=1.0,
         gamma=0.0,
@@ -43,13 +43,13 @@
     )
 
     model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25)
-    preds_ref = predict(model, x_train)
+    preds_ref = predict(model, x_train);
 
     # monotonic constraint
     params1 = EvoTreeRegressor(
         device="cpu",
         loss=:linear,
-        nrounds=20,
+        nrounds=200,
         nbins=32,
         lambda=1.0,
         gamma=0.0,
@@ -63,7 +63,7 @@
     )
 
     model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25)
-    preds_mono = predict(model, x_train)
+    preds_mono = predict(model, x_train);
 
     # using Plots
     # x_perm = sortperm(x_train[:, 1])
@@ -76,36 +76,36 @@
     ### Linear - GPU
     ######################################
     # benchmark
-    # params1 = EvoTreeRegressor(
-    #     device="gpu",
-    #     loss=:linear, metric=:mse,
-    #     nrounds=200, nbins=32,
-    #     lambda=1.0, gamma=0.0, eta=0.05,
-    #     max_depth=6, min_weight=0.0,
-    #     rowsample=0.5, colsample=1.0, rng=seed)
+    params1 = EvoTreeRegressor(
+        device="gpu",
+        loss=:linear,
+        nrounds=200, nbins=32,
+        lambda=1.0, gamma=0.0, eta=0.05,
+        max_depth=6, min_weight=0.0,
+        rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
-    # preds_ref = predict(model, x_train);
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
+    preds_ref = predict(model, x_train);
 
-    # # monotonic constraint
-    # params1 = EvoTreeRegressor(
-    #     device="gpu",
-    #     loss=:linear, metric=:mse,
-    #     nrounds=200, nbins=32,
-    #     lambda=1.0, gamma=0.0, eta=0.5,
-    #     max_depth=6, min_weight=0.0,
-    #     monotone_constraints=Dict(1 => 1),
-    #     rowsample=0.5, colsample=1.0, rng=seed)
+    # monotonic constraint
+    params1 = EvoTreeRegressor(
+        device="gpu",
+        loss=:linear,
+        nrounds=200, nbins=32,
+        lambda=1.0, gamma=0.0, eta=0.5,
+        max_depth=6, min_weight=0.0,
+        monotone_constraints=Dict(1 => 1),
+        rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1, x_train, y_train, x_eval, y_eval, print_every_n=25);
-    # preds_mono = predict(model, x_train);
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
+    preds_mono = predict(model, x_train);
 
     # using Plots
-    # using Colors
-    # x_perm = sortperm(X_train[:, 1])
-    # plot(X_train, Y_train, msize=1, mcolor="gray", mswidth=0, background_color=RGB(1, 1, 1), seriestype=:scatter, xaxis=("feature"), yaxis=("target"), legend=true, label="")
-    # plot!(X_train[:, 1][x_perm], preds_ref[x_perm], color="navy", linewidth=1.5, label="Reference")
-    # plot!(X_train[:, 1][x_perm], preds_mono[x_perm], color="red", linewidth=1.5, label="Monotonic")
+    # # using Colors
+    # x_perm = sortperm(x_train[:, 1])
+    # plot(x_train, y_train, msize=1, mcolor="gray", mswidth=0, background_color=RGB(1, 1, 1), seriestype=:scatter, xaxis=("feature"), yaxis=("target"), legend=true, label="")
+    # plot!(x_train[:, 1][x_perm], preds_ref[x_perm], color="navy", linewidth=1.5, label="Reference")
+    # plot!(x_train[:, 1][x_perm], preds_mono[x_perm], color="red", linewidth=1.5, label="Monotonic")
 
 
     ######################################

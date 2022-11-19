@@ -1,21 +1,21 @@
 """
     hist_kernel_gauss!
 """
-function hist_kernel!(h∇, ∇, x_bin, 𝑖, 𝑗)
+function hist_kernel!(h∇, ∇, x_bin, is, js)
     tix, tiy, k = threadIdx().x, threadIdx().y, threadIdx().z
     bdx, bdy = blockDim().x, blockDim().y
     bix, biy = blockIdx().x, blockIdx().y
     gdx = gridDim().x
 
     j = tiy + bdy * (biy - 1)
-    if j <= length(𝑗)
-        jdx = 𝑗[j]
-        i_max = length(𝑖)
+    if j <= length(js)
+        jdx = js[j]
+        i_max = length(is)
         niter = cld(i_max, bdx * gdx)
         @inbounds for iter = 1:niter
             i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
-            if i <= length(𝑖)
-                @inbounds idx = 𝑖[i]
+            if i <= i_max
+                @inbounds idx = is[i]
                 @inbounds bin = x_bin[idx, jdx]
                 hid = Base._to_linear_index(h∇, k, bin, jdx)
                 CUDA.atomic_add!(pointer(h∇, hid), ∇[k, idx])
@@ -32,20 +32,20 @@ end
 @inline index_f(x, i) = x[i]
 
 # base approach - block built along the cols first, the rows (limit collisions)
-function update_hist_gpu!(h∇, ∇, x_bin, 𝑖, 𝑗)
-    kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, 𝑖, 𝑗)
+function update_hist_gpu!(h∇, ∇, x_bin, is, js)
+    kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
     max_threads = config.threads ÷ 4
     max_blocks = config.blocks * 4
     @assert size(h∇, 1) <= max_threads "number of classes cannot be larger than 31 on GPU"
     tz = min(64, size(h∇, 1))
-    ty = max(1, min(length(𝑗), fld(max_threads, tz)))
-    tx = max(1, min(length(𝑖), fld(max_threads, tz * ty)))
+    ty = max(1, min(length(js), fld(max_threads, tz)))
+    tx = max(1, min(length(is), fld(max_threads, tz * ty)))
     threads = (tx, ty, tz)
-    by = cld(length(𝑗), ty)
-    bx = min(cld(max_blocks, by), cld(length(𝑖), tx))
+    by = cld(length(js), ty)
+    bx = min(cld(max_blocks, by), cld(length(is), tx))
     blocks = (bx, by, 1)
-    kernel(h∇, ∇, x_bin, 𝑖, 𝑗; threads, blocks)
+    kernel(h∇, ∇, x_bin, is, js; threads, blocks)
     CUDA.synchronize()
     return nothing
 end
@@ -57,8 +57,8 @@ end
 function split_chunk_kernel!(
     left::CuDeviceVector{S},
     right::CuDeviceVector{S},
-    𝑖::CuDeviceVector{S},
-    X_bin,
+    is::CuDeviceVector{S},
+    x_bin,
     feat,
     cond_bin,
     offset,
@@ -75,16 +75,16 @@ function split_chunk_kernel!(
     right_count = 0
 
     i = chunk_size * (bid - 1) + 1
-    bid == gdim ? bsize = length(𝑖) - chunk_size * (bid - 1) : bsize = chunk_size
+    bid == gdim ? bsize = length(is) - chunk_size * (bid - 1) : bsize = chunk_size
     i_max = i + bsize - 1
 
     @inbounds while i <= i_max
-        @inbounds if X_bin[𝑖[i], feat] <= cond_bin
+        @inbounds if x_bin[is[i], feat] <= cond_bin
             left_count += 1
-            left[offset+chunk_size*(bid-1)+left_count] = 𝑖[i]
+            left[offset+chunk_size*(bid-1)+left_count] = is[i]
         else
             right_count += 1
-            right[offset+chunk_size*(bid-1)+right_count] = 𝑖[i]
+            right[offset+chunk_size*(bid-1)+right_count] = is[i]
         end
         i += 1
     end
@@ -128,10 +128,10 @@ function split_views_kernel!(
     return nothing
 end
 
-function split_set_threads_gpu!(out, left, right, 𝑖, X_bin, feat, cond_bin, offset)
+function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, offset)
 
-    chunk_size = cld(length(𝑖), min(cld(length(𝑖), 128), 2048))
-    nblocks = cld(length(𝑖), chunk_size)
+    chunk_size = cld(length(is), min(cld(length(is), 128), 2048))
+    nblocks = cld(length(is), chunk_size)
     lefts = CUDA.zeros(Int, nblocks)
     rights = CUDA.zeros(Int, nblocks)
 
@@ -139,8 +139,8 @@ function split_set_threads_gpu!(out, left, right, 𝑖, X_bin, feat, cond_bin, o
     @cuda blocks = nblocks threads = 1 split_chunk_kernel!(
         left,
         right,
-        𝑖,
-        X_bin,
+        is,
+        x_bin,
         feat,
         cond_bin,
         offset,
@@ -169,7 +169,7 @@ function split_set_threads_gpu!(out, left, right, 𝑖, X_bin, feat, cond_bin, o
     CUDA.synchronize()
     return (
         view(out, offset+1:offset+sum_lefts),
-        view(out, offset+sum_lefts+1:offset+length(𝑖)),
+        view(out, offset+sum_lefts+1:offset+length(is)),
     )
 end
 
@@ -180,7 +180,7 @@ end
 """
 function update_gains!(
     node::TrainNodeGPU,
-    𝑗::AbstractVector,
+    js::AbstractVector,
     params::EvoTypes{L,T},
     monotone_constraints;
     MAX_THREADS = 512,
@@ -190,12 +190,12 @@ function update_gains!(
     node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
 
     threads = min(params.nbins, MAX_THREADS)
-    blocks = length(𝑗)
+    blocks = length(js)
     @cuda blocks = blocks threads = threads update_gains_kernel!(
         node.gains,
         node.hL,
         node.hR,
-        𝑗,
+        js,
         params.nbins,
         params.lambda,
         params.min_weight,
@@ -209,14 +209,14 @@ function update_gains_kernel!(
     gains::CuDeviceMatrix{T},
     hL::CuDeviceArray{T,3},
     hR::CuDeviceArray{T,3},
-    𝑗::CuDeviceVector,
+    js::CuDeviceVector,
     nbins,
     lambda,
     min_weight,
     monotone_constraints,
 ) where {T}
     bin = threadIdx().x
-    j = 𝑗[blockIdx().x]
+    j = js[blockIdx().x]
     monotone_constraint = monotone_constraints[j]
     K = (size(hL, 1) - 1) ÷ 2
     @inbounds for k = 1:K

@@ -54,7 +54,7 @@ end
 function subsample_gpu(out::CuVector, mask::CuVector, rowsample::AbstractFloat)
     get_rand_gpu!(mask)
     cond = round(UInt8, 255 * rowsample)
-    chunk_size = cld(length(out), min(length(out) ÷ 128, 2048))
+    chunk_size = cld(length(out), min(cld(length(out), 128), 2048))
     nblocks = cld(length(out), chunk_size)
     counts = CUDA.zeros(Int, nblocks)
 

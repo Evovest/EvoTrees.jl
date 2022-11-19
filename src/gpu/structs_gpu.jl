@@ -3,7 +3,7 @@
 """
 mutable struct TrainNodeGPU{T<:AbstractFloat}
     gain::T
-    𝑖::Union{Nothing,AbstractVector{UInt32}}
+    is::Union{Nothing,AbstractVector{UInt32}}
     ∑::AbstractVector{T}
     h::AbstractArray{T,3}
     hL::AbstractArray{T,3}
