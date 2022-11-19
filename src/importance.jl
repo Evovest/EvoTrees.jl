@@ -12,7 +12,7 @@ end
 Sorted normalized feature importance based on loss function gain.
 Feature names associated to the model are stored in `model.info[:fnames]` as a string `Vector` and can be updated at any time. Eg: `model.info[:fnames] = new_fnames_vec`.
 """
-function importance(model::Union{EvoTree,EvoTreeGPU}; fnames = model.info[:fnames])
+function importance(model::Union{EvoTree,EvoTreeGPU}; fnames=model.info[:fnames])
     gain = zeros(length(fnames))
 
     # Loop importance over all trees and sort results.
@@ -22,7 +22,7 @@ function importance(model::Union{EvoTree,EvoTreeGPU}; fnames = model.info[:fname
 
     gain .= gain ./ sum(gain)
     pairs = collect(Dict(zip(string.(fnames), gain)))
-    sort!(pairs, by = x -> -x[2])
+    sort!(pairs, by=x -> -x[2])
 
     return pairs
 end

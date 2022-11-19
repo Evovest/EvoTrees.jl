@@ -15,16 +15,16 @@ X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5
 Y = logit(Y) + randn(size(Y))
 Y = sigmoid(Y)
-𝑖 = collect(1:size(X, 1))
+is = collect(1:size(X, 1))
 
 # train-eval split
-𝑖_sample = sample(𝑖, size(𝑖, 1), replace=false)
+is = sample(is, length(is), replace=false)
 train_size = 0.8
-𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
-𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
+i_train = is[1:floor(Int, train_size * size(is, 1))]
+i_eval = is[floor(Int, train_size * size(is, 1))+1:end]
 
-x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
-y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
+x_train, x_eval = X[i_train, :], X[i_eval, :]
+y_train, y_eval = Y[i_train], Y[i_eval]
 
 # linear
 params1 = EvoTreeRegressor(T=Float32,
@@ -36,8 +36,8 @@ params1 = EvoTreeRegressor(T=Float32,
     rng=123)
 
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25, early_stopping_rounds=20);
-# 67.159 ms (77252 allocations: 28.06 MiB)
-# @btime model = fit_evotree(params1; x_train, y_train, x_eval = x_eval, y_eval = y_eval, metric = :mse, print_every_n = 999, verbosity=0);
+# laptop: 51.651 ms (237548 allocations: 23.94 MiB)
+@btime model = fit_evotree(params1; x_train, y_train, x_eval = x_eval, y_eval = y_eval, metric = :mse, print_every_n = 999, verbosity=0);
 # Profile.clear()  # in case we have any previous profiling data
 # @profile fit_evotree(params1, X_train, Y_train, X_eval = X_eval, Y_eval = Y_eval, print_every_n = 25)
 # ProfileView.view()

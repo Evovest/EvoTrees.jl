@@ -10,16 +10,16 @@ X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5
 Y = logit(Y) + randn(size(Y))
 Y = sigmoid(Y)
-𝑖 = collect(1:size(X, 1))
+is = collect(1:size(X, 1))
 
 # train-eval split
-𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
+i_sample = sample(is, size(is, 1), replace = false)
 train_size = 0.8
-𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
-𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
+i_train = i_sample[1:floor(Int, train_size * size(is, 1))]
+i_eval = i_sample[floor(Int, train_size * size(is, 1))+1:end]
 
-x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
-y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
+x_train, x_eval = X[i_train, :], X[i_eval, :]
+y_train, y_eval = Y[i_train], Y[i_eval]
 
 @testset "EvoTreeRegressor - Linear" begin
     # linear

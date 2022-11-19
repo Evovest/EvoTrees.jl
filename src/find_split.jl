@@ -19,11 +19,12 @@ end
 # Transform X matrix into a UInt8 binarized matrix
 ####################################################
 function binarize(X, edges)
-    X_bin = zeros(UInt8, size(X))
+    x_bin = zeros(UInt8, size(X))
     @threads for i = 1:size(X, 2)
-        @inbounds X_bin[:, i] .= searchsortedlast.(Ref(edges[i][1:end-1]), view(X, :, i)) .+ 1
+        @inbounds x_bin[:, i] .=
+            searchsortedlast.(Ref(edges[i][1:end-1]), view(X, :, i)) .+ 1
     end
-    return X_bin
+    return x_bin
 end
 
 """
@@ -36,13 +37,11 @@ function split_set_chunk!(
     is,
     bid,
     nblocks,
-    X_bin,
+    x_bin,
     feat,
     cond_bin,
     offset,
     chunk_size,
-    lefts,
-    rights,
 )
 
     left_count = 0
@@ -52,7 +51,7 @@ function split_set_chunk!(
     i_max = i + bsize - 1
 
     @inbounds while i <= i_max
-        if X_bin[is[i], feat] <= cond_bin
+        if x_bin[is[i], feat] <= cond_bin
             left_count += 1
             left[offset+chunk_size*(bid-1)+left_count] = is[i]
         else
@@ -61,9 +60,7 @@ function split_set_chunk!(
         end
         i += 1
     end
-    @inbounds lefts[bid] = left_count
-    @inbounds rights[bid] = right_count
-    return nothing
+    return left_count, right_count
 end
 
 function split_views_kernel!(
@@ -108,14 +105,14 @@ function split_set_threads!(
     offset,
 ) where {S}
 
-    nblocks = ceil(Int, min(length(is) / 1024, Threads.nthreads()))
-    chunk_size = floor(Int, length(is) / nblocks)
+    chunk_size = cld(length(is), min(cld(length(is), 1024), Threads.nthreads()))
+    nblocks = cld(length(is), chunk_size)
 
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
     @threads for bid = 1:nblocks
-        split_set_chunk!(
+        lefts[bid], rights[bid] = split_set_chunk!(
             left,
             right,
             is,
@@ -126,8 +123,6 @@ function split_set_threads!(
             cond_bin,
             offset,
             chunk_size,
-            lefts,
-            rights,
         )
     end
 
@@ -167,7 +162,7 @@ function update_hist!(
     ∇::Matrix{T},
     x_bin::Matrix,
     is::AbstractVector,
-    js::AbstractVector
+    js::AbstractVector,
 ) where {L<:GradientRegression,T}
     @threads for j in js
         @inbounds @simd for i in is
@@ -190,7 +185,7 @@ function update_hist!(
     ∇::Matrix{T},
     x_bin::Matrix,
     is::AbstractVector,
-    js::AbstractVector
+    js::AbstractVector,
 ) where {L<:MLE2P,T}
     @threads for j in js
         @inbounds @simd for i in is
@@ -215,7 +210,7 @@ function update_hist!(
     ∇::Matrix{T},
     x_bin::Matrix,
     is::AbstractVector,
-    js::AbstractVector
+    js::AbstractVector,
 ) where {L,T}
     @threads for j in js
         @inbounds for i in is
@@ -233,7 +228,7 @@ end
     update_gains!(
         loss::L,
         node::TrainNode{T},
-        𝑗::Vector,
+        js::Vector,
         params::EvoTypes, K, monotone_constraints) where {L,T,S}
 
 Generic fallback
@@ -274,13 +269,15 @@ function update_gains!(
             if hL[end, bin, j] > params.min_weight && hR[end, bin, j] > params.min_weight
                 if monotone_constraint != 0
                     predL = pred_scalar(view(hL, :, bin, j), params)
-                    predR = pred_scalar(view(hL, :, bin, j), params)
+                    predR = pred_scalar(view(hR, :, bin, j), params)
                 end
                 if (monotone_constraint == 0) ||
                    (monotone_constraint == -1 && predL > predR) ||
                    (monotone_constraint == 1 && predL < predR)
 
-                    gains[bin, j] = get_gain(params, view(hL, :, bin, j)) + get_gain(params, view(hR, :, bin, j))
+                    gains[bin, j] =
+                        get_gain(params, view(hL, :, bin, j)) +
+                        get_gain(params, view(hR, :, bin, j))
                 end
             end
         end

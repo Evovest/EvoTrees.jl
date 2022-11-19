@@ -4,6 +4,7 @@ using StatsBase: sample, sample!
 using EvoTrees
 using BenchmarkTools
 using CUDA
+using Base.Threads: @threads, @spawn
 
 # prepare a dataset
 features = rand(Int(1.25e6), 100)
@@ -20,7 +21,6 @@ train_size = 0.8
 
 x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
 y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
-
 
 ###########################
 # Tree CPU
@@ -44,22 +44,265 @@ model_c, cache_c = EvoTrees.init_evotree(params_c; x_train, y_train);
 # initialize from cache
 X_size = size(cache_c.x_bin)
 
-# select random rows and cols
-sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace = false, ordered = true);
-sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace = false, ordered = true);
-# @btime sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace=false, ordered=true);
-# @btime sample!(params_c.rng, cache_c.𝑗_, cache_c.𝑗, replace=false, ordered=true);
+# 897.800 μs (6 allocations: 736 bytes)
+@time EvoTrees.update_grads!(cache_c.δ𝑤, cache_c.pred, cache_c.y, params_c)
+# @btime EvoTrees.update_grads!($params_c.loss, $cache_c.δ𝑤, $cache_c.pred_cpu, $cache_c.Y_cpu, $params_c.α)
 
-𝑖 = cache_c.nodes[1].𝑖
-𝑗 = cache_c.𝑗
+# select random rows and cols
+cache_c.nodes[1].is = EvoTrees.subsample(cache_c.is, cache_c.mask, params_c.rowsample);
+sample!(params_c.rng, cache_c.js_, cache_c.js, replace = false, ordered = true);
+# @btime sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace=false, ordered=true);
+
+is = cache_c.nodes[1].is
+js = cache_c.js
 
 L = EvoTrees.Linear
 K = 1
 T = Float32
-# build a new tree
-# 897.800 μs (6 allocations: 736 bytes)
-@time EvoTrees.update_grads!(cache_c.δ𝑤, cache_c.pred, cache_c.y, params_c)
-# @btime EvoTrees.update_grads!($params_c.loss, $cache_c.δ𝑤, $cache_c.pred_cpu, $cache_c.Y_cpu, $params_c.α)
+
+######################################################
+# sampling experiements
+######################################################
+# 7.892 ms (0 allocations: 0 bytes)
+@btime sample!(
+    $params_c.rng,
+    $cache_c.𝑖_,
+    $cache_c.nodes[1].𝑖,
+    replace = false,
+    ordered = true,
+);
+
+# 21.684 ms (2 allocations: 7.63 MiB)
+@btime sample!(
+    $params_c.rng,
+    $cache_c.𝑖_,
+    $cache_c.nodes[1].𝑖,
+    replace = false,
+    ordered = false,
+);
+
+# 27.441 ms (0 allocations: 0 bytes)
+@btime sample!(
+    $params_c.rng,
+    $cache_c.𝑖_,
+    $cache_c.nodes[1].𝑖,
+    replace = true,
+    ordered = true,
+);
+
+src = zeros(Bool, length(cache_c.𝑖_))
+target = zeros(Bool, length(cache_c.𝑖_))
+
+# 58.000 μs (3 allocations: 976.69 KiB)
+@btime rand(Bool, length(src));
+# 1.452 ms (3 allocations: 7.63 MiB)
+@btime rand(Float64, length(src));
+# 507.800 μs (3 allocations: 3.81 MiB)
+@btime rand(Float32, length(src));
+@btime rand(Float16, length(src));
+# 500.000 μs (3 allocations: 3.81 MiB)
+@btime rand(UInt32, length(src));
+# 244.800 μs (3 allocations: 1.91 MiB)
+@btime rand(UInt16, length(src));
+# 62.000 μs (3 allocations: 976.69 KiB)
+@btime rand(UInt8, length(src));
+
+function get_rand!(mask)
+    @threads for i in eachindex(mask)
+        @inbounds mask[i] = rand(UInt8)
+    end
+end
+mask = zeros(UInt8, length(cache_c.𝑖_))
+# 126.100 μs (48 allocations: 5.08 KiB)
+@btime get_rand!($mask)
+function subsample_kernelA!(mask, cond, out_view)
+    count = 0
+    @inbounds for i in eachindex(out_view)
+        if mask[i] <= cond
+            count += 1
+            out_view[count] = i
+        end
+    end
+    return count
+end
+function subsampleA(out, mask, rowsample)
+
+    get_rand!(mask)
+    cond = round(UInt8, 255 * rowsample)
+    nblocks = ceil(Int, min(length(out) / 100_000, Threads.nthreads()))
+    chunk_size = ceil(Int, length(out) / nblocks)
+    counts = zeros(Int, nblocks)
+
+    @threads for bid in eachindex(counts)
+        i_start = chunk_size * (bid - 1) + 1
+        i_stop = (bid == nblocks) ? length(out) : i_start + chunk_size - 1
+        counts[bid] = subsample_kernelA!(mask, cond, view(out, i_start:i_stop))
+    end
+
+    count = 0
+    @inbounds for bid in eachindex(counts)
+        i_start = chunk_size * (bid - 1) + 1
+        view(out, count+1:(count+counts[bid])) .= view(out, i_start:(i_start+counts[bid]-1))
+        count += counts[bid]
+    end
+    return view(out, 1:count)
+end
+out = zeros(UInt32, 1_000_000)
+mask = rand(UInt8, length(out))
+@time out_view = subsampleA(out, mask, 0.5);
+Int(minimum(out_view))
+Int(maximum(out_view))
+@btime subsampleA($out, $mask, 0.5);
+
+function subsample(out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat)
+    get_rand!(mask)
+    cond = round(UInt8, 255 * rowsample)
+    chunk_size = cld(length(out), min(length(out) ÷ 1024, Threads.nthreads()))
+    nblocks = cld(length(out), chunk_size)
+    counts = zeros(Int, nblocks)
+
+    @threads for bid = 1:nblocks
+        i_start = chunk_size * (bid - 1) + 1
+        i_stop = bid == nblocks ? length(out) : i_start + chunk_size - 1
+        count = 0
+        i = i_start
+        for i = i_start:i_stop
+            if mask[i] <= cond
+                out[i_start+count] = i
+                count += 1
+            end
+        end
+        counts[bid] = count
+    end
+    counts_cum = cumsum(counts) .- counts
+    @threads for bid = 1:nblocks
+        count_cum = counts_cum[bid]
+        i_start = chunk_size * (bid - 1)
+        @inbounds for i = 1:counts[bid]
+            out[count_cum+i] = out[i_start+i]
+        end
+    end
+    return view(out, 1:sum(counts))
+end
+out = zeros(UInt32, 1_000_000)
+mask = rand(UInt8, length(out))
+@time out_view = subsample(out, mask, 0.5);
+Int(minimum(out_view))
+Int(maximum(out_view))
+@btime subsample($out, $mask, 0.5);
+@code_warntype subsample(out, mask, 0.5);
+
+function debug(n)
+    for i = 1:n
+        out = zeros(UInt32, 1_000_000)
+        mask = rand(UInt8, length(out))
+        out_view = subsample(out, mask, 0.5)
+        min = Int(minimum(out_view))
+        min_count = sum(out_view .== 0)
+        if min == 0
+            @info "$min_count 0s at iteration $i"
+        end
+    end
+end
+debug(100)
+
+
+function get_rand_kernel!(mask)
+    tix = threadIdx().x
+    bdx = blockDim().x
+    bix = blockIdx().x
+    gdx = gridDim().x
+
+    i_max = length(mask)
+    niter = cld(i_max, bdx * gdx)
+    for iter = 1:niter
+        i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
+        if i <= i_max
+            mask[i] = rand(UInt8)
+        end
+    end
+    sync_threads()
+end
+function get_rand_gpu!(mask)
+    threads = (1024,)
+    blocks = (256,)
+    @cuda threads = threads blocks = blocks get_rand_kernel!(mask)
+    CUDA.synchronize()
+end
+
+function subsample_step_1_kernel(out, mask, cond, counts, chunk_size)
+
+    bid = blockIdx().x
+    gdim = gridDim().x
+
+    i_start = chunk_size * (bid - 1) + 1
+    i_stop = bid == gdim ? length(out) : i_start + chunk_size - 1
+    count = 0
+
+    @inbounds for i = i_start:i_stop
+        @inbounds if mask[i] <= cond
+            out[i_start+count] = i
+            count += 1
+        end
+    end
+    sync_threads()
+    @inbounds counts[bid] = count
+    sync_threads()
+end
+
+function subsample_step_2_kernel(out, counts, counts_cum, chunk_size)
+    bid = blockIdx().x
+    count_cum = counts_cum[bid]
+    i_start = chunk_size * (bid - 1)
+    @inbounds for i = 1:counts[bid]
+        out[count_cum+i] = out[i_start+i]
+    end
+    sync_threads()
+end
+
+function subsample_gpu(out::CuVector, mask::CuVector, rowsample::AbstractFloat)
+    get_rand_gpu!(mask)
+    cond = round(UInt8, 255 * rowsample)
+    chunk_size = cld(length(out), min(length(out) ÷ 128, 2048))
+    nblocks = cld(length(out), chunk_size)
+    counts = CUDA.zeros(Int, nblocks)
+
+    blocks = (nblocks,)
+    threads = (1,)
+
+    @cuda blocks = nblocks threads = 1 subsample_step_1_kernel(
+        out,
+        mask,
+        cond,
+        counts,
+        chunk_size,
+    )
+    CUDA.synchronize()
+    counts_cum = cumsum(counts) - counts
+    @cuda blocks = nblocks threads = 1 subsample_step_2_kernel(
+        out,
+        counts,
+        counts_cum,
+        chunk_size,
+    )
+    CUDA.synchronize()
+    return view(out, 1:sum(counts))
+end
+
+out = CUDA.zeros(UInt32, 1_000_000)
+mask = CUDA.zeros(UInt8, length(out))
+CUDA.@time get_rand_gpu!(mask)
+# 39.100 μs (5 allocations: 304 bytes)
+# @btime get_rand_gpu!(mask)
+
+CUDA.@time out_view = subsample_gpu(out, mask, 0.5);
+Int(minimum(out_view))
+Int(maximum(out_view))
+@btime subsample_gpu(out, mask, 1.0);
+
+##########################################################
+# end subsample tests
+##########################################################
 
 # 12.058 ms (2998 allocations: 284.89 KiB)
 tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
@@ -69,7 +312,7 @@ tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
     params_c,
     cache_c.δ𝑤,
     cache_c.edges,
-    cache_c.𝑗,
+    cache_c.js,
     cache_c.left,
     cache_c.left,
     cache_c.right,
@@ -82,7 +325,7 @@ tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
     params_c,
     cache_c.δ𝑤,
     cache_c.edges,
-    cache_c.𝑗,
+    cache_c.js,
     cache_c.left,
     cache_c.left,
     cache_c.right,
@@ -95,7 +338,7 @@ tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
     $params_c,
     $cache_c.δ𝑤,
     $cache_c.edges,
-    $cache_c.𝑗,
+    $cache_c.js,
     $cache_c.left,
     $cache_c.left,
     $cache_c.right,
@@ -107,21 +350,24 @@ tree = EvoTrees.Tree{L,K,T}(params_c.max_depth)
 # 993.447 μs (75 allocations: 7.17 KiB)
 @btime EvoTrees.predict!(cache_c.pred, tree, cache_c.x)
 
-δ𝑤, edges, x_bin, nodes, out, left, right, monotone_constraints = cache_c.δ𝑤,
+δ𝑤, edges, x_bin, nodes, out, left, right, mask, monotone_constraints = cache_c.δ𝑤,
 cache_c.edges,
 cache_c.x_bin,
 cache_c.nodes,
 cache_c.out,
 cache_c.left,
 cache_c.right,
+cache_c.mask,
 cache_c.monotone_constraints;
 
 # Float32: 2.984 ms (73 allocations: 6.52 KiB)
 # Float64: 5.020 ms (73 allocations: 6.52 KiB)
-@time EvoTrees.update_hist!(L, nodes[1].h, δ𝑤, x_bin, 𝑖, 𝑗, K)
-@btime EvoTrees.update_hist!($L, $nodes[1].h, $δ𝑤, $x_bin, $𝑖, $𝑗, $K)
-@btime EvoTrees.update_hist!($nodes[1].h, $δ𝑤, $X_bin, $nodes[1].𝑖, $𝑗)
-@code_warntype EvoTrees.update_hist!(hist, δ, X_bin, 𝑖, 𝑗, 𝑛)
+
+𝑖 = cache_c.nodes[1].𝑖
+# mask = rand(Bool, length(𝑖))
+@time EvoTrees.update_hist!(L, nodes[1].h, δ𝑤, x_bin, 𝑖, 𝑗)
+@btime EvoTrees.update_hist!($L, $nodes[1].h, $δ𝑤, $x_bin, $𝑖, $𝑗)
+@code_warntype EvoTrees.update_hist!(L, nodes[1].h, δ𝑤, x_bin, 𝑖, 𝑗)
 
 j = 1
 n = 1
@@ -157,7 +403,7 @@ offset = 0
 @code_warntype EvoTrees.split_set!(left, right, 𝑖, X_bin, tree.feat[n], tree.cond_bin[n])
 
 # 186.294 μs (151 allocations: 15.06 KiB)
-@time EvoTrees.split_set_threads!(
+@time _left, _right = EvoTrees.split_set_threads!(
     out,
     left,
     right,
@@ -166,7 +412,7 @@ offset = 0
     tree.feat[n],
     tree.cond_bin[n],
     offset,
-)
+);
 @btime EvoTrees.split_set_threads!(
     $out,
     $left,
@@ -176,7 +422,7 @@ offset = 0
     $tree.feat[n],
     $tree.cond_bin[n],
     $offset,
-)
+);
 
 ###################################################
 # GPU

@@ -72,25 +72,26 @@ function init_evotree(
     m = EvoTree{L,K,T}(bias, info)
 
     # initialize gradients and weights
-    δ𝑤 = zeros(T, 2 * K + 1, x_size[1])
+    ∇ = zeros(T, 2 * K + 1, x_size[1])
     w = isnothing(w_train) ? ones(T, size(y)) : Vector{T}(w_train)
     @assert (length(y) == length(w) && minimum(w) > 0)
-    δ𝑤[end, :] .= w
+    ∇[end, :] .= w
 
     # binarize data into quantiles
     edges = get_edges(x, params.nbins)
     x_bin = binarize(x, edges)
 
-    𝑖_ = UInt32.(collect(1:x_size[1]))
-    𝑗_ = UInt32.(collect(1:x_size[2]))
-    𝑗 = zeros(eltype(𝑗_), ceil(Int, params.colsample * x_size[2]))
+    # 𝑖_ = UInt32.(1:x_size[1])
+    is = zeros(UInt32, x_size[1])
+    mask = zeros(UInt8, x_size[1])
+    js_ = UInt32.(collect(1:x_size[2]))
+    js = zeros(UInt32, ceil(Int, params.colsample * x_size[2]))
 
     # initialize histograms
-    nodes = [TrainNode(x_size[2], params.nbins, K, T) for n = 1:2^params.max_depth-1]
-    nodes[1].𝑖 = zeros(eltype(𝑖_), ceil(Int, params.rowsample * x_size[1]))
-    out = zeros(UInt32, length(nodes[1].𝑖))
-    left = zeros(UInt32, length(nodes[1].𝑖))
-    right = zeros(UInt32, length(nodes[1].𝑖))
+    nodes = [TrainNode(x_size[2], params.nbins, K, view(is, 1:0), T) for n = 1:2^params.max_depth-1]
+    out = zeros(UInt32, x_size[1])
+    left = zeros(UInt32, x_size[1])
+    right = zeros(UInt32, x_size[1])
 
     # assign monotone contraints in constraints vector
     monotone_constraints = zeros(Int32, x_size[2])
@@ -102,16 +103,18 @@ function init_evotree(
         info=Dict(:nrounds => 0),
         x=x,
         y=y,
+        w=w,
         K=K,
         nodes=nodes,
         pred=pred,
-        𝑖_=𝑖_,
-        𝑗_=𝑗_,
-        𝑗=𝑗,
+        is=is,
+        mask=mask,
+        js_=js_,
+        js=js,
         out=out,
         left=left,
         right=right,
-        δ𝑤=δ𝑤,
+        ∇=∇,
         edges=edges,
         x_bin=x_bin,
         monotone_constraints=monotone_constraints,
@@ -119,24 +122,30 @@ function init_evotree(
     return m, cache
 end
 
+"""
+    grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) where {L,K,T}
 
+Given a instantiate
+"""
 function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) where {L,K,T}
 
-    # select random rows and cols
-    sample!(params.rng, cache.𝑖_, cache.nodes[1].𝑖, replace=false, ordered=true)
-    sample!(params.rng, cache.𝑗_, cache.𝑗, replace=false, ordered=true)
+    # compute gradients
+    update_grads!(cache.∇, cache.pred, cache.y, params)
+    # subsample rows
+    cache.nodes[1].is = subsample(cache.is, cache.mask, params.rowsample)
 
-    # build a new tree
-    update_grads!(cache.δ𝑤, cache.pred, cache.y, params)
-    # assign a root and grow tree
+    # subsample cols
+    sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
+
+    # instantiate a tree then grow it
     tree = Tree{L,K,T}(params.max_depth)
     grow_tree!(
         tree,
         cache.nodes,
         params,
-        cache.δ𝑤,
+        cache.∇,
         cache.edges,
-        cache.𝑗,
+        cache.js,
         cache.out,
         cache.left,
         cache.right,
@@ -152,17 +161,17 @@ end
 # grow a single tree
 function grow_tree!(
     tree::Tree{L,K,T},
-    nodes::Vector{TrainNode{T}},
+    nodes::Vector{TrainNode{T,S}},
     params::EvoTypes{L,T},
-    δ𝑤::Matrix{T},
+    ∇::Matrix{T},
     edges,
-    𝑗,
+    js,
     out,
     left,
     right,
     x_bin::AbstractMatrix,
     monotone_constraints,
-) where {L,K,T}
+) where {L,K,T,S}
 
     # reset nodes
     @threads for n in nodes
@@ -178,7 +187,7 @@ function grow_tree!(
     depth = 1
 
     # initialize summary stats
-    nodes[1].∑ .= @views vec(sum(δ𝑤[:, nodes[1].𝑖], dims=2))
+    nodes[1].∑ .= @views vec(sum(∇[:, nodes[1].is], dims=2))
     nodes[1].gain = get_gain(params, nodes[1].∑)
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
@@ -194,17 +203,17 @@ function grow_tree!(
                         nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
                     end
                 else
-                    update_hist!(L, nodes[n].h, δ𝑤, x_bin, nodes[n].𝑖, 𝑗)
+                    update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
             end
         end
 
         for n ∈ sort(n_current)
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
-                pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, δ𝑤, nodes[n].𝑖)
+                pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             else
                 # histogram subtraction
-                update_gains!(nodes[n], 𝑗, params, K, monotone_constraints)
+                update_gains!(nodes[n], js, params, K, monotone_constraints)
                 best = findmax(nodes[n].gains)
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.gamma
                     tree.gain[n] = best[1] - nodes[n].gain
@@ -214,7 +223,7 @@ function grow_tree!(
                 end
                 tree.split[n] = tree.cond_bin[n] != 0
                 if !tree.split[n]
-                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, δ𝑤, nodes[n].𝑖)
+                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
                     popfirst!(n_next)
                 else
                     # println("typeof(nodes[n].𝑖): ", typeof(nodes[n].𝑖))
@@ -222,14 +231,14 @@ function grow_tree!(
                         out,
                         left,
                         right,
-                        nodes[n].𝑖,
+                        nodes[n].is,
                         x_bin,
                         tree.feat[n],
                         tree.cond_bin[n],
                         offset,
                     )
-                    offset += length(nodes[n].𝑖)
-                    nodes[n<<1].𝑖, nodes[n<<1+1].𝑖 = _left, _right
+                    offset += length(nodes[n].is)
+                    nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[:, best[2][1], best[2][2]]
                     nodes[n<<1+1].∑ .= nodes[n].hR[:, best[2][1], best[2][2]]
                     nodes[n<<1].gain = get_gain(params, nodes[n<<1].∑)
@@ -295,6 +304,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
 - `fnames`: the names of the `x_train` features. If provided, should be a vector of string with `length(fnames) = size(x_train, 2)`.
+- `return_logger::Bool = false`: if set to true (default), `fit_evotree` return a tuple `(m, logger)` where logger is a dict containing various tracking information.
 """
 function fit_evotree(
     params::EvoTypes{L,T};

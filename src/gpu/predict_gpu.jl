@@ -106,7 +106,7 @@ function predict!(
     pred::AbstractMatrix{T},
     tree::TreeGPU{L,K,T},
     X::AbstractMatrix;
-    MAX_THREADS = 1024,
+    MAX_THREADS=1024
 ) where {L,K,T}
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
@@ -127,7 +127,7 @@ function predict!(
     pred::AbstractMatrix{T},
     tree::TreeGPU{L,K,T},
     X::AbstractMatrix;
-    MAX_THREADS = 1024,
+    MAX_THREADS=1024
 ) where {L<:Softmax,K,T}
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
@@ -142,7 +142,7 @@ function predict!(
         X,
     )
     CUDA.synchronize()
-    pred .= max.(-15, pred .- maximum(pred, dims = 1))
+    pred .= max.(-15, pred .- maximum(pred, dims=1))
 end
 
 # prediction from single tree - assign each observation to its final leaf
@@ -156,7 +156,7 @@ end
 function predict(
     m::EvoTreeGPU{L,K,T},
     X::AbstractMatrix;
-    ntree_limit = length(m.trees),
+    ntree_limit=length(m.trees)
 ) where {L,K,T}
     pred = CUDA.zeros(T, K, size(X, 1))
     X_gpu = CuArray(X)
