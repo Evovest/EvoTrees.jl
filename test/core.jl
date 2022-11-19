@@ -13,7 +13,7 @@ Y = sigmoid(Y)
 is = collect(1:size(X, 1))
 
 # train-eval split
-i_sample = sample(is, size(𝑖, 1), replace = false)
+i_sample = sample(is, size(is, 1), replace = false)
 train_size = 0.8
 i_train = i_sample[1:floor(Int, train_size * size(is, 1))]
 i_eval = i_sample[floor(Int, train_size * size(is, 1))+1:end]
