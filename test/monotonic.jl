@@ -76,29 +76,29 @@
     ### Linear - GPU
     ######################################
     # benchmark
-    params1 = EvoTreeRegressor(
-        device="gpu",
-        loss=:linear,
-        nrounds=200, nbins=32,
-        lambda=1.0, gamma=0.0, eta=0.05,
-        max_depth=6, min_weight=0.0,
-        rowsample=0.5, colsample=1.0, rng=seed)
+    # params1 = EvoTreeRegressor(
+    #     device="gpu",
+    #     loss=:linear,
+    #     nrounds=200, nbins=32,
+    #     lambda=1.0, gamma=0.0, eta=0.05,
+    #     max_depth=6, min_weight=0.0,
+    #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
-    preds_ref = predict(model, x_train);
+    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
+    # preds_ref = predict(model, x_train);
 
-    # monotonic constraint
-    params1 = EvoTreeRegressor(
-        device="gpu",
-        loss=:linear,
-        nrounds=200, nbins=32,
-        lambda=1.0, gamma=0.0, eta=0.5,
-        max_depth=6, min_weight=0.0,
-        monotone_constraints=Dict(1 => 1),
-        rowsample=0.5, colsample=1.0, rng=seed)
+    # # monotonic constraint
+    # params1 = EvoTreeRegressor(
+    #     device="gpu",
+    #     loss=:linear,
+    #     nrounds=200, nbins=32,
+    #     lambda=1.0, gamma=0.0, eta=0.5,
+    #     max_depth=6, min_weight=0.0,
+    #     monotone_constraints=Dict(1 => 1),
+    #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
-    preds_mono = predict(model, x_train);
+    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
+    # preds_mono = predict(model, x_train);
 
     # using Plots
     # x_perm = sortperm(x_train[:, 1])
