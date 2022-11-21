@@ -138,14 +138,14 @@ function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) wh
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, params)
     # subsample rows
-    cache.nodes[1].is = subsample(cache.is, cache.mask, params.rowsample, cache.rng)
+    cache.nodes[1].is = subsample(cache.is, cache.mask, params.rowsample, cache.rngs)
     @info "length(is)" length(cache.nodes[1].is)
     print(Int.(cache.nodes[1].is[1:5]))
 
     # subsample cols
-    rngcol = Xoshiro(123)
-    # sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
-    sample!(rngcol, cache.js_, cache.js, replace=false, ordered=true)
+    # rngcol = Xoshiro(123)
+    sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
+    # sample!(cache.rng, cache.js_, cache.js, replace=false, ordered=true)
 
     # instantiate a tree then grow it
     tree = Tree{L,K,T}(params.max_depth)
