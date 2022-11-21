@@ -19,9 +19,9 @@ struct LogisticMLE <: MLE2P end
 mk_rng(rng::AbstractRNG) = rng
 function mk_rng(int::Integer)
     if VERSION < v"1.7"
-        rng = Random.TaskLocalRNG()
-    else
         rng = Random.MersenneTwister()
+    else
+        rng = Random.TaskLocalRNG()
     end
     seed!(rng, int)
     CUDA.functional() && CUDA.seed!(int)
