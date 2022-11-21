@@ -18,7 +18,7 @@ struct LogisticMLE <: MLE2P end
 # make a Random Number Generator object
 mk_rng(rng::AbstractRNG) = rng
 function mk_rng(int::Integer)
-    if VERSION >= v"1.7-"
+    if VERSION < v"1.7"
         rng = Random.TaskLocalRNG()
     else
         rng = Random.MersenneTwister()
