@@ -18,9 +18,13 @@ struct LogisticMLE <: MLE2P end
 # make a Random Number Generator object
 mk_rng(rng::AbstractRNG) = rng
 function mk_rng(int::Integer)
-    rng = TaskLocalRNG()
+    if VERSION >= v"1.7-"
+        rng = Random.TaskLocalRNG()
+    else
+        rng = Random.MersenneTwister()
+    end
     seed!(rng, int)
-    CUDA.seed!(int)
+    CUDA.functional() && CUDA.seed!(int)
     return rng
 end
 
@@ -223,7 +227,7 @@ function EvoTreeClassifier(; kwargs...)
         :nbins => 32,
         :alpha => 0.5,
         :rng => 123,
-        :device => "cpu"
+        :device => "cpu",
     )
 
     args_ignored = setdiff(keys(kwargs), keys(args))

@@ -13,7 +13,7 @@ export EvoTreeRegressor,
 using Base.Threads: @threads, @spawn, nthreads, threadid
 using Statistics
 using StatsBase: sample, sample!, quantile
-using Random: seed!, TaskLocalRNG, Xoshiro, AbstractRNG
+using Random: seed!, AbstractRNG
 using Distributions
 using CategoricalArrays
 using LoopVectorization
