@@ -23,24 +23,24 @@ X = DataFrame(X)
 
 # @load EvoTreeRegressor
 # linear regression
-tree_model = EvoTreeRegressor(max_depth = 5, eta = 0.05, nrounds = 10)
+tree_model = EvoTreeRegressor(max_depth = 5, eta = 0.05, nrounds = 5, rowsample = 0.5)
 # logistic regression
-tree_model = EvoTreeRegressor(loss = :logistic, max_depth = 5, eta = 0.05, nrounds = 10)
+# tree_model = EvoTreeRegressor(loss = :logistic, max_depth = 5, eta = 0.05, nrounds = 10)
 # quantile regression
-tree_model = EvoTreeRegressor(
-    loss = :quantile,
-    alpha = 0.75,
-    max_depth = 5,
-    eta = 0.05,
-    nrounds = 10,
-)
+# tree_model = EvoTreeRegressor(
+#     loss = :quantile,
+#     alpha = 0.75,
+#     max_depth = 5,
+#     eta = 0.05,
+#     nrounds = 10,
+# )
 
 tree = machine(tree_model, X, y)
 train, test = partition(eachindex(y), 0.7, shuffle = true); # 70:30 split
-fit!(tree, rows = train, verbosity = 1)
+fit!(tree, rows = train, verbosity = 1);
 
-tree.model.nrounds += 10
-fit!(tree, rows = train, verbosity = 1)
+tree.model.nrounds += 5
+fit!(tree, rows = train, verbosity = 1);
 
 # predict on train data
 pred_train = predict(tree, selectrows(X, train))

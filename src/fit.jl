@@ -99,6 +99,10 @@ function init_evotree(
         monotone_constraints[k] = v
     end
 
+    rngs = [Xoshiro(123 + i) for i = 1:nthreads()]
+    rng = TaskLocalRNG()
+    seed!(rng, 123)
+
     cache = (
         info=Dict(:nrounds => 0),
         x=x,
@@ -118,6 +122,8 @@ function init_evotree(
         edges=edges,
         x_bin=x_bin,
         monotone_constraints=monotone_constraints,
+        rng = rng,
+        rngs = rngs
     )
     return m, cache
 end
@@ -132,10 +138,14 @@ function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) wh
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, params)
     # subsample rows
-    cache.nodes[1].is = subsample(cache.is, cache.mask, params.rowsample)
+    cache.nodes[1].is = subsample(cache.is, cache.mask, params.rowsample, cache.rng)
+    @info "length(is)" length(cache.nodes[1].is)
+    print(Int.(cache.nodes[1].is[1:5]))
 
     # subsample cols
-    sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
+    rngcol = Xoshiro(123)
+    # sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
+    sample!(rngcol, cache.js_, cache.js, replace=false, ordered=true)
 
     # instantiate a tree then grow it
     tree = Tree{L,K,T}(params.max_depth)

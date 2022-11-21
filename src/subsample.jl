@@ -3,19 +3,32 @@
 
 Assign new UInt8 random numbers to mask. Serves as a basis to rowsampling.
 """
-function get_rand!(mask)
+function get_rand!(rng, mask)
     @threads for i in eachindex(mask)
-        @inbounds mask[i] = rand(UInt8)
+        @inbounds mask[i] = rand(rng, UInt8)
     end
 end
-
+function get_rand_repro!(rngs, mask)
+    nblocks = length(rngs)
+    chunk_size = cld(length(mask), nblocks)
+    @threads for bid = 1:nblocks
+        i_start = chunk_size * (bid - 1) + 1
+        i_stop = min(length(mask), i_start + chunk_size - 1)
+        rng = rngs[bid]
+        @inbounds for i = i_start:i_stop
+            mask[i] = rand(rng, UInt8)
+        end
+    end
+end
 """
     subsample(out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat)
 
 Returns a view of selected rows ids.
 """
-function subsample(out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat)
-    get_rand!(mask)
+function subsample(out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat, rng)
+    get_rand!(rng, mask)
+    # get_rand_repro!(rngs, mask)
+
     cond = round(UInt8, 255 * rowsample)
     chunk_size = cld(length(out), min(cld(length(out), 1024), Threads.nthreads()))
     nblocks = cld(length(out), chunk_size)
