@@ -78,7 +78,7 @@ function init_evotree(
     ∇[end, :] .= w
 
     # binarize data into quantiles
-    edges = get_edges(x, params.nbins)
+    edges = get_edges(x, params.nbins, params.rng)
     x_bin = binarize(x, edges)
 
     is_in = zeros(UInt32, x_size[1])

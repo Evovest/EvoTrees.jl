@@ -1,8 +1,7 @@
 #############################################
 # Get the braking points
 #############################################
-function get_edges(X::AbstractMatrix{T}, nbins) where {T}
-    rng = Random.MersenneTwister(123)
+function get_edges(X::AbstractMatrix{T}, nbins, rng = Random.MersenneTwister()) where {T}
     nobs = min(size(X, 1), 1000 * nbins)
     obs = rand(rng, 1:size(X, 1), nobs)
     edges = Vector{Vector{T}}(undef, size(X, 2))
