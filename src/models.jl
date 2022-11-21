@@ -20,6 +20,7 @@ mk_rng(rng::AbstractRNG) = rng
 function mk_rng(int::Integer)
     rng = TaskLocalRNG()
     seed!(rng, int)
+    CUDA.seed!(int)
     return rng
 end
 
