@@ -33,10 +33,10 @@ params1 = EvoTreeRegressor(T=Float32,
     nrounds=500, nbins=64,
     lambda=0.1, gamma=0.1, eta=0.1,
     max_depth=6, min_weight=1.0,
-    rowsample=0.1, colsample=1.0,
+    rowsample=0.5, colsample=1.0,
     device="gpu")
 
-@time model = fit_evotree(params1; x_train, y_train);
+# @time model = fit_evotree(params1; x_train, y_train);
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25, early_stopping_rounds=50);
 # model, logger = fit_evotree(params1; x_train, y_train, metric=:mse, x_eval, y_eval, early_stopping_rounds=20, print_every_n=10, return_logger=true);
 model_cpu = convert(EvoTrees.EvoTree, model);

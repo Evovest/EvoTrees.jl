@@ -10,10 +10,11 @@ export EvoTreeRegressor,
     EvoTreeGPU,
     Random
 
-using Base.Threads: @threads, @spawn
+using Base.Threads: @threads, @spawn, nthreads, threadid
 using Statistics
 using StatsBase: sample, sample!, quantile
 using Random
+using Random: seed!, AbstractRNG
 using Distributions
 using CategoricalArrays
 using LoopVectorization

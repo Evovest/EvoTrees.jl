@@ -4,7 +4,8 @@ using StatsBase: sample, sample!
 using EvoTrees
 using BenchmarkTools
 using CUDA
-using Base.Threads: @threads, @spawn
+using Base.Threads: nthreads, threadid, @threads, @spawn
+using Random: seed!, Xoshiro, MersenneTwister, TaskLocalRNG
 
 # prepare a dataset
 features = rand(Int(1.25e6), 100)
@@ -45,11 +46,12 @@ model_c, cache_c = EvoTrees.init_evotree(params_c; x_train, y_train);
 X_size = size(cache_c.x_bin)
 
 # 897.800 μs (6 allocations: 736 bytes)
-@time EvoTrees.update_grads!(cache_c.δ𝑤, cache_c.pred, cache_c.y, params_c)
+@time EvoTrees.update_grads!(cache_c.∇, cache_c.pred, cache_c.y, params_c)
 # @btime EvoTrees.update_grads!($params_c.loss, $cache_c.δ𝑤, $cache_c.pred_cpu, $cache_c.Y_cpu, $params_c.α)
 
 # select random rows and cols
-cache_c.nodes[1].is = EvoTrees.subsample(cache_c.is, cache_c.mask, params_c.rowsample);
+cache_c.nodes[1].is = EvoTrees.subsample(cache_c.is, cache_c.mask, params_c.rowsample, cache_c.rngs);
+length(cache_c.nodes[1].is)
 sample!(params_c.rng, cache_c.js_, cache_c.js, replace = false, ordered = true);
 # @btime sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace=false, ordered=true);
 
@@ -64,6 +66,76 @@ T = Float32
 # sampling experiements
 ######################################################
 # 7.892 ms (0 allocations: 0 bytes)
+function get_rand!(rng, mask)
+    @threads for i in eachindex(mask)
+        @inbounds mask[i] = rand(rng, UInt8)
+    end
+end
+function get_rand_repro_A!(rngs, mask)
+    @threads for i in eachindex(mask)
+        tid = threadid()
+        @inbounds mask[i] = rand(rngs[tid], UInt8)
+    end
+end
+function get_rand_repro_B!(rngs, mask)
+    nblocks = length(rngs)
+    chunk_size = cld(length(mask), nblocks)
+    @threads for bid = 1:nblocks
+        i_start = chunk_size * (bid - 1) + 1
+        i_stop = min(length(mask), i_start + chunk_size - 1)
+        rng = rngs[bid]
+        @inbounds for i = i_start:i_stop
+            @inbounds mask[i] = rand(rng, UInt8)
+        end
+    end
+end
+function get_rand_repro_C!(rngs, mask)
+    nblocks = length(rngs)
+    chunk_size = cld(length(mask), nblocks)
+    @threads for bid = 1:nblocks
+        tx = threadid()
+        i_start = chunk_size * (tx - 1) + 1
+        i_stop = min(length(mask), i_start + chunk_size - 1)
+        rng = rngs[tx]
+        @inbounds for i = i_start:i_stop
+            mask[i] = rand(rng, UInt8)
+        end
+    end
+end
+
+nobs = 1_000_000
+
+mask_ori = zeros(UInt32, nobs)
+rng = TaskLocalRNG()
+seed!(rng, 123)
+# rng = Xoshiro(123 + 1)
+# rng = MersenneTwister(123 + 1)
+get_rand!(rng, mask_ori)
+@btime get_rand!($rng, $mask_ori)
+
+mask_A = zeros(UInt32, nobs)
+rngs = [Random.MersenneTwister(123 + i) for i = 1:nthreads()]
+get_rand_repro_A!(rngs, mask_A)
+@btime get_rand_repro_A!($rngs, $mask_A)
+
+mask_B = zeros(UInt32, nobs)
+rngs = [Xoshiro(123 + i) for i = 1:nthreads()]
+get_rand_repro_B!(rngs, mask_B)
+@btime get_rand_repro_B!($rngs, $mask_B)
+
+mask_C = zeros(UInt32, nobs)
+rngs = [Random.MersenneTwister(123 + i) for i = 1:nthreads()]
+get_rand_repro_C!(rngs, mask_C)
+@btime get_rand_repro_C!($rngs, $mask_C)
+
+rngs = [Random.MersenneTwister(123 + i) for i = 1:nthreads()]
+rng1 = Random.MersenneTwister(123)
+rng2 = Random.MersenneTwister(124)
+
+rand(rngs[1], UInt32)
+rand(rng1, UInt32)
+rand(rng2, UInt32)
+
 @btime sample!(
     $params_c.rng,
     $cache_c.𝑖_,
@@ -112,7 +184,7 @@ function get_rand!(mask)
         @inbounds mask[i] = rand(UInt8)
     end
 end
-mask = zeros(UInt8, length(cache_c.𝑖_))
+mask = zeros(UInt8, length(cache_c.is))
 # 126.100 μs (48 allocations: 5.08 KiB)
 @btime get_rand!($mask)
 function subsample_kernelA!(mask, cond, out_view)
@@ -175,7 +247,7 @@ function subsample(out::AbstractVector, mask::AbstractVector, rowsample::Abstrac
         counts[bid] = count
     end
     counts_cum = cumsum(counts) .- counts
-    @threads for bid = 1:nblocks
+    for bid = 1:nblocks
         count_cum = counts_cum[bid]
         i_start = chunk_size * (bid - 1)
         @inbounds for i = 1:counts[bid]

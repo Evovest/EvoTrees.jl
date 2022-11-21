@@ -1,10 +1,9 @@
 #############################################
 # Get the braking points
 #############################################
-function get_edges(X::AbstractMatrix{T}, nbins) where {T}
-    Random.seed!(123)
+function get_edges(X::AbstractMatrix{T}, nbins, rng = Random.MersenneTwister()) where {T}
     nobs = min(size(X, 1), 1000 * nbins)
-    obs = rand(1:size(X, 1), nobs)
+    obs = rand(rng, 1:size(X, 1), nobs)
     edges = Vector{Vector{T}}(undef, size(X, 2))
     @threads for i = 1:size(X, 2)
         edges[i] = quantile(view(X, obs, i), (1:nbins) / nbins)
