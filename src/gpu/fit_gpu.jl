@@ -69,13 +69,14 @@ function init_evotree_gpu(
     edges = get_edges(x, params.nbins)
     x_bin = CuArray(binarize(x, edges))
 
-    is = CUDA.zeros(UInt32, x_size[1])
+    is_in = CUDA.zeros(UInt32, x_size[1])
+    is_out = CUDA.zeros(UInt32, x_size[1])
     mask = CUDA.zeros(UInt8, x_size[1])
     js_ = UInt32.(collect(1:x_size[2]))
     js = zeros(eltype(js_), ceil(Int, params.colsample * x_size[2]))
 
     # initialize histograms
-    nodes = [TrainNodeGPU(x_size[2], params.nbins, K, view(is, 1:0), T) for n = 1:2^params.max_depth-1]
+    nodes = [TrainNodeGPU(x_size[2], params.nbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
     out = CUDA.zeros(UInt32, x_size[1])
     left = CUDA.zeros(UInt32, x_size[1])
     right = CUDA.zeros(UInt32, x_size[1])
@@ -94,7 +95,8 @@ function init_evotree_gpu(
         y=y,
         nodes=nodes,
         pred=pred,
-        is=is,
+        is_in=is_in,
+        is_out=is_out,
         mask=mask,
         js_=js_,
         js=js,
@@ -119,7 +121,7 @@ function grow_evotree!(
     # compute gradients
     update_grads_gpu!(cache.∇, cache.pred, cache.y, params)
     # subsample rows
-    cache.nodes[1].is = subsample_gpu(cache.is, cache.mask, params.rowsample)
+    cache.nodes[1].is = subsample_gpu(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
     # subsample cols
     sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
 

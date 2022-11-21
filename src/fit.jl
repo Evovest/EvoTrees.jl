@@ -81,14 +81,14 @@ function init_evotree(
     edges = get_edges(x, params.nbins)
     x_bin = binarize(x, edges)
 
-    # 𝑖_ = UInt32.(1:x_size[1])
-    is = zeros(UInt32, x_size[1])
+    is_in = zeros(UInt32, x_size[1])
+    is_out = zeros(UInt32, x_size[1])
     mask = zeros(UInt8, x_size[1])
     js_ = UInt32.(collect(1:x_size[2]))
     js = zeros(UInt32, ceil(Int, params.colsample * x_size[2]))
 
     # initialize histograms
-    nodes = [TrainNode(x_size[2], params.nbins, K, view(is, 1:0), T) for n = 1:2^params.max_depth-1]
+    nodes = [TrainNode(x_size[2], params.nbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
     out = zeros(UInt32, x_size[1])
     left = zeros(UInt32, x_size[1])
     right = zeros(UInt32, x_size[1])
@@ -99,10 +99,6 @@ function init_evotree(
         monotone_constraints[k] = v
     end
 
-    rngs = [Xoshiro(123 + i) for i = 1:nthreads()]
-    rng = TaskLocalRNG()
-    seed!(rng, 123)
-
     cache = (
         info=Dict(:nrounds => 0),
         x=x,
@@ -111,7 +107,8 @@ function init_evotree(
         K=K,
         nodes=nodes,
         pred=pred,
-        is=is,
+        is_in=is_in,
+        is_out=is_out,
         mask=mask,
         js_=js_,
         js=js,
@@ -122,8 +119,6 @@ function init_evotree(
         edges=edges,
         x_bin=x_bin,
         monotone_constraints=monotone_constraints,
-        rng = rng,
-        rngs = rngs
     )
     return m, cache
 end
@@ -138,15 +133,10 @@ function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) wh
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, params)
     # subsample rows
-    cache.nodes[1].is = subsample(cache.is, cache.mask, params.rowsample, cache.rngs)
-    @info "length(is)" length(cache.nodes[1].is)
-    print(Int.(cache.nodes[1].is[1:5]))
-
+    cache.nodes[1].is = subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
     # subsample cols
-    # rngcol = Xoshiro(123)
     sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
-    # sample!(cache.rng, cache.js_, cache.js, replace=false, ordered=true)
-
+    
     # instantiate a tree then grow it
     tree = Tree{L,K,T}(params.max_depth)
     grow_tree!(
@@ -236,7 +226,6 @@ function grow_tree!(
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
                     popfirst!(n_next)
                 else
-                    # println("typeof(nodes[n].𝑖): ", typeof(nodes[n].𝑖))
                     _left, _right = split_set_threads!(
                         out,
                         left,
@@ -247,6 +236,7 @@ function grow_tree!(
                         tree.cond_bin[n],
                         offset,
                     )
+                    # @info "childs length" left = length(_left) right = length(_left)
                     offset += length(nodes[n].is)
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[:, best[2][1], best[2][2]]

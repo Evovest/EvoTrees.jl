@@ -50,7 +50,7 @@ X_size = size(cache_c.x_bin)
 # @btime EvoTrees.update_grads!($params_c.loss, $cache_c.δ𝑤, $cache_c.pred_cpu, $cache_c.Y_cpu, $params_c.α)
 
 # select random rows and cols
-cache_c.nodes[1].is = EvoTrees.subsample(cache_c.is, cache_c.mask, params_c.rowsample, params_c.rng);
+cache_c.nodes[1].is = EvoTrees.subsample(cache_c.is, cache_c.mask, params_c.rowsample, cache_c.rngs);
 length(cache_c.nodes[1].is)
 sample!(params_c.rng, cache_c.js_, cache_c.js, replace = false, ordered = true);
 # @btime sample!(params_c.rng, cache_c.𝑖_, cache_c.nodes[1].𝑖, replace=false, ordered=true);
@@ -184,7 +184,7 @@ function get_rand!(mask)
         @inbounds mask[i] = rand(UInt8)
     end
 end
-mask = zeros(UInt8, length(cache_c.𝑖_))
+mask = zeros(UInt8, length(cache_c.is))
 # 126.100 μs (48 allocations: 5.08 KiB)
 @btime get_rand!($mask)
 function subsample_kernelA!(mask, cond, out_view)
@@ -247,7 +247,7 @@ function subsample(out::AbstractVector, mask::AbstractVector, rowsample::Abstrac
         counts[bid] = count
     end
     counts_cum = cumsum(counts) .- counts
-    @threads for bid = 1:nblocks
+    for bid = 1:nblocks
         count_cum = counts_cum[bid]
         i_start = chunk_size * (bid - 1)
         @inbounds for i = 1:counts[bid]

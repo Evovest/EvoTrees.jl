@@ -1,3 +1,4 @@
+using Revise
 using BenchmarkTools
 using Statistics
 using StatsBase: sample, quantile
@@ -29,13 +30,13 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 # linear
 params1 = EvoTreeRegressor(T=Float32,
     loss=:linear,
-    nrounds= 5, nbins=64,
+    nrounds= 200, nbins=64,
     lambda=0.01, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0,
-    rng=123)
+    rng=122)
 
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=1, early_stopping_rounds=20);
+@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25, early_stopping_rounds=20);
 # laptop: 51.651 ms (237548 allocations: 23.94 MiB)
 # @btime model = fit_evotree(params1; x_train, y_train, x_eval = x_eval, y_eval = y_eval, metric = :mse, print_every_n = 999, verbosity=0);
 # Profile.clear()  # in case we have any previous profiling data
