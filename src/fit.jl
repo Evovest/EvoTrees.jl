@@ -298,8 +298,8 @@ Main training function. Performs model fitting given configuration `params`, `x_
         - `:poisson`: Poisson deviance. Adapted to `EvoTreeCount` count models.
         - `:gamma`: Gamma deviance. Adapted to regression problem on Gamma like, positively distributed targets.
         - `:tweedie`: Tweedie deviance. Adapted to regression problem on Tweedie like, positively distributed targets with probability mass at `y == 0`.
-        - `:gaussian_mle`: Gaussian log-likelihood. Adapted to MLE when using `EvoTreeMLE` with `loss = :gaussian`. 
-        - `:logistic_mle`: Logistic log-likelihood. Adapted to MLE when using `EvoTreeMLE` with `loss = :logistic`. 
+        - `:gaussian_mle`: Gaussian log-likelihood. Adapted to MLE when using `EvoTreeMLE` with `loss = :gaussian_mle`. 
+        - `:logistic_mle`: Logistic log-likelihood. Adapted to MLE when using `EvoTreeMLE` with `loss = :logistic_mle`. 
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.

@@ -559,7 +559,6 @@ EvoTreeGaussian is used to perform Gaussian probabilistic regression, fitting μ
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   !Experimental feature: note that for Gaussian regression, constraints may not be enforce systematically.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `metric::Symbol=:none`:       Metric that is to be tracked during the training process. One of: `:none`, `:gaussian`.
 - `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
 # Internal API
@@ -673,13 +672,13 @@ EvoTreeGaussian
   EvoTreeMLE(;kwargs...)
 
 A model type for constructing a EvoTreeMLE, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API the MLJ model interface.
-EvoTreeMLE performs maximum likelihood estimation. Assumed distributions is specified through `loss` kwargs. Both Normal/Gaussian and Logistic distributions are supported.
+EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is specified through `loss` kwargs. Both Gaussian and Logistic distributions are supported.
 
 # Hyper-parameters
 
 `loss=:gaussian`:         Loss to be be minimized during training. One of:
-  - `:normal`/ `:gaussian`
-  - `:logistic`
+  - `:gaussian` / `:gaussian_mle`
+  - `:logistic` / `:logistic_mle`
 - `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
 - `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
@@ -693,7 +692,6 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distributions is spec
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   !Experimental feature: note that for MLE regression, constraints may not be enforced systematically.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `metric::Symbol=:none`:       Metric that is to be tracked during the training process. One of: `:none`, `:gaussian`, `:logistic`.
 - `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
 # Internal API
