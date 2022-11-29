@@ -323,13 +323,13 @@ function EvoTreeMLE(; kwargs...)
     args[:loss] = Symbol(args[:loss])
     T = args[:T]
 
-    if args[:loss] in [:gaussian, :normal]
+    if args[:loss] in [:gaussian, :gaussian_mle]
         L = GaussianMLE
-    elseif args[:loss] == :logistic
+    elseif args[:loss] in [:logistic, :logistic_mle]
         L = LogisticMLE
     else
         error(
-            "Invalid loss: $(args[:loss]). Only `:normal`, `:gaussian` and `:logistic` are supported at the moment by EvoTreeMLE.",
+            "Invalid loss: $(args[:loss]). Only `:gaussian` / `:gaussian_mle` and `:logistic` / `:logistic_mle` are supported at the moment by EvoTreeMLE.",
         )
     end
 

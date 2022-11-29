@@ -8,7 +8,7 @@ fit_evotree
 ## Predict
 
 ```@docs
-predict
+EvoTrees.predict
 ```
 
 # Features Importance
