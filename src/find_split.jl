@@ -110,6 +110,11 @@ function split_set_threads!(
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
+    # @info "length(is)" length(is)
+    # @info "offset" offset
+    # @info "chunk_size" chunk_size
+    # @info "nblocks" nblocks
+    
     @threads for bid = 1:nblocks
         lefts[bid], rights[bid] = split_set_chunk!(
             left,

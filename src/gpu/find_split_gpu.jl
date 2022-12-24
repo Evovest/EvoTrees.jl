@@ -182,14 +182,13 @@ function update_gains!(
     node::TrainNodeGPU,
     js::AbstractVector,
     params::EvoTypes{L,T},
-    monotone_constraints;
-    MAX_THREADS=512
+    monotone_constraints,
 ) where {L,T}
 
-    cumsum!(node.hL, node.h, dims=2)
+    cumsum!(node.hL, node.h, dims = 2)
     node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
 
-    threads = min(params.nbins, MAX_THREADS)
+    threads = params.nbins
     blocks = length(js)
     @cuda blocks = blocks threads = threads update_gains_kernel!(
         node.gains,
@@ -219,7 +218,7 @@ function update_gains_kernel!(
     j = js[blockIdx().x]
     monotone_constraint = monotone_constraints[j]
     K = (size(hL, 1) - 1) ÷ 2
-    @inbounds for k = 1:K
+    for k = 1:K
         if bin == nbins
             gains[bin, j] +=
                 hL[k, bin, j]^2 / (hL[k+K, bin, j] + lambda * hL[end, bin, j]) / 2
@@ -237,6 +236,8 @@ function update_gains_kernel!(
                         hR[k, bin, j]^2 / (hR[k+K, bin, j] + lambda * hR[end, bin, j])
                     ) / 2
             end
+        else
+            gains[bin, j] = -Inf
         end
     end # loop on K
     sync_threads()

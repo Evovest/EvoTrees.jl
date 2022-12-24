@@ -177,8 +177,8 @@ function grow_tree!(
     @threads for n in nodes
         n.h .= 0
         n.∑ .= 0
-        n.gain = 0
-        n.gains .= 0
+        n.gain = T(-Inf)
+        n.gains .= -Inf
     end
 
     # reset
@@ -215,6 +215,10 @@ function grow_tree!(
                 # histogram subtraction
                 update_gains!(nodes[n], js, params, K, monotone_constraints)
                 best = findmax(nodes[n].gains)
+                # if depth in [3,4]
+                #     @info "best" best
+                #     @info "nodes[n].gain" nodes[n].gain
+                # end
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.gamma
                     tree.gain[n] = best[1] - nodes[n].gain
                     tree.cond_bin[n] = best[2][1]
@@ -226,6 +230,7 @@ function grow_tree!(
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
                     popfirst!(n_next)
                 else
+                    # @info "depth" depth
                     _left, _right = split_set_threads!(
                         out,
                         left,
