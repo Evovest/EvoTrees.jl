@@ -236,8 +236,6 @@ function update_gains_kernel!(
                         hR[k, bin, j]^2 / (hR[k+K, bin, j] + lambda * hR[end, bin, j])
                     ) / 2
             end
-        else
-            gains[bin, j] = -Inf
         end
     end # loop on K
     sync_threads()

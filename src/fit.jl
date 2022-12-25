@@ -177,8 +177,8 @@ function grow_tree!(
     @threads for n in nodes
         n.h .= 0
         n.∑ .= 0
-        n.gain = T(-Inf)
-        n.gains .= -Inf
+        n.gain = T(0)
+        n.gains .= 0
     end
 
     # reset
@@ -212,12 +212,19 @@ function grow_tree!(
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             else
-                # histogram subtraction
                 update_gains!(nodes[n], js, params, K, monotone_constraints)
                 best = findmax(nodes[n].gains)
-                # if depth in [3,4]
+                # if depth in [2]
+                #     @info "minimum(nodes[n].h[3,:,:])" minimum(nodes[n].h[3,:,:])
+                #     @info "minimum(nodes[n].h[4,:,:])" minimum(nodes[n].h[4,:,:])
+                #     @info "nodes[n].hL" nodes[n].hL[:, best[2][1], best[2][2]]
+                #     @info "nodes[n].hR" nodes[n].hR[:, best[2][1], best[2][2]]
+                # end
+                # if depth in [2,3,4]
+                #     @info "depth" depth
                 #     @info "best" best
                 #     @info "nodes[n].gain" nodes[n].gain
+                #     @info "nodes[n].∑" nodes[n].∑
                 # end
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.gamma
                     tree.gain[n] = best[1] - nodes[n].gain
@@ -230,7 +237,6 @@ function grow_tree!(
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
                     popfirst!(n_next)
                 else
-                    # @info "depth" depth
                     _left, _right = split_set_threads!(
                         out,
                         left,
@@ -257,7 +263,6 @@ function grow_tree!(
                         push!(n_next, n << 1)
                     end
                     popfirst!(n_next)
-                    # println("n_next split post: ", n, " | ", n_next)
                 end
             end
         end

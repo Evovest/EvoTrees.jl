@@ -252,21 +252,29 @@ function update_gains!(
     hR = node.hR
     gains = node.gains
 
-    @inbounds for j in js
-        @inbounds for k = 1:KK
-            val = h[k, 1, j]
-            hL[k, 1, j] = val
-            hR[k, 1, j] = node.∑[k] - val
-        end
-        @inbounds for bin = 2:params.nbins
-            @inbounds for k = 1:KK
-                val = h[k, bin, j]
-                hL[k, bin, j] = hL[k, bin-1, j] + val
-                hR[k, bin, j] = hR[k, bin-1, j] - val
-            end
-        end
-    end
+    # hL = deepcopy(hL)
+    # hR = deepcopy(hR)
+    # @inbounds for j in js
+    #     @inbounds for k = 1:KK
+    #         val = h[k, 1, j]
+    #         hL[k, 1, j] = val
+    #         hR[k, 1, j] = node.∑[k] - val
+    #     end
+    #     @inbounds for bin = 2:params.nbins
+    #         @inbounds for k = 1:KK
+    #             val = h[k, bin, j]
+    #             hL[k, bin, j] = hL[k, bin-1, j] + val
+    #             hR[k, bin, j] = hR[k, bin-1, j] - val
+    #         end
+    #     end
+    # end
 
+    cumsum!(hL, h, dims=2)
+    hR .= view(hL, :, params.nbins:params.nbins, :) .- hL
+    # @info "max abs diff" minimum(abs.(hR .- hR2))
+    # @info "node.∑" node.∑
+    # @info "sum(node.h, dims=2)" sum(node.h, dims=2)
+    
     @inbounds for j in js
         monotone_constraint = monotone_constraints[j]
         @inbounds for bin = 1:params.nbins
@@ -286,6 +294,5 @@ function update_gains!(
             end
         end
     end
-
     return nothing
 end

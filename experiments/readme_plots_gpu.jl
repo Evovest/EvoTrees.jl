@@ -30,9 +30,9 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 # linear
 params1 = EvoTreeRegressor(T=Float32,
     loss=:linear,
-    nrounds=1, nbins=64,
+    nrounds=1, nbins=16,
     lambda=0.1, gamma=0.1, eta=0.1,
-    max_depth=6, min_weight=1.0,
+    max_depth=3, min_weight=1.0,
     rowsample=0.5, colsample=1.0,
     device="gpu")
 
