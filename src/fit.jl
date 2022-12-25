@@ -192,7 +192,7 @@ function grow_tree!(
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
-
+        
         if depth < params.max_depth
             for n_id in eachindex(n_current)
                 n = n_current[n_id]
@@ -212,20 +212,8 @@ function grow_tree!(
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             else
-                update_gains!(nodes[n], js, params, K, monotone_constraints)
+                update_gains!(nodes[n], js, params, monotone_constraints)
                 best = findmax(nodes[n].gains)
-                # if depth in [2]
-                #     @info "minimum(nodes[n].h[3,:,:])" minimum(nodes[n].h[3,:,:])
-                #     @info "minimum(nodes[n].h[4,:,:])" minimum(nodes[n].h[4,:,:])
-                #     @info "nodes[n].hL" nodes[n].hL[:, best[2][1], best[2][2]]
-                #     @info "nodes[n].hR" nodes[n].hR[:, best[2][1], best[2][2]]
-                # end
-                if depth in [2,3,4]
-                    @info "depth" depth
-                    # @info "best" best
-                    # @info "nodes[n].gain" nodes[n].gain
-                    # @info "nodes[n].∑" nodes[n].∑
-                end
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.gamma
                     tree.gain[n] = best[1] - nodes[n].gain
                     tree.cond_bin[n] = best[2][1]
