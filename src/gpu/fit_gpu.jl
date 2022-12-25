@@ -169,7 +169,7 @@ function grow_tree_gpu!(
     for n in eachindex(nodes)
         nodes[n].h .= 0
         nodes[n].∑ .= 0
-        nodes[n].gain = T(-Inf)
+        nodes[n].gain = T(0)
         nodes[n].gains .= 0
     end
     CUDA.synchronize()
