@@ -103,14 +103,14 @@ params_evo = EvoTreeRegressor(
     nbins=64,
     rng = 123,
 )
-params_evo.device = "cpu"
-@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
+# params_evo.device = "cpu"
 # @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
-# @time m_evo = fit_evotree(params_evo; x_train, y_train);
-@btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
-@info "evotrees predict CPU:"
-@time pred_evo = EvoTrees.predict(m_evo, x_train);
-@btime EvoTrees.predict($m_evo, $x_train);
+# # @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
+# # @time m_evo = fit_evotree(params_evo; x_train, y_train);
+# @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
+# @info "evotrees predict CPU:"
+# @time pred_evo = EvoTrees.predict(m_evo, x_train);
+# @btime EvoTrees.predict($m_evo, $x_train);
 
 @info "evotrees train GPU:"
 params_evo.device = "gpu"
