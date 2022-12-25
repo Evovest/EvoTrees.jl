@@ -172,7 +172,6 @@ function grow_tree_gpu!(
         nodes[n].gain = T(0)
         nodes[n].gains .= 0
     end
-    CUDA.synchronize()
 
     # initialize summary stats
     nodes[1].∑ .= vec(sum(∇[:, nodes[1].is], dims=2))
