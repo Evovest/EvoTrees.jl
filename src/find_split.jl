@@ -114,7 +114,7 @@ function split_set_threads!(
     # @info "offset" offset
     # @info "chunk_size" chunk_size
     # @info "nblocks" nblocks
-    
+
     @threads for bid = 1:nblocks
         lefts[bid], rights[bid] = split_set_chunk!(
             left,
@@ -237,6 +237,45 @@ end
 
 Generic fallback
 """
+# function update_gains!(
+#     node::TrainNode,
+#     js::Vector,
+#     params::EvoTypes{L,T},
+#     K,
+#     monotone_constraints,
+# ) where {L,T}
+
+#     h = node.h
+#     hL = node.hL
+#     hR = node.hR
+#     gains = node.gains
+
+#     cumsum!(hL, h, dims = 2)
+#     hR .= view(hL, :, params.nbins:params.nbins, :) .- hL
+#     @info "minimum(hR[3,:,:])" minimum(hR[3,:,:])
+
+#     @inbounds for j in js
+#         monotone_constraint = monotone_constraints[j]
+#         @inbounds for bin = 1:params.nbins
+#             if hL[end, bin, j] > params.min_weight && hR[end, bin, j] > params.min_weight
+#                 if monotone_constraint != 0
+#                     predL = pred_scalar(view(hL, :, bin, j), params)
+#                     predR = pred_scalar(view(hR, :, bin, j), params)
+#                 end
+#                 if (monotone_constraint == 0) ||
+#                    (monotone_constraint == -1 && predL > predR) ||
+#                    (monotone_constraint == 1 && predL < predR)
+
+#                     gains[bin, j] =
+#                         get_gain(params, view(hL, :, bin, j)) +
+#                         get_gain(params, view(hR, :, bin, j))
+#                 end
+#             end
+#         end
+#     end
+#     return nothing
+# end
+
 function update_gains!(
     node::TrainNode,
     js::Vector,
@@ -246,35 +285,38 @@ function update_gains!(
 ) where {L,T}
 
     KK = 2 * K + 1
-    hL = node.hL
     h = node.h
     hL = node.hL
     hR = node.hR
     gains = node.gains
+    ∑ = node.∑
 
-    # hL = deepcopy(hL)
-    # hR = deepcopy(hR)
-    # @inbounds for j in js
-    #     @inbounds for k = 1:KK
-    #         val = h[k, 1, j]
-    #         hL[k, 1, j] = val
-    #         hR[k, 1, j] = node.∑[k] - val
-    #     end
-    #     @inbounds for bin = 2:params.nbins
-    #         @inbounds for k = 1:KK
-    #             val = h[k, bin, j]
-    #             hL[k, bin, j] = hL[k, bin-1, j] + val
-    #             hR[k, bin, j] = hR[k, bin-1, j] - val
-    #         end
-    #     end
-    # end
+    @inbounds for j in js
+        @inbounds for k = 1:KK
+            val = h[k, 1, j]
+            hL[k, 1, j] = val
+            hR[k, 1, j] = ∑[k] - val
+        end
+        @inbounds for bin = 2:params.nbins
+            @inbounds for k = 1:KK
+                val = h[k, bin, j]
+                hL[k, bin, j] = hL[k, bin-1, j] + val
+                hR[k, bin, j] = hR[k, bin-1, j] - val
+            end
+        end
+    end
 
-    cumsum!(hL, h, dims=2)
-    hR .= view(hL, :, params.nbins:params.nbins, :) .- hL
-    # @info "max abs diff" minimum(abs.(hR .- hR2))
+    # hL2 = copy(hL) .* 0
+    # hR2 = copy(hR) .* 0
+    # cumsum!(hL2, h, dims = 2)
+    # hR2 .= view(hL2, :, params.nbins:params.nbins, :) .- hL2
+    # @info "max abs diff hL" maximum(abs.(hL[3, :, :] .- hL2[3, :, :]))
+    # @info "max abs diff hR" maximum(abs.(hR[3, :, :] .- hR2[3, :, :]))
+    @info "minimum(hR[3,:,:])" minimum(hR[3, :, :])
+    # @info "minimum(hR2[3,:,:])" minimum(hR2[3, :, :])
     # @info "node.∑" node.∑
     # @info "sum(node.h, dims=2)" sum(node.h, dims=2)
-    
+
     @inbounds for j in js
         monotone_constraint = monotone_constraints[j]
         @inbounds for bin = 1:params.nbins

@@ -15,7 +15,7 @@ train, test = MLJBase.train_test_pairs(Holdout(), 1:size(X, 1), X, y)[1]
 rng = StableRNG(6)
 model = EvoTreeClassifier(nrounds = 5, lambda = 1e-5, max_depth = 7, rng = rng)
 Xtrain, ytrain = MLJBase.reformat(model, selectrows(X, train), selectrows(y, train))
-MLJBase.fit(model, 1, Xtrain, ytrain);
+# MLJBase.fit(model, 1, Xtrain, ytrain);
 
 # EvoTrees params
 rng = StableRNG(6)
@@ -43,14 +43,69 @@ sum(ytrain .== true) ./ length(y_train)
 @info "evotrees train CPU:"
 params_evo.device = "cpu"
 @time m_evo = fit_evotree(params_evo; x_train, y_train);
+# @time m_evo = fit_evotree(params_evo; x_train, y_train);
+# @time m_evo = fit_evotree(params_evo; x_train, y_train);
 
-function h1(h, hL, hR, ∑, K, nbins)
+# function h1(h, hL, hR, ∑, K, nbins)
+#     KK = 2 * K + 1
+#     @inbounds for j in js
+#         @inbounds for k = 1:KK
+#             val = h[k, 1, j]
+#             hL[k, 1, j] = val
+#             hR[k, 1, j] = ∑[k, j] - val
+#         end
+#         @inbounds for bin = 2:nbins
+#             @inbounds for k = 1:KK
+#                 val = h[k, bin, j]
+#                 hL[k, bin, j] = hL[k, bin-1, j] + val
+#                 hR[k, bin, j] = hR[k, bin-1, j] - val
+#             end
+#         end
+#     end
+#     return hR
+# end
+
+# function h2(h, hL, hR, nbins)
+#     cumsum!(hL, h, dims = 2)
+#     hR .= view(hL, :, nbins:nbins, :) .- hL
+#     return hR
+# end
+
+# nbins = 64
+# js = 12
+# K = 2
+# h = rand(2*K+1, nbins, js)
+# hL = zeros(2*K+1, nbins, js)
+# hR = zeros(2*K+1, nbins, js)
+# ∑ = dropdims(sum(h, dims=2), dims=2)
+
+# x1 = h1(h, hL, hR, ∑, K, nbins)
+# x2 = h2(h, hL, hR, nbins)
+
+# minimum(x1 .- x2)
+# maximum(x1 .- x2)
+
+mutable struct Node
+    h
+    hL
+    hR
+end
+
+function h1_A(node, K, nbins)
+
     KK = 2 * K + 1
+    h = node.h
+    hL = node.hL
+    hR = node.hR
+    ∑ = node.∑
+
+    hL = copy(hL)
+    hR = copy(hR)
     @inbounds for j in js
         @inbounds for k = 1:KK
             val = h[k, 1, j]
             hL[k, 1, j] = val
-            hR[k, 1, j] = ∑[k, j] - val
+            hR[k, 1, j] = ∑[k] - val
         end
         @inbounds for bin = 2:nbins
             @inbounds for k = 1:KK
@@ -60,25 +115,12 @@ function h1(h, hL, hR, ∑, K, nbins)
             end
         end
     end
-    return hR
+    
+    hL2 = copy(hL)
+    hR2 = copy(hR)
+    cumsum!(hL2, h, dims = 2)
+    hR2 .= view(hL2, :, nbins:nbins, :) .- hL2
+
+    @info "max abs diff hR" maximum(abs.(hR[3,:,:] .- hR2[3,:,:]))
+    return nothing
 end
-
-function h2(h, hL, hR, nbins)
-    cumsum!(hL, h, dims = 2)
-    hR .= view(hL, :, nbins:nbins, :) .- hL
-    return hR
-end
-
-nbins = 64
-js = 12
-K = 2
-h = rand(2*K+1, nbins, js)
-hL = zeros(2*K+1, nbins, js)
-hR = zeros(2*K+1, nbins, js)
-∑ = dropdims(sum(h, dims=2), dims=2)
-
-x1 = h1(h, hL, hR, ∑, K, nbins)
-x2 = h2(h, hL, hR, nbins)
-
-minimum(x1 .- x2)
-maximum(x1 .- x2)
