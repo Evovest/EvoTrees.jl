@@ -32,7 +32,7 @@ params_xgb = Dict(
 metrics = [metric_xgb]
 
 # EvoTrees params
-params_evo = EvoTreeClassifier(
+params_evo = EvoTreeClassifier(;
     T=Float32,
     nrounds=nrounds,
     alpha=0.5,
@@ -43,8 +43,7 @@ params_evo = EvoTreeClassifier(
     min_weight=1.0,
     rowsample=0.5,
     colsample=0.5,
-    nbins=64
-)
+    nbins=64)
 
 nobs = Int(1e6)
 num_feat = Int(100)

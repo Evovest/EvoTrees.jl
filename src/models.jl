@@ -16,15 +16,15 @@ struct GaussianMLE <: MLE2P end
 struct LogisticMLE <: MLE2P end
 
 # make a Random Number Generator object
-mk_rng(rng::AbstractRNG) = rng
-function mk_rng(int::Integer)
+mk_rng(rng::AbstractRNG, device = "cpu") = rng
+function mk_rng(int::Integer, device = "cpu")
     if VERSION < v"1.7"
         rng = Random.MersenneTwister()
     else
         rng = Random.TaskLocalRNG()
     end
     seed!(rng, int)
-    CUDA.functional() && CUDA.seed!(int)
+    device == "gpu" && CUDA.seed!(int)
     return rng
 end
 
@@ -80,7 +80,7 @@ function EvoTreeRegressor(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
+    args[:rng] = mk_rng(args[:rng], String(args[:device]))
     args[:loss] = Symbol(args[:loss])
     T = args[:T]
 
@@ -173,7 +173,7 @@ function EvoTreeCount(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
+    args[:rng] = mk_rng(args[:rng], String(args[:device]))
     L = Poisson
     T = args[:T]
 
@@ -245,7 +245,7 @@ function EvoTreeClassifier(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
+    args[:rng] = mk_rng(args[:rng], String(args[:device]))
     L = Softmax
     T = args[:T]
 
@@ -319,7 +319,7 @@ function EvoTreeMLE(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
+    args[:rng] = mk_rng(args[:rng], String(args[:device]))
     args[:loss] = Symbol(args[:loss])
     T = args[:T]
 
@@ -403,7 +403,7 @@ function EvoTreeGaussian(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
+    args[:rng] = mk_rng(args[:rng], String(args[:device]))
     L = GaussianMLE
     T = args[:T]
 
