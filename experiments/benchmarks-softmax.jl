@@ -6,7 +6,6 @@ using EvoTrees
 using BenchmarkTools
 using CUDA
 using Random
-using StableRNGs
 
 nrounds = 20
 num_class = 5
