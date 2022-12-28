@@ -8,7 +8,7 @@ using CUDA
 using Random
 using StableRNGs
 
-nrounds = 200
+nrounds = 20
 num_class = 5
 nthread = Base.Threads.nthreads()
 
@@ -34,24 +34,21 @@ params_xgb = Dict(
 metrics = [metric_xgb]
 
 # EvoTrees params
-rng = StableRNG(12)
 params_evo = EvoTreeClassifier(;
-    # T=Float32,
-    nrounds=500,
-    # alpha=0.5,
+    T=Float32,
+    nrounds=nrounds,
+    alpha=0.5,
     lambda=0.0,
     gamma=0.0,
     eta=0.05,
     max_depth=9,
     min_weight=1.0,
-    # rowsample=0.5,
-    # colsample=0.5,
-    nbins=64,
-    rng
-)
+    rowsample=0.5,
+    colsample=0.5,
+    nbins=64)
 
-nobs = Int(1e5)
-num_feat = Int(10)
+nobs = Int(1e6)
+num_feat = Int(100)
 @info "testing with: $nobs observations | $num_feat features."
 x_train = rand(nobs, num_feat)
 y_train = rand(1:num_class, size(x_train, 1))
