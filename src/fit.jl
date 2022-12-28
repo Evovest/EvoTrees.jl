@@ -177,7 +177,7 @@ function grow_tree!(
     @threads for n in nodes
         n.h .= 0
         n.∑ .= 0
-        n.gain = 0
+        n.gain = T(0)
         n.gains .= 0
     end
 
@@ -192,7 +192,7 @@ function grow_tree!(
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
-
+        
         if depth < params.max_depth
             for n_id in eachindex(n_current)
                 n = n_current[n_id]
@@ -212,8 +212,7 @@ function grow_tree!(
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             else
-                # histogram subtraction
-                update_gains!(nodes[n], js, params, K, monotone_constraints)
+                update_gains!(nodes[n], js, params, monotone_constraints)
                 best = findmax(nodes[n].gains)
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.gamma
                     tree.gain[n] = best[1] - nodes[n].gain
@@ -252,7 +251,6 @@ function grow_tree!(
                         push!(n_next, n << 1)
                     end
                     popfirst!(n_next)
-                    # println("n_next split post: ", n, " | ", n_next)
                 end
             end
         end

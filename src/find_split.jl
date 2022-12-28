@@ -110,6 +110,11 @@ function split_set_threads!(
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
+    # @info "length(is)" length(is)
+    # @info "offset" offset
+    # @info "chunk_size" chunk_size
+    # @info "nblocks" nblocks
+
     @threads for bid = 1:nblocks
         lefts[bid], rights[bid] = split_set_chunk!(
             left,
@@ -236,31 +241,16 @@ function update_gains!(
     node::TrainNode,
     js::Vector,
     params::EvoTypes{L,T},
-    K,
     monotone_constraints,
 ) where {L,T}
 
-    KK = 2 * K + 1
-    hL = node.hL
     h = node.h
     hL = node.hL
     hR = node.hR
     gains = node.gains
 
-    @inbounds for j in js
-        @inbounds for k = 1:KK
-            val = h[k, 1, j]
-            hL[k, 1, j] = val
-            hR[k, 1, j] = node.∑[k] - val
-        end
-        @inbounds for bin = 2:params.nbins
-            @inbounds for k = 1:KK
-                val = h[k, bin, j]
-                hL[k, bin, j] = hL[k, bin-1, j] + val
-                hR[k, bin, j] = hR[k, bin-1, j] - val
-            end
-        end
-    end
+    cumsum!(hL, h, dims = 2)
+    hR .= view(hL, :, params.nbins:params.nbins, :) .- hL
 
     @inbounds for j in js
         monotone_constraint = monotone_constraints[j]
@@ -281,6 +271,5 @@ function update_gains!(
             end
         end
     end
-
     return nothing
 end

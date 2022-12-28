@@ -182,14 +182,13 @@ function update_gains!(
     node::TrainNodeGPU,
     js::AbstractVector,
     params::EvoTypes{L,T},
-    monotone_constraints;
-    MAX_THREADS=512
+    monotone_constraints,
 ) where {L,T}
 
-    cumsum!(node.hL, node.h, dims=2)
+    cumsum!(node.hL, node.h, dims = 2)
     node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
 
-    threads = min(params.nbins, MAX_THREADS)
+    threads = params.nbins
     blocks = length(js)
     @cuda blocks = blocks threads = threads update_gains_kernel!(
         node.gains,
