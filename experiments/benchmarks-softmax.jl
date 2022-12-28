@@ -5,9 +5,8 @@ using XGBoost
 using EvoTrees
 using BenchmarkTools
 using CUDA
-using Random
 
-nrounds = 20
+nrounds = 200
 num_class = 5
 nthread = Base.Threads.nthreads()
 
