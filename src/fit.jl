@@ -35,7 +35,8 @@ function init_evotree(
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
         K = length(levels)
-        μ = zeros(T, K)
+        μ = T.(log.(proportions(y)))
+        μ .-= maximum(μ)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
         K = 2
@@ -321,6 +322,8 @@ function fit_evotree(
     fnames=nothing,
     return_logger=false
 ) where {L,T}
+
+    verbosity == 1 && @info params
 
     # initialize model and cache
     if String(params.device) == "gpu"

@@ -12,7 +12,7 @@ export EvoTreeRegressor,
 
 using Base.Threads: @threads, @spawn, nthreads, threadid
 using Statistics
-using StatsBase: sample, sample!, quantile
+using StatsBase: sample, sample!, quantile, proportions
 using Random
 using Random: seed!, AbstractRNG
 using Distributions
