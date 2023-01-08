@@ -65,16 +65,6 @@ function EvoTreeRegressor(; kwargs...)
         :device => "cpu",
     )
 
-    args_ignored = setdiff(keys(kwargs), keys(args))
-    args_ignored_str = join(args_ignored, ", ")
-    length(args_ignored) > 0 &&
-        @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
-
-    args_default = setdiff(keys(args), keys(kwargs))
-    args_default_str = join(args_default, ", ")
-    length(args_default) > 0 &&
-        @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
-
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
         args[arg] = kwargs[arg]
@@ -158,16 +148,6 @@ function EvoTreeCount(; kwargs...)
         :device => "cpu",
     )
 
-    args_ignored = setdiff(keys(kwargs), keys(args))
-    args_ignored_str = join(args_ignored, ", ")
-    length(args_ignored) > 0 &&
-        @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
-
-    args_default = setdiff(keys(args), keys(kwargs))
-    args_default_str = join(args_default, ", ")
-    length(args_default) > 0 &&
-        @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
-
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
         args[arg] = kwargs[arg]
@@ -229,16 +209,6 @@ function EvoTreeClassifier(; kwargs...)
         :rng => 123,
         :device => "cpu",
     )
-
-    args_ignored = setdiff(keys(kwargs), keys(args))
-    args_ignored_str = join(args_ignored, ", ")
-    length(args_ignored) > 0 &&
-        @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
-
-    args_default = setdiff(keys(args), keys(kwargs))
-    args_default_str = join(args_default, ", ")
-    length(args_default) > 0 &&
-        @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
 
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
@@ -303,16 +273,6 @@ function EvoTreeMLE(; kwargs...)
         :rng => 123,
         :device => "cpu",
     )
-
-    args_ignored = setdiff(keys(kwargs), keys(args))
-    args_ignored_str = join(args_ignored, ", ")
-    length(args_ignored) > 0 &&
-        @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
-
-    args_default = setdiff(keys(args), keys(kwargs))
-    args_default_str = join(args_default, ", ")
-    length(args_default) > 0 &&
-        @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
 
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
@@ -388,16 +348,6 @@ function EvoTreeGaussian(; kwargs...)
         :device => "cpu",
     )
 
-    args_ignored = setdiff(keys(kwargs), keys(args))
-    args_ignored_str = join(args_ignored, ", ")
-    length(args_ignored) > 0 &&
-        @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
-
-    args_default = setdiff(keys(args), keys(kwargs))
-    args_default_str = join(args_default, ", ")
-    length(args_default) > 0 &&
-        @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
-
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
         args[arg] = kwargs[arg]
@@ -435,3 +385,10 @@ const EvoTypes{L,T} = Union{
 }
 
 get_types(::EvoTypes{L,T}) where {L,T} = (L, T)
+
+function Base.show(io::IO, config::EvoTypes)
+    println(io, "$(typeof(config))")
+    for fname in fieldnames(typeof(config))
+        println(io, " - $fname: $(getfield(config, fname))")
+    end
+end

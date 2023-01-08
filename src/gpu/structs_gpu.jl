@@ -53,6 +53,13 @@ TreeGPU{L,K,T}(depth::Int) where {L,K,T} = TreeGPU{L,K,T}(
     CUDA.zeros(Bool, 2^depth - 1),
 )
 
+function Base.show(io::IO, tree::TreeGPU)
+    println(io, "$(typeof(tree))")
+    for fname in fieldnames(typeof(tree))
+        println(io, " - $fname: $(getfield(tree, fname))")
+    end
+end
+
 # gradient-boosted tree is formed by a vector of trees
 struct EvoTreeGPU{L,K,T}
     trees::Vector{TreeGPU{L,K,T}}
@@ -60,3 +67,10 @@ struct EvoTreeGPU{L,K,T}
 end
 (m::EvoTreeGPU)(x::AbstractMatrix) = predict(m, x)
 get_types(::EvoTreeGPU{L,K,T}) where {L,K,T} = (L, T)
+
+function Base.show(io::IO, evotree::EvoTreeGPU)
+    println(io, "$(typeof(evotree))")
+    println(io, " - Contains $(length(evotree.trees)) trees in field `trees` (incl. 1 bias tree).")
+    println(io, " - Data input has $(length(evotree.info[:fnames])) features.")
+    println(io, " - $(keys(evotree.info)) info accessible in field `info`")
+end
