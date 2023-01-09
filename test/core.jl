@@ -343,7 +343,15 @@ end
     model, cache = EvoTrees.init_evotree(params1; x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric="gaussian_mle", print_every_n = 25)
+    model = fit_evotree(
+        params1;
+        x_train,
+        y_train,
+        x_eval,
+        y_eval,
+        metric = "gaussian_mle",
+        print_every_n = 25,
+    )
 
     preds = EvoTrees.predict(model, x_eval)[:, 1]
     mse_error = mean(abs.(preds .- y_eval) .^ 2)
@@ -368,4 +376,20 @@ end
 
     model = fit_evotree(params1; x_train, y_train)
     features_gain = importance(model)
+end
+
+
+@testset "EvoTreeClassifier" begin
+    params1 = EvoTreeClassifier(; T = Float32, nrounds = 100, eta = 0.3)
+
+    x_train = Array([
+        sin.(1:1000) cos.(1:1000)
+        100 .* cos.(1:1000) 100 .* sin.(1:1000)
+    ])
+    y_train = repeat(1:2; inner = 1000)
+
+    model = fit_evotree(params1; x_train, y_train)
+
+    preds = EvoTrees.predict(model, x_train)[:, 1]
+    @test !any(isnan.(preds))
 end
