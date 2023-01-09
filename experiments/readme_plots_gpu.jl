@@ -10,7 +10,7 @@ using EvoTrees: predict, sigmoid, logit
 # using ProfileView
 
 # prepare a dataset
-Random.seed!(12)
+Random.seed!(123)
 features = rand(10_000) .* 5
 X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5
@@ -118,7 +118,7 @@ savefig("figures/regression_sinus_gpu.png")
 params1 = EvoTreeGaussian(T=Float32,
     nrounds=500, nbins=64,
     lambda=0.1, gamma=0.1, eta=0.05,
-    max_depth=6, min_weight=5,
+    max_depth=6, min_weight=20,
     rowsample=0.5, colsample=1.0, rng=123,
     device="gpu")
 
