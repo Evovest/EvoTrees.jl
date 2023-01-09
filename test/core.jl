@@ -382,9 +382,14 @@ end
 @testset "EvoTreeClassifier" begin
     params1 = EvoTreeClassifier(; T = Float32, nrounds = 100, eta = 0.3)
 
+    # x_train = Array([
+    #     sin.(1:1000) cos.(1:1000)
+    #     100 .* cos.(1:1000) 100 .* sin.(1:1000)
+        
+    # ])
     x_train = Array([
-        sin.(1:1000) cos.(1:1000)
-        100 .* cos.(1:1000) 100 .* sin.(1:1000)
+        sin.(1:1000) rand(1000)
+        100 .* cos.(1:1000) rand(1000) .+ 1 
     ])
     y_train = repeat(1:2; inner = 1000)
 
