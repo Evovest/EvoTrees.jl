@@ -10,7 +10,7 @@ using EvoTrees: predict, sigmoid, logit
 # using ProfileView
 
 # prepare a dataset
-Random.seed!(12)
+Random.seed!(123)
 features = rand(10_000) .* 5
 X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5
@@ -205,7 +205,7 @@ params1 = EvoTreeMLE(
     loss=:gaussian,
     nrounds=500, nbins=64,
     lambda=0.1, gamma=0.1, eta=0.05,
-    max_depth=6, min_weight=1.0,
+    max_depth=6, min_weight=10.0,
     rowsample=1.0, colsample=1.0, rng=123)
 
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25, early_stopping_rounds = 50, metric=:gaussian);

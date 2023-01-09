@@ -69,7 +69,7 @@ function predict_kernel!(
         @inbounds while split[nid]
             X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
-        pred[1, idx] = min(T(13.5), max(T(-13.5), pred[1, idx] + leaf_pred[1, nid]))
+        pred[1, idx] = min(T(10), max(T(-10), pred[1, idx] + leaf_pred[1, nid]))
     end
     sync_threads()
     return nothing
@@ -95,7 +95,7 @@ function predict_kernel!(
             X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
         pred[1, idx] += leaf_pred[1, nid]
-        pred[2, idx] = max(T(-13.5), pred[2, idx] + leaf_pred[2, nid])
+        pred[2, idx] = max(T(-10), pred[2, idx] + leaf_pred[2, nid])
     end
     sync_threads()
     return nothing
@@ -142,7 +142,7 @@ function predict!(
         X,
     )
     CUDA.synchronize()
-    pred .= max.(T(-13.5), pred .- maximum(pred, dims=1))
+    pred .= max.(T(-10), pred .- maximum(pred, dims=1))
 end
 
 # prediction from single tree - assign each observation to its final leaf
