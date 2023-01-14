@@ -380,8 +380,6 @@ end
 
 
 @testset "EvoTreeClassifier" begin
-    params1 = EvoTreeClassifier(; T = Float32, nrounds = 100, eta = 0.3)
-
     # x_train = Array([
     #     sin.(1:1000) cos.(1:1000)
     #     100 .* cos.(1:1000) 100 .* sin.(1:1000)
@@ -393,8 +391,28 @@ end
     ])
     y_train = repeat(1:2; inner = 1000)
 
+    rng = rand(UInt32)
+    params1 = EvoTreeClassifier(; T = Float32, nrounds = 100, eta = 0.3, rng)
     model = fit_evotree(params1; x_train, y_train)
 
     preds = EvoTrees.predict(model, x_train)[:, 1]
     @test !any(isnan.(preds))
+
+    # Categorical array
+    y_train_cat = CategoricalArray(y_train; levels=1:2)
+
+    params1 = EvoTreeClassifier(; T = Float32, nrounds = 100, eta = 0.3, rng)
+    model_cat = fit_evotree(params1; x_train, y_train=y_train_cat)
+
+    preds_cat = EvoTrees.predict(model_cat, x_train)[:, 1]
+    @test preds_cat == preds
+
+    # Categorical array with additional levels
+    y_train_cat = CategoricalArray(y_train; levels=1:3)
+
+    params1 = EvoTreeClassifier(; T = Float32, nrounds = 100, eta = 0.3, rng)
+    model_cat = fit_evotree(params1; x_train, y_train=y_train_cat)
+
+    preds_cat = EvoTrees.predict(model_cat, x_train)[:, 1]
+    @test preds_cat ≈ preds # differences due to different stream of random numbers
 end

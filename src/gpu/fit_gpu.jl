@@ -31,7 +31,7 @@ function init_evotree_gpu(
             y = CuArray(UInt32.(CategoricalArrays.levelcode.(yc)))
         end
         K = length(levels)
-        μ = T.(log.(proportions(y)))
+        μ = T.(log.(proportions(y, UInt32(1):UInt32(K))))
         μ .-= maximum(μ)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
