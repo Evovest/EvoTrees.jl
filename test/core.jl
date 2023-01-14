@@ -402,7 +402,7 @@ end
     y_train_cat = CategoricalArray(y_train; levels=1:2)
 
     params1 = EvoTreeClassifier(; T = Float32, nrounds = 100, eta = 0.3, rng)
-    model_cat = fit_evotree(params1_cat; x_train, y_train=y_train_cat)
+    model_cat = fit_evotree(params1; x_train, y_train=y_train_cat)
 
     preds_cat = EvoTrees.predict(model_cat, x_train)[:, 1]
     @test preds_cat == preds
