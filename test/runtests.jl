@@ -1,6 +1,7 @@
 using Statistics
 using EvoTrees
 using EvoTrees: predict
+using CategoricalArrays
 using Random
 using Test
 
