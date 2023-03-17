@@ -288,17 +288,16 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
 - `metric`: The evaluation metric that wil be tracked on `x_eval`, `y_eval` and optionally `w_eval` / `offset_eval` data. 
     Supported metrics are: 
-    
-        - `:mse`: mean-squared error. Adapted for general regression models.
-        - `:rmse`: root-mean-squared error (CPU only). Adapted for general regression models.
-        - `:mae`: mean absolute error. Adapted for general regression models.
-        - `:logloss`: Adapted for `:logistic` regression models.
-        - `:mlogloss`: Multi-class cross entropy. Adapted to `EvoTreeClassifier` classification models. 
-        - `:poisson`: Poisson deviance. Adapted to `EvoTreeCount` count models.
-        - `:gamma`: Gamma deviance. Adapted to regression problem on Gamma like, positively distributed targets.
-        - `:tweedie`: Tweedie deviance. Adapted to regression problem on Tweedie like, positively distributed targets with probability mass at `y == 0`.
-        - `:gaussian_mle`: Gaussian log-likelihood. Adapted to MLE when using `EvoTreeMLE` with `loss = :gaussian_mle`. 
-        - `:logistic_mle`: Logistic log-likelihood. Adapted to MLE when using `EvoTreeMLE` with `loss = :logistic_mle`. 
+    - `:mse`: mean-squared error. Adapted for general regression models.
+    - `:rmse`: root-mean-squared error (CPU only). Adapted for general regression models.
+    - `:mae`: mean absolute error. Adapted for general regression models.
+    - `:logloss`: Adapted for `:logistic` regression models.
+    - `:mlogloss`: Multi-class cross entropy. Adapted to `EvoTreeClassifier` classification models. 
+    - `:poisson`: Poisson deviance. Adapted to `EvoTreeCount` count models.
+    - `:gamma`: Gamma deviance. Adapted to regression problem on Gamma like, positively distributed targets.
+    - `:tweedie`: Tweedie deviance. Adapted to regression problem on Tweedie like, positively distributed targets with probability mass at `y == 0`.
+    - `:gaussian_mle`: Gaussian log-likelihood. Adapted to MLE when using `EvoTreeMLE` with `loss = :gaussian_mle`. 
+    - `:logistic_mle`: Logistic log-likelihood. Adapted to MLE when using `EvoTreeMLE` with `loss = :logistic_mle`. 
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
