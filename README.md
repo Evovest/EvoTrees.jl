@@ -28,7 +28,7 @@ Input features are expected to be `Matrix{Float64/Float32}` when using the inter
 Latest:
 
 ```julia-repl
-julia> Pkg.add("https://github.com/Evovest/EvoTrees.jl")
+julia> Pkg.add(url="https://github.com/Evovest/EvoTrees.jl")
 ```
 
 From General Registry:
