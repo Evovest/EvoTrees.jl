@@ -1,8 +1,8 @@
 # Logistic Regression on Titanic Dataset
 
-## Dataset
-
 We will use the Titanic dataset, which is included in the MLDatasets package. It describes the survival status of individual passengers on the Titanic. The model will be approached as a logistic regression problem, although a Classifier model could also have been used (see the `Classification - Iris` tutorial). 
+
+## Getting started
 
 To begin, we will load the required packages and the dataset:
 
