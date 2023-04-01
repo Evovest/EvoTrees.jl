@@ -44,7 +44,7 @@ x_eval, y_eval = Matrix(eval_data[:, Not(:Survived)]), eval_data[:, :Survived]
 ## Training
 
 Now we are ready to train our model. We will first define a model configuration using the [`EvoTreeClassifier`](@ref) model constructor. 
-Then, we'll use [`fit_evotre`](@ref) to train a boosted tree model. We'll pass optional `x_eval` and `y_eval` arguments, which enable the usage of early stopping. 
+Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass optional `x_eval` and `y_eval` arguments, which enable the usage of early stopping. 
 
 ```julia
 config = EvoTreeRegressor(loss = :logistic, nrounds=200, eta=0.1, max_depth=5, rowsample = 0.6, colsample = 0.9)
@@ -56,12 +56,17 @@ model = fit_evotree(config;
     print_every_n=10)
 ```
 
-Finally, we us the [`predict`](@ref) function to make predictions on the training and testing data. We can then evaluate the accuracy of our model, which should be near 100% for this simple classification problem. 
+Finally, we can get predictions by passing training and testing data to our model. We can then evaluate the accuracy of our model, which should be near 100% for this simple classification problem. 
 
 ```julia
-pred_train = EvoTrees.predict(model, x_train)
-mean((pred_train .> 0.5) .== y_train)
+pred_train = model(x_train)
+pred_eval = model(x_eval)
+```
 
-pred_eval = EvoTrees.predict(model, x_eval)
-mean((pred_eval .> 0.5) .== y_eval)
+```julia-repl
+julia> mean((pred_train .> 0.5) .== y_train)
+0.8625525946704067
+
+julia> mean((pred_eval .> 0.5) .== y_eval)
+0.8258426966292135
 ```
