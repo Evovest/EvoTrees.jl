@@ -22,13 +22,13 @@ From General Registry:
 julia> Pkg.add("EvoTrees")
 ```
 
-## Quick start with internal API
+## Quick start
 
 A model configuration must first be defined, using one of the model constructor: 
-    - [`EvoTreeRegressor`](@ref)
-    - [`EvoTreeClassifier`](@ref)
-    - [`EvoTreeCount`](@ref)
-    - [`EvoTreeMLE`](@ref)
+- [`EvoTreeRegressor`](@ref)
+- [`EvoTreeClassifier`](@ref)
+- [`EvoTreeCount`](@ref)
+- [`EvoTreeMLE`](@ref)
 
 Then fitting can be performed using [`fit_evotree`](@ref). This function supports additional arguments to provide eval data in order to track out of sample metrics and perform early stopping. Look at the docs for more details on available hyper-parameters for each of the above constructors and other options for training.
 
@@ -60,4 +60,4 @@ EvoTrees.save(m, "data/model.bson")
 m = EvoTrees.load("data/model.bson");
 ```
 
-A GPU model should be converted into a CPU one before saving: `m_cpu = convert(EvoTree, m_gpu)`.
+A GPU model must first be converted into a CPU one before saving: `m_cpu = convert(EvoTree, m_gpu)`.
