@@ -7,8 +7,13 @@ pages = [
     "Introduction" => "index.md",
     "Models" => "models.md",
     "API" => "api.md",
-    "Examples - API" => "examples-API.md",
-    "Examples - MLJ" => "examples-MLJ.md"]
+    "Tutorials" => [
+        "Regression - Boston" => "tutorials/classification-boston.md",
+        "Logistic Regression - Titanic" => "logistic-regression-titanic.md",
+        "Classification - IRIS" => "tutorials/classification-iris.md",
+        "Internal API" => "tutorials/examples-API.md",
+        "MLJ API" => "tutorials/examples-MLJ.md"]
+]
 
 makedocs(
     sitename="EvoTrees.jl",
