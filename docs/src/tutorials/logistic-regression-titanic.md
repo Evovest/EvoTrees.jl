@@ -43,7 +43,7 @@ x_eval, y_eval = Matrix(eval_data[:, Not(:Survived)]), eval_data[:, :Survived]
 
 ## Training
 
-Now we are ready to train our model. We will first define a model configuration using the [`EvoTreeClassifier`](@ref) model constructor. 
+Now we are ready to train our model. We will first define a model configuration using the [`EvoTreeRegressor`](@ref) model constructor. 
 Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass optional `x_eval` and `y_eval` arguments, which enable the usage of early stopping. 
 
 ```julia
@@ -56,7 +56,7 @@ model = fit_evotree(config;
     print_every_n=10)
 ```
 
-Finally, we can get predictions by passing training and testing data to our model. We can then evaluate the accuracy of our model, which should be near 100% for this simple classification problem. 
+Finally, we can get predictions by passing training and testing data to our model. We can then evaluate the accuracy of our model, which should be around 85%. 
 
 ```julia
 pred_train = model(x_train)
