@@ -37,7 +37,7 @@ x_eval, y_eval = Matrix(eval_data[:, Not(:MEDV)]), eval_data[:, :MEDV]
 ## Training
 
 Now we are ready to train our model. We will first define a model configuration using the [`EvoTreeRegressor`](@ref) model constructor. 
-Then, we'll use [`fit_evotre`](@ref) to train a boosted tree model. We'll pass optional `x_eval` and `y_eval` arguments, which enable the usage of early stopping. 
+Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass optional `x_eval` and `y_eval` arguments, which enable the usage of early stopping. 
 
 ```julia
 config = EvoTreeRegressor(nrounds=200, eta=0.1, max_depth=4, lambda=0.1, rowsample = 0.9, colsample = 0.9)
@@ -49,12 +49,17 @@ model = fit_evotree(config;
     print_every_n=10)
 ```
 
-Finally, we us the [`predict`](@ref) function to make predictions on the training and testing data. We can then apply various evaluation metric, such as the MAE (mean absolute error):  
+Finally, we can get predictions by passing training and testing data to our model. We can then apply various evaluation metric, such as the MAE (mean absolute error):  
 
 ```julia
-pred_train = EvoTrees.predict(model, x_train)
-mean(abs.(pred_train .- y_train))
+pred_train = model(x_train)
+pred_eval = model(x_eval)
+```
 
-pred_eval = EvoTrees.predict(model, x_eval)
-mean(abs.(pred_eval .- y_eval))
+```julia-repl
+julia> mean(abs.(pred_train .- y_train))
+1.121228068080949
+
+julia> mean(abs.(pred_eval .- y_eval))
+2.399116769167456
 ```

@@ -73,7 +73,15 @@ GPU: NVIDIA RTX A4000
 See [official project page](https://github.com/alan-turing-institute/MLJ.jl) for more info.
 
 
-## Getting started using internal API
+## Quick start with internal API
+
+A model configuration must first be defined, using one of the model constructor: 
+    - `EvoTreeRegressor`
+    - `EvoTreeClassifier`
+    - `EvoTreeCount`
+    - `EvoTreeMLE`
+
+Model training is performed using `fit_evotree`. This function supports additional arguments to allowing to track out of sample metric and perform early stopping. Look at the docs for more details on available hyper-parameters for each of the above constructors and other options for training.
 
 ```julia
 using EvoTrees
@@ -81,14 +89,14 @@ using EvoTrees
 config = EvoTreeRegressor(
     loss=:linear, 
     nrounds=100, 
-    nbins=100,
-    lambda=0.5, 
-    gamma=0.1, 
-    eta=0.1,
     max_depth=6, 
+    nbins=32,
+    eta=0.1,
+    lambda=0.1, 
+    gamma=0.1, 
     min_weight=1.0,
     rowsample=0.5, 
-    colsample=1.0)
+    colsample=0.8)
 m = fit_evotree(config; x_train, y_train)
 preds = m(x_train)
 ```
