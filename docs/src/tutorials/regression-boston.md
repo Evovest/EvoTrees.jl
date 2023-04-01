@@ -1,8 +1,8 @@
 # Regression on Boston Housing Dataset
 
-## Dataset
-
 We will use the Boston Housing dataset, which is included in the MLDatasets package. It's derived from information collected by the U.S. Census Service concerning housing in the area of Boston. Target variable represents the median housing value.
+
+## Getting started
 
 To begin, we will load the required packages and the dataset:
 
