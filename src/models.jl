@@ -28,6 +28,15 @@ function mk_rng(int::Integer, device = "cpu")
     return rng
 end
 
+# check model parameter if it's valid
+function convert_parameter(::Type{<:T},value,label::Symbol) where {T<:Number}
+    try
+        return convert(T,value)
+    catch
+        return error("Invalid value for parameter `$(string(label))`: $value. `$(string(label))` must be of type $T (ie, value between $(typemin(T)) and $(typemax(T))).")
+    end
+end
+
 mutable struct EvoTreeRegressor{L<:ModelType,T} <: MMI.Deterministic
     nrounds::Int
     lambda::T
@@ -37,7 +46,7 @@ mutable struct EvoTreeRegressor{L<:ModelType,T} <: MMI.Deterministic
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
-    nbins::Int
+    nbins::UInt8
     alpha::T
     monotone_constraints::Any
     rng::Any
@@ -101,7 +110,7 @@ function EvoTreeRegressor(; kwargs...)
         T(args[:min_weight]),
         T(args[:rowsample]),
         T(args[:colsample]),
-        args[:nbins],
+        convert_parameter(UInt8, args[:nbins], :nbins),
         T(args[:alpha]),
         args[:monotone_constraints],
         args[:rng],
@@ -121,7 +130,7 @@ mutable struct EvoTreeCount{L<:ModelType,T} <: MMI.Probabilistic
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
-    nbins::Int
+    nbins::UInt8
     alpha::T
     monotone_constraints::Any
     rng::Any
@@ -166,7 +175,7 @@ function EvoTreeCount(; kwargs...)
         T(args[:min_weight]),
         T(args[:rowsample]),
         T(args[:colsample]),
-        args[:nbins],
+        convert_parameter(UInt8, args[:nbins], :nbins),
         T(args[:alpha]),
         args[:monotone_constraints],
         args[:rng],
@@ -185,7 +194,7 @@ mutable struct EvoTreeClassifier{L<:ModelType,T} <: MMI.Probabilistic
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
-    nbins::Int
+    nbins::UInt8
     alpha::T
     rng::Any
     device::Any
@@ -228,7 +237,7 @@ function EvoTreeClassifier(; kwargs...)
         T(args[:min_weight]),
         T(args[:rowsample]),
         T(args[:colsample]),
-        args[:nbins],
+        convert_parameter(UInt8, args[:nbins], :nbins),
         T(args[:alpha]),
         args[:rng],
         args[:device],
@@ -246,7 +255,7 @@ mutable struct EvoTreeMLE{L<:ModelType,T} <: MMI.Probabilistic
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
-    nbins::Int
+    nbins::UInt8
     alpha::T
     monotone_constraints::Any
     rng::Any
@@ -302,7 +311,7 @@ function EvoTreeMLE(; kwargs...)
         T(args[:min_weight]),
         T(args[:rowsample]),
         T(args[:colsample]),
-        args[:nbins],
+        convert_parameter(UInt8, args[:nbins], :nbins),
         T(args[:alpha]),
         args[:monotone_constraints],
         args[:rng],
@@ -322,7 +331,7 @@ mutable struct EvoTreeGaussian{L<:ModelType,T} <: MMI.Probabilistic
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
-    nbins::Int
+    nbins::UInt8
     alpha::T
     monotone_constraints::Any
     rng::Any
@@ -366,7 +375,7 @@ function EvoTreeGaussian(; kwargs...)
         T(args[:min_weight]),
         T(args[:rowsample]),
         T(args[:colsample]),
-        args[:nbins],
+        convert_parameter(UInt8, args[:nbins], :nbins),
         T(args[:alpha]),
         args[:monotone_constraints],
         args[:rng],
