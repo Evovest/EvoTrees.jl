@@ -24,6 +24,7 @@ CategoricalArrays = "0.9, 0.10"
 Distributions = "0.24, 0.25"
 LoopVectorization = "0.12"
 MLJModelInterface = "0.3, 0.4, 1.0"
+MLJTestInterface = "0.2"
 NetworkLayout = "0.4"
 RecipesBase = "1"
 StatsBase = "0.32, 0.33"
@@ -32,6 +33,10 @@ julia = "1.6"
 
 [extras]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+MLJBase = "a7f614a8-145f-11e9-1d2a-a57a1082229d"
+MLJTestInterface = "72560011-54dd-4dc2-94f3-c5de45b75ecd"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 docs = ["Documenter"]
+test = ["Test", "MLJBase", "MLJTestInterface"]
