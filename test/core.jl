@@ -416,3 +416,31 @@ end
     preds_cat = EvoTrees.predict(model_cat, x_train)[:, 1]
     @test preds_cat ≈ preds # differences due to different stream of random numbers
 end
+
+@testset "Parametric kwarg constructor" begin
+
+    @testset "_type2loss" begin
+        # utility that converts types into loss symbols for EvoTreeRegressor
+        @test EvoTrees._type2loss(EvoTrees.Linear) == :linear
+        @test EvoTrees._type2loss(EvoTrees.L1) == :L1
+        @test EvoTrees._type2loss(EvoTrees.Logistic) == :logistic
+        @test EvoTrees._type2loss(EvoTrees.Gamma) == :gamma
+        @test EvoTrees._type2loss(EvoTrees.Tweedie) == :tweedie
+        @test EvoTrees._type2loss(EvoTrees.Quantile) == :quantile
+    end
+
+    # check if we retain the parametric information properly
+    for EvoParamType in [
+        EvoTreeRegressor{EvoTrees.Linear,Float64},
+        EvoTreeRegressor{EvoTrees.L1,Float64},
+        EvoTreeCount{EvoTrees.Poisson,Float64},
+        EvoTreeClassifier{EvoTrees.Softmax,Float64},
+        EvoTreeMLE{EvoTrees.LogisticMLE,Float64},
+        EvoTreeGaussian{EvoTrees.GaussianMLE,Float64} 
+        ]
+
+        config = EvoParamType(; max_depth=2)
+        @test config isa EvoParamType
+        @test config.max_depth == 2
+    end
+end
