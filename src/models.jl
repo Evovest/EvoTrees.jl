@@ -29,12 +29,34 @@ function mk_rng(int::Integer, device = "cpu")
 end
 
 # check model parameter if it's valid
-function convert_parameter(::Type{<:T},value,label::Symbol) where {T<:Number}
+function check_parameter(::Type{<:T}, value, min_value::T, max_value::T, label::Symbol) where {T<:Number}
+    min_value = max(typemin(T), min_value)
+    max_value = min(typemax(T), max_value)
     try
-        return convert(T,value)
+        convert(T,value)
+        @assert min_value <= value <= max_value
     catch
-        return error("Invalid value for parameter `$(string(label))`: $value. `$(string(label))` must be of type $T (ie, value between $(typemin(T)) and $(typemax(T))).")
+        error("Invalid value for parameter `$(string(label))`: $value. `$(string(label))` must be of type $T with value between $min_value and $max_value.")
     end
+end
+
+# check model arguments if they are valid
+function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
+
+    # Check integer parameters
+    check_parameter(Int, args[:nrounds], 0, typemax(Int), :nrounds)
+    check_parameter(Int, args[:max_depth], 1, typemax(Int), :max_depth)
+    check_parameter(Int, args[:nbins], 2, 255, :nbins)
+
+    # check positive float parameters
+    check_parameter(T, args[:lambda], 0.0, typemax(T), :lambda)
+    check_parameter(T, args[:gamma], 0.0, typemax(T), :gamma)
+    check_parameter(T, args[:min_weight], 0.0,typemax(T), :min_weight)
+
+    # check bounded parameters
+    check_parameter(T, args[:alpha], 0.0, 1.0, :alpha)
+    check_parameter(T, args[:rowsample], eps(T), 1.0, :rowsample)
+    check_parameter(T, args[:colsample], eps(T), 1.0, :colsample)
 end
 
 mutable struct EvoTreeRegressor{L<:ModelType,T} <: MMI.Deterministic
@@ -46,7 +68,7 @@ mutable struct EvoTreeRegressor{L<:ModelType,T} <: MMI.Deterministic
     min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
     rowsample::T # subsample
     colsample::T
-    nbins::UInt8
+    nbins::Int
     alpha::T
     monotone_constraints::Any
     rng::Any
@@ -101,6 +123,8 @@ function EvoTreeRegressor(; kwargs...)
         )
     end
 
+    check_args(T, args)
+
     model = EvoTreeRegressor{L,T}(
         args[:nrounds],
         T(args[:lambda]),
@@ -110,7 +134,7 @@ function EvoTreeRegressor(; kwargs...)
         T(args[:min_weight]),
         T(args[:rowsample]),
         T(args[:colsample]),
-        convert_parameter(UInt8, args[:nbins], :nbins),
+        args[:nbins],
         T(args[:alpha]),
         args[:monotone_constraints],
         args[:rng],
