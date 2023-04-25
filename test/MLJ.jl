@@ -2,13 +2,13 @@ using StatsBase: sample
 using EvoTrees: sigmoid, logit
 using MLJBase
 
-using MLJTestIntegration
+using MLJTestInterface
 
 @testset "generic interface tests" begin
     @testset "EvoTreeRegressor, EvoTreeMLE, EvoTreeGaussian" begin
-        failures, summary = MLJTestIntegration.test(
+        failures, summary = MLJTestInterface.test(
             [EvoTreeRegressor, EvoTreeMLE, EvoTreeGaussian],
-            MLJTestIntegration.make_regression()...;
+            MLJTestInterface.make_regression()...;
             mod=@__MODULE__,
             verbosity=0, # bump to debug
             throw=false, # set to true to debug
@@ -16,9 +16,9 @@ using MLJTestIntegration
         @test isempty(failures)
     end
     @testset "EvoTreeCount" begin
-        failures, summary = MLJTestIntegration.test(
+        failures, summary = MLJTestInterface.test(
             [EvoTreeCount],
-            MLJTestIntegration.make_count()...;
+            MLJTestInterface.make_count()...;
             mod=@__MODULE__,
             verbosity=0, # bump to debug
             throw=false, # set to true to debug
@@ -27,10 +27,10 @@ using MLJTestIntegration
     end
     @testset "EvoTreeClassifier" begin
         for data in [
-            MLJTestIntegration.make_binary(),
-            MLJTestIntegration.make_multiclass(),
+            MLJTestInterface.make_binary(),
+            MLJTestInterface.make_multiclass(),
         ]
-            failures, summary = MLJTestIntegration.test(
+            failures, summary = MLJTestInterface.test(
                 [EvoTreeClassifier],
                 data...;
                 mod=@__MODULE__,

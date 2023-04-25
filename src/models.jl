@@ -144,6 +144,14 @@ function EvoTreeRegressor(; kwargs...)
     return model
 end
 
+# Converts Linear -> :linear (special case is L1 -> :L1)
+function _type2loss(t::Type)
+    t|>string|>lowercase|>x->split(x,".")[end]|>x->ifelse(x=="l1","L1",x)|>Symbol
+end
+
+function EvoTreeRegressor{L,T}(; kwargs...) where {L,T}
+    EvoTreeRegressor(; T=T, loss=_type2loss(L), kwargs...)
+end
 
 mutable struct EvoTreeCount{L<:ModelType,T} <: MMI.Probabilistic
     nrounds::Int
@@ -209,6 +217,10 @@ function EvoTreeCount(; kwargs...)
     return model
 end
 
+function EvoTreeCount{L,T}(; kwargs...) where {L,T}
+    EvoTreeCount(; T=T, kwargs...)
+end
+
 mutable struct EvoTreeClassifier{L<:ModelType,T} <: MMI.Probabilistic
     nrounds::Int
     lambda::T
@@ -268,6 +280,10 @@ function EvoTreeClassifier(; kwargs...)
     )
 
     return model
+end
+
+function EvoTreeClassifier{L,T}(; kwargs...) where {L,T}
+    EvoTreeClassifier(; T=T, kwargs...)
 end
 
 mutable struct EvoTreeMLE{L<:ModelType,T} <: MMI.Probabilistic
@@ -345,6 +361,15 @@ function EvoTreeMLE(; kwargs...)
     return model
 end
 
+function EvoTreeMLE{L,T}(; kwargs...) where {L,T}
+    if L == GaussianMLE
+        loss = :gaussian_mle
+    elseif L == LogisticMLE
+        loss = :logistic_mle
+    end
+    EvoTreeMLE(; T=T, loss=loss, kwargs...)
+end
+
 
 mutable struct EvoTreeGaussian{L<:ModelType,T} <: MMI.Probabilistic
     nrounds::Int
@@ -407,6 +432,10 @@ function EvoTreeGaussian(; kwargs...)
     )
 
     return model
+end
+
+function EvoTreeGaussian{L,T}(; kwargs...) where {L,T}
+    EvoTreeGaussian(; T=T, kwargs...)
 end
 
 const EvoTypes{L,T} = Union{
