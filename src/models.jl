@@ -29,7 +29,7 @@ function mk_rng(int::Integer, device = "cpu")
 end
 
 # check model parameter if it's valid
-function check_parameter(::Type{<:T}, value, min_value::T, max_value::T, label::Symbol) where {T<:Number}
+function check_parameter(::Type{<:T}, value, min_value::Real, max_value::Real, label::Symbol) where {T<:Number}
     min_value = max(typemin(T), min_value)
     max_value = min(typemax(T), max_value)
     try
@@ -49,14 +49,14 @@ function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
     check_parameter(Int, args[:nbins], 2, 255, :nbins)
 
     # check positive float parameters
-    check_parameter(T, args[:lambda], 0.0, typemax(T), :lambda)
-    check_parameter(T, args[:gamma], 0.0, typemax(T), :gamma)
-    check_parameter(T, args[:min_weight], 0.0,typemax(T), :min_weight)
+    check_parameter(T, args[:lambda], zero(T), typemax(T), :lambda)
+    check_parameter(T, args[:gamma], zero(T), typemax(T), :gamma)
+    check_parameter(T, args[:min_weight], zero(T), typemax(T), :min_weight)
 
     # check bounded parameters
-    check_parameter(T, args[:alpha], 0.0, 1.0, :alpha)
-    check_parameter(T, args[:rowsample], eps(T), 1.0, :rowsample)
-    check_parameter(T, args[:colsample], eps(T), 1.0, :colsample)
+    check_parameter(T, args[:alpha], zero(T), one(T), :alpha)
+    check_parameter(T, args[:rowsample], eps(T), one(T), :rowsample)
+    check_parameter(T, args[:colsample], eps(T), one(T), :colsample)
 end
 
 mutable struct EvoTreeRegressor{L<:ModelType,T} <: MMI.Deterministic
@@ -461,4 +461,24 @@ function Base.show(io::IO, config::EvoTypes)
     for fname in fieldnames(typeof(config))
         println(io, " - $fname: $(getfield(config, fname))")
     end
+end
+
+# check model arguments if they are valid (eg, after mutation when tuning hyperparams)
+# Note: does not check consistency of model type and loss selected
+function check_args(model::EvoTypes{L,T}) where {L,T<:Real}
+
+    # Check integer parameters
+    check_parameter(Int, model.max_depth, 1, typemax(Int), :max_depth)
+    check_parameter(Int, model.nrounds, 0, typemax(Int), :nrounds)
+    check_parameter(Int, model.nbins, 2, 255, :nbins)
+
+    # check positive float parameters
+    check_parameter(T, model.lambda, zero(T), typemax(T), :lambda)
+    check_parameter(T, model.gamma, zero(T), typemax(T), :gamma)
+    check_parameter(T, model.min_weight, zero(T), typemax(T), :min_weight)
+
+    # check bounded parameters
+    check_parameter(T, model.alpha, zero(T), one(T), :alpha)
+    check_parameter(T, model.rowsample, eps(T), one(T), :rowsample)
+    check_parameter(T, model.colsample, eps(T), one(T), :colsample)
 end
