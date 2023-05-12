@@ -57,6 +57,7 @@ function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
     check_parameter(T, args[:alpha], zero(T), one(T), :alpha)
     check_parameter(T, args[:rowsample], eps(T), one(T), :rowsample)
     check_parameter(T, args[:colsample], eps(T), one(T), :colsample)
+    check_parameter(T, args[:eta], eps(T), typemax(T), :eta)
 end
 
 mutable struct EvoTreeRegressor{L<:ModelType,T} <: MMI.Deterministic
@@ -481,4 +482,5 @@ function check_args(model::EvoTypes{L,T}) where {L,T<:Real}
     check_parameter(T, model.alpha, zero(T), one(T), :alpha)
     check_parameter(T, model.rowsample, eps(T), one(T), :rowsample)
     check_parameter(T, model.colsample, eps(T), one(T), :colsample)
+    check_parameter(T, model.eta, eps(T), typemax(T), :eta)
 end
