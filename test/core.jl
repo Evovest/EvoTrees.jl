@@ -452,9 +452,9 @@ end
     @testset "check_parameter" begin
         # Valid case tests
         @test check_parameter(Float64, 1.5, 0.0, typemax(Float64), :lambda) == nothing
-        @test check_parameter(Int, 5, 0, typemax(Int), :nrounds) == nothing
-        @test check_parameter(Int, 0, 0, typemax(Int), :nrounds) == nothing
-        @test check_parameter(Int, 0, 0, 0, :nrounds) == nothing
+        @test check_parameter(Int, 5, 1, typemax(Int), :nrounds) == nothing
+        @test check_parameter(Int, 1, 1, typemax(Int), :nrounds) == nothing
+        @test check_parameter(Int, 1, 1, 1, :nrounds) == nothing
 
         # Invalid type tests
         @test_throws ErrorException check_parameter(Int, 1.5, 0, typemax(Int), :nrounds)
@@ -471,7 +471,7 @@ end
     @testset "check_args all for EvoTreeRegressor" begin
         for (key,vals_to_test) in zip(
             [:nrounds, :max_depth, :nbins, :lambda, :gamma, :min_weight, :alpha, :rowsample, :colsample, :eta],
-            [[-1, 1.5], [0, 1.5], [1, 256, 100.5], [-eps(Float64)], [-eps(Float64)], [-eps(Float64)], 
+            [[-1, 0, 1.5], [0, 1.5], [1, 256, 100.5], [-eps(Float64)], [-eps(Float64)], [-eps(Float64)], 
             [-0.1, 1.1], [0.0f0, 1.1f0], [0.0, 1.1], [0.0]]) 
             for val in vals_to_test
                 @test_throws Exception EvoTreeRegressor(;zip([key], [val])...)

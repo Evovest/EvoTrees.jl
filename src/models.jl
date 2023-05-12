@@ -44,7 +44,7 @@ end
 function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
 
     # Check integer parameters
-    check_parameter(Int, args[:nrounds], 0, typemax(Int), :nrounds)
+    check_parameter(Int, args[:nrounds], 1, typemax(Int), :nrounds)
     check_parameter(Int, args[:max_depth], 1, typemax(Int), :max_depth)
     check_parameter(Int, args[:nbins], 2, 255, :nbins)
 
@@ -470,7 +470,7 @@ function check_args(model::EvoTypes{L,T}) where {L,T<:Real}
 
     # Check integer parameters
     check_parameter(Int, model.max_depth, 1, typemax(Int), :max_depth)
-    check_parameter(Int, model.nrounds, 0, typemax(Int), :nrounds)
+    check_parameter(Int, model.nrounds, 1, typemax(Int), :nrounds)
     check_parameter(Int, model.nbins, 2, 255, :nbins)
 
     # check positive float parameters
