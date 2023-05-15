@@ -1,6 +1,7 @@
 using Statistics
 using StatsBase: sample
 using EvoTrees: sigmoid, logit
+using EvoTrees: check_args, check_parameter
 using Random: seed!
 
 # prepare a dataset
@@ -443,4 +444,51 @@ end
         @test config isa EvoParamType
         @test config.max_depth == 2
     end
+end
+
+
+@testset "check_args functionality" begin
+    # check_args should throw an exception if the parameters are invalid
+    @testset "check_parameter" begin
+        # Valid case tests
+        @test check_parameter(Float64, 1.5, 0.0, typemax(Float64), :lambda) == nothing
+        @test check_parameter(Int, 5, 1, typemax(Int), :nrounds) == nothing
+        @test check_parameter(Int, 1, 1, typemax(Int), :nrounds) == nothing
+        @test check_parameter(Int, 1, 1, 1, :nrounds) == nothing
+
+        # Invalid type tests
+        @test_throws ErrorException check_parameter(Int, 1.5, 0, typemax(Int), :nrounds)
+        @test_throws ErrorException check_parameter(Float64, "1.5", 0.0, typemax(Float64), :lambda)
+
+        # Out of range tests
+        @test_throws ErrorException check_parameter(Int, -5, 0, typemax(Int), :nrounds)
+        @test_throws ErrorException check_parameter(Float64, -0.1, 0.0, typemax(Float64), :lambda)
+        @test_throws ErrorException check_parameter(Int, typemax(Int64), 0, typemax(Int)-1, :nrounds)
+        @test_throws ErrorException check_parameter(Float64, typemax(Float64), 0.0, 10^6, :lambda)        
+    end
+
+    # Check the implemented parameters on construction
+    @testset "check_args all for EvoTreeRegressor" begin
+        for (key,vals_to_test) in zip(
+            [:nrounds, :max_depth, :nbins, :lambda, :gamma, :min_weight, :alpha, :rowsample, :colsample, :eta],
+            [[-1, 0, 1.5], [0, 1.5], [1, 256, 100.5], [-eps(Float64)], [-eps(Float64)], [-eps(Float64)], 
+            [-0.1, 1.1], [0.0f0, 1.1f0], [0.0, 1.1], [0.0]]) 
+            for val in vals_to_test
+                @test_throws Exception EvoTreeRegressor(;zip([key], [val])...)
+            end
+        end
+    end
+
+    # Test all EvoTypes that they have *some* checks in place
+    @testset "check_args EvoTypes" begin
+        for EvoTreeType in [EvoTreeMLE, EvoTreeGaussian, EvoTreeCount, EvoTreeClassifier, EvoTreeRegressor]
+            config = EvoTreeType(nbins=32)
+            # should not throw an exception
+            @test check_args(config) == nothing 
+            # invalid nbins
+            config.nbins=256
+            @test_throws Exception check_args(config)
+        end
+    end
+
 end

@@ -28,6 +28,38 @@ function mk_rng(int::Integer, device = "cpu")
     return rng
 end
 
+# check model parameter if it's valid
+function check_parameter(::Type{<:T}, value, min_value::Real, max_value::Real, label::Symbol) where {T<:Number}
+    min_value = max(typemin(T), min_value)
+    max_value = min(typemax(T), max_value)
+    try
+        convert(T,value)
+        @assert min_value <= value <= max_value
+    catch
+        error("Invalid value for parameter `$(string(label))`: $value. `$(string(label))` must be of type $T with value between $min_value and $max_value.")
+    end
+end
+
+# check model arguments if they are valid
+function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
+
+    # Check integer parameters
+    check_parameter(Int, args[:nrounds], 1, typemax(Int), :nrounds)
+    check_parameter(Int, args[:max_depth], 1, typemax(Int), :max_depth)
+    check_parameter(Int, args[:nbins], 2, 255, :nbins)
+
+    # check positive float parameters
+    check_parameter(T, args[:lambda], zero(T), typemax(T), :lambda)
+    check_parameter(T, args[:gamma], zero(T), typemax(T), :gamma)
+    check_parameter(T, args[:min_weight], zero(T), typemax(T), :min_weight)
+
+    # check bounded parameters
+    check_parameter(T, args[:alpha], zero(T), one(T), :alpha)
+    check_parameter(T, args[:rowsample], eps(T), one(T), :rowsample)
+    check_parameter(T, args[:colsample], eps(T), one(T), :colsample)
+    check_parameter(T, args[:eta], eps(T), typemax(T), :eta)
+end
+
 mutable struct EvoTreeRegressor{L<:ModelType,T} <: MMI.Deterministic
     nrounds::Int
     lambda::T
@@ -91,6 +123,8 @@ function EvoTreeRegressor(; kwargs...)
             "Invalid loss: $(args[:loss]). Only [`:linear`, `:logistic`, `:L1`, `:quantile`] are supported at the moment by EvoTreeRegressor.",
         )
     end
+
+    check_args(T, args)
 
     model = EvoTreeRegressor{L,T}(
         args[:nrounds],
@@ -165,6 +199,8 @@ function EvoTreeCount(; kwargs...)
     L = Poisson
     T = args[:T]
 
+    check_args(T, args)
+
     model = EvoTreeCount{L,T}(
         args[:nrounds],
         T(args[:lambda]),
@@ -230,6 +266,8 @@ function EvoTreeClassifier(; kwargs...)
     args[:rng] = mk_rng(args[:rng], String(args[:device]))
     L = Softmax
     T = args[:T]
+
+    check_args(T, args)
 
     model = EvoTreeClassifier{L,T}(
         args[:nrounds],
@@ -309,6 +347,8 @@ function EvoTreeMLE(; kwargs...)
         )
     end
 
+    check_args(T, args)
+
     model = EvoTreeMLE{L,T}(
         args[:nrounds],
         T(args[:lambda]),
@@ -382,6 +422,8 @@ function EvoTreeGaussian(; kwargs...)
     L = GaussianMLE
     T = args[:T]
 
+    check_args(T, args)
+
     model = EvoTreeGaussian{L,T}(
         args[:nrounds],
         T(args[:lambda]),
@@ -420,4 +462,25 @@ function Base.show(io::IO, config::EvoTypes)
     for fname in fieldnames(typeof(config))
         println(io, " - $fname: $(getfield(config, fname))")
     end
+end
+
+# check model arguments if they are valid (eg, after mutation when tuning hyperparams)
+# Note: does not check consistency of model type and loss selected
+function check_args(model::EvoTypes{L,T}) where {L,T<:Real}
+
+    # Check integer parameters
+    check_parameter(Int, model.max_depth, 1, typemax(Int), :max_depth)
+    check_parameter(Int, model.nrounds, 1, typemax(Int), :nrounds)
+    check_parameter(Int, model.nbins, 2, 255, :nbins)
+
+    # check positive float parameters
+    check_parameter(T, model.lambda, zero(T), typemax(T), :lambda)
+    check_parameter(T, model.gamma, zero(T), typemax(T), :gamma)
+    check_parameter(T, model.min_weight, zero(T), typemax(T), :min_weight)
+
+    # check bounded parameters
+    check_parameter(T, model.alpha, zero(T), one(T), :alpha)
+    check_parameter(T, model.rowsample, eps(T), one(T), :rowsample)
+    check_parameter(T, model.colsample, eps(T), one(T), :colsample)
+    check_parameter(T, model.eta, eps(T), typemax(T), :eta)
 end

@@ -1,4 +1,4 @@
-# Classication on Iris dataset
+# Classification on Iris dataset
 
 We will use the iris dataset, which is included in the MLDatasets package. This dataset consists of measurements of the sepal length, sepal width, petal length, and petal width for three different types of iris flowers: Setosa, Versicolor, and Virginica.
 
