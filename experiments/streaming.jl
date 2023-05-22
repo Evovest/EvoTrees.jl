@@ -42,3 +42,15 @@ for d in dtrain
     is_out = zeros(UInt32, nobs)
     mask = zeros(UInt8, nobs)
 end
+
+
+########################################
+# create regular dataframe
+########################################
+nobs = Int(1e3)
+nfeats = Int(10)
+x_train = rand(nobs, nfeats)
+y_train = rand(nobs)
+
+df = DataFrame(x_train, :auto)
+df[!, :y] = y_train
