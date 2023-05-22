@@ -87,7 +87,7 @@ watchlist = Dict("train" => DMatrix(x_train, y_train .- 1))
 # @time pred_gbm = LightGBM.predict(m_gbm, x_train) |> vec
 
 @info "evotrees train CPU:"
-# EvoTrees params
+# # EvoTrees params
 params_evo = EvoTreeRegressor(
     T=T,
     loss=loss_evo,
@@ -103,6 +103,7 @@ params_evo = EvoTreeRegressor(
     nbins=64,
     rng = 123,
 )
+
 params_evo.device = "cpu"
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
 # @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);

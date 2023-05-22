@@ -16,16 +16,48 @@ struct GaussianMLE <: MLE2P end
 struct LogisticMLE <: MLE2P end
 
 # make a Random Number Generator object
-mk_rng(rng::AbstractRNG) = rng
-function mk_rng(int::Integer)
+mk_rng(rng::AbstractRNG, device = "cpu") = rng
+function mk_rng(int::Integer, device = "cpu")
     if VERSION < v"1.7"
         rng = Random.MersenneTwister()
     else
         rng = Random.TaskLocalRNG()
     end
     seed!(rng, int)
-    CUDA.functional() && CUDA.seed!(int)
+    device == "gpu" && CUDA.seed!(int)
     return rng
+end
+
+# check model parameter if it's valid
+function check_parameter(::Type{<:T}, value, min_value::Real, max_value::Real, label::Symbol) where {T<:Number}
+    min_value = max(typemin(T), min_value)
+    max_value = min(typemax(T), max_value)
+    try
+        convert(T,value)
+        @assert min_value <= value <= max_value
+    catch
+        error("Invalid value for parameter `$(string(label))`: $value. `$(string(label))` must be of type $T with value between $min_value and $max_value.")
+    end
+end
+
+# check model arguments if they are valid
+function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
+
+    # Check integer parameters
+    check_parameter(Int, args[:nrounds], 1, typemax(Int), :nrounds)
+    check_parameter(Int, args[:max_depth], 1, typemax(Int), :max_depth)
+    check_parameter(Int, args[:nbins], 2, 255, :nbins)
+
+    # check positive float parameters
+    check_parameter(T, args[:lambda], zero(T), typemax(T), :lambda)
+    check_parameter(T, args[:gamma], zero(T), typemax(T), :gamma)
+    check_parameter(T, args[:min_weight], zero(T), typemax(T), :min_weight)
+
+    # check bounded parameters
+    check_parameter(T, args[:alpha], zero(T), one(T), :alpha)
+    check_parameter(T, args[:rowsample], eps(T), one(T), :rowsample)
+    check_parameter(T, args[:colsample], eps(T), one(T), :colsample)
+    check_parameter(T, args[:eta], eps(T), typemax(T), :eta)
 end
 
 mutable struct EvoTreeRegressor{L<:ModelType,T} <: MMI.Deterministic
@@ -65,22 +97,12 @@ function EvoTreeRegressor(; kwargs...)
         :device => "cpu",
     )
 
-    args_ignored = setdiff(keys(kwargs), keys(args))
-    args_ignored_str = join(args_ignored, ", ")
-    length(args_ignored) > 0 &&
-        @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
-
-    args_default = setdiff(keys(args), keys(kwargs))
-    args_default_str = join(args_default, ", ")
-    length(args_default) > 0 &&
-        @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
-
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
+    args[:rng] = mk_rng(args[:rng], String(args[:device]))
     args[:loss] = Symbol(args[:loss])
     T = args[:T]
 
@@ -102,6 +124,8 @@ function EvoTreeRegressor(; kwargs...)
         )
     end
 
+    check_args(T, args)
+
     model = EvoTreeRegressor{L,T}(
         args[:nrounds],
         T(args[:lambda]),
@@ -121,6 +145,14 @@ function EvoTreeRegressor(; kwargs...)
     return model
 end
 
+# Converts Linear -> :linear (special case is L1 -> :L1)
+function _type2loss(t::Type)
+    t|>string|>lowercase|>x->split(x,".")[end]|>x->ifelse(x=="l1","L1",x)|>Symbol
+end
+
+function EvoTreeRegressor{L,T}(; kwargs...) where {L,T}
+    EvoTreeRegressor(; T=T, loss=_type2loss(L), kwargs...)
+end
 
 mutable struct EvoTreeCount{L<:ModelType,T} <: MMI.Probabilistic
     nrounds::Int
@@ -158,24 +190,16 @@ function EvoTreeCount(; kwargs...)
         :device => "cpu",
     )
 
-    args_ignored = setdiff(keys(kwargs), keys(args))
-    args_ignored_str = join(args_ignored, ", ")
-    length(args_ignored) > 0 &&
-        @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
-
-    args_default = setdiff(keys(args), keys(kwargs))
-    args_default_str = join(args_default, ", ")
-    length(args_default) > 0 &&
-        @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
-
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
+    args[:rng] = mk_rng(args[:rng], String(args[:device]))
     L = Poisson
     T = args[:T]
+
+    check_args(T, args)
 
     model = EvoTreeCount{L,T}(
         args[:nrounds],
@@ -194,6 +218,10 @@ function EvoTreeCount(; kwargs...)
     )
 
     return model
+end
+
+function EvoTreeCount{L,T}(; kwargs...) where {L,T}
+    EvoTreeCount(; T=T, kwargs...)
 end
 
 mutable struct EvoTreeClassifier{L<:ModelType,T} <: MMI.Probabilistic
@@ -230,24 +258,16 @@ function EvoTreeClassifier(; kwargs...)
         :device => "cpu",
     )
 
-    args_ignored = setdiff(keys(kwargs), keys(args))
-    args_ignored_str = join(args_ignored, ", ")
-    length(args_ignored) > 0 &&
-        @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
-
-    args_default = setdiff(keys(args), keys(kwargs))
-    args_default_str = join(args_default, ", ")
-    length(args_default) > 0 &&
-        @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
-
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
+    args[:rng] = mk_rng(args[:rng], String(args[:device]))
     L = Softmax
     T = args[:T]
+
+    check_args(T, args)
 
     model = EvoTreeClassifier{L,T}(
         args[:nrounds],
@@ -265,6 +285,10 @@ function EvoTreeClassifier(; kwargs...)
     )
 
     return model
+end
+
+function EvoTreeClassifier{L,T}(; kwargs...) where {L,T}
+    EvoTreeClassifier(; T=T, kwargs...)
 end
 
 mutable struct EvoTreeMLE{L<:ModelType,T} <: MMI.Probabilistic
@@ -304,22 +328,12 @@ function EvoTreeMLE(; kwargs...)
         :device => "cpu",
     )
 
-    args_ignored = setdiff(keys(kwargs), keys(args))
-    args_ignored_str = join(args_ignored, ", ")
-    length(args_ignored) > 0 &&
-        @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
-
-    args_default = setdiff(keys(args), keys(kwargs))
-    args_default_str = join(args_default, ", ")
-    length(args_default) > 0 &&
-        @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
-
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
+    args[:rng] = mk_rng(args[:rng], String(args[:device]))
     args[:loss] = Symbol(args[:loss])
     T = args[:T]
 
@@ -332,6 +346,8 @@ function EvoTreeMLE(; kwargs...)
             "Invalid loss: $(args[:loss]). Only `:gaussian` / `:gaussian_mle` and `:logistic` / `:logistic_mle` are supported at the moment by EvoTreeMLE.",
         )
     end
+
+    check_args(T, args)
 
     model = EvoTreeMLE{L,T}(
         args[:nrounds],
@@ -350,6 +366,15 @@ function EvoTreeMLE(; kwargs...)
     )
 
     return model
+end
+
+function EvoTreeMLE{L,T}(; kwargs...) where {L,T}
+    if L == GaussianMLE
+        loss = :gaussian_mle
+    elseif L == LogisticMLE
+        loss = :logistic_mle
+    end
+    EvoTreeMLE(; T=T, loss=loss, kwargs...)
 end
 
 
@@ -388,24 +413,16 @@ function EvoTreeGaussian(; kwargs...)
         :device => "cpu",
     )
 
-    args_ignored = setdiff(keys(kwargs), keys(args))
-    args_ignored_str = join(args_ignored, ", ")
-    length(args_ignored) > 0 &&
-        @info "Following $(length(args_ignored)) provided arguments will be ignored: $(args_ignored_str)."
-
-    args_default = setdiff(keys(args), keys(kwargs))
-    args_default_str = join(args_default, ", ")
-    length(args_default) > 0 &&
-        @info "Following $(length(args_default)) arguments were not provided and will be set to default: $(args_default_str)."
-
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
+    args[:rng] = mk_rng(args[:rng], String(args[:device]))
     L = GaussianMLE
     T = args[:T]
+
+    check_args(T, args)
 
     model = EvoTreeGaussian{L,T}(
         args[:nrounds],
@@ -426,6 +443,10 @@ function EvoTreeGaussian(; kwargs...)
     return model
 end
 
+function EvoTreeGaussian{L,T}(; kwargs...) where {L,T}
+    EvoTreeGaussian(; T=T, kwargs...)
+end
+
 const EvoTypes{L,T} = Union{
     EvoTreeRegressor{L,T},
     EvoTreeCount{L,T},
@@ -435,3 +456,31 @@ const EvoTypes{L,T} = Union{
 }
 
 get_types(::EvoTypes{L,T}) where {L,T} = (L, T)
+
+function Base.show(io::IO, config::EvoTypes)
+    println(io, "$(typeof(config))")
+    for fname in fieldnames(typeof(config))
+        println(io, " - $fname: $(getfield(config, fname))")
+    end
+end
+
+# check model arguments if they are valid (eg, after mutation when tuning hyperparams)
+# Note: does not check consistency of model type and loss selected
+function check_args(model::EvoTypes{L,T}) where {L,T<:Real}
+
+    # Check integer parameters
+    check_parameter(Int, model.max_depth, 1, typemax(Int), :max_depth)
+    check_parameter(Int, model.nrounds, 1, typemax(Int), :nrounds)
+    check_parameter(Int, model.nbins, 2, 255, :nbins)
+
+    # check positive float parameters
+    check_parameter(T, model.lambda, zero(T), typemax(T), :lambda)
+    check_parameter(T, model.gamma, zero(T), typemax(T), :gamma)
+    check_parameter(T, model.min_weight, zero(T), typemax(T), :min_weight)
+
+    # check bounded parameters
+    check_parameter(T, model.alpha, zero(T), one(T), :alpha)
+    check_parameter(T, model.rowsample, eps(T), one(T), :rowsample)
+    check_parameter(T, model.colsample, eps(T), one(T), :colsample)
+    check_parameter(T, model.eta, eps(T), typemax(T), :eta)
+end

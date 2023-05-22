@@ -1,8 +1,12 @@
+# Internal API examples
+
+The following provides minimal examples of usage of the various loss functions available in EvoTrees using the internal API.
+
 ## Regression
 
 Minimal example to fit a noisy sinus wave.
 
-![](assets/regression_sinus.png)
+![](../assets/regression_sinus.png)
 
 ```julia
 using EvoTrees
@@ -75,7 +79,7 @@ pred_eval_poisson = predict(model, x_eval)
 
 ## Quantile Regression
 
-![](assets/quantiles_sinus.png)
+![](../assets/quantiles_sinus.png)
 
 ```julia
 # q50
@@ -114,11 +118,11 @@ pred_train_q80 = predict(model, x_train)
 
 ## Gaussian Max Likelihood
 
-![](assets/gaussian_sinus.png)
+![](../assets/gaussian_sinus.png)
 
 ```julia
-params1 = EvoTreeGaussian(
-    loss=:gaussian, metric=:gaussian,
+params1 = EvoTreeMLE(
+    loss=:gaussian_mle, metric=:gaussian_mle,
     nrounds=100, nbins=100,
     lambda = 0.0, gamma=0.0, eta=0.1,
     max_depth = 6, min_weight = 1.0,

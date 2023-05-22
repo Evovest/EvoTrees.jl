@@ -2,9 +2,9 @@ function init_evotree_gpu(
     params::EvoTypes{L,T};
     x_train::AbstractMatrix,
     y_train::AbstractVector,
-    w_train=nothing,
-    offset_train=nothing,
-    fnames=nothing
+    w_train = nothing,
+    offset_train = nothing,
+    fnames = nothing,
 ) where {L,T}
 
     levels = nothing
@@ -27,11 +27,12 @@ function init_evotree_gpu(
             y = CuArray(UInt32.(CategoricalArrays.levelcode.(y_train)))
         else
             levels = sort(unique(y_train))
-            yc = CategoricalVector(y_train, levels=levels)
+            yc = CategoricalVector(y_train, levels = levels)
             y = CuArray(UInt32.(CategoricalArrays.levelcode.(yc)))
         end
         K = length(levels)
-        μ = zeros(T, K)
+        μ = T.(log.(proportions(y, UInt32(1):UInt32(K))))
+        μ .-= maximum(μ)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
         K = 2
@@ -76,7 +77,10 @@ function init_evotree_gpu(
     js = zeros(eltype(js_), ceil(Int, params.colsample * x_size[2]))
 
     # initialize histograms
-    nodes = [TrainNodeGPU(x_size[2], params.nbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
+    nodes = [
+        TrainNodeGPU(x_size[2], params.nbins, K, view(is_in, 1:0), T) for
+        n = 1:2^params.max_depth-1
+    ]
     out = CUDA.zeros(UInt32, x_size[1])
     left = CUDA.zeros(UInt32, x_size[1])
     right = CUDA.zeros(UInt32, x_size[1])
@@ -89,23 +93,23 @@ function init_evotree_gpu(
 
     # store cache
     cache = (
-        info=Dict(:nrounds => 0),
-        x=CuArray(x),
-        x_bin=x_bin,
-        y=y,
-        nodes=nodes,
-        pred=pred,
-        is_in=is_in,
-        is_out=is_out,
-        mask=mask,
-        js_=js_,
-        js=js,
-        out=out,
-        left=left,
-        right=right,
-        ∇=∇,
-        edges=edges,
-        monotone_constraints=CuArray(monotone_constraints),
+        info = Dict(:nrounds => 0),
+        x = CuArray(x),
+        x_bin = x_bin,
+        y = y,
+        nodes = nodes,
+        pred = pred,
+        is_in = is_in,
+        is_out = is_out,
+        mask = mask,
+        js_ = js_,
+        js = js,
+        out = out,
+        left = left,
+        right = right,
+        ∇ = ∇,
+        edges = edges,
+        monotone_constraints = CuArray(monotone_constraints),
     )
 
     return m, cache
@@ -121,9 +125,10 @@ function grow_evotree!(
     # compute gradients
     update_grads_gpu!(cache.∇, cache.pred, cache.y, params)
     # subsample rows
-    cache.nodes[1].is = subsample_gpu(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
+    cache.nodes[1].is =
+        subsample_gpu(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
     # subsample cols
-    sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
+    sample!(params.rng, cache.js_, cache.js, replace = false, ordered = true)
 
     # assign a root and grow tree
     tree = TreeGPU{L,K,T}(params.max_depth)
@@ -174,7 +179,7 @@ function grow_tree_gpu!(
     end
 
     # initialize summary stats
-    nodes[1].∑ .= vec(sum(∇[:, nodes[1].is], dims=2))
+    nodes[1].∑ .= vec(sum(∇[:, nodes[1].is], dims = 2))
     nodes[1].gain = get_gain(params, Array(nodes[1].∑)) # should use a GPU version?
 
     # grow while there are remaining active nodes - TO DO histogram substraction hits issue on GPU

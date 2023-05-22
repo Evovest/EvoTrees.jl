@@ -174,16 +174,17 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 # Hyper-parameters
 
 - `loss=:linear`:         Loss to be be minimized during training. One of:
-
   - `:linear`
   - `:logistic`
   - `:gamma`
   - `:tweedie`
   - `:quantile`
   - `:L1`
-- `nrounds=10`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
+- `nrounds=10`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
+- `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
+  A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.   
 - `lambda::T=0.0`:        L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
-- `gamma::T=0.0`:         Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model.
+- `gamma::T=0.0`:         Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `alpha::T=0.5`:         Loss specific parameter in the [0, 1] range:
                             - `:quantile`: target quantile for the regression.
                             - `:L1`: weighting parameters to positive vs negative residuals.
@@ -192,12 +193,13 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 - `max_depth=5`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
   Compute cost is proportional to `2^max_depth`. Typical optimal values are in the 3 to 9 range.
-- `min_weight=0.0`:       Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector.
+- `min_weight=0.0`:       Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector. Must be > 0.
 - `rowsample=1.0`:        Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `colsample=1.0`:        Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
-- `nbins=32`:             Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
+- `nbins=32`:             Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   Only `:linear`, `:logistic`, `:gamma` and `tweedie` losses are supported at the moment.
+- `T=Float32`:            The float precision on which the model will be trained. One of `Float32` or `Float64`.
 - `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 - `device="cpu"`:         Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`. Only `:linear`, `:logistic`, `:gamma` and `tweedie` losses are supported on GPU.
 
@@ -301,16 +303,19 @@ EvoTreeClassifier is used to perform multi-class classification, using cross-ent
 
 # Hyper-parameters
 
-- `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
+- `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
+- `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
+  A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
 - `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
-- `gamma::T=0.0`:               Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model.
+- `gamma::T=0.0`:               Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `max_depth=5`:                Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
   Compute cost is proportional to `2^max_depth`. Typical optimal values are in the 3 to 9 range.
-- `min_weight=0.0`:             Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector.
+- `min_weight=0.0`:             Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector. Must be > 0.
 - `rowsample=1.0`:              Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `colsample=1.0`:              Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
-- `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
+- `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
+- `T=Float32`:                  The float precision on which the model will be trained. One of `Float32` or `Float64`.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 - `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
@@ -421,17 +426,20 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
 
 # Hyper-parameters
 
-- `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
-- `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
+- `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
+- `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
+  A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
+- `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model. Must be >= 0.
 - `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
 - `max_depth=5`:                Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
   Compute cost is proportional to 2^max_depth. Typical optimal values are in the 3 to 9 range.
-- `min_weight=0.0`:             Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector.
+- `min_weight=0.0`:             Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector. Must be > 0.
 - `rowsample=1.0`:              Proportion of rows that are sampled at each iteration to build the tree. Should be `]0, 1]`.
 - `colsample=1.0`:              Proportion of columns / features that are sampled at each iteration to build the tree. Should be `]0, 1]`.
-- `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
+- `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing).
+- `T=Float32`:                  The float precision on which the model will be trained. One of `Float32` or `Float64`.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 - `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
@@ -546,18 +554,21 @@ EvoTreeGaussian is used to perform Gaussian probabilistic regression, fitting μ
 
 # Hyper-parameters
 
-- `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
+- `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
+- `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
+  A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
 - `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
-- `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
+- `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `max_depth=5`:                Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
   Compute cost is proportional to 2^max_depth. Typical optimal values are in the 3 to 9 range.
-- `min_weight=0.0`:             Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector.
+- `min_weight=0.0`:             Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector. Must be > 0.
 - `rowsample=1.0`:              Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `colsample=1.0`:              Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
-- `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
+- `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   !Experimental feature: note that for Gaussian regression, constraints may not be enforce systematically.
+- `T=Float64`:                  The float precision on which the model will be trained. One of `Float32` or `Float64`.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 - `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
@@ -679,18 +690,21 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
 `loss=:gaussian`:         Loss to be be minimized during training. One of:
   - `:gaussian` / `:gaussian_mle`
   - `:logistic` / `:logistic_mle`
-- `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked.
+- `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
+- `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
+  A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
 - `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
-- `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
+- `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `max_depth=5`:                Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
   Compute cost is proportional to 2^max_depth. Typical optimal values are in the 3 to 9 range.
-- `min_weight=0.0`:             Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector.
+- `min_weight=0.0`:             Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector. Must be > 0.
 - `rowsample=1.0`:              Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `colsample=1.0`:              Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
-- `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins.
+- `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   !Experimental feature: note that for MLE regression, constraints may not be enforced systematically.
+- `T=Float64`:                  The float precision on which the model will be trained. One of `Float32` or `Float64`.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 - `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 

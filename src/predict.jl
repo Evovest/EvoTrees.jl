@@ -17,7 +17,7 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:Logistic,K,T}
             X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 :
             nid = nid << 1 + 1
         end
-        @inbounds pred[1, i] = clamp(pred[1, i] + tree.pred[1, nid], -15, 15)
+        @inbounds pred[1, i] = clamp(pred[1, i] + tree.pred[1, nid], T(-10), T(10))
     end
     return nothing
 end
@@ -30,7 +30,7 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:MLE2P,K,T}
             nid = nid << 1 + 1
         end
         @inbounds pred[1, i] += tree.pred[1, nid]
-        @inbounds pred[2, i] = max(-15, pred[2, i] + tree.pred[2, nid])
+        @inbounds pred[2, i] = max(T(-10), pred[2, i] + tree.pred[2, nid])
     end
     return nothing
 end
@@ -50,7 +50,7 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:Softmax,K,T}
         @inbounds for k = 1:K
             pred[k, i] += tree.pred[k, nid]
         end
-        @views pred[:, i] .= max.(-15, pred[:, i] .- maximum(pred[:, i]))
+        @views pred[:, i] .= max.(T(-10), pred[:, i] .- maximum(pred[:, i]))
     end
     return nothing
 end

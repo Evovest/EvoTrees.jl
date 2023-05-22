@@ -56,6 +56,13 @@ function Tree{L,K,T}(depth::Int) where {L,K,T}
     )
 end
 
+function Base.show(io::IO, tree::Tree)
+    println(io, "$(typeof(tree))")
+    for fname in fieldnames(typeof(tree))
+        println(io, " - $fname: $(getfield(tree, fname))")
+    end
+end
+
 # gradient-boosted tree is formed by a vector of trees
 struct EvoTree{L,K,T}
     trees::Vector{Tree{L,K,T}}
@@ -63,3 +70,10 @@ struct EvoTree{L,K,T}
 end
 (m::EvoTree)(x::AbstractMatrix) = predict(m, x)
 get_types(::EvoTree{L,K,T}) where {L,K,T} = (L,T)
+
+function Base.show(io::IO, evotree::EvoTree)
+    println(io, "$(typeof(evotree))")
+    println(io, " - Contains $(length(evotree.trees)) trees in field `trees` (incl. 1 bias tree).")
+    println(io, " - Data input has $(length(evotree.info[:fnames])) features.")
+    println(io, " - $(keys(evotree.info)) info accessible in field `info`")
+end

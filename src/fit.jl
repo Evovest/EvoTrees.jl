@@ -35,7 +35,8 @@ function init_evotree(
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
         K = length(levels)
-        μ = zeros(T, K)
+        μ = T.(log.(proportions(y, UInt32(1):UInt32(K))))
+        μ .-= maximum(μ)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
         K = 2
@@ -177,7 +178,7 @@ function grow_tree!(
     @threads for n in nodes
         n.h .= 0
         n.∑ .= 0
-        n.gain = 0
+        n.gain = T(0)
         n.gains .= 0
     end
 
@@ -192,7 +193,7 @@ function grow_tree!(
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
-
+        
         if depth < params.max_depth
             for n_id in eachindex(n_current)
                 n = n_current[n_id]
@@ -212,8 +213,7 @@ function grow_tree!(
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             else
-                # histogram subtraction
-                update_gains!(nodes[n], js, params, K, monotone_constraints)
+                update_gains!(nodes[n], js, params, monotone_constraints)
                 best = findmax(nodes[n].gains)
                 if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.gamma
                     tree.gain[n] = best[1] - nodes[n].gain
@@ -252,7 +252,6 @@ function grow_tree!(
                         push!(n_next, n << 1)
                     end
                     popfirst!(n_next)
-                    # println("n_next split post: ", n, " | ", n_next)
                 end
             end
         end
@@ -289,17 +288,16 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
 - `metric`: The evaluation metric that wil be tracked on `x_eval`, `y_eval` and optionally `w_eval` / `offset_eval` data. 
     Supported metrics are: 
-    
-        - `:mse`: mean-squared error. Adapted for general regression models.
-        - `:rmse`: root-mean-squared error (CPU only). Adapted for general regression models.
-        - `:mae`: mean absolute error. Adapted for general regression models.
-        - `:logloss`: Adapted for `:logistic` regression models.
-        - `:mlogloss`: Multi-class cross entropy. Adapted to `EvoTreeClassifier` classification models. 
-        - `:poisson`: Poisson deviance. Adapted to `EvoTreeCount` count models.
-        - `:gamma`: Gamma deviance. Adapted to regression problem on Gamma like, positively distributed targets.
-        - `:tweedie`: Tweedie deviance. Adapted to regression problem on Tweedie like, positively distributed targets with probability mass at `y == 0`.
-        - `:gaussian_mle`: Gaussian log-likelihood. Adapted to MLE when using `EvoTreeMLE` with `loss = :gaussian_mle`. 
-        - `:logistic_mle`: Logistic log-likelihood. Adapted to MLE when using `EvoTreeMLE` with `loss = :logistic_mle`. 
+    - `:mse`: mean-squared error. Adapted for general regression models.
+    - `:rmse`: root-mean-squared error (CPU only). Adapted for general regression models.
+    - `:mae`: mean absolute error. Adapted for general regression models.
+    - `:logloss`: Adapted for `:logistic` regression models.
+    - `:mlogloss`: Multi-class cross entropy. Adapted to `EvoTreeClassifier` classification models. 
+    - `:poisson`: Poisson deviance. Adapted to `EvoTreeCount` count models.
+    - `:gamma`: Gamma deviance. Adapted to regression problem on Gamma like, positively distributed targets.
+    - `:tweedie`: Tweedie deviance. Adapted to regression problem on Tweedie like, positively distributed targets with probability mass at `y == 0`.
+    - `:gaussian_mle`: Gaussian log-likelihood. Adapted to MLE when using `EvoTreeMLE` with `loss = :gaussian_mle`. 
+    - `:logistic_mle`: Logistic log-likelihood. Adapted to MLE when using `EvoTreeMLE` with `loss = :logistic_mle`. 
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -323,6 +321,8 @@ function fit_evotree(
     fnames=nothing,
     return_logger=false
 ) where {L,T}
+
+    verbosity == 1 && @info params
 
     # initialize model and cache
     if String(params.device) == "gpu"
