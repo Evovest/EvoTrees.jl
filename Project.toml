@@ -1,7 +1,7 @@
 name = "EvoTrees"
 uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
 authors = ["jeremiedb <jeremie.db@evovest.com>"]
-version = "0.14.10"
+version = "0.15.0"
 
 [deps]
 Arrow = "69666777-d1a9-59fb-9406-91d4454c9d45"
