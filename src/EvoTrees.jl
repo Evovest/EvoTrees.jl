@@ -16,6 +16,7 @@ using StatsBase: sample, sample!, quantile, proportions
 using Random
 using Random: seed!, AbstractRNG
 using Distributions
+using DataFrames
 using CategoricalArrays
 using LoopVectorization
 using Tables
@@ -40,6 +41,7 @@ include("predict.jl")
 include("find_split.jl")
 include("subsample.jl")
 include("fit.jl")
+include("fit-df.jl")
 
 include("gpu/structs_gpu.jl")
 include("gpu/loss_gpu.jl")
