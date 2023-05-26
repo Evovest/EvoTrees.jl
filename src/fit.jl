@@ -60,9 +60,7 @@ function init_evotree(
     # initialize preds
     x_size = size(x)
     pred = zeros(T, K, x_size[1])
-    @inbounds for i = 1:x_size[1]
-        pred[:, i] .= μ
-    end
+    pred .= μ
     !isnothing(offset) && (pred .+= offset')
 
     # init EvoTree
