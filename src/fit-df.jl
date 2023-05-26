@@ -18,20 +18,20 @@ function init_evotree_df(
     offset = !isnothing(offset_name) ? T.(dtrain[:, offset_train]) : nothing
     if L == Logistic
         K = 1
-        y = T.(dtrain[:, target_name])
+        y = T.(dtrain[!, target_name])
         μ = [logit(mean(y))]
         !isnothing(offset) && (offset .= logit.(offset))
     elseif L in [Poisson, Gamma, Tweedie]
         K = 1
-        y = T.(dtrain[:, target_name])
+        y = T.(dtrain[!, target_name])
         μ = fill(log(mean(y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == Softmax
-        if eltype(dtrain[:, target_name]) <: CategoricalValue
+        if eltype(dtrain[!, target_name]) <: CategoricalValue
             levels = CategoricalArrays.levels(dtrain[:, target_name])
             y = UInt32.(CategoricalArrays.levelcode.(dtrain[:, target_name]))
         else
-            levels = sort(unique(dtrain[:, target_name]))
+            levels = sort(unique(dtrain[!, target_name]))
             yc = CategoricalVector(dtrain[:, target_name], levels=levels)
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
@@ -41,17 +41,17 @@ function init_evotree_df(
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
         K = 2
-        y = T.(dtrain[:, target_name])
+        y = T.(dtrain[!, target_name])
         μ = [mean(y), log(std(y))]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     elseif L == LogisticMLE
         K = 2
-        y = T.(dtrain[:, target_name])
+        y = T.(dtrain[!, target_name])
         μ = [mean(y), log(std(y) * sqrt(3) / π)]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     else
         K = 1
-        y = T.(dtrain[:, target_name])
+        y = T.(dtrain[!, target_name])
         μ = [mean(y)]
     end
     μ = T.(μ)
@@ -61,50 +61,53 @@ function init_evotree_df(
     # initialize preds
     nobs = nrow(dtrain)
     pred = zeros(T, K, nobs)
-    @inbounds for i = axes(pred, 2)
-        pred[:, i] .= μ
+    @threads for i in axes(pred, 2)
+        @inbounds view(pred, :, i) .= μ
     end
     !isnothing(offset) && (pred .+= offset')
 
     # init EvoTree
     bias = [Tree{L,K,T}(μ)]
 
-    _w_name = isnothing(w_name) ? [""] : [string(w_name)]
-    _offset_name = isnothing(offset_name) ? [""] : [string(offset_name)]
-    _target_name = isnothing(target_name) ? [""] : [string(target_name)]
+    _w_name = isnothing(w_name) ? "" : [string(w_name)]
+    _offset_name = isnothing(offset_name) ? "" : string(offset_name)
+    # _target_name = isnothing(target_name) ? [""] : [string(target_name)]
 
     if isnothing(fnames_cat)
         fnames_cat = String[]
     else
+        isa(fnames_cat, String) ? fnames_cat = [fnames_cat] : nothing
+        @assert isa(fnames_cat, Vector{String})
         for var in fnames_cat
-            @assert typeof(dtrain[:, var]) <: AbstractCategoricalVector "$var should be <: AbstractCategoricalVector"
-            @assert !isordered(dtrain[:, var]) "fnames_cat are expected to be unordered - $var is ordered"
+            @assert typeof(dtrain[!, var]) <: AbstractCategoricalVector "$var should be <: AbstractCategoricalVector"
+            @assert !isordered(dtrain[!, var]) "fnames_cat are expected to be unordered - $var is ordered"
         end
-        fnames_cat = string.(fnames)
+        fnames_cat = string.(fnames_cat)
     end
-    @info "fnames_cat" fnames_cat
-    nfeats_cat = length(fnames_cat)
+    # @info "fnames_cat" fnames_cat
 
     if isnothing(fnames_num)
         fnames_num = String[]
         for name in names(dtrain)
-            if eltype(dtrain[!, name]) <: Number
+            if eltype(dtrain[!, name]) <: Real
                 push!(fnames_num, name)
             end
         end
-        fnames_num = setdiff(fnames_num, union(fnames_cat, _target_name, _w_name, _offset_name))
+        fnames_num = setdiff(fnames_num, union(fnames_cat, [target_name], [_w_name], [_offset_name]))
     else
         fnames_num = string.(fnames_num)
         for name in names(dtrain)
             @assert eltype(dtrain[!, name]) <: Number
         end
     end
-    @info "fnames_num" fnames_num
-    nfeats_num = length(fnames_num)
+    # @info "fnames_num" fnames_num
+    fnames = vcat(fnames_num, fnames_cat)
+    nfeats = length(fnames)
 
     info = Dict(
         :fnames_num => fnames_num,
         :fnames_cat => fnames_cat,
+        :fnames => fnames,
         :target_name => target_name,
         :w_name => w_name,
         :offset_name => offset_name,
@@ -116,35 +119,35 @@ function init_evotree_df(
 
     # initialize gradients and weights
     ∇ = zeros(T, 2 * K + 1, nobs)
-    w = isnothing(w_name) ? ones(T, size(y)) : Vector{T}(dtrain[:, w_name])
+    w = isnothing(w_name) ? ones(T, size(y)) : Vector{T}(dtrain[!, w_name])
     @assert (length(y) == length(w) && minimum(w) > 0)
     ∇[end, :] .= w
 
     # binarize data into quantiles
-    edges = get_edges(dtrain[!, nfeats_num], params.nbins, params.rng)
-    x_bin = binarize(dtrain[!, nfeats_num], edges)
+    @time edges = get_edges(dtrain; fnames, nbins=params.nbins, rng=params.rng)
+    @time x_bin = binarize(dtrain; fnames, edges)
 
     is_in = zeros(UInt32, nobs)
     is_out = zeros(UInt32, nobs)
     mask = zeros(UInt8, nobs)
-    js_ = UInt32.(collect(1:nfeats_num))
-    js = zeros(UInt32, ceil(Int, params.colsample * nfeats_num))
+    js_ = UInt32.(collect(1:nfeats))
+    js = zeros(UInt32, ceil(Int, params.colsample * nfeats))
 
     # initialize histograms
-    nodes = [TrainNode(nfeats_num, params.nbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
+    nodes = [TrainNode(nfeats, params.nbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
     out = zeros(UInt32, nobs)
     left = zeros(UInt32, nobs)
     right = zeros(UInt32, nobs)
 
     # assign monotone contraints in constraints vector
-    monotone_constraints = zeros(Int32, nfeats_num)
+    monotone_constraints = zeros(Int32, nfeats)
     hasproperty(params, :monotone_constraints) && for (k, v) in params.monotone_constraints
         monotone_constraints[k] = v
     end
 
     cache = (
         info=Dict(:nrounds => 0),
-        x=x,
+        # df=dtrain,
         y=y,
         w=w,
         K=K,

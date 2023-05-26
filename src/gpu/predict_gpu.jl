@@ -15,7 +15,7 @@ function predict_kernel!(
     K = size(pred, 1)
     @inbounds if idx <= size(pred, 2)
         @inbounds while split[nid]
-            X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
+            X[idx, feat[nid]] <= cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
         @inbounds for k = 1:K
             pred[k, idx] += leaf_pred[k, nid]
@@ -42,7 +42,7 @@ function predict_kernel!(
     nid = 1
     @inbounds if idx <= size(pred, 2)
         @inbounds while split[nid]
-            X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
+            X[idx, feat[nid]] <= cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
         pred[1, idx] += leaf_pred[1, nid]
     end
@@ -67,7 +67,7 @@ function predict_kernel!(
     nid = 1
     @inbounds if idx <= size(pred, 2)
         @inbounds while split[nid]
-            X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
+            X[idx, feat[nid]] <= cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
         pred[1, idx] = min(T(10), max(T(-10), pred[1, idx] + leaf_pred[1, nid]))
     end
@@ -92,7 +92,7 @@ function predict_kernel!(
     nid = 1
     @inbounds if idx <= size(pred, 2)
         @inbounds while split[nid]
-            X[idx, feat[nid]] < cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
+            X[idx, feat[nid]] <= cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
         end
         pred[1, idx] += leaf_pred[1, nid]
         pred[2, idx] = max(T(-10), pred[2, idx] + leaf_pred[2, nid])

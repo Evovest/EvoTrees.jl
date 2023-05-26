@@ -10,6 +10,14 @@ using Base.Iterators: partition
 using Base.Threads: nthreads, @threads
 using Tables
 
+# using StatsBase
+# x1 = rand(Bool, 10)
+# nbins = 2
+# edges = sort(unique(quantile(skipmissing(x1), (1:nbins-1) / nbins)))
+# searchsortedfirst(edges, edges[1])
+# searchsortedfirst(edges, 1.0)
+# searchsortedfirst(edges, edges[9] + 0.01)
+
 nrounds = 10
 nobs = Int(1e6)
 nfeats_num = Int(10)
@@ -23,9 +31,18 @@ dtrain = DataFrame(x_train, :auto);
 dtrain[:, :y] = y_train;
 dtrain[:, :x_cat_1] = rand(["lvl1", "lvl2", "lvl3"], nobs);
 transform!(dtrain, "x_cat_1" => (x -> categorical(x, ordered = false)) => "x_cat_1")
-levels(dtrain.x_cat_1)
-levelcode.(dtrain.x_cat_1)
-isordered(dtrain.x_cat_1)
+
+# levels(dtrain.x_cat_1)
+# levelcode.(dtrain.x_cat_1)
+# isordered(dtrain.x_cat_1)
+# eltype.(eachcol(dtrain))
+# typeof.(eachcol(dtrain))
+# @time for col in eachcol(dtrain)
+#     @info typeof(col)
+# end
+# @time for name in names(dtrain)
+#     @info typeof(dtrain[:, name])
+# end
 
 @info nthread
 loss = "linear"
@@ -54,15 +71,7 @@ hyper = EvoTreeRegressor(
 )
 
 target_name = "y"
-eltype.(eachcol(dtrain))
-typeof.(eachcol(dtrain))
-
-@time for col in eachcol(dtrain)
-    @info typeof(col)
-end
-@time for name in names(dtrain)
-    @info typeof(dtrain[:, name])
-end
-
-@time model, cache = EvoTrees.init_evotree_df(hyper, dtrain; target_name);
-@time EvoTrees.grow_evotree!(model, cache);
+@time model, cache = EvoTrees.init_evotree_df(hyper, dtrain; target_name, fnames_cat = ["x_cat_1"]);
+cache.edges[11]
+Int.(unique(cache.x_bin[:, end]))
+@time EvoTrees.grow_evotree!(model, cache, hyper);

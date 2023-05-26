@@ -1,14 +1,32 @@
 #############################################
 # Get the braking points
 #############################################
-function get_edges(X::AbstractMatrix{T}, nbins, rng = Random.MersenneTwister()) where {T}
+function get_edges(X::AbstractMatrix{T}, nbins, rng=Random.MersenneTwister()) where {T}
     nobs = min(size(X, 1), 1000 * nbins)
-    obs = rand(rng, 1:size(X, 1), nobs)
+    idx = rand(rng, 1:size(X, 1), nobs)
     edges = Vector{Vector{T}}(undef, size(X, 2))
-    @threads for i = 1:size(X, 2)
-        edges[i] = quantile(view(X, obs, i), (1:nbins) / nbins)
-        if length(edges[i]) == 0
-            edges[i] = [minimum(view(X, obs, i))]
+    @threads for j in 1:size(X, 2)
+        edges[j] = quantile(view(X, idx, j), (1:nbins-1) / nbins)
+        if length(edges[j]) == 1
+            edges[j] = [minimum(view(X, idx, j))]
+        end
+    end
+    return edges
+end
+
+function get_edges(df::AbstractDataFrame; fnames, nbins, rng)
+    nobs = min(nrow(df), 1000 * nbins)
+    idx = rand(rng, 1:nrow(df), nobs)
+    edges = [Vector{type}() for type in eltype.(eachcol(df[!, fnames]))]
+    @threads for j in eachindex(fnames)
+        col = view(df, idx, fnames[j])
+        if eltype(col) <: Real
+            edges[j] = quantile(col, (1:nbins-1) / nbins)
+        elseif eltype(col) <: CategoricalValue
+            edges[j] = levels(col)
+        end
+        if length(edges[j]) == 1
+            edges[j] = [minimum(col)]
         end
     end
     return edges
@@ -17,11 +35,23 @@ end
 ####################################################
 # Transform X matrix into a UInt8 binarized matrix
 ####################################################
-function binarize(X, edges)
+function binarize(X::AbstractMatrix, edges)
     x_bin = zeros(UInt8, size(X))
-    @threads for i = 1:size(X, 2)
-        @inbounds x_bin[:, i] .=
-            searchsortedlast.(Ref(edges[i][1:end-1]), view(X, :, i)) .+ 1
+    @threads for j in axes(X, 2)
+        x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), view(X, :, j))
+    end
+    return x_bin
+end
+
+function binarize(df::AbstractDataFrame; fnames, edges)
+    x_bin = zeros(UInt8, nrow(df), length(fnames))
+    @threads for j in eachindex(fnames)
+        col = view(df, :, fnames[j])
+        if eltype(col) <: Real
+            x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), col)
+        elseif eltype(col) <: CategoricalValue
+            x_bin[:, j] .= levelcode.(col)
+        end
     end
     return x_bin
 end
@@ -249,7 +279,7 @@ function update_gains!(
     hR = node.hR
     gains = node.gains
 
-    cumsum!(hL, h, dims = 2)
+    cumsum!(hL, h, dims=2)
     hR .= view(hL, :, params.nbins:params.nbins, :) .- hL
 
     @inbounds for j in js

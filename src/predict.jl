@@ -2,7 +2,7 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:GradientRegressi
     @inbounds @threads for i in axes(X, 1)
         nid = 1
         @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 :
+            X[i, tree.feat[nid]] <= tree.cond_float[nid] ? nid = nid << 1 :
             nid = nid << 1 + 1
         end
         @inbounds pred[1, i] += tree.pred[1, nid]
@@ -14,7 +14,7 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:Logistic,K,T}
     @inbounds @threads for i in axes(X, 1)
         nid = 1
         @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 :
+            X[i, tree.feat[nid]] <= tree.cond_float[nid] ? nid = nid << 1 :
             nid = nid << 1 + 1
         end
         @inbounds pred[1, i] = clamp(pred[1, i] + tree.pred[1, nid], T(-10), T(10))
@@ -26,7 +26,7 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:MLE2P,K,T}
     @inbounds @threads for i in axes(X, 1)
         nid = 1
         @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 :
+            X[i, tree.feat[nid]] <= tree.cond_float[nid] ? nid = nid << 1 :
             nid = nid << 1 + 1
         end
         @inbounds pred[1, i] += tree.pred[1, nid]
@@ -44,7 +44,7 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:Softmax,K,T}
     @inbounds @threads for i in axes(X, 1)
         nid = 1
         @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 :
+            X[i, tree.feat[nid]] <= tree.cond_float[nid] ? nid = nid << 1 :
             nid = nid << 1 + 1
         end
         @inbounds for k = 1:K
@@ -64,7 +64,7 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L,K,T}
     @inbounds @threads for i in axes(X, 1)
         nid = 1
         @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 :
+            X[i, tree.feat[nid]] <= tree.cond_float[nid] ? nid = nid << 1 :
             nid = nid << 1 + 1
         end
         @inbounds for k = 1:K
