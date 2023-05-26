@@ -135,7 +135,7 @@ function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) wh
     cache.nodes[1].is = subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
     # subsample cols
     sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
-    
+
     # instantiate a tree then grow it
     tree = Tree{L,K,T}(params.max_depth)
     grow_tree!(
@@ -152,7 +152,7 @@ function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) wh
         cache.monotone_constraints,
     )
     push!(evotree.trees, tree)
-    predict!(cache.pred, tree, cache.x)
+    predict!(cache.pred, tree, cache.df, cache.fnames)
     cache[:info][:nrounds] += 1
     return nothing
 end
@@ -174,10 +174,10 @@ function grow_tree!(
 
     # reset nodes
     @threads for n in nodes
-        n.h .= 0
+        n.h .*= 0
         n.∑ .= 0
         n.gain = T(0)
-        n.gains .= 0
+        n.gains .*= 0
     end
 
     # reset
@@ -191,7 +191,7 @@ function grow_tree!(
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
-        
+
         if depth < params.max_depth
             for n_id in eachindex(n_current)
                 n = n_current[n_id]
@@ -212,11 +212,15 @@ function grow_tree!(
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             else
                 update_gains!(nodes[n], js, params, monotone_constraints)
-                best = findmax(nodes[n].gains)
-                if best[2][1] != params.nbins && best[1] > nodes[n].gain + params.gamma
-                    tree.gain[n] = best[1] - nodes[n].gain
-                    tree.cond_bin[n] = best[2][1]
-                    tree.feat[n] = best[2][2]
+                best = findmax(findmax.(nodes[n].gains))
+                best_gain = best[1][1]
+                best_bin = best[1][2]
+                best_feat = best[2]
+                # @info "best" best
+                if best_bin != params.nbins && best_gain > nodes[n].gain + params.gamma
+                    tree.gain[n] = best_gain - nodes[n].gain
+                    tree.cond_bin[n] = best_bin
+                    tree.feat[n] = best_feat
                     tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
                 end
                 tree.split[n] = tree.cond_bin[n] != 0
@@ -237,8 +241,8 @@ function grow_tree!(
                     # @info "childs length" left = length(_left) right = length(_left)
                     offset += length(nodes[n].is)
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    nodes[n<<1].∑ .= nodes[n].hL[:, best[2][1], best[2][2]]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[:, best[2][1], best[2][2]]
+                    nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
+                    nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
                     nodes[n<<1].gain = get_gain(params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = get_gain(params, nodes[n<<1+1].∑)
 

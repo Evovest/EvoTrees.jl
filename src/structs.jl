@@ -5,21 +5,21 @@ mutable struct TrainNode{T<:AbstractFloat,S}
     gain::T
     is::S
     ∑::Vector{T}
-    h::Array{T,3}
-    hL::Array{T,3}
-    hR::Array{T,3}
-    gains::Matrix{T}
+    h::Vector{Matrix{T}}
+    hL::Vector{Matrix{T}}
+    hR::Vector{Matrix{T}}
+    gains::Vector{Vector{T}}
 end
 
-function TrainNode(nvars, nbins, K, is, T)
+function TrainNode(featbins, K, is, T)
     node = TrainNode(
         zero(T),
         is,
         zeros(T, 2 * K + 1),
-        zeros(T, 2 * K + 1, nbins, nvars),
-        zeros(T, 2 * K + 1, nbins, nvars),
-        zeros(T, 2 * K + 1, nbins, nvars),
-        zeros(T, nbins, nvars),
+        [zeros(T, 2 * K + 1, nbins) for nbins in featbins],
+        [zeros(T, 2 * K + 1, nbins) for nbins in featbins],
+        [zeros(T, 2 * K + 1, nbins) for nbins in featbins],
+        [zeros(T, nbins) for nbins in featbins],
     )
     return node
 end
@@ -28,7 +28,7 @@ end
 struct Tree{L,K,T}
     feat::Vector{Int}
     cond_bin::Vector{UInt8}
-    cond_float::Vector{T}
+    cond_float::Vector{Any}
     gain::Vector{T}
     pred::Matrix{T}
     split::Vector{Bool}

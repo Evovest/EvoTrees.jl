@@ -10,6 +10,20 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:GradientRegressi
     return nothing
 end
 
+function predict!(pred::Matrix, tree::Tree{L,K,T}, df::AbstractDataFrame, fnames::Vector{String}) where {L<:GradientRegression,K,T}
+    # @info "feat" tree.feat
+    # @info "cond_float" tree.cond_float
+    @inbounds for i in axes(df, 1)
+        nid = 1
+        @inbounds while tree.split[nid]
+            df[i, fnames[tree.feat[nid]]] <= tree.cond_float[nid] ? nid = nid << 1 :
+            nid = nid << 1 + 1
+        end
+        @inbounds pred[1, i] += tree.pred[1, nid]
+    end
+    return nothing
+end
+
 function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:Logistic,K,T}
     @inbounds @threads for i in axes(X, 1)
         nid = 1

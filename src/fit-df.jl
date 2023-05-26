@@ -71,7 +71,6 @@ function init_evotree_df(
 
     _w_name = isnothing(w_name) ? "" : [string(w_name)]
     _offset_name = isnothing(offset_name) ? "" : string(offset_name)
-    # _target_name = isnothing(target_name) ? [""] : [string(target_name)]
 
     if isnothing(fnames_cat)
         fnames_cat = String[]
@@ -84,7 +83,6 @@ function init_evotree_df(
         end
         fnames_cat = string.(fnames_cat)
     end
-    # @info "fnames_cat" fnames_cat
 
     if isnothing(fnames_num)
         fnames_num = String[]
@@ -100,7 +98,7 @@ function init_evotree_df(
             @assert eltype(dtrain[!, name]) <: Number
         end
     end
-    # @info "fnames_num" fnames_num
+
     fnames = vcat(fnames_num, fnames_cat)
     nfeats = length(fnames)
 
@@ -124,8 +122,8 @@ function init_evotree_df(
     ∇[end, :] .= w
 
     # binarize data into quantiles
-    @time edges = get_edges(dtrain; fnames, nbins=params.nbins, rng=params.rng)
-    @time x_bin = binarize(dtrain; fnames, edges)
+    edges, featbins, feattypes = get_edges(dtrain; fnames, nbins=params.nbins, rng=params.rng)
+    x_bin = binarize(dtrain; fnames, edges)
 
     is_in = zeros(UInt32, nobs)
     is_out = zeros(UInt32, nobs)
@@ -134,7 +132,7 @@ function init_evotree_df(
     js = zeros(UInt32, ceil(Int, params.colsample * nfeats))
 
     # initialize histograms
-    nodes = [TrainNode(nfeats, params.nbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
+    nodes = [TrainNode(featbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
     out = zeros(UInt32, nobs)
     left = zeros(UInt32, nobs)
     right = zeros(UInt32, nobs)
@@ -147,7 +145,7 @@ function init_evotree_df(
 
     cache = (
         info=Dict(:nrounds => 0),
-        # df=dtrain,
+        df=dtrain,
         y=y,
         w=w,
         K=K,
@@ -163,6 +161,9 @@ function init_evotree_df(
         right=right,
         ∇=∇,
         edges=edges,
+        fnames=fnames,
+        featbins=featbins,
+        feattypes=feattypes,
         x_bin=x_bin,
         monotone_constraints=monotone_constraints,
     )

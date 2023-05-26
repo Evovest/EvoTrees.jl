@@ -1,10 +1,15 @@
+abstract type FeatType end
+abstract type FeatNum <: FeatType end
+abstract type FeatCat <: FeatType end
+
 #############################################
 # Get the braking points
 #############################################
 function get_edges(X::AbstractMatrix{T}, nbins, rng=Random.MersenneTwister()) where {T}
     nobs = min(size(X, 1), 1000 * nbins)
     idx = rand(rng, 1:size(X, 1), nobs)
-    edges = Vector{Vector{T}}(undef, size(X, 2))
+    nfeats = size(X, 2)
+    edges = Vector{Vector{T}}(undef, nfeats)
     @threads for j in 1:size(X, 2)
         edges[j] = quantile(view(X, idx, j), (1:nbins-1) / nbins)
         if length(edges[j]) == 1
@@ -18,18 +23,25 @@ function get_edges(df::AbstractDataFrame; fnames, nbins, rng)
     nobs = min(nrow(df), 1000 * nbins)
     idx = rand(rng, 1:nrow(df), nobs)
     edges = [Vector{type}() for type in eltype.(eachcol(df[!, fnames]))]
+    nfeats = length(fnames)
+    featbins = Vector{UInt8}(undef, nfeats)
+    feattypes = Vector{DataType}(undef, nfeats)
     @threads for j in eachindex(fnames)
         col = view(df, idx, fnames[j])
         if eltype(col) <: Real
-            edges[j] = quantile(col, (1:nbins-1) / nbins)
+            edges[j] = unique(quantile(col, (1:nbins-1) / nbins))
+            featbins[j] = length(edges[j]) + 1
+            feattypes[j] = FeatNum
         elseif eltype(col) <: CategoricalValue
             edges[j] = levels(col)
+            featbins[j] = length(edges[j])
+            feattypes[j] = FeatCat
         end
         if length(edges[j]) == 1
             edges[j] = [minimum(col)]
         end
     end
-    return edges
+    return edges, featbins, feattypes
 end
 
 ####################################################
@@ -192,7 +204,7 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Array{T,3},
+    hist::Vector{Matrix{T}},
     ∇::Matrix{T},
     x_bin::Matrix,
     is::AbstractVector,
@@ -201,9 +213,9 @@ function update_hist!(
     @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
-            hist[1, bin, j] += ∇[1, i]
-            hist[2, bin, j] += ∇[2, i]
-            hist[3, bin, j] += ∇[3, i]
+            hist[j][1, bin] += ∇[1, i]
+            hist[j][2, bin] += ∇[2, i]
+            hist[j][3, bin] += ∇[3, i]
         end
     end
     return nothing
@@ -279,24 +291,27 @@ function update_gains!(
     hR = node.hR
     gains = node.gains
 
-    cumsum!(hL, h, dims=2)
-    hR .= view(hL, :, params.nbins:params.nbins, :) .- hL
+    # TODO: adapt for cat feature
+    for j in eachindex(h)
+        cumsum!(hL[j], h[j], dims=2)
+        hR[j] .= view(hL[j], :, lastindex(hL[j], 2):lastindex(hL[j], 2)) .- hL[j]
+    end
 
     @inbounds for j in js
         monotone_constraint = monotone_constraints[j]
-        @inbounds for bin = 1:params.nbins
-            if hL[end, bin, j] > params.min_weight && hR[end, bin, j] > params.min_weight
+        @inbounds for bin in eachindex(gains[j])
+            if hL[j][end, bin] > params.min_weight && hR[j][end, bin] > params.min_weight
                 if monotone_constraint != 0
-                    predL = pred_scalar(view(hL, :, bin, j), params)
-                    predR = pred_scalar(view(hR, :, bin, j), params)
+                    predL = pred_scalar(view(hL[j], :, bin), params)
+                    predR = pred_scalar(view(hR[j], :, bin), params)
                 end
                 if (monotone_constraint == 0) ||
                    (monotone_constraint == -1 && predL > predR) ||
                    (monotone_constraint == 1 && predL < predR)
 
-                    gains[bin, j] =
-                        get_gain(params, view(hL, :, bin, j)) +
-                        get_gain(params, view(hR, :, bin, j))
+                    gains[j][bin] =
+                        get_gain(params, view(hL[j], :, bin)) +
+                        get_gain(params, view(hR[j], :, bin))
                 end
             end
         end

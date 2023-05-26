@@ -20,7 +20,7 @@ using Tables
 
 nrounds = 10
 nobs = Int(1e6)
-nfeats_num = Int(10)
+nfeats_num = Int(100)
 T = Float32
 nthread = Base.Threads.nthreads()
 @info "testing with: $nobs observations | $nfeats_num features."
@@ -71,7 +71,12 @@ hyper = EvoTreeRegressor(
 )
 
 target_name = "y"
-@time model, cache = EvoTrees.init_evotree_df(hyper, dtrain; target_name, fnames_cat = ["x_cat_1"]);
+# @time model, cache = EvoTrees.init_evotree_df(hyper, dtrain; target_name, fnames_cat = ["x_cat_1"]);
+@time model, cache = EvoTrees.init_evotree_df(hyper, dtrain; target_name);
 cache.edges[11]
-Int.(unique(cache.x_bin[:, end]))
+cache.featbins
+cache.feattypes
+cache.nodes[1].gains[1]
+model.trees[1]
+
 @time EvoTrees.grow_evotree!(model, cache, hyper);
