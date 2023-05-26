@@ -24,15 +24,16 @@ function init_evotree_gpu(
     elseif L == Softmax
         if eltype(y_train) <: CategoricalValue
             levels = CategoricalArrays.levels(y_train)
-            y = CuArray(UInt32.(CategoricalArrays.levelcode.(y_train)))
+            y = UInt32.(CategoricalArrays.levelcode.(y_train))
         else
             levels = sort(unique(y_train))
             yc = CategoricalVector(y_train, levels = levels)
-            y = CuArray(UInt32.(CategoricalArrays.levelcode.(yc)))
+            y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
         K = length(levels)
         μ = T.(log.(proportions(y, UInt32(1):UInt32(K))))
         μ .-= maximum(μ)
+        y = CuArray(y)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
         K = 2
