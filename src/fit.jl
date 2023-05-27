@@ -152,7 +152,7 @@ function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) wh
         cache.monotone_constraints,
     )
     push!(evotree.trees, tree)
-    predict!(cache.pred, tree, cache.df, cache.fnames)
+    predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
     cache[:info][:nrounds] += 1
     return nothing
 end
@@ -173,11 +173,13 @@ function grow_tree!(
 ) where {L,K,T,S}
 
     # reset nodes
-    @threads for n in nodes
-        n.h .*= 0
+    for n in nodes
         n.∑ .= 0
         n.gain = T(0)
-        n.gains .*= 0
+        @inbounds for i in eachindex(n.h)
+            n.h[i] .= 0
+            n.gains[i] .= 0
+        end
     end
 
     # reset
@@ -197,9 +199,15 @@ function grow_tree!(
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
-                        nodes[n].h .= nodes[n>>1].h .- nodes[n+1].h
+                        # nodes[n].h .= nodes[n>>1].h .- nodes[n+1].h
+                        @inbounds for j in eachindex(nodes[n].h)
+                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j]
+                        end
                     else
-                        nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
+                        # nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
+                        @inbounds for j in eachindex(nodes[n].h)
+                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
+                        end
                     end
                 else
                     update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)

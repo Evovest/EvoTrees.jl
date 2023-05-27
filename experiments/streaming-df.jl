@@ -18,7 +18,7 @@ using Tables
 # searchsortedfirst(edges, 1.0)
 # searchsortedfirst(edges, edges[9] + 0.01)
 
-nrounds = 10
+nrounds = 200
 nobs = Int(1e6)
 nfeats_num = Int(100)
 T = Float32
@@ -29,6 +29,7 @@ y_train = rand(T, nobs);
 
 dtrain = DataFrame(x_train, :auto);
 dtrain[:, :y] = y_train;
+
 dtrain[:, :x_cat_1] = rand(["lvl1", "lvl2", "lvl3"], nobs);
 transform!(dtrain, "x_cat_1" => (x -> categorical(x, ordered = false)) => "x_cat_1")
 
@@ -80,3 +81,4 @@ cache.nodes[1].gains[1]
 model.trees[1]
 
 @time EvoTrees.grow_evotree!(model, cache, hyper);
+@btime EvoTrees.fit_evotree_df($hyper; dtrain, target_name, verbosity = false);

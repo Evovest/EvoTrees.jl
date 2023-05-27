@@ -102,19 +102,6 @@ function init_evotree_df(
     fnames = vcat(fnames_num, fnames_cat)
     nfeats = length(fnames)
 
-    info = Dict(
-        :fnames_num => fnames_num,
-        :fnames_cat => fnames_cat,
-        :fnames => fnames,
-        :target_name => target_name,
-        :w_name => w_name,
-        :offset_name => offset_name,
-        :group_name => group_name,
-        :levels => levels)
-
-    # initialize model
-    m = EvoTree{L,K,T}(bias, info)
-
     # initialize gradients and weights
     ∇ = zeros(T, 2 * K + 1, nobs)
     w = isnothing(w_name) ? ones(T, size(y)) : Vector{T}(dtrain[!, w_name])
@@ -142,6 +129,23 @@ function init_evotree_df(
     hasproperty(params, :monotone_constraints) && for (k, v) in params.monotone_constraints
         monotone_constraints[k] = v
     end
+
+    info = Dict(
+        :fnames_num => fnames_num,
+        :fnames_cat => fnames_cat,
+        :fnames => fnames,
+        :target_name => target_name,
+        :w_name => w_name,
+        :offset_name => offset_name,
+        :group_name => group_name,
+        :levels => levels,
+        :edges => edges,
+        :fnames => fnames,
+        :feattypes => feattypes,
+    )
+
+    # initialize model
+    m = EvoTree{L,K,T}(bias, info)
 
     cache = (
         info=Dict(:nrounds => 0),
@@ -215,19 +219,18 @@ Main training function. Performs model fitting given configuration `params`, `x_
 """
 function fit_evotree_df(
     params::EvoTypes{L,T};
-    x_train::AbstractMatrix,
-    y_train::AbstractVector,
-    w_train=nothing,
-    offset_train=nothing,
-    x_eval=nothing,
-    y_eval=nothing,
-    w_eval=nothing,
-    offset_eval=nothing,
+    dtrain::DataFrame,
+    target_name,
+    fnames_num=nothing,
+    fnames_cat=nothing,
+    w_name=nothing,
+    offset_name=nothing,
+    group_name=nothing,
+    deval=nothing,
     metric=nothing,
     early_stopping_rounds=9999,
     print_every_n=9999,
     verbosity=1,
-    fnames=nothing,
     return_logger=false
 ) where {L,T}
 
@@ -235,21 +238,21 @@ function fit_evotree_df(
 
     # initialize model and cache
     if String(params.device) == "gpu"
-        m, cache = init_evotree_gpu(params; x_train, y_train, w_train, offset_train, fnames)
+        # m, cache = init_evotree_df(params; x_train, y_train, w_train, offset_train, fnames)
     else
-        m, cache = init_evotree(params; x_train, y_train, w_train, offset_train, fnames)
+        m, cache = init_evotree_df(params, dtrain; target_name, fnames_num, fnames_cat, w_name, offset_name, group_name)
     end
 
     # initialize callback and logger if tracking eval data
     metric = isnothing(metric) ? nothing : Symbol(metric)
-    logging_flag = !isnothing(metric) && !isnothing(x_eval) && !isnothing(y_eval)
-    any_flag = !isnothing(metric) || !isnothing(x_eval) || !isnothing(y_eval)
+    logging_flag = !isnothing(metric) && !isnothing(deval)
+    any_flag = !isnothing(metric) || !isnothing(deval)
     if !logging_flag && any_flag
-        @warn "For logger and eval metric to be tracked, `metric`, `x_eval` and `y_eval` must at least be provided."
+        @warn "For logger and eval metric to be tracked, `metric` and `deval` must at least be provided."
     end
     logger = nothing
     if logging_flag
-        cb = CallBack(params, m; x_eval, y_eval, w_eval, offset_eval, metric)
+        cb = CallBack(params, m; deval, target_name, w_name, offset_name, metric)
         logger = init_logger(;
             T,
             metric,
@@ -278,6 +281,6 @@ function fit_evotree_df(
     if return_logger
         return (m, logger)
     else
-        return m
+        return m, cache
     end
 end

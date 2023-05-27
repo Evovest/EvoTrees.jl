@@ -69,7 +69,8 @@ struct EvoTree{L,K,T}
     info::Dict
 end
 (m::EvoTree)(x::AbstractMatrix) = predict(m, x)
-get_types(::EvoTree{L,K,T}) where {L,K,T} = (L,T)
+(m::EvoTree)(df::AbstractDataFrame; ntree_limit=length(m.trees)) = predict(m, df; ntree_limit)
+get_types(::EvoTree{L,K,T}) where {L,K,T} = (L, T)
 
 function Base.show(io::IO, evotree::EvoTree)
     println(io, "$(typeof(evotree))")

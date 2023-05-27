@@ -10,10 +10,23 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:GradientRegressi
     return nothing
 end
 
+function predict!(pred::Matrix, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes) where {L<:GradientRegression,K,T}
+    @inbounds @threads for i in axes(x_bin, 1)
+        nid = 1
+        @inbounds while tree.split[nid]
+            feat = tree.feat[nid]
+            cond = isa(feattypes[feat], FeatNum) ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] <= tree.cond_bin[nid]
+            nid = nid << 1 + !cond
+        end
+        @inbounds pred[1, i] += tree.pred[1, nid]
+    end
+    return nothing
+end
+
 function predict!(pred::Matrix, tree::Tree{L,K,T}, df::AbstractDataFrame, fnames::Vector{String}) where {L<:GradientRegression,K,T}
     # @info "feat" tree.feat
     # @info "cond_float" tree.cond_float
-    @inbounds for i in axes(df, 1)
+    @inbounds @threads for i in axes(df, 1)
         nid = 1
         @inbounds while tree.split[nid]
             df[i, fnames[tree.feat[nid]]] <= tree.cond_float[nid] ? nid = nid << 1 :
@@ -96,6 +109,39 @@ Prediction from a single tree - assign each observation to its final leaf.
 function predict(tree::Tree{L,K,T}, X::AbstractMatrix) where {L,K,T}
     pred = zeros(T, K, size(X, 1))
     predict!(pred, tree, X)
+    return pred
+end
+
+"""
+    predict(model::EvoTree, X::AbstractMatrix; ntree_limit = length(model.trees))
+
+Predictions from an EvoTree model - sums the predictions from all trees composing the model.
+Use `ntree_limit=N` to only predict with the first `N` trees.
+"""
+function predict(
+    m::EvoTree{L,K,T},
+    df::AbstractDataFrame;
+    ntree_limit=length(m.trees)
+) where {L,K,T}
+    pred = zeros(T, K, nrow(df))
+    ntrees = length(m.trees)
+    ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
+    x_bin = binarize(df; fnames=m.info[:fnames], edges=m.info[:edges])
+    for tree in m.trees
+        predict!(pred, tree, x_bin, m.info[:feattypes])
+    end
+    if L == Logistic
+        pred .= sigmoid.(pred)
+    elseif L ∈ [Poisson, Gamma, Tweedie]
+        pred .= exp.(pred)
+    elseif L in [GaussianMLE, LogisticMLE]
+        pred[2, :] .= exp.(pred[2, :])
+    elseif L == Softmax
+        @inbounds for i in axes(pred, 2)
+            pred[:, i] .= softmax(pred[:, i])
+        end
+    end
+    pred = K == 1 ? vec(Array(pred')) : Array(pred')
     return pred
 end
 
