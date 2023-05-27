@@ -149,7 +149,6 @@ function init_evotree_df(
 
     cache = (
         info=Dict(:nrounds => 0),
-        df=dtrain,
         y=y,
         w=w,
         K=K,
@@ -281,6 +280,6 @@ function fit_evotree_df(
     if return_logger
         return (m, logger)
     else
-        return m, cache
+        return m
     end
 end

@@ -9,7 +9,7 @@ using CUDA
 using Base.Iterators: partition
 using Base.Threads: nthreads, @threads
 using Tables
-
+using BenchmarkTools
 # using StatsBase
 # x1 = rand(Bool, 10)
 # nbins = 2
@@ -81,4 +81,8 @@ cache.nodes[1].gains[1]
 model.trees[1]
 
 @time EvoTrees.grow_evotree!(model, cache, hyper);
-@btime EvoTrees.fit_evotree_df($hyper; dtrain, target_name, verbosity = false);
+@time m = EvoTrees.fit_evotree_df(hyper; dtrain, target_name, verbosity = false);
+@btime EvoTrees.fit_evotree_df(hyper; dtrain, target_name, verbosity = false);
+
+@time pred= m(dtrain);
+@btime m($dtrain);
