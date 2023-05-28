@@ -7,17 +7,21 @@ using Random
 using Plots
 using EvoTrees
 using DataFrames
+using CategoricalArrays
 using EvoTrees: predict, sigmoid, logit
 # using ProfileView
 
 # prepare a dataset
+nobs = 10_000
 Random.seed!(123)
-features = rand(10_000) .* 5
-X = reshape(features, (size(features)[1], 1))
-Y = sin.(features) .* 0.5 .+ 0.5
-Y = logit(Y) + randn(size(Y))
-Y = sigmoid(Y)
-is = collect(1:size(X, 1))
+x_num = rand(nobs) .* 5
+x_cat = categorical(rand(["A", "B", "C"], nobs))
+
+y = sin.(x_num) .* 0.5 .+ 0.5
+y = logit(y) .+ 1.0 .* (x_cat .== "B") .- 1.0 .* (x_cat .== "C") + randn(nobs) 
+y = sigmoid(y)
+is = collect(1:nobs)
+dtot = DataFrame(x_num = x_num, x_cat = x_cat, y = y)
 
 # train-eval split
 is = sample(is, length(is), replace=false)
@@ -25,11 +29,8 @@ train_size = 0.8
 i_train = is[1:floor(Int, train_size * size(is, 1))]
 i_eval = is[floor(Int, train_size * size(is, 1))+1:end]
 
-x_train, x_eval = X[i_train, :], X[i_eval, :]
-y_train, y_eval = Y[i_train], Y[i_eval]
-
-dtrain = DataFrame(x_train, :auto)
-dtrain.y = y_train
+dtrain = dtot[i_train, :]
+deval = dtot[i_eval, :]
 
 # linear
 params1 = EvoTreeRegressor(
@@ -42,15 +43,16 @@ params1 = EvoTreeRegressor(
     eta=0.05,
     max_depth=6,
     min_weight=1.0,
-    rowsample=0.5,
+    rowsample=1.0,
     colsample=1.0,
     rng=122,
 )
 
-@time model, cache = EvoTrees.fit_evotree_df(
+@time model = EvoTrees.fit_evotree_df(
     params1;
     dtrain,
-    fnames_num="x1",
+    fnames_num="x_num",
+    fnames_cat="x_cat",
     target_name="y",
     # print_every_n = 25,
     # early_stopping_rounds = 20,
@@ -73,13 +75,9 @@ params1 = EvoTreeRegressor(
 # mean((pred_train_linear .- y_train) .^ 2)
 # mean((pred_eval_linear .- y_eval) .^ 2)
 
-x_bin_pred = EvoTrees.binarize(dtrain; cache.fnames, cache.edges)
-pred_train_linear = model(dtrain);
-x_perm = sortperm(x_train[:, 1])
-
 plot(
-    x_train,
-    y_train,
+    dtrain.x_num,
+    dtrain.y,
     msize=0.5,
     mcolor="darkgray",
     mswidth=0,
@@ -90,12 +88,35 @@ plot(
     legend=true,
     label="",
 )
+dinfer = dtrain[dtrain.x_cat .== "A", :]
+pred = model(dinfer);
+x_perm = sortperm(dinfer.x_num)
 plot!(
-    x_train[:, 1][x_perm],
-    pred_train_linear[x_perm],
+    dinfer.x_num[x_perm],
+    pred[x_perm],
+    color="lightblue",
+    linewidth=1.5,
+    label="Linear - A",
+)
+dinfer = dtrain[dtrain.x_cat .== "B", :]
+pred = model(dinfer);
+x_perm = sortperm(dinfer.x_num)
+plot!(
+    dinfer.x_num[x_perm],
+    pred[x_perm],
+    color="blue",
+    linewidth=1.5,
+    label="Linear - B",
+)
+dinfer = dtrain[dtrain.x_cat .== "C", :]
+pred = model(dinfer);
+x_perm = sortperm(dinfer.x_num)
+plot!(
+    dinfer.x_num[x_perm],
+    pred[x_perm],
     color="navy",
     linewidth=1.5,
-    label="Linear",
+    label="Linear - C",
 )
 
 # logistic / cross-entropy

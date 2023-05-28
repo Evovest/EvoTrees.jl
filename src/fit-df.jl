@@ -76,10 +76,11 @@ function init_evotree_df(
         fnames_cat = String[]
     else
         isa(fnames_cat, String) ? fnames_cat = [fnames_cat] : nothing
+        fnames_cat = string.(fnames_cat)
         @assert isa(fnames_cat, Vector{String})
-        for var in fnames_cat
-            @assert typeof(dtrain[!, var]) <: AbstractCategoricalVector "$var should be <: AbstractCategoricalVector"
-            @assert !isordered(dtrain[!, var]) "fnames_cat are expected to be unordered - $var is ordered"
+        for name in fnames_cat
+            @assert typeof(dtrain[!, name]) <: AbstractCategoricalVector "$name should be <: AbstractCategoricalVector"
+            @assert !isordered(dtrain[!, name]) "fnames_cat are expected to be unordered - $name is ordered"
         end
         fnames_cat = string.(fnames_cat)
     end
@@ -87,14 +88,18 @@ function init_evotree_df(
     if isnothing(fnames_num)
         fnames_num = String[]
         for name in names(dtrain)
-            if eltype(dtrain[!, name]) <: Real
+            if eltype(dtrain[!, name]) <: Number
                 push!(fnames_num, name)
             end
         end
         fnames_num = setdiff(fnames_num, union(fnames_cat, [target_name], [_w_name], [_offset_name]))
     else
+        isa(fnames_num, String) ? fnames_num = [fnames_num] : nothing
         fnames_num = string.(fnames_num)
-        for name in names(dtrain)
+        @assert isa(fnames_num, Vector{String})
+        for name in fnames_num
+            # @info name
+            # @info eltype(dtrain[!, name])
             @assert eltype(dtrain[!, name]) <: Number
         end
     end

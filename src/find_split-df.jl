@@ -81,6 +81,7 @@ function split_set_chunk!(
     x_bin,
     feat,
     cond_bin,
+    feattype,
     offset,
     chunk_size,
 )
@@ -92,7 +93,8 @@ function split_set_chunk!(
     i_max = i + bsize - 1
 
     @inbounds while i <= i_max
-        if x_bin[is[i], feat] <= cond_bin
+        cond = feattype == FeatNum ? x_bin[is[i], feat] <= cond_bin : x_bin[is[i], feat] == cond_bin
+        if cond
             left_count += 1
             left[offset+chunk_size*(bid-1)+left_count] = is[i]
         else
@@ -143,6 +145,7 @@ function split_set_threads!(
     x_bin::Matrix{S},
     feat,
     cond_bin,
+    feattype,
     offset,
 ) where {S}
 
@@ -167,6 +170,7 @@ function split_set_threads!(
             x_bin,
             feat,
             cond_bin,
+            feattype,
             offset,
             chunk_size,
         )
@@ -283,6 +287,7 @@ function update_gains!(
     node::TrainNode,
     js::Vector,
     params::EvoTypes{L,T},
+    feattypes,
     monotone_constraints,
 ) where {L,T}
 
@@ -290,11 +295,24 @@ function update_gains!(
     hL = node.hL
     hR = node.hR
     gains = node.gains
+    ∑ = node.∑
 
     # TODO: adapt for cat feature
-    for j in eachindex(h)
+    for j in js
         cumsum!(hL[j], h[j], dims=2)
-        hR[j] .= view(hL[j], :, lastindex(hL[j], 2):lastindex(hL[j], 2)) .- hL[j]
+        ∑2 = view(hL[j], :, lastindex(hL[j], 2):lastindex(hL[j], 2))
+        # @info "∑" ∑
+        # @info "∑2" ∑2
+        # @info "gains info" ∑[end] ∑2[end] vec(∑ .- ∑2)[end] 
+        # @info "gains diff" vec(∑ .- ∑2)
+        if feattypes[j] == FeatNum
+            hR[j] .= ∑ .- hL[j]
+            # hR[j] .= view(hL[j], :, lastindex(hL[j], 2):lastindex(hL[j], 2)) .- hL[j]
+        else
+            hR[j] .= ∑ .- h[j]
+            # hR[j] .= view(hL[j], :, lastindex(hL[j], 2):lastindex(hL[j], 2)) .- h[j]
+            hL[j] .= h[j]
+        end
     end
 
     @inbounds for j in js

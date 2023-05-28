@@ -149,7 +149,8 @@ function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) wh
         cache.left,
         cache.right,
         cache.x_bin,
-        cache.monotone_constraints,
+        cache.feattypes,
+        cache.monotone_constraints
     )
     push!(evotree.trees, tree)
     predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
@@ -169,7 +170,8 @@ function grow_tree!(
     left,
     right,
     x_bin::AbstractMatrix,
-    monotone_constraints,
+    feattypes::Vector{DataType},
+    monotone_constraints
 ) where {L,K,T,S}
 
     # reset nodes
@@ -219,7 +221,7 @@ function grow_tree!(
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             else
-                update_gains!(nodes[n], js, params, monotone_constraints)
+                update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
                 best = findmax(findmax.(nodes[n].gains))
                 best_gain = best[1][1]
                 best_bin = best[1][2]
@@ -244,15 +246,16 @@ function grow_tree!(
                         x_bin,
                         tree.feat[n],
                         tree.cond_bin[n],
+                        feattypes[best_feat],
                         offset,
                     )
-                    # @info "childs length" left = length(_left) right = length(_left)
                     offset += length(nodes[n].is)
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
                     nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
                     nodes[n<<1].gain = get_gain(params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = get_gain(params, nodes[n<<1+1].∑)
+                    # @info "child info" length(_left) length(_right) nodes[n<<1].∑[end] nodes[n<<1+1].∑[end]
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
