@@ -297,25 +297,14 @@ function update_gains!(
     gains = node.gains
     ∑ = node.∑
 
-    # TODO: adapt for cat feature
-    for j in js
+    @inbounds for j in js
         cumsum!(hL[j], h[j], dims=2)
-        ∑2 = view(hL[j], :, lastindex(hL[j], 2):lastindex(hL[j], 2))
-        # @info "∑" ∑
-        # @info "∑2" ∑2
-        # @info "gains info" ∑[end] ∑2[end] vec(∑ .- ∑2)[end] 
-        # @info "gains diff" vec(∑ .- ∑2)
         if feattypes[j] == FeatNum
             hR[j] .= ∑ .- hL[j]
-            # hR[j] .= view(hL[j], :, lastindex(hL[j], 2):lastindex(hL[j], 2)) .- hL[j]
         else
             hR[j] .= ∑ .- h[j]
-            # hR[j] .= view(hL[j], :, lastindex(hL[j], 2):lastindex(hL[j], 2)) .- h[j]
             hL[j] .= h[j]
         end
-    end
-
-    @inbounds for j in js
         monotone_constraint = monotone_constraints[j]
         @inbounds for bin in eachindex(gains[j])
             if hL[j][end, bin] > params.min_weight && hR[j][end, bin] > params.min_weight
