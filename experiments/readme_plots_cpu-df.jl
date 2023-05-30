@@ -54,10 +54,10 @@ params1 = EvoTreeRegressor(
     fnames_num="x_num",
     fnames_cat="x_cat",
     target_name="y",
-    # deval,
-    # metric=:mse,
-    # print_every_n = 25,
-    # early_stopping_rounds = 20,
+    deval,
+    metric=:mse,
+    print_every_n = 25,
+    early_stopping_rounds = 20,
     verbosity=0
 );
 

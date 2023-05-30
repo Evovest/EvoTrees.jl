@@ -1,59 +1,63 @@
 struct CallBack{F,M,V,Y}
     feval::F
-    x::M
+    x_bin::Matrix{UInt8}
     p::M
     y::Y
     w::V
-end
-function (cb::CallBack)(logger, iter, tree)
-    predict!(cb.p, tree, cb.x)
-    metric = cb.feval(cb.p, cb.y, cb.w)
-    update_logger!(logger, iter, metric)
-    return nothing
+    feattypes::Vector{DataType}
 end
 
 function CallBack(
     params::EvoTypes{L,T},
-    ::Union{EvoTree{L,K,T},EvoTreeGPU{L,K,T}};
+    m::Union{EvoTree{L,K,T},EvoTreeGPU{L,K,T}};
     metric,
-    x_eval,
-    y_eval,
-    w_eval=nothing,
-    offset_eval=nothing
+    deval,
+    target_name,
+    w_name=nothing,
+    offset_name=nothing,
+    group_name=nothing
 ) where {L,K,T}
     feval = metric_dict[metric]
-    x = convert(Matrix{T}, x_eval)
-    p = zeros(T, K, length(y_eval))
+    x_bin = binarize(deval; fnames=m.info[:fnames], edges=m.info[:edges])
+    p = zeros(T, K, nrow(deval))
     if L == Softmax
-        if eltype(y_eval) <: CategoricalValue
-            levels = CategoricalArrays.levels(y_eval)
+        if eltype(deval[!, target_name]) <: CategoricalValue
+            levels = CategoricalArrays.levels(deval[!, target_name])
             μ = zeros(T, K)
-            y = UInt32.(CategoricalArrays.levelcode.(y_eval))
+            y = UInt32.(CategoricalArrays.levelcode.(deval[!, target_name]))
         else
-            levels = sort(unique(y_eval))
-            yc = CategoricalVector(y_eval, levels=levels)
+            levels = sort(unique(deval[!, target_name]))
+            yc = CategoricalVector(deval[!, target_name], levels=levels)
             μ = zeros(T, K)
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
     else
-        y = convert(Vector{T}, y_eval)
+        y = T.(deval[!, target_name])
     end
-    w = isnothing(w_eval) ? ones(T, size(y)) : convert(Vector{T}, w_eval)
+    w = isnothing(w_name) ? ones(T, size(y)) : Vector{T}(deval[!, w_name])
 
-    if !isnothing(offset_eval)
-        L == Logistic && (offset_eval .= logit.(offset_eval))
-        L in [Poisson, Gamma, Tweedie] && (offset_eval .= log.(offset_eval))
-        L == Softmax && (offset_eval .= log.(offset_eval))
-        L in [GaussianMLE, LogisticMLE] && (offset_eval[:, 2] .= log.(offset_eval[:, 2]))
-        offset_eval = T.(offset_eval)
-        p .+= offset_eval'
+    offset = !isnothing(offset_name) ? T.(deval[:, offset_name]) : nothing
+    if !isnothing(offset)
+        L == Logistic && (offset .= logit.(offset))
+        L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
+        L == Softmax && (offset .= log.(offset))
+        L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
+        offset = T.(offset)
+        p .+= offset'
     end
 
     if params.device == "gpu"
-        return CallBack(feval, CuArray(x), CuArray(p), CuArray(y), CuArray(w))
+        return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), m.info[:feattypes])
     else
-        return CallBack(feval, x, p, y, w)
+        return CallBack(feval, x_bin, p, y, w, m.info[:feattypes])
     end
+end
+
+function (cb::CallBack)(logger, iter, tree)
+    predict!(cb.p, tree, cb.x_bin, cb.feattypes)
+    metric = cb.feval(cb.p, cb.y, cb.w)
+    update_logger!(logger, iter, metric)
+    return nothing
 end
 
 function init_logger(; T, metric, maximise, early_stopping_rounds)

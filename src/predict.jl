@@ -1,22 +1,21 @@
-function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:GradientRegression,K,T}
-    @inbounds @threads for i in axes(X, 1)
-        nid = 1
-        @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] <= tree.cond_float[nid] ? nid = nid << 1 :
-            nid = nid << 1 + 1
-        end
-        @inbounds pred[1, i] += tree.pred[1, nid]
-    end
-    return nothing
-end
+# function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:GradientRegression,K,T}
+#     @inbounds @threads for i in axes(X, 1)
+#         nid = 1
+#         @inbounds while tree.split[nid]
+#             X[i, tree.feat[nid]] <= tree.cond_float[nid] ? nid = nid << 1 :
+#             nid = nid << 1 + 1
+#         end
+#         @inbounds pred[1, i] += tree.pred[1, nid]
+#     end
+#     return nothing
+# end
 
-function predict!(pred::Matrix, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes) where {L<:GradientRegression,K,T}
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{DataType}) where {L<:GradientRegression,K,T}
     @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
             feat = tree.feat[nid]
             cond = feattypes[feat] == FeatNum ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
-            # cond = isa(feattypes[feat], FeatNum) ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] <= tree.cond_bin[nid]
             nid = nid << 1 + !cond
         end
         @inbounds pred[1, i] += tree.pred[1, nid]
@@ -24,19 +23,19 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattyp
     return nothing
 end
 
-function predict!(pred::Matrix, tree::Tree{L,K,T}, df::AbstractDataFrame, fnames::Vector{String}) where {L<:GradientRegression,K,T}
-    # @info "feat" tree.feat
-    # @info "cond_float" tree.cond_float
-    @inbounds @threads for i in axes(df, 1)
-        nid = 1
-        @inbounds while tree.split[nid]
-            df[i, fnames[tree.feat[nid]]] <= tree.cond_float[nid] ? nid = nid << 1 :
-            nid = nid << 1 + 1
-        end
-        @inbounds pred[1, i] += tree.pred[1, nid]
-    end
-    return nothing
-end
+# function predict!(pred::Matrix, tree::Tree{L,K,T}, df::AbstractDataFrame, fnames::Vector{String}) where {L<:GradientRegression,K,T}
+#     # @info "feat" tree.feat
+#     # @info "cond_float" tree.cond_float
+#     @inbounds @threads for i in axes(df, 1)
+#         nid = 1
+#         @inbounds while tree.split[nid]
+#             df[i, fnames[tree.feat[nid]]] <= tree.cond_float[nid] ? nid = nid << 1 :
+#             nid = nid << 1 + 1
+#         end
+#         @inbounds pred[1, i] += tree.pred[1, nid]
+#     end
+#     return nothing
+# end
 
 function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:Logistic,K,T}
     @inbounds @threads for i in axes(X, 1)
@@ -102,16 +101,16 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L,K,T}
     return nothing
 end
 
-"""
-    predict(tree::Tree{L,K,T}, X::AbstractMatrix)
+# """
+#     predict(tree::Tree{L,K,T}, X::AbstractMatrix)
 
-Prediction from a single tree - assign each observation to its final leaf.
-"""
-function predict(tree::Tree{L,K,T}, X::AbstractMatrix) where {L,K,T}
-    pred = zeros(T, K, size(X, 1))
-    predict!(pred, tree, X)
-    return pred
-end
+# Prediction from a single tree - assign each observation to its final leaf.
+# """
+# function predict(tree::Tree{L,K,T}, X::AbstractMatrix) where {L,K,T}
+#     pred = zeros(T, K, size(X, 1))
+#     predict!(pred, tree, X)
+#     return pred
+# end
 
 """
     predict(model::EvoTree, X::AbstractMatrix; ntree_limit = length(model.trees))

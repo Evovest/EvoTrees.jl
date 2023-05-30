@@ -84,5 +84,8 @@ model.trees[1]
 @time m = EvoTrees.fit_evotree_df(hyper; dtrain, target_name, verbosity = false);
 @btime EvoTrees.fit_evotree_df(hyper; dtrain, target_name, verbosity = false);
 
+@time m = EvoTrees.fit_evotree_df(hyper; dtrain, deval=dtrain, target_name, metric=metric_evo, print_every_n=100, verbosity = false);
+@btime m = EvoTrees.fit_evotree_df(hyper; dtrain, deval=dtrain, target_name, metric=metric_evo, print_every_n=100, verbosity = false);
+
 @time pred= m(dtrain);
 @btime m($dtrain);

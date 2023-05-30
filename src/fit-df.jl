@@ -5,7 +5,7 @@ Initialise EvoTree
 """
 function init_evotree_df(
     params::EvoTypes{L,T},
-    dtrain::DataFrame;
+    dtrain::AbstractDataFrame;
     target_name,
     fnames_num=nothing,
     fnames_cat=nothing,
@@ -15,7 +15,7 @@ function init_evotree_df(
 ) where {L,T}
 
     levels = nothing
-    offset = !isnothing(offset_name) ? T.(dtrain[:, offset_train]) : nothing
+    offset = !isnothing(offset_name) ? T.(dtrain[:, offset_name]) : nothing
     if L == Logistic
         K = 1
         y = T.(dtrain[!, target_name])
@@ -223,14 +223,14 @@ Main training function. Performs model fitting given configuration `params`, `x_
 """
 function fit_evotree_df(
     params::EvoTypes{L,T};
-    dtrain::DataFrame,
+    dtrain::AbstractDataFrame,
+    deval=nothing,
     target_name,
     fnames_num=nothing,
     fnames_cat=nothing,
     w_name=nothing,
     offset_name=nothing,
     group_name=nothing,
-    deval=nothing,
     metric=nothing,
     early_stopping_rounds=9999,
     print_every_n=9999,
@@ -252,7 +252,7 @@ function fit_evotree_df(
     logging_flag = !isnothing(metric) && !isnothing(deval)
     any_flag = !isnothing(metric) || !isnothing(deval)
     if !logging_flag && any_flag
-        @warn "For logger and eval metric to be tracked, `metric` and `deval` must at least be provided."
+        @warn "To track eval metric in logger, both `metric` and `deval` must be provided."
     end
     logger = nothing
     if logging_flag
