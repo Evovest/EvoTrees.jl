@@ -81,6 +81,8 @@ cache.nodes[1].gains[1]
 model.trees[1]
 
 @time EvoTrees.grow_evotree!(model, cache, hyper);
+@btime EvoTrees.grow_evotree!(model, cache, hyper);
+
 @time m = EvoTrees.fit_evotree_df(hyper; dtrain, target_name, verbosity = false);
 @btime EvoTrees.fit_evotree_df(hyper; dtrain, target_name, verbosity = false);
 

@@ -138,7 +138,7 @@ function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) wh
 
     # instantiate a tree then grow it
     tree = Tree{L,K,T}(params.max_depth)
-    grow_tree!(
+    @time grow_tree!(
         tree,
         cache.nodes,
         params,
@@ -153,7 +153,7 @@ function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) wh
         cache.monotone_constraints
     )
     push!(evotree.trees, tree)
-    predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
+    @time predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
     cache[:info][:nrounds] += 1
     return nothing
 end
@@ -212,6 +212,7 @@ function grow_tree!(
                         end
                     end
                 else
+                    # @info "hist"
                     update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
             end
@@ -221,6 +222,7 @@ function grow_tree!(
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             else
+                # @info "gains!"
                 update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
                 best = findmax(findmax.(nodes[n].gains))
                 best_gain = best[1][1]
