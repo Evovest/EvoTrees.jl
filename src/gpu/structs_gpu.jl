@@ -1,25 +1,25 @@
 """
     Carries training information for a given tree node
 """
-mutable struct TrainNodeGPU{T<:AbstractFloat,S}
-    gain::T
-    is::S
-    ∑::AbstractVector{T}
-    h::AbstractArray{T,3}
-    hL::AbstractArray{T,3}
-    hR::AbstractArray{T,3}
-    gains::AbstractMatrix{T}
-end
+# mutable struct TrainNodeGPU{T<:AbstractFloat,S}
+#     gain::T
+#     is::S
+#     ∑::AbstractVector{T}
+#     h::AbstractArray{T,3}
+#     hL::AbstractArray{T,3}
+#     hR::AbstractArray{T,3}
+#     gains::AbstractMatrix{T}
+# end
 
-function TrainNodeGPU(nvars, nbins, K, is, T)
-    node = TrainNodeGPU(
+function TrainNodeGPU(featbins, K, is, T)
+    node = TrainNode(
         zero(T),
         is,
         CUDA.zeros(T, 2 * K + 1),
-        CUDA.zeros(T, (2 * K + 1), nbins, nvars),
-        CUDA.zeros(T, (2 * K + 1), nbins, nvars),
-        CUDA.zeros(T, (2 * K + 1), nbins, nvars),
-        CUDA.zeros(T, nbins, nvars),
+        [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins],
+        [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins],
+        [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins],
+        [CUDA.zeros(T, nbins) for nbins in featbins],
     )
     return node
 end

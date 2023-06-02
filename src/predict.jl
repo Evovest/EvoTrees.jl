@@ -10,12 +10,12 @@
 #     return nothing
 # end
 
-function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{DataType}) where {L<:GradientRegression,K,T}
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:GradientRegression,K,T}
     @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
             feat = tree.feat[nid]
-            cond = feattypes[feat] == FeatNum ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
+            cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
             nid = nid << 1 + !cond
         end
         @inbounds pred[1, i] += tree.pred[1, nid]

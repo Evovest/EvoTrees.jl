@@ -1,51 +1,40 @@
 """
-    hist_kernel_gauss!
+    hist_kernel!
 """
-function hist_kernel!(h∇, ∇, x_bin, is, js)
-    tix, tiy, k = threadIdx().x, threadIdx().y, threadIdx().z
-    bdx, bdy = blockDim().x, blockDim().y
-    bix, biy = blockIdx().x, blockIdx().y
+function hist_kernel!(h∇, ∇, x_bin, is)
+    tix, k = threadIdx().x, threadIdx().y
+    bdx = blockDim().x
+    bix = blockIdx().x
     gdx = gridDim().x
 
-    j = tiy + bdy * (biy - 1)
-    if j <= length(js)
-        jdx = js[j]
-        i_max = length(is)
-        niter = cld(i_max, bdx * gdx)
-        @inbounds for iter = 1:niter
-            i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
-            if i <= i_max
-                @inbounds idx = is[i]
-                @inbounds bin = x_bin[idx, jdx]
-                hid = Base._to_linear_index(h∇, k, bin, jdx)
-                CUDA.atomic_add!(pointer(h∇, hid), ∇[k, idx])
-            end
+    i_max = length(is)
+    niter = cld(i_max, bdx * gdx)
+    @inbounds for iter in 1:niter
+        i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
+        if i <= i_max
+            @inbounds idx = is[i]
+            @inbounds bin = x_bin[idx]
+            hid = Base._to_linear_index(h∇, k, bin)
+            CUDA.atomic_add!(pointer(h∇, hid), ∇[k, idx])
         end
     end
-    sync_threads()
     return nothing
 end
 
-"""
- dim(x) = dim(i) + 1
-"""
-@inline index_f(x, i) = x[i]
-
-# base approach - block built along the cols first, the rows (limit collisions)
 function update_hist_gpu!(h∇, ∇, x_bin, is, js)
-    kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
+    kernel = @cuda launch = false hist_kernel!(h∇[1], ∇, view(x_bin, :, 1), is)
     config = launch_configuration(kernel.fun)
-    max_threads = config.threads ÷ 4
-    max_blocks = config.blocks * 4
-    @assert size(h∇, 1) <= max_threads "number of classes cannot be larger than 31 on GPU"
-    tz = min(64, size(h∇, 1))
-    ty = max(1, min(length(js), fld(max_threads, tz)))
-    tx = max(1, min(length(is), fld(max_threads, tz * ty)))
-    threads = (tx, ty, tz)
-    by = cld(length(js), ty)
-    bx = min(cld(max_blocks, by), cld(length(is), tx))
-    blocks = (bx, by, 1)
-    kernel(h∇, ∇, x_bin, is, js; threads, blocks)
+    max_threads = config.threads
+    max_blocks = config.blocks
+    @assert size(h∇[1], 1) <= max_threads "number of classes cannot be larger than 31 on GPU"
+    ty = min(64, size(h∇[1], 1))
+    tx = max(1, min(length(is), fld(max_threads, ty)))
+    threads = (tx, ty, 1)
+    bx = min(max_blocks, cld(length(is), tx))
+    blocks = (bx, 1, 1)
+    @sync for j in js
+        @async kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
+    end
     CUDA.synchronize()
     return nothing
 end
@@ -61,6 +50,7 @@ function split_chunk_kernel!(
     x_bin,
     feat,
     cond_bin,
+    feattype,
     offset,
     chunk_size,
     lefts,
@@ -79,7 +69,8 @@ function split_chunk_kernel!(
     i_max = i + bsize - 1
 
     @inbounds while i <= i_max
-        @inbounds if x_bin[is[i], feat] <= cond_bin
+        cond = feattype ? x_bin[is[i], feat] <= cond_bin : x_bin[is[i], feat] == cond_bin
+        @inbounds if cond
             left_count += 1
             left[offset+chunk_size*(bid-1)+left_count] = is[i]
         else
@@ -128,7 +119,7 @@ function split_views_kernel!(
     return nothing
 end
 
-function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, offset)
+function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, feattype, offset)
 
     chunk_size = cld(length(is), min(cld(length(is), 128), 2048))
     nblocks = cld(length(is), chunk_size)
@@ -143,6 +134,7 @@ function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, off
         x_bin,
         feat,
         cond_bin,
+        feattype,
         offset,
         chunk_size,
         lefts,
@@ -179,9 +171,10 @@ end
         GradientRegression
 """
 function update_gains!(
-    node::TrainNodeGPU,
-    js::AbstractVector,
+    node::TrainNode,
+    js::CuVector,
     params::EvoTypes{L,T},
+    feattypes,
     monotone_constraints,
 ) where {L,T}
 

@@ -1,14 +1,14 @@
 """
     Carries training information for a given tree node
 """
-mutable struct TrainNode{T<:AbstractFloat,S}
+mutable struct TrainNode{T<:AbstractFloat,S,V,M}
     gain::T
     is::S
-    ∑::Vector{T}
-    h::Vector{Matrix{T}}
-    hL::Vector{Matrix{T}}
-    hR::Vector{Matrix{T}}
-    gains::Vector{Vector{T}}
+    ∑::V
+    h::Vector{M}
+    hL::Vector{M}
+    hR::Vector{M}
+    gains::Vector{V}
 end
 
 function TrainNode(featbins, K, is, T)
