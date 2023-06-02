@@ -162,11 +162,11 @@ function init_evotree_gpu(
         left=left,
         right=right,
         ∇=∇,
-        edges=edges,
         fnames=fnames,
+        edges=edges,
         featbins=featbins,
-        feattypes=feattypes,
-        monotone_constraints=CuArray(monotone_constraints),
+        feattypes=CuArray(feattypes),
+        monotone_constraints=monotone_constraints,
     )
     return m, cache
 end
@@ -194,7 +194,7 @@ function grow_evotree!(
         params,
         cache.∇,
         cache.edges,
-        CuVector(cache.js),
+        cache.js,
         cache.out,
         cache.left,
         cache.right,
@@ -203,7 +203,7 @@ function grow_evotree!(
         cache.monotone_constraints,
     )
     push!(evotree.trees, tree)
-    predict!(cache.pred, tree, cache.x)
+    predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
     cache[:info][:nrounds] += 1
     return nothing
 end
@@ -220,7 +220,7 @@ function grow_tree_gpu!(
     left,
     right,
     x_bin::AbstractMatrix,
-    feattypes::Vector{Bool},
+    feattypes::CuVector{Bool},
     monotone_constraints,
 ) where {L,K,T,N}
 
@@ -229,17 +229,24 @@ function grow_tree_gpu!(
     depth = 1
 
     # reset nodes
-    for n in eachindex(nodes)
-        nodes[n].∑ .= 0
-        nodes[n].gain = T(0)
-        # nodes[n].h .= 0
-        # nodes[n].gains .= 0
-        @inbounds for i in eachindex(nodes[n].h)
-            nodes[n].h[i] .= 0
-            nodes[n].gains[i] .= 0
+    @info "reset"
+    # @time for n in eachindex(nodes)
+    #     nodes[n].∑ .= 0
+    #     nodes[n].gain = T(0)
+    #     for i in eachindex(nodes[n].h)
+    #         nodes[n].h[i] .= 0
+    #         nodes[n].gains[i] .= 0
+    #     end
+    # end
+    @time for n in nodes
+        n.∑ .= 0
+        n.gain = T(0)
+        for i in eachindex(n.h)
+            @async n.h[i] .= 0
+            @async n.gains[i] .= 0
         end
     end
-
+    
     # initialize summary stats
     nodes[1].∑ .= vec(sum(∇[:, nodes[1].is], dims=2))
     nodes[1].gain = get_gain(params, Array(nodes[1].∑)) # should use a GPU version?
@@ -259,7 +266,8 @@ function grow_tree_gpu!(
                         CUDA.synchronize()
                     end
                 else
-                    update_hist_gpu!(nodes[n].h, ∇, x_bin, nodes[n].is, js)
+                    @info "hist"
+                    @time update_hist_gpu!(nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
             end
         end
@@ -270,8 +278,10 @@ function grow_tree_gpu!(
                @allowscalar(nodes[n].∑[end] <= params.min_weight)
                 pred_leaf_gpu!(tree.pred, n, Array(nodes[n].∑), params)
             else
-                update_gains!(nodes[n], js, params, monotone_constraints)
-                best = findmax(findmax.(nodes[n].gains))
+                @info "gain & max"
+                @time update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
+                # @info "findmax"
+                @time best = findmax(findmax.(nodes[n].gains))
                 best_gain = best[1][1]
                 best_bin = best[1][2]
                 best_feat = best[2]

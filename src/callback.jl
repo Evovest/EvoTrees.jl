@@ -4,7 +4,7 @@ struct CallBack{F,M,V,Y}
     p::M
     y::Y
     w::V
-    feattypes::Vector{DataType}
+    feattypes::Vector{Bool}
 end
 
 function CallBack(

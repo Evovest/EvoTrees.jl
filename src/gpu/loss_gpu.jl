@@ -197,7 +197,7 @@ function update_grads_gpu!(
 end
 
 function update_childs_∑_gpu!(::Type{L}, nodes, n, bin, feat) where {L}
-    nodes[n<<1].∑ .= nodes[n].hL[:, bin, feat]
-    nodes[n<<1+1].∑ .= nodes[n].hR[:, bin, feat]
+    nodes[n<<1].∑ .= nodes[n].hL[feat][:, bin]
+    nodes[n<<1+1].∑ .= nodes[n].hR[feat][:, bin]
     return nothing
 end

@@ -31,20 +31,23 @@ end
 """
 function predict_kernel!(
     ::Type{L},
-    pred::AbstractMatrix{T},
+    pred::CuDeviceMatrix{T},
     split,
-    feat,
-    cond_float,
-    leaf_pred::AbstractMatrix{T},
-    X::CuDeviceMatrix,
+    feats,
+    cond_bins,
+    leaf_pred,
+    x_bin,
+    feattypes,
 ) where {L<:GradientRegression,T}
-    idx = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
-    @inbounds if idx <= size(pred, 2)
+    @inbounds if i <= size(pred, 2)
         @inbounds while split[nid]
-            X[idx, feat[nid]] <= cond_float[nid] ? nid = nid << 1 : nid = nid << 1 + 1
+            feat = feats[nid]
+            cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
+            nid = nid << 1 + !cond
         end
-        pred[1, idx] += leaf_pred[1, nid]
+        pred[1, i] += leaf_pred[1, nid]
     end
     sync_threads()
     return nothing
@@ -105,23 +108,45 @@ end
 function predict!(
     pred::AbstractMatrix{T},
     tree::TreeGPU{L,K,T},
-    X::AbstractMatrix;
+    x_bin::AbstractMatrix,
+    feattypes::CuVector{Bool};
     MAX_THREADS=1024
 ) where {L,K,T}
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
-    blocks = ceil(Int, n / threads)
+    blocks = cld(n, threads)
     @cuda blocks = blocks threads = threads predict_kernel!(
         L,
         pred,
         tree.split,
         tree.feat,
-        tree.cond_float,
+        tree.cond_bin,
         tree.pred,
-        X,
+        x_bin,
+        feattypes,
     )
     CUDA.synchronize()
 end
+# function predict!(
+#     pred::AbstractMatrix{T},
+#     tree::TreeGPU{L,K,T},
+#     X::AbstractMatrix;
+#     MAX_THREADS=1024
+# ) where {L,K,T}
+#     n = size(pred, 2)
+#     threads = min(MAX_THREADS, n)
+#     blocks = ceil(Int, n / threads)
+#     @cuda blocks = blocks threads = threads predict_kernel!(
+#         L,
+#         pred,
+#         tree.split,
+#         tree.feat,
+#         tree.cond_float,
+#         tree.pred,
+#         X,
+#     )
+#     CUDA.synchronize()
+# end
 
 function predict!(
     pred::AbstractMatrix{T},

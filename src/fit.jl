@@ -268,8 +268,8 @@ function grow_tree!(
                         end
                     end
                 else
-                    # @info "hist"
-                    update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
+                    @info "hist"
+                    @time update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
             end
         end
@@ -278,9 +278,9 @@ function grow_tree!(
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             else
-                # @info "gains!"
-                update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
-                best = findmax(findmax.(nodes[n].gains))
+                @info "gains & max"
+                @time update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
+                @time best = findmax(findmax.(nodes[n].gains))
                 best_gain = best[1][1]
                 best_bin = best[1][2]
                 best_feat = best[2]

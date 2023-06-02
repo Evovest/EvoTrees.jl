@@ -285,9 +285,9 @@ Generic fallback
 """
 function update_gains!(
     node::TrainNode,
-    js::Vector,
+    js,
     params::EvoTypes{L,T},
-    feattypes,
+    feattypes::Vector{Bool},
     monotone_constraints,
 ) where {L,T}
 
@@ -298,8 +298,8 @@ function update_gains!(
     ∑ = node.∑
 
     @inbounds for j in js
-        cumsum!(hL[j], h[j], dims=2)
         if feattypes[j]
+            cumsum!(hL[j], h[j], dims=2)
             hR[j] .= ∑ .- hL[j]
         else
             hR[j] .= ∑ .- h[j]

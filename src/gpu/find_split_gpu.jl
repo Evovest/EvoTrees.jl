@@ -172,65 +172,100 @@ end
 """
 function update_gains!(
     node::TrainNode,
-    js::CuVector,
+    js,
     params::EvoTypes{L,T},
-    feattypes,
+    feattypes::CuVector{Bool},
     monotone_constraints,
 ) where {L,T}
 
-    cumsum!(node.hL, node.h, dims = 2)
-    node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
-
-    threads = params.nbins
-    blocks = length(js)
-    @cuda blocks = blocks threads = threads update_gains_kernel!(
-        node.gains,
-        node.hL,
-        node.hR,
-        js,
-        params.nbins,
-        params.lambda,
-        params.min_weight,
-        monotone_constraints,
-    )
+    @sync for j in js
+        @async if @allowscalar(feattypes[j])
+            cumsum!(node.hL[j], node.h[j], dims=2)
+            node.hR[j] .= node.∑ .- node.hL[j]
+        else
+            node.hR[j] .= node.∑ .- node.h[j]
+            node.hL[j] .= node.h[j]
+        end
+    end
+    @sync for j in js
+        @async @cuda blocks = (1, 1, 1) threads = length(node.gains[j]) update_gains_kernel!(
+            node.gains[j],
+            node.hL[j],
+            node.hR[j],
+            params.lambda,
+            params.min_weight,
+            monotone_constraints[j],
+        )
+    end
     CUDA.synchronize()
     return nothing
 end
 
 function update_gains_kernel!(
-    gains::CuDeviceMatrix{T},
-    hL::CuDeviceArray{T,3},
-    hR::CuDeviceArray{T,3},
-    js::CuDeviceVector,
-    nbins,
+    gains::CuDeviceVector{T},
+    hL::CuDeviceMatrix{T},
+    hR::CuDeviceMatrix{T},
     lambda,
     min_weight,
-    monotone_constraints,
+    monotone_constraint,
 ) where {T}
     bin = threadIdx().x
-    j = js[blockIdx().x]
-    monotone_constraint = monotone_constraints[j]
     K = (size(hL, 1) - 1) ÷ 2
     @inbounds for k = 1:K
-        if bin == nbins
-            gains[bin, j] +=
-                hL[k, bin, j]^2 / (hL[k+K, bin, j] + lambda * hL[end, bin, j]) / 2
-        elseif hL[end, bin, j] > min_weight && hR[end, bin, j] > min_weight
+        if hL[end, bin] > min_weight && hR[end, bin] > min_weight
             if monotone_constraint != 0
-                predL = -hL[k, bin, j] / (hL[k+K, bin, j] + lambda * hL[end, bin, j])
-                predR = -hR[k, bin, j] / (hR[k+K, bin, j] + lambda * hR[end, bin, j])
+                predL = -hL[k, bin] / (hL[k+K, bin] + lambda * hL[end, bin])
+                predR = -hR[k, bin] / (hR[k+K, bin] + lambda * hR[end, bin])
             end
             if (monotone_constraint == 0) ||
                (monotone_constraint == -1 && predL > predR) ||
                (monotone_constraint == 1 && predL < predR)
-                gains[bin, j] +=
+                gains[bin] +=
                     (
-                        hL[k, bin, j]^2 / (hL[k+K, bin, j] + lambda * hL[end, bin, j]) +
-                        hR[k, bin, j]^2 / (hR[k+K, bin, j] + lambda * hR[end, bin, j])
+                        hL[k, bin]^2 / (hL[k+K, bin] + lambda * hL[end, bin]) +
+                        hR[k, bin]^2 / (hR[k+K, bin] + lambda * hR[end, bin])
                     ) / 2
             end
         end
     end # loop on K
-    sync_threads()
     return nothing
 end
+
+# function update_gains_kernel!(
+#     gains::CuDeviceMatrix{T},
+#     hL::CuDeviceArray{T,3},
+#     hR::CuDeviceArray{T,3},
+#     js::CuDeviceVector,
+#     nbins,
+#     lambda,
+#     min_weight,
+#     feattypes,
+#     monotone_constraints,
+# ) where {T}
+#     bin = threadIdx().x
+#     j = js[blockIdx().x]
+#     monotone_constraint = monotone_constraints[j]
+#     K = (size(hL, 1) - 1) ÷ 2
+#     @inbounds for k = 1:K
+#         if bin == nbins
+#             gains[bin, j] +=
+#                 hL[k, bin, j]^2 / (hL[k+K, bin, j] + lambda * hL[end, bin, j]) / 2
+#         elseif hL[end, bin, j] > min_weight && hR[end, bin, j] > min_weight
+#             if monotone_constraint != 0
+#                 predL = -hL[k, bin, j] / (hL[k+K, bin, j] + lambda * hL[end, bin, j])
+#                 predR = -hR[k, bin, j] / (hR[k+K, bin, j] + lambda * hR[end, bin, j])
+#             end
+#             if (monotone_constraint == 0) ||
+#                (monotone_constraint == -1 && predL > predR) ||
+#                (monotone_constraint == 1 && predL < predR)
+#                 gains[bin, j] +=
+#                     (
+#                         hL[k, bin, j]^2 / (hL[k+K, bin, j] + lambda * hL[end, bin, j]) +
+#                         hR[k, bin, j]^2 / (hR[k+K, bin, j] + lambda * hR[end, bin, j])
+#                     ) / 2
+#             end
+#         end
+#     end # loop on K
+#     sync_threads()
+#     return nothing
+# end
