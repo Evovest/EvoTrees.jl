@@ -131,7 +131,7 @@ function split_chunk_kernel!(
 
     @inbounds while i <= i_max
         cond = feattype ? x_bin[is[i], feat] <= cond_bin : x_bin[is[i], feat] == cond_bin
-        @inbounds if cond
+        if cond
             left_count += 1
             left[offset+chunk_size*(bid-1)+left_count] = is[i]
         else
@@ -140,8 +140,8 @@ function split_chunk_kernel!(
         end
         i += 1
     end
-    @inbounds lefts[bid] = left_count
-    @inbounds rights[bid] = right_count
+    lefts[bid] = left_count
+    rights[bid] = right_count
     sync_threads()
     return nothing
 end
