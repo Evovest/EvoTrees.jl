@@ -69,25 +69,25 @@ hyper = EvoTreeRegressor(
     colsample=0.5,
     nbins=64,
     rng=123,
+    device = "gpu"
 )
 
 target_name = "y"
 CUDA.allowscalar(false)
 # @time model, cache = EvoTrees.init_evotree_df(hyper, dtrain; target_name, fnames_cat = ["x_cat_1"]);
 @time model, cache = EvoTrees.init_evotree_gpu(hyper, dtrain; target_name);
-cache.edges[11]
-cache.featbins
-cache.feattypes
-cache.nodes[1].gains[1]
-model.trees[1]
+# cache.edges[11]
+# cache.featbins
+# cache.feattypes
+# cache.nodes[1].gains[1]
+# model.trees[1]
 
 @time EvoTrees.grow_evotree!(model, cache, hyper);
 
-for i in 1:10
-    @time EvoTrees.grow_evotree!(model, cache, hyper)
+@time for i in 1:200
+    EvoTrees.grow_evotree!(model, cache, hyper)
 end
-
-@btime EvoTrees.grow_evotree!(model, cache, hyper);
+# @btime EvoTrees.grow_evotree!(model, cache, hyper);
 
 @time m = EvoTrees.fit_evotree_df(hyper; dtrain, target_name, verbosity=false);
 @btime EvoTrees.fit_evotree_df(hyper; dtrain, target_name, verbosity=false);

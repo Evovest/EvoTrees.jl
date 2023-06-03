@@ -61,15 +61,15 @@ params1 = EvoTreeRegressor(
     verbosity=0
 );
 
-@btime model = EvoTrees.fit_evotree_df(
-    params1;
-    dtrain,
-    fnames_num="x_num",
-    target_name="y",
-    # print_every_n = 25,
-    # early_stopping_rounds = 20,
-    verbosity=0
-);
+# @btime model = EvoTrees.fit_evotree_df(
+#     params1;
+#     dtrain,
+#     fnames_num="x_num",
+#     target_name="y",
+#     # print_every_n = 25,
+#     # early_stopping_rounds = 20,
+#     verbosity=0
+# );
 # laptop: 51.651 ms (237548 allocations: 23.94 MiB)
 # plot(logger[:metrics])
 # @time pred_train_linear = predict(model, x_train);

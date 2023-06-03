@@ -18,24 +18,39 @@ function hist_kernel!(h∇, ∇, x_bin, is)
             CUDA.atomic_add!(pointer(h∇, hid), ∇[k, idx])
         end
     end
+    CUDA.sync_threads()
     return nothing
 end
 
-function update_hist_gpu!(h∇, ∇, x_bin, is, js)
-    kernel = @cuda launch = false hist_kernel!(h∇[1], ∇, view(x_bin, :, 1), is)
+function update_hist_gpu!(h, h∇, ∇, x_bin, is, js)
+    kernel = @cuda launch = false hist_kernel!(h∇[js[1]], ∇, view(x_bin, :, js[1]), is)
     config = launch_configuration(kernel.fun)
     max_threads = config.threads
-    max_blocks = config.blocks
-    @assert size(h∇[1], 1) <= max_threads "number of classes cannot be larger than 31 on GPU"
-    ty = min(64, size(h∇[1], 1))
+    max_blocks = config.blocks ÷ 4
+    ty = size(h∇[js[1]], 1)
     tx = max(1, min(length(is), fld(max_threads, ty)))
     threads = (tx, ty, 1)
     bx = min(max_blocks, cld(length(is), tx))
     blocks = (bx, 1, 1)
-    @sync for j in js
-        @async kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
+    for j in js
+        h∇[j] .= 0
     end
+    for j in js
+        # h∇[j] .= 0
+        # @async kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
+        kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
+        # @info "h∇ pre" h∇[js[1]]
+    end
+    # @info "h∇ post1"
     CUDA.synchronize()
+    # @info "h∇ post1" h∇[js[1]]
+    # @info "h∇ post1" h∇[js[1]]
+    for j in js
+        # h∇[j]
+        # h[j] .= Array(h∇[j])
+        copyto!(h[j], h∇[j])
+    end
+    # @info "h" h[js[1]]
     return nothing
 end
 
@@ -120,7 +135,6 @@ function split_views_kernel!(
 end
 
 function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, feattype, offset)
-
     chunk_size = cld(length(is), min(cld(length(is), 128), 2048))
     nblocks = cld(length(is), chunk_size)
     lefts = CUDA.zeros(Int, nblocks)

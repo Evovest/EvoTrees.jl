@@ -251,25 +251,22 @@ function grow_tree!(
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
-
         if depth < params.max_depth
             for n_id in eachindex(n_current)
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
-                        # nodes[n].h .= nodes[n>>1].h .- nodes[n+1].h
                         @inbounds for j in eachindex(nodes[n].h)
                             nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j]
                         end
                     else
-                        # nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
                         @inbounds for j in eachindex(nodes[n].h)
                             nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
                         end
                     end
                 else
-                    @info "hist"
-                    @time update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
+                    # @info "hist"
+                    update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
             end
         end
@@ -278,14 +275,13 @@ function grow_tree!(
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             else
-                @info "gains & max"
-                @time update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
-                @time best = findmax(findmax.(nodes[n].gains))
+                # @info "gains & max"
+                update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
+                best = findmax(findmax.(nodes[n].gains))
                 best_gain = best[1][1]
                 best_bin = best[1][2]
                 best_feat = best[2]
-                # @info "best" best
-                if best_bin != params.nbins && best_gain > nodes[n].gain + params.gamma
+                if best_gain > nodes[n].gain + params.gamma
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
@@ -313,8 +309,6 @@ function grow_tree!(
                     nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
                     nodes[n<<1].gain = get_gain(params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = get_gain(params, nodes[n<<1+1].∑)
-                    # @info "child info" length(_left) length(_right) nodes[n<<1].∑[end] nodes[n<<1+1].∑[end]
-
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
                         push!(n_next, n << 1 + 1)
@@ -396,7 +390,7 @@ function fit_evotree_df(
 
     # initialize model and cache
     if String(params.device) == "gpu"
-        # m, cache = init_evotree_df(params; x_train, y_train, w_train, offset_train, fnames)
+        m, cache = init_evotree_gpu(params, dtrain; target_name, fnames_num, fnames_cat, w_name, offset_name, group_name)
     else
         m, cache = init_evotree_df(params, dtrain; target_name, fnames_num, fnames_cat, w_name, offset_name, group_name)
     end

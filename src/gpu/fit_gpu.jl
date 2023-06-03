@@ -61,7 +61,8 @@ function init_evotree_gpu(
     !isnothing(offset) && (pred .+= CuArray(offset'))
 
     # init EvoTree
-    bias = [TreeGPU{L,K,T}(CuArray(μ))]
+    bias = [Tree{L,K,T}(μ)]
+    # bias = [TreeGPU{L,K,T}(CuArray(μ))]
 
     _w_name = isnothing(w_name) ? "" : [string(w_name)]
     _offset_name = isnothing(offset_name) ? "" : string(offset_name)
@@ -116,7 +117,9 @@ function init_evotree_gpu(
     js = zeros(eltype(js_), ceil(Int, params.colsample * nfeats))
 
     # initialize histograms
-    nodes = [TrainNodeGPU(featbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
+    nodes = [TrainNode(featbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
+    h∇ = [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins]
+
     out = CUDA.zeros(UInt32, nobs)
     left = CUDA.zeros(UInt32, nobs)
     right = CUDA.zeros(UInt32, nobs)
@@ -162,10 +165,12 @@ function init_evotree_gpu(
         left=left,
         right=right,
         ∇=∇,
+        h∇=h∇,
         fnames=fnames,
         edges=edges,
         featbins=featbins,
-        feattypes=CuArray(feattypes),
+        feattypes=feattypes,
+        feattypes_gpu=CuArray(feattypes),
         monotone_constraints=monotone_constraints,
     )
     return m, cache
@@ -187,7 +192,7 @@ function grow_evotree!(
     sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
 
     # assign a root and grow tree
-    tree = TreeGPU{L,K,T}(params.max_depth)
+    tree = Tree{L,K,T}(params.max_depth)
     grow_tree_gpu!(
         tree,
         cache.nodes,
@@ -198,19 +203,20 @@ function grow_evotree!(
         cache.out,
         cache.left,
         cache.right,
+        cache.h∇,
         cache.x_bin,
         cache.feattypes,
         cache.monotone_constraints,
     )
     push!(evotree.trees, tree)
-    predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
+    predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
     cache[:info][:nrounds] += 1
     return nothing
 end
 
 # grow a single tree - grow through all depth
 function grow_tree_gpu!(
-    tree::TreeGPU{L,K,T},
+    tree::Tree{L,K,T},
     nodes::Vector{N},
     params::EvoTypes{L,T},
     ∇::AbstractMatrix,
@@ -219,38 +225,30 @@ function grow_tree_gpu!(
     out,
     left,
     right,
-    x_bin::AbstractMatrix,
-    feattypes::CuVector{Bool},
+    h∇::Vector{M},
+    x_bin::CuMatrix,
+    feattypes::Vector{Bool},
     monotone_constraints,
-) where {L,K,T,N}
+) where {L,K,T,N,M}
 
+    # reset nodes
+    for n in nodes
+        n.∑ .= 0
+        n.gain = T(0)
+        @inbounds for i in eachindex(n.h)
+            n.h[i] .= 0
+            n.gains[i] .= 0
+        end
+    end
+
+    # initialize
     n_next = [1]
     n_current = copy(n_next)
     depth = 1
 
-    # reset nodes
-    @info "reset"
-    # @time for n in eachindex(nodes)
-    #     nodes[n].∑ .= 0
-    #     nodes[n].gain = T(0)
-    #     for i in eachindex(nodes[n].h)
-    #         nodes[n].h[i] .= 0
-    #         nodes[n].gains[i] .= 0
-    #     end
-    # end
-    @time for n in nodes
-        n.∑ .= 0
-        n.gain = T(0)
-        for i in eachindex(n.h)
-            @async n.h[i] .= 0
-            @async n.gains[i] .= 0
-        end
-    end
-    
     # initialize summary stats
-    nodes[1].∑ .= vec(sum(∇[:, nodes[1].is], dims=2))
-    nodes[1].gain = get_gain(params, Array(nodes[1].∑)) # should use a GPU version?
-
+    nodes[1].∑ .= Vector(vec(sum(∇[:, nodes[1].is], dims=2)))
+    nodes[1].gain = get_gain(params, nodes[1].∑) # should use a GPU version?
     # grow while there are remaining active nodes - TO DO histogram substraction hits issue on GPU
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
@@ -260,61 +258,56 @@ function grow_tree_gpu!(
                 if n_id % 2 == 0
                     if n % 2 == 0
                         nodes[n].h .= nodes[n>>1].h .- nodes[n+1].h
-                        CUDA.synchronize()
                     else
                         nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
-                        CUDA.synchronize()
                     end
                 else
-                    @info "hist"
-                    @time update_hist_gpu!(nodes[n].h, ∇, x_bin, nodes[n].is, js)
+                    # @info "hist"
+                    update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, js)
                 end
             end
         end
 
         # grow while there are remaining active nodes
         for n ∈ sort(n_current)
-            if depth == params.max_depth ||
-               @allowscalar(nodes[n].∑[end] <= params.min_weight)
-                pred_leaf_gpu!(tree.pred, n, Array(nodes[n].∑), params)
+            if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
+                pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             else
-                @info "gain & max"
-                @time update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
-                # @info "findmax"
-                @time best = findmax(findmax.(nodes[n].gains))
+                # @info "gain & max"
+                update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
+                best = findmax(findmax.(nodes[n].gains))
                 best_gain = best[1][1]
                 best_bin = best[1][2]
                 best_feat = best[2]
-                if best_bin != params.nbins && best_gain > nodes[n].gain + params.gamma
-                    allowscalar() do
-                        tree.gain[n] = best_gain - nodes[n].gain
-                        tree.cond_bin[n] = best_bin
-                        tree.feat[n] = best_feat
-                        tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
-                    end
+                if best_gain > nodes[n].gain + params.gamma
+                    tree.gain[n] = best_gain - nodes[n].gain
+                    tree.cond_bin[n] = best_bin
+                    tree.feat[n] = best_feat
+                    tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
                 end
-                # println("node: ", n, " | best: ", best, " | nodes[n].gain: ", nodes[n].gain)
-                @allowscalar(tree.split[n] = tree.cond_bin[n] != 0)
-                if !@allowscalar(tree.split[n])
-                    pred_leaf_gpu!(tree.pred, n, Array(nodes[n].∑), params)
+                tree.split[n] = tree.cond_bin[n] != 0
+                if !tree.split[n]
+                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
                     popfirst!(n_next)
                 else
+                    # @info "split" typeof(nodes[n].is) length(nodes[n].is)
                     _left, _right = split_set_threads_gpu!(
                         out,
                         left,
                         right,
                         nodes[n].is,
                         x_bin,
-                        @allowscalar(tree.feat[n]),
-                        @allowscalar(tree.cond_bin[n]),
-                        @allowscalar(feattypes[best_feat]),
+                        tree.feat[n],
+                        tree.cond_bin[n],
+                        feattypes[best_feat],
                         offset,
                     )
                     offset += length(nodes[n].is)
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    update_childs_∑_gpu!(L, nodes, n, best_bin, best_feat)
-                    nodes[n<<1].gain = get_gain(params, Array(nodes[n<<1].∑))
-                    nodes[n<<1+1].gain = get_gain(params, Array(nodes[n<<1+1].∑))
+                    nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
+                    nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
+                    nodes[n<<1].gain = get_gain(params, nodes[n<<1].∑)
+                    nodes[n<<1+1].gain = get_gain(params, nodes[n<<1+1].∑)
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
                         push!(n_next, n << 1 + 1)

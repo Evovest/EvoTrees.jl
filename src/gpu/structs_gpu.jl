@@ -11,18 +11,18 @@
 #     gains::AbstractMatrix{T}
 # end
 
-function TrainNodeGPU(featbins, K, is, T)
-    node = TrainNode(
-        zero(T),
-        is,
-        CUDA.zeros(T, 2 * K + 1),
-        [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins],
-        [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins],
-        [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins],
-        [CUDA.zeros(T, nbins) for nbins in featbins],
-    )
-    return node
-end
+# function TrainNodeGPU(featbins, K, is, T)
+#     node = TrainNode(
+#         zero(T),
+#         is,
+#         CUDA.zeros(T, 2 * K + 1),
+#         [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins],
+#         [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins],
+#         [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins],
+#         [CUDA.zeros(T, nbins) for nbins in featbins],
+#     )
+#     return node
+# end
 
 """
     single tree is made of a a vector of nodes
@@ -62,10 +62,11 @@ end
 
 # gradient-boosted tree is formed by a vector of trees
 struct EvoTreeGPU{L,K,T}
-    trees::Vector{TreeGPU{L,K,T}}
+    trees::Vector{Tree{L,K,T}}
     info::Any
 end
 (m::EvoTreeGPU)(x::AbstractMatrix) = predict(m, x)
+(m::EvoTreeGPU)(df::AbstractDataFrame; ntree_limit=length(m.trees)) = predict(m, df; ntree_limit)
 get_types(::EvoTreeGPU{L,K,T}) where {L,K,T} = (L, T)
 
 function Base.show(io::IO, evotree::EvoTreeGPU)
