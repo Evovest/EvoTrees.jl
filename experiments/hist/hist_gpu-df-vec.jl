@@ -40,6 +40,9 @@ function update_hist_gpu_vec!(h∇, ∇, x_bin, is, js)
     bx = min(max_blocks, cld(length(is), tx))
     blocks = (bx, 1, 1)
     @sync for j in js
+        @async h∇[j] .= 0
+    end
+    @sync for j in js
         @async kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
     end
     CUDA.synchronize()
@@ -49,7 +52,6 @@ end
 nbins = 32
 nfeats = 100
 nobs = Int(1e6)
-hist = zeros(Float32, nbins, nfeats);
 x_bin = UInt8.(rand(1:nbins, nobs, nfeats));
 ∇ = rand(Float32, 3, nobs);
 h∇ = [zeros(Float32, 3, nbins) for n in 1:nfeats]
@@ -58,7 +60,6 @@ colsample = 0.5
 is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
 js = sample(1:nfeats, Int(round(rowsample * nfeats)), replace=false, ordered=true)
 
-hist_gpu = CuArray(hist)
 ∇_gpu = CuArray(∇)
 x_bin_gpu = CuArray(x_bin)
 h∇_gpu = CuArray.(h∇)
@@ -75,13 +76,17 @@ function update_hist_gpu_cpu!(h, h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
     max_threads = config.threads
     max_blocks = config.blocks
-    @assert size(h∇[1], 1) <= max_threads "number of classes cannot be larger than 31 on GPU"
-    ty = min(64, size(h∇[1], 1))
+    @assert size(h∇[js[1]], 1) <= max_threads "number of classes cannot be larger than 31 on GPU"
+    ty = min(64, size(h∇[js[1]], 1))
     tx = max(1, min(length(is), fld(max_threads, ty)))
     threads = (tx, ty, 1)
     bx = min(max_blocks, cld(length(is), tx))
     blocks = (bx, 1, 1)
-    CUDA.@sync for j in js
+    @sync for j in js
+        @async h∇[j] .= 0
+    end
+    CUDA.synchronize()
+    @sync for j in js
         @async kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
     end
     CUDA.synchronize()

@@ -36,11 +36,11 @@ deval = dtot[i_eval, :]
 params1 = EvoTreeRegressor(
     T=Float32,
     loss=:linear,
-    nrounds=200,
+    nrounds=1,
     nbins=64,
     lambda=0.01,
     gamma=0.1,
-    eta=0.05,
+    eta=0.5,
     max_depth=6,
     min_weight=1.0,
     rowsample=0.5,
@@ -53,7 +53,7 @@ params1 = EvoTreeRegressor(
     params1;
     dtrain,
     fnames_num="x_num",
-    fnames_cat="x_cat",
+    # fnames_cat="x_cat",
     target_name="y",
     # deval,
     # metric=:mse,

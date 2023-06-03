@@ -31,7 +31,7 @@ function hist_kernel!(h∇, ∇, x_bin, is, js)
     return nothing
 end
 
-function update_hist_gpu!(h∇, ∇, x_bin, is, js)
+function update_hist_gpu2!(h, h∇, ∇, x_bin, is, js)
     kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
     # @info "config.blocks" config.blocks
@@ -47,29 +47,32 @@ function update_hist_gpu!(h∇, ∇, x_bin, is, js)
     blocks = (bx, by, 1)
     kernel(h∇, ∇, x_bin, is, js; threads, blocks)
     CUDA.synchronize()
+    @inbounds for j in Array(js)
+        copyto!(h[j], view(h∇, :, :, j))
+    end
     return nothing
 end
 
 nbins = 32
 nfeats = 100
 nobs = Int(1e6)
-hist = zeros(Float32, nbins, nfeats);
 x_bin = UInt8.(rand(1:nbins, nobs, nfeats));
 ∇ = rand(Float32, 3, nobs);
-h∇ = rand(Float32, 3, nbins, nfeats)
+h∇ = zeros(Float32, 3, nbins, nfeats)
+h = [h∇[:,:,j] for j in axes(h∇, 3)]
 rowsample = 0.5
 colsample = 0.5
 is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
 js = sample(1:nfeats, Int(round(rowsample * nfeats)), replace=false, ordered=true)
 
-hist_gpu = CuArray(hist)
 ∇_gpu = CuArray(∇)
 x_bin_gpu = CuArray(x_bin)
 h∇_gpu = CuArray(h∇)
 is_gpu = CuArray(is)
 js_gpu = CuArray(js)
 
-@time update_hist_gpu!(h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
-CUDA.@time update_hist_gpu!(h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
-@time CUDA.@sync update_hist_gpu!(h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
-@btime update_hist_gpu!(h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
+CUDA.allowscalar(false)
+@time update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
+CUDA.@time update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
+@time CUDA.@sync update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
+@btime update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
