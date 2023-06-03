@@ -3,6 +3,7 @@ using CUDA
 using StatsBase: sample
 using BenchmarkTools
 using Base.Threads: @threads
+using Random: seed!
 
 """
     hist_kernel!
@@ -33,8 +34,7 @@ function update_hist_gpu_vec!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
     max_threads = config.threads
     max_blocks = config.blocks
-    @assert size(h∇[1], 1) <= max_threads "number of classes cannot be larger than 31 on GPU"
-    ty = min(64, size(h∇[1], 1))
+    ty = size(h∇[1], 1)
     tx = max(1, min(length(is), fld(max_threads, ty)))
     threads = (tx, ty, 1)
     bx = min(max_blocks, cld(length(is), tx))
@@ -42,6 +42,7 @@ function update_hist_gpu_vec!(h∇, ∇, x_bin, is, js)
     @sync for j in js
         @async h∇[j] .= 0
     end
+    CUDA.synchronize()
     @sync for j in js
         @async kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
     end
@@ -49,6 +50,7 @@ function update_hist_gpu_vec!(h∇, ∇, x_bin, is, js)
     return nothing
 end
 
+seed!(123)
 nbins = 32
 nfeats = 100
 nobs = Int(1e6)
@@ -69,33 +71,52 @@ js_gpu = CuArray(js)
 CUDA.allowscalar(false)
 @time update_hist_gpu_vec!(h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js)
 @time CUDA.@sync update_hist_gpu_vec!(h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js)
-@btime update_hist_gpu_vec!(h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js)
+@btime CUDA.@sync update_hist_gpu_vec!(h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js)
 
 function update_hist_gpu_cpu!(h, h∇, ∇, x_bin, is, js)
     kernel = @cuda launch = false hist_kernel_vec!(h∇[js[1]], ∇, view(x_bin, :, js[1]), is)
     config = launch_configuration(kernel.fun)
+    @info "config.threads" config.threads
+    @info "config.blocks" config.blocks
     max_threads = config.threads
     max_blocks = config.blocks
-    @assert size(h∇[js[1]], 1) <= max_threads "number of classes cannot be larger than 31 on GPU"
-    ty = min(64, size(h∇[js[1]], 1))
+    ty = size(h∇[1], 1)
     tx = max(1, min(length(is), fld(max_threads, ty)))
     threads = (tx, ty, 1)
     bx = min(max_blocks, cld(length(is), tx))
     blocks = (bx, 1, 1)
-    @sync for j in js
+    CUDA.@sync for j in js
         @async h∇[j] .= 0
     end
     CUDA.synchronize()
-    @sync for j in js
-        @async kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
+    CUDA.@sync for j in js
+        # @async kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
+        kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
     end
     CUDA.synchronize()
+    return nothing
+end
+function copy_gpu_cpu!(h, h∇, js)
     for j in js
+        # @info "j" j
         copyto!(h[j], h∇[j])
     end
     CUDA.synchronize()
     return nothing
 end
-@time update_hist_gpu_cpu!(h∇, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js)
+function combine!(h, h∇, ∇, x_bin, is, js)
+    CUDA.@sync update_hist_gpu_cpu!(h, h∇, ∇, x_bin, is, js)
+    CUDA.synchronize()
+    CUDA.@sync copy_gpu_cpu!(h, h∇, js)
+    CUDA.synchronize()
+    return nothing
+end
 @time CUDA.@sync update_hist_gpu_cpu!(h∇, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js)
-@btime update_hist_gpu_cpu!($h∇, $h∇_gpu, $∇_gpu, $x_bin_gpu, $is_gpu, $js)
+@time CUDA.@sync copy_gpu_cpu!(h∇, h∇_gpu, js)
+
+@btime CUDA.@sync update_hist_gpu_cpu!(h∇, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js)
+@btime CUDA.@sync copy_gpu_cpu!(h∇, h∇_gpu, js)
+
+@time combine!(h∇, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js)
+@time CUDA.@sync update_hist_gpu_cpu!(h∇, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js)
+@btime CUDA.@sync update_hist_gpu_cpu!($h∇, $h∇_gpu, $∇_gpu, $x_bin_gpu, $is_gpu, $js)

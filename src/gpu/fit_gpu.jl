@@ -259,14 +259,23 @@ function grow_tree_gpu!(
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
-                        nodes[n].h .= nodes[n>>1].h .- nodes[n+1].h
+                        @inbounds for j in eachindex(nodes[n].h)
+                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j]
+                        end
                     else
-                        nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
+                        @inbounds for j in eachindex(nodes[n].h)
+                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
+                        end
                     end
+                    # if n % 2 == 0
+                    #     nodes[n].h .= nodes[n>>1].h .- nodes[n+1].h
+                    # else
+                    #     nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
+                    # end
                 else
                     # @info "hist"
-                    update_hist_gpu_vec!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, js)
                     # update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, CuVector(js))
+                    update_hist_gpu_vec!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, js)
                 end
             end
         end

@@ -2,6 +2,7 @@ using Revise
 using CUDA
 using StatsBase: sample
 using BenchmarkTools
+using Random: seed!
 
 """
     hist_kernel!
@@ -31,9 +32,10 @@ function hist_kernel!(h∇, ∇, x_bin, is, js)
     return nothing
 end
 
-function update_hist_gpu2!(h, h∇, ∇, x_bin, is, js)
+function update_hist_gpu2!(h, h∇, ∇, x_bin, is, js, jsc)
     kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
+    # @info "config.threads" config.threads
     # @info "config.blocks" config.blocks
     max_threads = config.threads ÷ 4
     max_blocks = config.blocks * 4
@@ -47,12 +49,18 @@ function update_hist_gpu2!(h, h∇, ∇, x_bin, is, js)
     blocks = (bx, by, 1)
     kernel(h∇, ∇, x_bin, is, js; threads, blocks)
     CUDA.synchronize()
-    @inbounds for j in Array(js)
+    # @inbounds for j in jsc
+    #     copyto!(h[j], view(h∇, :, :, j))
+    # end
+    @threads for j in jsc
         copyto!(h[j], view(h∇, :, :, j))
+        # @async copyto!(h[j], view(h∇, :, :, j))
     end
+    # CUDA.synchronize()
     return nothing
 end
 
+seed!(123)
 nbins = 32
 nfeats = 100
 nobs = Int(1e6)
@@ -72,7 +80,7 @@ is_gpu = CuArray(is)
 js_gpu = CuArray(js)
 
 CUDA.allowscalar(false)
-@time update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
-CUDA.@time update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
-@time CUDA.@sync update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
-@btime update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
+@time update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
+CUDA.@time update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
+@time CUDA.@sync update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
+@btime update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
