@@ -64,12 +64,12 @@ hyper = EvoTreeRegressor(
     nrounds=nrounds,
     alpha=0.5,
     lambda=0.0,
-    gamma=0.01,
+    gamma=0.0,
     eta=0.05,
     max_depth=6,
     min_weight=1.0,
-    rowsample=1.0,
-    colsample=1.0,
+    rowsample=0.5,
+    colsample=0.5,
     nbins=64,
     rng=123,
     device = "gpu"
@@ -93,10 +93,10 @@ end
 # @btime EvoTrees.grow_evotree!(model, cache, hyper);
 
 @time m = EvoTrees.fit_evotree_df(hyper; dtrain, target_name, verbosity=false);
-@btime EvoTrees.fit_evotree_df(hyper; dtrain, target_name, verbosity=false);
+# @btime EvoTrees.fit_evotree_df(hyper; dtrain, target_name, verbosity=false);
 
-# @time m = EvoTrees.fit_evotree_df(hyper; dtrain, deval=dtrain, target_name, metric=metric_evo, print_every_n=100, verbosity=false);
+@time m = EvoTrees.fit_evotree_df(hyper; dtrain, deval=dtrain, target_name, metric=metric_evo, print_every_n=100, verbosity=false);
 # @btime m = EvoTrees.fit_evotree_df(hyper; dtrain, deval=dtrain, target_name, metric=metric_evo, print_every_n=100, verbosity=false);
 
-# @time pred = m(dtrain);
+@time pred = m(dtrain);
 # @btime m($dtrain);

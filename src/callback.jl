@@ -1,10 +1,10 @@
-struct CallBack{F,M,V,Y}
+struct CallBack{F,B,M,V,Y}
     feval::F
-    x_bin::Matrix{UInt8}
+    x_bin::B
     p::M
     y::Y
     w::V
-    feattypes::Vector{Bool}
+    feattypes::AbstractVector
 end
 
 function CallBack(
@@ -47,7 +47,7 @@ function CallBack(
     end
 
     if params.device == "gpu"
-        return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), m.info[:feattypes])
+        return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), CuArray(m.info[:feattypes]))
     else
         return CallBack(feval, x_bin, p, y, w, m.info[:feattypes])
     end
