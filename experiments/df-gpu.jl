@@ -22,7 +22,7 @@ using Random: seed!
 
 seed!(123)
 nrounds = 200
-nobs = Int(1e6)
+nobs = Int(10e6)
 nfeats_num = Int(100)
 T = Float32
 nthread = Base.Threads.nthreads()

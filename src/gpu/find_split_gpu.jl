@@ -29,7 +29,6 @@ end
 function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
     kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
-    # @info "config.blocks" config.blocks
     max_threads = config.threads ÷ 4
     max_blocks = config.blocks * 4
     tz = size(h∇, 1)
