@@ -62,7 +62,6 @@ function init_evotree_gpu(
 
     # init EvoTree
     bias = [Tree{L,K,T}(μ)]
-    # bias = [TreeGPU{L,K,T}(CuArray(μ))]
 
     _w_name = isnothing(w_name) ? "" : [string(w_name)]
     _offset_name = isnothing(offset_name) ? "" : string(offset_name)
@@ -220,17 +219,17 @@ function grow_tree_gpu!(
     tree::Tree{L,K,T},
     nodes::Vector{N},
     params::EvoTypes{L,T},
-    ∇::AbstractMatrix,
+    ∇::CuMatrix{T},
     edges,
     js,
     out,
     left,
     right,
-    h∇::M,
+    h∇::CuArray{T,3},
     x_bin::CuMatrix,
     feattypes::Vector{Bool},
     monotone_constraints,
-) where {L,K,T,N,M}
+) where {L,K,T,N}
 
     jsg = CuVector(js)
     # reset nodes
@@ -240,7 +239,6 @@ function grow_tree_gpu!(
         @inbounds for i in eachindex(n.h)
             n.h[i] .= 0
             n.gains[i] .= 0
-            # h∇[i] .= 0
         end
     end
 
@@ -268,11 +266,6 @@ function grow_tree_gpu!(
                             nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
                         end
                     end
-                    # if n % 2 == 0
-                    #     nodes[n].h .= nodes[n>>1].h .- nodes[n+1].h
-                    # else
-                    #     nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
-                    # end
                 else
                     # @info "hist"
                     update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)

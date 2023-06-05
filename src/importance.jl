@@ -1,4 +1,4 @@
-function importance!(gain::AbstractVector, tree::Union{Tree,TreeGPU})
+function importance!(gain::AbstractVector, tree::Tree)
     @inbounds for n in eachindex(tree.split)
         if @allowscalar(tree.split[n])
             @allowscalar(gain[tree.feat[n]] += tree.gain[n])
