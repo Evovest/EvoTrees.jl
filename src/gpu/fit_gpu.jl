@@ -1,4 +1,4 @@
-function init_evotree_gpu(
+function init_gpu(
     params::EvoTypes{L,T},
     dtrain::AbstractDataFrame;
     target_name,
@@ -177,7 +177,7 @@ function init_evotree_gpu(
 end
 
 
-function grow_evotree!(
+function train!(
     evotree::EvoTreeGPU{L,K,T},
     cache,
     params::EvoTypes{L,T},
@@ -193,7 +193,7 @@ function grow_evotree!(
 
     # assign a root and grow tree
     tree = Tree{L,K,T}(params.max_depth)
-    grow_tree_gpu!(
+    grow!(
         tree,
         cache.nodes,
         params,
@@ -215,7 +215,7 @@ function grow_evotree!(
 end
 
 # grow a single tree - grow through all depth
-function grow_tree_gpu!(
+function grow!(
     tree::Tree{L,K,T},
     nodes::Vector{N},
     params::EvoTypes{L,T},

@@ -44,7 +44,7 @@ function init_target_pred(::EvoTypes{L,T}, y_raw, offset) where {L,T}
     # force a neutral/zero bias/initial tree when offset is specified
     !isnothing(offset) && (μ .= 0)
 
-    return y, μ, target_levels
+    return y, μ, K, target_levels
 
 end
 
@@ -53,7 +53,7 @@ end
     
 Initialise EvoTree
 """
-function init_evotree(
+function init(
     params::EvoTypes{L,T},
     dtrain::AbstractDataFrame;
     target_name,
@@ -64,16 +64,20 @@ function init_evotree(
     group_name=nothing
 ) where {L,T}
 
+    nobs = nrow(dtrain)
+    w = isnothing(w_name) ? ones(T, nobs) : Vector{T}(dtrain[!, w_name])
     offset = !isnothing(offset_name) ? T.(dtrain[:, offset_name]) : nothing
     y_raw = dtrain[!, target_name]
-    y, μ, target_levels = init_target_pred(params, y_raw, offset)
+
+    y, μ, K, target_levels = init_target_pred(params, y_raw, offset)
+    @assert (length(y) == length(w) && minimum(w) > 0)
+    # initialize gradients
+    ∇ = zeros(T, 2 * K + 1, nobs)
+    ∇[end, :] .= w
 
     # initialize preds
-    nobs = nrow(dtrain)
     pred = zeros(T, K, nobs)
-    @threads for i in axes(pred, 2)
-        @inbounds view(pred, :, i) .= μ
-    end
+    pred .= μ
     !isnothing(offset) && (pred .+= offset')
 
     # init EvoTree
@@ -114,12 +118,6 @@ function init_evotree(
 
     fnames = vcat(fnames_num, fnames_cat)
     nfeats = length(fnames)
-
-    # initialize gradients and weights
-    ∇ = zeros(T, 2 * K + 1, nobs)
-    w = isnothing(w_name) ? ones(T, size(y)) : Vector{T}(dtrain[!, w_name])
-    @assert (length(y) == length(w) && minimum(w) > 0)
-    ∇[end, :] .= w
 
     # binarize data into quantiles
     edges, featbins, feattypes = get_edges(dtrain; fnames, nbins=params.nbins, rng=params.rng)
@@ -185,4 +183,3 @@ function init_evotree(
     )
     return m, cache
 end
-

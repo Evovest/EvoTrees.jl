@@ -1,6 +1,6 @@
 module EvoTrees
 
-export init_evotree, grow_evotree!, fit_evotree, importance
+export train, train!, importance
 export EvoTreeRegressor,
     EvoTreeCount,
     EvoTreeClassifier,
@@ -40,6 +40,7 @@ include("eval.jl")
 include("predict.jl")
 include("find_split.jl")
 include("subsample.jl")
+include("init.jl")
 include("fit.jl")
 
 include("gpu/structs_gpu.jl")

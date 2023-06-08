@@ -77,17 +77,17 @@ hyper = EvoTreeRegressor(
 
 target_name = "y"
 CUDA.allowscalar(false)
-# @time model, cache = EvoTrees.init_evotree_df(hyper, dtrain; target_name, fnames_cat = ["x_cat_1"]);
-@time model, cache = EvoTrees.init_evotree_gpu(hyper, dtrain; target_name);
+# @time model, cache = EvoTrees.init_gpu(hyper, dtrain; target_name, fnames_cat = ["x_cat_1"]);
+@time model, cache = EvoTrees.init_gpu(hyper, dtrain; target_name);
 
-@time EvoTrees.grow_evotree!(model, cache, hyper);
-# @btime EvoTrees.grow_evotree!(model, cache, hyper);
+@time EvoTrees.train!(model, cache, hyper);
+# @btime EvoTrees.train!(model, cache, hyper);
 
-@time m = EvoTrees.fit_evotree(hyper, dtrain; target_name, verbosity = false);
-# @btime EvoTrees.fit_evotree(hyper, dtrain; target_name, verbosity = false);
+@time m = EvoTrees.train(hyper, dtrain; target_name, verbosity = false);
+# @btime EvoTrees.train(hyper, dtrain; target_name, verbosity = false);
 
-@time m = EvoTrees.fit_evotree(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100, verbosity = false);
-@btime m = EvoTrees.fit_evotree(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100, verbosity = false);
+@time m = EvoTrees.train(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100, verbosity = false);
+@btime m = EvoTrees.train(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100, verbosity = false);
 
 @time pred= m(dtrain);
 @btime m($dtrain);
