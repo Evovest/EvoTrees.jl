@@ -16,8 +16,8 @@ struct GaussianMLE <: MLE2P end
 struct LogisticMLE <: MLE2P end
 
 # make a Random Number Generator object
-mk_rng(rng::AbstractRNG, device = "cpu") = rng
-function mk_rng(int::Integer, device = "cpu")
+mk_rng(rng::AbstractRNG, device="cpu") = rng
+function mk_rng(int::Integer, device="cpu")
     if VERSION < v"1.7"
         rng = Random.MersenneTwister()
     else
@@ -33,7 +33,7 @@ function check_parameter(::Type{<:T}, value, min_value::Real, max_value::Real, l
     min_value = max(typemin(T), min_value)
     max_value = min(typemax(T), max_value)
     try
-        convert(T,value)
+        convert(T, value)
         @assert min_value <= value <= max_value
     catch
         error("Invalid value for parameter `$(string(label))`: $value. `$(string(label))` must be of type $T with value between $min_value and $max_value.")
@@ -147,7 +147,7 @@ end
 
 # Converts Linear -> :linear (special case is L1 -> :L1)
 function _type2loss(t::Type)
-    t|>string|>lowercase|>x->split(x,".")[end]|>x->ifelse(x=="l1","L1",x)|>Symbol
+    t |> string |> lowercase |> x -> split(x, ".")[end] |> x -> ifelse(x == "l1", "L1", x) |> Symbol
 end
 
 function EvoTreeRegressor{L,T}(; kwargs...) where {L,T}

@@ -2,10 +2,10 @@
     hist_kernel!
 """
 function hist_kernel!(h∇, ∇, x_bin, is, js)
-    tix, tiy, k = threadIdx().x, threadIdx().y, threadIdx().z
-    bdx, bdy = blockDim().x, blockDim().y
-    bix, biy = blockIdx().x, blockIdx().y
-    gdx = gridDim().x
+    tix, tiy, k = threadIdx().z, threadIdx().y, threadIdx().x
+    bdx, bdy = blockDim().z, blockDim().y
+    bix, biy = blockIdx().z, blockIdx().y
+    gdx = gridDim().z
 
     j = tiy + bdy * (biy - 1)
     if j <= length(js)
@@ -26,25 +26,24 @@ function hist_kernel!(h∇, ∇, x_bin, is, js)
     return nothing
 end
 
-function update_hist_gpu!(h, h∇, ∇, x_bin, is, js)
+function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
     kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
-    # @info "config.blocks" config.blocks
     max_threads = config.threads ÷ 4
     max_blocks = config.blocks * 4
-    # @assert size(h∇, 1) <= max_threads "number of classes cannot be larger than 31 on GPU"
-    tz = min(64, size(h∇, 1))
+    tz = size(h∇, 1)
     ty = max(1, min(length(js), fld(max_threads, tz)))
     tx = max(1, min(length(is), fld(max_threads, tz * ty)))
-    threads = (tx, ty, tz)
+    threads = (tz, ty, tx)
     by = cld(length(js), ty)
     bx = min(cld(max_blocks, by), cld(length(is), tx))
-    blocks = (bx, by, 1)
+    blocks = (1, by, bx)
     h∇ .= 0
     kernel(h∇, ∇, x_bin, is, js; threads, blocks)
     CUDA.synchronize()
-    @inbounds for j in Array(js)
-        copyto!(h[j], view(h∇, :, :, j))
+    CUDA.@sync for j in jsc
+        nbins = size(h[j], 2)
+        copyto!(h[j], view(h∇, :, 1:nbins, j))
     end
     return nothing
 end
@@ -83,8 +82,12 @@ function update_hist_gpu_vec!(h, h∇, ∇, x_bin, is, js::Vector)
     threads = (tx, ty, 1)
     bx = min(max_blocks, cld(length(is), tx))
     blocks = (bx, 1, 1)
-    @sync for j in js
-        @async h∇[j] .= 0
+    # @sync for j in js
+    #     @async h∇[j] .= 0
+    # end
+    for j in js
+        h∇[j] .= 0
+        h[j] .= 0
     end
     CUDA.synchronize()
     # @info "hist" max_blocks length(is) threads blocks

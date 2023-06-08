@@ -18,10 +18,10 @@ x_num = rand(nobs) .* 5
 x_cat = categorical(rand(["A", "B", "C"], nobs))
 
 y = sin.(x_num) .* 0.5 .+ 0.5
-y = logit(y) .+ 1.0 .* (x_cat .== "B") .- 1.0 .* (x_cat .== "C") + randn(nobs) 
+y = logit(y) .+ 1.0 .* (x_cat .== "B") .- 1.0 .* (x_cat .== "C") + randn(nobs)
 y = sigmoid(y)
 is = collect(1:nobs)
-dtot = DataFrame(x_num = x_num, x_cat = x_cat, y = y)
+dtot = DataFrame(x_num=x_num, x_cat=x_cat, y=y)
 
 # train-eval split
 is = sample(is, length(is), replace=false)
@@ -36,11 +36,11 @@ deval = dtot[i_eval, :]
 params1 = EvoTreeRegressor(
     T=Float32,
     loss=:linear,
-    nrounds=1,
+    nrounds=200,
     nbins=64,
-    lambda=0.01,
-    gamma=0.1,
-    eta=0.5,
+    lambda=0.1,
+    gamma=0.05,
+    eta=0.05,
     max_depth=6,
     min_weight=1.0,
     rowsample=0.5,
@@ -53,16 +53,16 @@ params1 = EvoTreeRegressor(
     params1;
     dtrain,
     fnames_num="x_num",
-    # fnames_cat="x_cat",
+    fnames_cat="x_cat",
     target_name="y",
-    # deval,
-    # metric=:mse,
-    print_every_n = 25,
-    early_stopping_rounds = 20,
+    deval,
+    metric=:mse,
+    print_every_n=25,
+    early_stopping_rounds=20,
     verbosity=0
 );
 
-dinfer = dtrain[dtrain.x_cat .== "A", :]
+dinfer = dtrain[dtrain.x_cat.=="A", :]
 pred = model(dinfer)
 x_perm = sortperm(dinfer.x_num)
 
@@ -102,7 +102,7 @@ plot!(
     linewidth=1.5,
     label="Linear - A",
 )
-dinfer = dtrain[dtrain.x_cat .== "B", :]
+dinfer = dtrain[dtrain.x_cat.=="B", :]
 pred = model(dinfer);
 x_perm = sortperm(dinfer.x_num)
 plot!(
@@ -112,7 +112,7 @@ plot!(
     linewidth=1.5,
     label="Linear - B",
 )
-dinfer = dtrain[dtrain.x_cat .== "C", :]
+dinfer = dtrain[dtrain.x_cat.=="C", :]
 pred = model(dinfer);
 x_perm = sortperm(dinfer.x_num)
 plot!(

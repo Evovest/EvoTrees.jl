@@ -62,7 +62,6 @@ function init_evotree_gpu(
 
     # init EvoTree
     bias = [Tree{L,K,T}(μ)]
-    # bias = [TreeGPU{L,K,T}(CuArray(μ))]
 
     _w_name = isnothing(w_name) ? "" : [string(w_name)]
     _offset_name = isnothing(offset_name) ? "" : string(offset_name)
@@ -118,8 +117,8 @@ function init_evotree_gpu(
 
     # initialize histograms
     nodes = [TrainNode(featbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
-    h∇ = [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins]
-    # h∇ = CUDA.zeros(T, 2 * K + 1, maximum(featbins), length(featbins))
+    # h∇ = [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins]
+    h∇ = CUDA.zeros(T, 2 * K + 1, maximum(featbins), length(featbins))
 
     out = CUDA.zeros(UInt32, nobs)
     left = CUDA.zeros(UInt32, nobs)
@@ -210,7 +209,7 @@ function grow_evotree!(
         cache.monotone_constraints,
     )
     push!(evotree.trees, tree)
-    # predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
+    predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
     cache[:info][:nrounds] += 1
     return nothing
 end
@@ -220,18 +219,19 @@ function grow_tree_gpu!(
     tree::Tree{L,K,T},
     nodes::Vector{N},
     params::EvoTypes{L,T},
-    ∇::AbstractMatrix,
+    ∇::CuMatrix{T},
     edges,
     js,
     out,
     left,
     right,
-    h∇::M,
+    h∇::CuArray{T,3},
     x_bin::CuMatrix,
     feattypes::Vector{Bool},
     monotone_constraints,
-) where {L,K,T,N,M}
+) where {L,K,T,N}
 
+    jsg = CuVector(js)
     # reset nodes
     for n in nodes
         n.∑ .= 0
@@ -239,7 +239,6 @@ function grow_tree_gpu!(
         @inbounds for i in eachindex(n.h)
             n.h[i] .= 0
             n.gains[i] .= 0
-            # h∇[i] .= 0
         end
     end
 
@@ -259,14 +258,18 @@ function grow_tree_gpu!(
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
-                        nodes[n].h .= nodes[n>>1].h .- nodes[n+1].h
+                        @inbounds for j in eachindex(nodes[n].h)
+                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j]
+                        end
                     else
-                        nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
+                        @inbounds for j in eachindex(nodes[n].h)
+                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
+                        end
                     end
                 else
                     # @info "hist"
-                    update_hist_gpu_vec!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, js)
-                    # update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, CuVector(js))
+                    update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
+                    # update_hist_gpu_vec!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, js)
                 end
             end
         end
@@ -282,7 +285,8 @@ function grow_tree_gpu!(
                 best_gain = best[1][1]
                 best_bin = best[1][2]
                 best_feat = best[2]
-                if best_gain > nodes[n].gain + params.gamma && best_gain > nodes[n].gains[best_feat][end] + params.gamma
+                # if best_gain > nodes[n].gain + params.gamma && best_gain > nodes[n].gains[best_feat][end] + params.gamma
+                if best_gain > nodes[n].gain + params.gamma
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
@@ -293,7 +297,7 @@ function grow_tree_gpu!(
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
                     popfirst!(n_next)
                 else
-                    @info "split" best_bin typeof(nodes[n].is) length(nodes[n].is)
+                    # @info "split" best_bin typeof(nodes[n].is) length(nodes[n].is)
                     _left, _right = split_set_threads_gpu!(
                         out,
                         left,
@@ -318,7 +322,7 @@ function grow_tree_gpu!(
                         push!(n_next, n << 1 + 1)
                         push!(n_next, n << 1)
                     end
-                    @info "split post" length(_left) length(_right)
+                    # @info "split post" length(_left) length(_right)
                     popfirst!(n_next)
                 end
             end
