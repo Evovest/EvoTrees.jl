@@ -4,11 +4,10 @@ using MLUtils
 using CSV
 using DataFrames
 using CategoricalArrays
-using Arrow
-using CUDA
+import Arrow
+import CUDA
 using Base.Iterators: partition
 using Base.Threads: nthreads, @threads
-using Tables
 using BenchmarkTools
 using Random: seed!
 
@@ -72,10 +71,10 @@ hyper = EvoTreeRegressor(
     colsample=0.5,
     nbins=64,
     rng=123,
-    device = "gpu"
 )
 
 target_name = "y"
+device = "gpu"
 CUDA.allowscalar(false)
 # @time model, cache = EvoTrees.init_gpu(hyper, dtrain; target_name, fnames_cat = ["x_cat_1"]);
 @time model, cache = EvoTrees.init_gpu(hyper, dtrain; target_name);
@@ -83,11 +82,11 @@ CUDA.allowscalar(false)
 @time EvoTrees.train!(model, cache, hyper);
 # @btime EvoTrees.train!(model, cache, hyper);
 
-@time m = EvoTrees.train(hyper, dtrain; target_name, verbosity = false);
+@time m = EvoTrees.train(hyper, dtrain; target_name, device, verbosity = false);
 # @btime EvoTrees.train(hyper, dtrain; target_name, verbosity = false);
 
-@time m = EvoTrees.train(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100, verbosity = false);
-@btime m = EvoTrees.train(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100, verbosity = false);
+@time m = EvoTrees.train(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100, verbosity = false);
+@btime m = EvoTrees.train(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100, verbosity = false);
 
 @time pred= m(dtrain);
 @btime m($dtrain);

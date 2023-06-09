@@ -3,12 +3,10 @@ using EvoTrees
 using MLUtils
 using CSV
 using DataFrames
-using CategoricalArrays
-using Arrow
-using CUDA
+using CategoricalArrays: categorical
+import CUDA
 using Base.Iterators: partition
 using Base.Threads: nthreads, @threads
-using Tables
 using BenchmarkTools
 using Random: seed!
 
@@ -75,6 +73,7 @@ hyper = EvoTreeRegressor(
 )
 
 target_name = "y"
+device = "cpu"
 # @time model, cache = EvoTrees.init_evotree_df(hyper, dtrain; target_name, fnames_cat = ["x_cat_1"]);
 @time model, cache = EvoTrees.init(hyper, dtrain; target_name);
 # cache.edges[11]
@@ -86,11 +85,11 @@ target_name = "y"
 @time EvoTrees.train!(model, cache, hyper);
 # @btime EvoTrees.grow_evotree!(model, cache, hyper);
 
-@time m = EvoTrees.train(hyper, dtrain; target_name, verbosity = false);
+@time m = EvoTrees.train(hyper, dtrain; target_name, device, verbosity = false);
 # @btime EvoTrees.fit_evotree(hyper, dtrain; target_name, verbosity = false);
 
-@time m = EvoTrees.train(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100, verbosity = false);
-@btime m = EvoTrees.train(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100, verbosity = false);
+@time m = EvoTrees.train(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100, verbosity = false);
+@btime m = EvoTrees.train(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100, verbosity = false);
 
 @time pred= m(dtrain);
 @btime m($dtrain);

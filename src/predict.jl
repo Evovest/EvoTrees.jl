@@ -1,15 +1,3 @@
-# function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:GradientRegression,K,T}
-#     @inbounds @threads for i in axes(X, 1)
-#         nid = 1
-#         @inbounds while tree.split[nid]
-#             X[i, tree.feat[nid]] <= tree.cond_float[nid] ? nid = nid << 1 :
-#             nid = nid << 1 + 1
-#         end
-#         @inbounds pred[1, i] += tree.pred[1, nid]
-#     end
-#     return nothing
-# end
-
 function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:GradientRegression,K,T}
     @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
@@ -23,38 +11,26 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feat
     return nothing
 end
 
-# function predict!(pred::Matrix, tree::Tree{L,K,T}, df::AbstractDataFrame, fnames::Vector{String}) where {L<:GradientRegression,K,T}
-#     # @info "feat" tree.feat
-#     # @info "cond_float" tree.cond_float
-#     @inbounds @threads for i in axes(df, 1)
-#         nid = 1
-#         @inbounds while tree.split[nid]
-#             df[i, fnames[tree.feat[nid]]] <= tree.cond_float[nid] ? nid = nid << 1 :
-#             nid = nid << 1 + 1
-#         end
-#         @inbounds pred[1, i] += tree.pred[1, nid]
-#     end
-#     return nothing
-# end
-
-function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:Logistic,K,T}
-    @inbounds @threads for i in axes(X, 1)
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:Logistic,K,T}
+    @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] <= tree.cond_float[nid] ? nid = nid << 1 :
-            nid = nid << 1 + 1
+            feat = tree.feat[nid]
+            cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
+            nid = nid << 1 + !cond
         end
         @inbounds pred[1, i] = clamp(pred[1, i] + tree.pred[1, nid], T(-10), T(10))
     end
     return nothing
 end
 
-function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:MLE2P,K,T}
-    @inbounds @threads for i in axes(X, 1)
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:MLE2P,K,T}
+    @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] <= tree.cond_float[nid] ? nid = nid << 1 :
-            nid = nid << 1 + 1
+            feat = tree.feat[nid]
+            cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
+            nid = nid << 1 + !cond
         end
         @inbounds pred[1, i] += tree.pred[1, nid]
         @inbounds pred[2, i] = max(T(-10), pred[2, i] + tree.pred[2, nid])
@@ -62,17 +38,13 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:MLE2P,K,T}
     return nothing
 end
 
-"""
-    predict!(pred::Matrix, tree::Tree, X)
-
-Generic fallback to add predictions of `tree` to existing `pred` matrix.
-"""
-function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:Softmax,K,T}
-    @inbounds @threads for i in axes(X, 1)
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:Softmax,K,T}
+    @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] <= tree.cond_float[nid] ? nid = nid << 1 :
-            nid = nid << 1 + 1
+            feat = tree.feat[nid]
+            cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
+            nid = nid << 1 + !cond
         end
         @inbounds for k = 1:K
             pred[k, i] += tree.pred[k, nid]
@@ -87,12 +59,13 @@ end
 
 Generic fallback to add predictions of `tree` to existing `pred` matrix.
 """
-function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L,K,T}
-    @inbounds @threads for i in axes(X, 1)
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L,K,T}
+    @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] <= tree.cond_float[nid] ? nid = nid << 1 :
-            nid = nid << 1 + 1
+            feat = tree.feat[nid]
+            cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
+            nid = nid << 1 + !cond
         end
         @inbounds for k = 1:K
             pred[k, i] += tree.pred[k, nid]
@@ -100,17 +73,6 @@ function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L,K,T}
     end
     return nothing
 end
-
-# """
-#     predict(tree::Tree{L,K,T}, X::AbstractMatrix)
-
-# Prediction from a single tree - assign each observation to its final leaf.
-# """
-# function predict(tree::Tree{L,K,T}, X::AbstractMatrix) where {L,K,T}
-#     pred = zeros(T, K, size(X, 1))
-#     predict!(pred, tree, X)
-#     return pred
-# end
 
 """
     predict(model::EvoTree, X::AbstractMatrix; ntree_limit = length(model.trees))
@@ -159,8 +121,9 @@ function predict(
     pred = zeros(T, K, size(X, 1))
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
+    x_bin = binarize(X; fnames=m.info[:fnames], edges=m.info[:edges])
     for i = 1:ntree_limit
-        predict!(pred, m.trees[i], X)
+        predict!(pred, tree, x_bin, m.info[:feattypes])
     end
     if L == Logistic
         pred .= sigmoid.(pred)

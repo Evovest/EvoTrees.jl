@@ -1,11 +1,11 @@
-abstract type FeatType end
-abstract type FeatNum <: FeatType end
-abstract type FeatCat <: FeatType end
+# abstract type FeatType end
+# abstract type FeatNum <: FeatType end
+# abstract type FeatCat <: FeatType end
 
 #############################################
 # Get the braking points
 #############################################
-function get_edges(X::AbstractMatrix{T}, nbins, rng=Random.MersenneTwister()) where {T}
+function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG()) where {T}
     nobs = min(size(X, 1), 1000 * nbins)
     idx = rand(rng, 1:size(X, 1), nobs)
     nfeats = size(X, 2)
@@ -19,7 +19,7 @@ function get_edges(X::AbstractMatrix{T}, nbins, rng=Random.MersenneTwister()) wh
     return edges
 end
 
-function get_edges(df::AbstractDataFrame; fnames, nbins, rng)
+function get_edges(df::AbstractDataFrame; fnames, nbins, rng=Random.TaskLocalRNG())
     nobs = min(nrow(df), 1000 * nbins)
     idx = rand(rng, 1:nrow(df), nobs)
     edges = [Vector{type}() for type in eltype.(eachcol(df[!, fnames]))]
@@ -47,7 +47,7 @@ end
 ####################################################
 # Transform X matrix into a UInt8 binarized matrix
 ####################################################
-function binarize(X::AbstractMatrix, edges)
+function binarize(X::AbstractMatrix; fnames, edges)
     x_bin = zeros(UInt8, size(X))
     @threads for j in axes(X, 2)
         x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), view(X, :, j))

@@ -68,7 +68,7 @@ struct EvoTree{L,K,T}
     trees::Vector{Tree{L,K,T}}
     info::Dict
 end
-(m::EvoTree)(x::AbstractMatrix) = predict(m, x)
+(m::EvoTree)(x::AbstractMatrix; ntree_limit=length(m.trees)) = predict(m, x; ntree_limit)
 (m::EvoTree)(df::AbstractDataFrame; ntree_limit=length(m.trees)) = predict(m, df; ntree_limit)
 get_types(::EvoTree{L,K,T}) where {L,K,T} = (L, T)
 
