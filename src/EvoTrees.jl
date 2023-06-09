@@ -50,6 +50,7 @@ include("gpu/eval_gpu.jl")
 include("gpu/predict_gpu.jl")
 include("gpu/find_split_gpu.jl")
 include("gpu/subsample.jl")
+include("gpu/init.jl")
 include("gpu/fit_gpu.jl")
 
 include("callback.jl")

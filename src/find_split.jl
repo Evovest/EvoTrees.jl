@@ -10,13 +10,17 @@ function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG(
     idx = rand(rng, 1:size(X, 1), nobs)
     nfeats = size(X, 2)
     edges = Vector{Vector{T}}(undef, nfeats)
+    featbins = Vector{UInt8}(undef, nfeats)
+    feattypes = Vector{Bool}(undef, nfeats)
     @threads for j in 1:size(X, 2)
         edges[j] = quantile(view(X, idx, j), (1:nbins-1) / nbins)
         if length(edges[j]) == 1
             edges[j] = [minimum(view(X, idx, j))]
         end
+        featbins[j] = length(edges[j]) + 1
+        feattypes[j] = true
     end
-    return edges
+    return edges, featbins, feattypes
 end
 
 function get_edges(df::AbstractDataFrame; fnames, nbins, rng=Random.TaskLocalRNG())

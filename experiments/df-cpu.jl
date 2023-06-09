@@ -31,8 +31,8 @@ y_train = rand(T, nobs);
 dtrain = DataFrame(x_train, :auto);
 dtrain[:, :y] = y_train;
 
-dtrain[:, :x_cat_1] = rand(["lvl1", "lvl2", "lvl3"], nobs);
-transform!(dtrain, "x_cat_1" => (x -> categorical(x, ordered = false)) => "x_cat_1")
+# dtrain[:, :x_cat_1] = rand(["lvl1", "lvl2", "lvl3"], nobs);
+# transform!(dtrain, "x_cat_1" => (x -> categorical(x, ordered = false)) => "x_cat_1")
 
 # levels(dtrain.x_cat_1)
 # levelcode.(dtrain.x_cat_1)
@@ -75,14 +75,14 @@ hyper = EvoTreeRegressor(
 target_name = "y"
 device = "cpu"
 # @time model, cache = EvoTrees.init_evotree_df(hyper, dtrain; target_name, fnames_cat = ["x_cat_1"]);
-@time model, cache = EvoTrees.init(hyper, dtrain; target_name);
+# @time model, cache = EvoTrees.init(hyper, dtrain; target_name);
 # cache.edges[11]
 # cache.featbins
 # cache.feattypes
 # cache.nodes[1].gains[1]
 # model.trees[1]
 
-@time EvoTrees.train!(model, cache, hyper);
+# @time EvoTrees.train!(model, cache, hyper);
 # @btime EvoTrees.grow_evotree!(model, cache, hyper);
 
 @time m = EvoTrees.train(hyper, dtrain; target_name, device, verbosity = false);

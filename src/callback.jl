@@ -80,9 +80,9 @@ function CallBack(
     else
         y = T.(y_eval)
     end
-    w = isnothing(w_name) ? ones(T, size(y)) : Vector{T}(w_eval)
+    w = isnothing(w_eval) ? ones(T, size(y)) : Vector{T}(w_eval)
 
-    offset = !isnothing(offset_name) ? T.(offset_eval) : nothing
+    offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
     if !isnothing(offset)
         L == Logistic && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))

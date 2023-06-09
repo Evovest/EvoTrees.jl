@@ -66,12 +66,37 @@ function train(
 
     verbosity == 1 && @info params
 
-    # initialize model and cache
-    if String(device) == "gpu"
-        m, cache = init_gpu(params, dtrain; target_name, fnames, w_name, offset_name)
+    # set fnames
+    _w_name = isnothing(w_name) ? "" : string(w_name)
+    _offset_name = isnothing(offset_name) ? "" : string(offset_name)
+    if isnothing(fnames)
+        fnames = String[]
+        for name in names(dtrain)
+            if eltype(dtrain[!, name]) <: Union{Real,CategoricalValue}
+                push!(fnames, name)
+            end
+        end
+        fnames = setdiff(fnames, union([target_name], [_w_name], [_offset_name]))
     else
-        m, cache = init(params, dtrain; target_name, fnames, w_name, offset_name)
+        isa(fnames, String) ? fnames = [fnames] : nothing
+        fnames = string.(fnames)
+        @assert isa(fnames, Vector{String})
+        for name in fnames
+            @assert eltype(dtrain[!, name]) <: Union{Real,CategoricalValue}
+        end
     end
+
+    nobs = nrow(dtrain)
+    if String(device) == "gpu"
+        y_train = dtrain[!, target_name]
+        w = isnothing(w_name) ? CUDA.ones(T, nobs) : CuArray{T}(dtrain[!, w_name])
+        offset = !isnothing(offset_name) ? CuArray{T}(dtrain[!, offset_name]) : nothing
+    else
+        y_train = dtrain[!, target_name]
+        w = isnothing(w_name) ? ones(T, nobs) : Vector{T}(dtrain[!, w_name])
+        offset = !isnothing(offset_name) ? T.(dtrain[!, offset_name]) : nothing
+    end
+    m, cache = init_core(params, dtrain, fnames, y_train, w, offset)
 
     # initialize callback and logger if tracking eval data
     metric = isnothing(metric) ? nothing : Symbol(metric)
@@ -89,7 +114,17 @@ function train(
         logger, cb = nothing, nothing
     end
 
-    m, logger = train_loop!(m, cache, params; logger, cb, print_every_n, verbosity)
+    # m, logger = train_loop!(m, cache, params; logger, cb, print_every_n, verbosity)
+    for i = 1:params.nrounds
+        train!(m, cache, params)
+        if !isnothing(logger)
+            cb(logger, i, m.trees[end])
+            if i % print_every_n == 0 && verbosity > 0
+                @info "iter $i" metric = logger[:metrics][end]
+            end
+            (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
+        end
+    end
     if String(device) == "gpu"
         GC.gc(true)
         CUDA.reclaim()
@@ -100,6 +135,7 @@ function train(
     else
         return m
     end
+
 end
 
 
@@ -147,8 +183,8 @@ Main training function. Performs model fitting given configuration `params`, `x_
 """
 function train(
     params::EvoTypes{L,T};
-    x_train::Matrix,
-    y_train,
+    x_train::AbstractMatrix,
+    y_train::AbstractVector,
     w_train=nothing,
     offset_train=nothing,
     x_eval=nothing,
@@ -167,11 +203,18 @@ function train(
     verbosity == 1 && @info params
 
     # initialize model and cache
+    fnames = isnothing(fnames) ? ["feat_$i" for i in axes(x_train, 2)] : string.(fnames)
+    @assert length(fnames) == size(x_train, 2)
+
+    nobs = size(x_train, 1)
     if String(device) == "gpu"
-        m, cache = init_gpu(params, x_train, y_train; fnames, w_train, offset_train)
+        w = isnothing(w_train) ? CUDA.ones(T, nobs) : CuArray{T}(w_train)
+        offset = !isnothing(offset_train) ? CuArray{T}(offset_train) : nothing
     else
-        m, cache = init(params, x_train, y_train; fnames, w_train, offset_train)
+        w = isnothing(w_train) ? ones(T, nobs) : Vector{T}(w_train)
+        offset = !isnothing(offset_train) ? T.(offset_train) : nothing
     end
+    m, cache = init_core(params, x_train, fnames, y_train, w, offset)
 
     # initialize callback and logger if tracking eval data
     metric = isnothing(metric) ? nothing : Symbol(metric)
@@ -189,7 +232,17 @@ function train(
         logger, cb = nothing, nothing
     end
 
-    m, logger = train_loop!(m, cache, params; logger, cb, print_every_n, verbosity)
+    # m, logger = train_loop!(m, cache, params; logger, cb, print_every_n, verbosity)
+    for i = 1:params.nrounds
+        train!(m, cache, params)
+        if !isnothing(logger)
+            cb(logger, i, m.trees[end])
+            if i % print_every_n == 0 && verbosity > 0
+                @info "iter $i" metric = logger[:metrics][end]
+            end
+            (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
+        end
+    end
     if String(device) == "gpu"
         GC.gc(true)
         CUDA.reclaim()
@@ -202,7 +255,7 @@ function train(
     end
 end
 
-function train_loop!(m, cache, params::EvoTypes; logger=nothing, cb=nothing, print_every_n, verbosity)
+function train_loop!(m, cache, params::EvoTypes; logger=nothing, cb=nothing, print_every_n=9999, verbosity=1)
     for i = 1:params.nrounds
         train!(m, cache, params)
         if !isnothing(logger)

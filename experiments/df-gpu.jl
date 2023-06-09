@@ -32,8 +32,8 @@ y_train = rand(T, nobs);
 dtrain = DataFrame(x_train, :auto);
 dtrain[:, :y] = y_train;
 
-dtrain[:, :x_cat_1] = rand(["lvl1", "lvl2", "lvl3"], nobs);
-transform!(dtrain, "x_cat_1" => (x -> categorical(x, ordered=false)) => "x_cat_1")
+# dtrain[:, :x_cat_1] = rand(["lvl1", "lvl2", "lvl3"], nobs);
+# transform!(dtrain, "x_cat_1" => (x -> categorical(x, ordered=false)) => "x_cat_1")
 
 @info nthread
 loss = "linear"
@@ -65,9 +65,9 @@ target_name = "y"
 device = "gpu"
 CUDA.allowscalar(false)
 # @time model, cache = EvoTrees.init_gpu(hyper, dtrain; target_name, fnames_cat = ["x_cat_1"]);
-@time model, cache = EvoTrees.init_gpu(hyper, dtrain; target_name);
+# @time model, cache = EvoTrees.init_gpu(hyper, dtrain; target_name);
 
-@time EvoTrees.train!(model, cache, hyper);
+# @time EvoTrees.train!(model, cache, hyper);
 # @btime EvoTrees.train!(model, cache, hyper);
 
 @time m = EvoTrees.train(hyper, dtrain; target_name, device, verbosity = false);

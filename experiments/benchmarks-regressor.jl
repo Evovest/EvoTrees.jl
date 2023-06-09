@@ -5,7 +5,7 @@ using XGBoost
 using LightGBM
 using EvoTrees
 using BenchmarkTools
-using CUDA
+import CUDA
 
 nrounds = 200
 nobs = Int(1e6)
@@ -87,7 +87,6 @@ watchlist = Dict("train" => DMatrix(x_train, y_train .- 1))
 # @time pred_gbm = LightGBM.predict(m_gbm, x_train) |> vec
 
 @info "evotrees train CPU:"
-# # EvoTrees params
 params_evo = EvoTreeRegressor(
     T=T,
     loss=loss_evo,
@@ -104,11 +103,11 @@ params_evo = EvoTreeRegressor(
     rng = 123,
 )
 
-params_evo.device = "cpu"
-@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
-# @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
-@time m_evo = fit_evotree(params_evo; x_train, y_train);
-@btime m_evo = fit_evotree(params_evo; x_train, y_train);
+device = "cpu"
+@time m_evo = EvoTrees.train(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, print_every_n=100);
+# @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, print_every_n=100);
+@time m_evo = EvoTrees.train(params_evo; x_train, y_train, device);
+@btime m_evo = fit_evotree(params_evo; x_train, y_train, device);
 
 @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
 @info "evotrees predict CPU:"
@@ -116,7 +115,7 @@ params_evo.device = "cpu"
 @btime EvoTrees.predict($m_evo, $x_train);
 
 @info "evotrees train GPU:"
-params_evo.device = "gpu"
+device = "gpu"
 @time m_evo_gpu = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
 # @time m_evo_gpu = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
 # @time m_evo_gpu = fit_evotree(params_evo; x_train, y_train);
