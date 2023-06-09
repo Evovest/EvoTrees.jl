@@ -57,19 +57,43 @@ function init(
     params::EvoTypes{L,T},
     dtrain::AbstractDataFrame;
     target_name,
-    fnames_num=nothing,
-    fnames_cat=nothing,
+    fnames=nothing,
     w_name=nothing,
     offset_name=nothing,
-    group_name=nothing
 ) where {L,T}
 
-    nobs = nrow(dtrain)
+    # set fnames
+    _w_name = isnothing(w_name) ? "" : string(w_name)
+    _offset_name = isnothing(offset_name) ? "" : string(offset_name)
+    if isnothing(fnames)
+        fnames = String[]
+        for name in names(dtrain)
+            if eltype(dtrain[!, name]) <: Union{Real,CategoricalValue}
+                push!(fnames, name)
+            end
+        end
+        fnames = setdiff(fnames, union([target_name], [_w_name], [_offset_name]))
+    else
+        isa(fnames, String) ? fnames = [fnames] : nothing
+        fnames = string.(fnames)
+        @assert isa(fnames, Vector{String})
+        for name in fnames
+            @assert eltype(dtrain[!, name]) <: Union{Real,CategoricalValue}
+        end
+    end
+
+    # binarize data into quantiles
+    edges, featbins, feattypes = get_edges(dtrain; fnames, nbins=params.nbins, rng=params.rng)
+    x_bin = binarize(dtrain; fnames, edges)
+    nobs, nfeats = size(x_bin)
+
     w = isnothing(w_name) ? ones(T, nobs) : Vector{T}(dtrain[!, w_name])
-    offset = !isnothing(offset_name) ? T.(dtrain[:, offset_name]) : nothing
+    offset = !isnothing(offset_name) ? T.(dtrain[!, offset_name]) : nothing
     y_raw = dtrain[!, target_name]
 
     y, μ, K, target_levels = init_target_pred(params, y_raw, offset)
+    # m, cache = init(params, data, fnames, y_raw, w, offset)
+
     @assert (length(y) == length(w) && minimum(w) > 0)
     # initialize gradients
     ∇ = zeros(T, 2 * K + 1, nobs)
@@ -82,46 +106,6 @@ function init(
 
     # init EvoTree
     bias = [Tree{L,K,T}(μ)]
-
-    _w_name = isnothing(w_name) ? "" : [string(w_name)]
-    _offset_name = isnothing(offset_name) ? "" : string(offset_name)
-
-    if isnothing(fnames_cat)
-        fnames_cat = String[]
-    else
-        isa(fnames_cat, String) ? fnames_cat = [fnames_cat] : nothing
-        fnames_cat = string.(fnames_cat)
-        @assert isa(fnames_cat, Vector{String})
-        for name in fnames_cat
-            @assert typeof(dtrain[!, name]) <: AbstractCategoricalVector "$name should be <: AbstractCategoricalVector"
-            @assert !isordered(dtrain[!, name]) "fnames_cat are expected to be unordered - $name is ordered"
-        end
-        fnames_cat = string.(fnames_cat)
-    end
-
-    if isnothing(fnames_num)
-        fnames_num = String[]
-        for name in names(dtrain)
-            if eltype(dtrain[!, name]) <: Number
-                push!(fnames_num, name)
-            end
-        end
-        fnames_num = setdiff(fnames_num, union(fnames_cat, [target_name], [_w_name], [_offset_name]))
-    else
-        isa(fnames_num, String) ? fnames_num = [fnames_num] : nothing
-        fnames_num = string.(fnames_num)
-        @assert isa(fnames_num, Vector{String})
-        for name in fnames_num
-            @assert eltype(dtrain[!, name]) <: Number
-        end
-    end
-
-    fnames = vcat(fnames_num, fnames_cat)
-    nfeats = length(fnames)
-
-    # binarize data into quantiles
-    edges, featbins, feattypes = get_edges(dtrain; fnames, nbins=params.nbins, rng=params.rng)
-    x_bin = binarize(dtrain; fnames, edges)
 
     is_in = zeros(UInt32, nobs)
     is_out = zeros(UInt32, nobs)
@@ -142,16 +126,12 @@ function init(
     end
 
     info = Dict(
-        :fnames_num => fnames_num,
-        :fnames_cat => fnames_cat,
         :fnames => fnames,
         :target_name => target_name,
         :w_name => w_name,
         :offset_name => offset_name,
-        :group_name => group_name,
         :target_levels => target_levels,
         :edges => edges,
-        :fnames => fnames,
         :feattypes => feattypes,
     )
 

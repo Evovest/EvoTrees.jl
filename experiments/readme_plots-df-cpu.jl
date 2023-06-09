@@ -18,10 +18,10 @@ x_num = rand(nobs) .* 5
 x_cat = categorical(rand(["A", "B", "C"], nobs))
 
 y = sin.(x_num) .* 0.5 .+ 0.5
-y = logit(y) .+ 1.0 .* (x_cat .== "B") .- 1.0 .* (x_cat .== "C") + randn(nobs) 
+y = logit(y) .+ 1.0 .* (x_cat .== "B") .- 1.0 .* (x_cat .== "C") + randn(nobs)
 y = sigmoid(y)
 is = collect(1:nobs)
-dtot = DataFrame(x_num = x_num, x_cat = x_cat, y = y)
+dtot = DataFrame(x_num=x_num, x_cat=x_cat, y=y)
 
 # train-eval split
 is = sample(is, length(is), replace=false)
@@ -45,29 +45,27 @@ params1 = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
-    rng=122,
+    rng=123,
 )
 
-@time model = EvoTrees.fit_evotree_df(
-    params1;
-    dtrain,
-    fnames_num="x_num",
-    fnames_cat="x_cat",
+@time model = EvoTrees.train(
+    params1,
+    dtrain;
+    fnames=["x_num", "x_cat"],
     target_name="y",
     deval,
     metric=:mse,
-    print_every_n = 25,
-    early_stopping_rounds = 20,
+    print_every_n=25,
+    early_stopping_rounds=20,
     verbosity=0
 );
+pred = model(dtrain);
 
-# @btime model = EvoTrees.fit_evotree_df(
-#     params1;
-#     dtrain,
-#     fnames_num="x_num",
+# @btime model = EvoTrees.train(
+#     params1,
+#     dtrain;
+#     fnames="x_num",
 #     target_name="y",
-#     # print_every_n = 25,
-#     # early_stopping_rounds = 20,
 #     verbosity=0
 # );
 # laptop: 51.651 ms (237548 allocations: 23.94 MiB)
@@ -90,8 +88,8 @@ plot(
     legend=true,
     label="",
 )
-dinfer = dtrain[dtrain.x_cat .== "A", :]
-pred = model(dinfer);
+dinfer = dtrain[dtrain.x_cat.=="A", :]
+pred = model(dinfer)
 x_perm = sortperm(dinfer.x_num)
 plot!(
     dinfer.x_num[x_perm],
@@ -100,7 +98,7 @@ plot!(
     linewidth=1.5,
     label="Linear - A",
 )
-dinfer = dtrain[dtrain.x_cat .== "B", :]
+dinfer = dtrain[dtrain.x_cat.=="B", :]
 pred = model(dinfer);
 x_perm = sortperm(dinfer.x_num)
 plot!(
@@ -110,7 +108,7 @@ plot!(
     linewidth=1.5,
     label="Linear - B",
 )
-dinfer = dtrain[dtrain.x_cat .== "C", :]
+dinfer = dtrain[dtrain.x_cat.=="C", :]
 pred = model(dinfer);
 x_perm = sortperm(dinfer.x_num)
 plot!(
@@ -134,22 +132,62 @@ params1 = EvoTreeRegressor(
     rowsample=0.5,
     colsample=1.0,
 )
-
-@time model = fit_evotree(
-    params1;
-    x_train,
-    y_train,
-    x_eval,
-    y_eval,
+@time model = EvoTrees.train(
+    params1,
+    dtrain;
+    fnames=["x_num", "x_cat"],
+    target_name="y",
+    deval,
+    metric=:logloss,
     print_every_n=25,
-    early_stopping_rounds=50,
-    metric=:logloss
+    early_stopping_rounds=20,
+    verbosity=0
 );
 # 218.040 ms (123372 allocations: 34.71 MiB)
 # @btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval)
-@time pred_train_logistic = predict(model, x_train);
-@time pred_eval_logistic = predict(model, x_eval)
-sqrt(mean((pred_train_logistic .- y_train) .^ 2))
+plot(
+    dtrain.x_num,
+    dtrain.y,
+    msize=0.5,
+    mcolor="darkgray",
+    mswidth=0,
+    background_color=RGB(1, 1, 1),
+    seriestype=:scatter,
+    xaxis=("feature"),
+    yaxis=("target"),
+    legend=true,
+    label="",
+)
+dinfer = dtrain[dtrain.x_cat.=="A", :]
+pred = model(dinfer)
+x_perm = sortperm(dinfer.x_num)
+plot!(
+    dinfer.x_num[x_perm],
+    pred[x_perm],
+    color="lightblue",
+    linewidth=1.5,
+    label="Linear - A",
+)
+dinfer = dtrain[dtrain.x_cat.=="B", :]
+pred = model(dinfer);
+x_perm = sortperm(dinfer.x_num)
+plot!(
+    dinfer.x_num[x_perm],
+    pred[x_perm],
+    color="blue",
+    linewidth=1.5,
+    label="Linear - B",
+)
+dinfer = dtrain[dtrain.x_cat.=="C", :]
+pred = model(dinfer);
+x_perm = sortperm(dinfer.x_num)
+plot!(
+    dinfer.x_num[x_perm],
+    pred[x_perm],
+    color="navy",
+    linewidth=1.5,
+    label="Linear - C",
+)
 
 # L1
 params1 = EvoTreeRegressor(

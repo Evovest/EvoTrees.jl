@@ -7,7 +7,6 @@
         fnames_cat=nothing,
         w_name=nothing,
         offset_name=nothing,
-        group_name=nothing,
         deval=nothing,
         metric=nothing,
         early_stopping_rounds=9999,
@@ -27,7 +26,6 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `target_name`: name of target variable. 
 - `w_name`: vector of train weights of length `#observations`. If `nothing`, a vector of ones is assumed.
 - `offset_name`: name of the offset variable.
-- `group_name`: name of the grouping variable.
 - `x_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
 - `y_eval::Vector`: vector of evaluation targets of length `#observations`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
@@ -54,11 +52,9 @@ function train(
     params::EvoTypes{L,T},
     dtrain::AbstractDataFrame;
     target_name,
-    fnames_num=nothing,
-    fnames_cat=nothing,
+    fnames=nothing,
     w_name=nothing,
     offset_name=nothing,
-    group_name=nothing,
     deval=nothing,
     metric=nothing,
     early_stopping_rounds=9999,
@@ -72,9 +68,9 @@ function train(
 
     # initialize model and cache
     if String(device) == "gpu"
-        m, cache = init_gpu(params, dtrain; target_name, fnames_num, fnames_cat, w_name, offset_name, group_name)
+        m, cache = init_gpu(params, dtrain; target_name, fnames, w_name, offset_name)
     else
-        m, cache = init(params, dtrain; target_name, fnames_num, fnames_cat, w_name, offset_name, group_name)
+        m, cache = init(params, dtrain; target_name, fnames, w_name, offset_name)
     end
 
     # initialize callback and logger if tracking eval data

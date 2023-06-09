@@ -5,7 +5,7 @@ using XGBoost
 using EvoTrees
 using DataFrames
 using BenchmarkTools
-using CUDA
+import CUDA
 
 nrounds = 200
 nobs = Int(1e6)
@@ -57,6 +57,7 @@ watchlist = Dict("train" => DMatrix(x_train, y_train .- 1))
 dtrain = DataFrame(x_train, :auto)
 dtrain.y .= y_train
 target_name = "y"
+device = "cpu"
 
 params_evo = EvoTreeRegressor(
     T=T,
@@ -74,22 +75,21 @@ params_evo = EvoTreeRegressor(
     rng=123,
 )
 
-params_evo.device = "cpu"
-@time m_evo = train(params_evo, dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100);
-# @time m_evo = train(params_evo, dtrain; target_name="y");
-# @btime m_evo = train($params_evo, $dtrain; target_name);
-@btime train($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100);
+@time m_evo = train(params_evo, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100);
+# @time m_evo = train(params_evo, dtrain; target_name, device);
+# @btime m_evo = train($params_evo, $dtrain; target_name, device);
+@btime train($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100);
 
 @info "evotrees predict CPU:"
 @time pred_evo = EvoTrees.predict(m_evo, dtrain);
 @btime EvoTrees.predict($m_evo, $dtrain);
 
 @info "evotrees train GPU:"
-params_evo.device = "gpu"
-@time m_evo = train(params_evo, dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100);
-# @time m_evo = train(params_evo, dtrain; target_name="y");
-# @btime m_evo = train($params_evo, $dtrain; target_name);
-@btime train($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100);
+device = "gpu"
+@time m_evo = train(params_evo, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100);
+# @time m_evo = train(params_evo, dtrain; target_name, device);
+# @btime m_evo = train($params_evo, $dtrain; target_name, device);
+@btime train($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100);
 
 @info "evotrees predict CPU:"
 @time pred_evo = EvoTrees.predict(m_evo, dtrain);

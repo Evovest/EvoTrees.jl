@@ -35,18 +35,6 @@ dtrain[:, :y] = y_train;
 dtrain[:, :x_cat_1] = rand(["lvl1", "lvl2", "lvl3"], nobs);
 transform!(dtrain, "x_cat_1" => (x -> categorical(x, ordered=false)) => "x_cat_1")
 
-# levels(dtrain.x_cat_1)
-# levelcode.(dtrain.x_cat_1)
-# isordered(dtrain.x_cat_1)
-# eltype.(eachcol(dtrain))
-# typeof.(eachcol(dtrain))
-# @time for col in eachcol(dtrain)
-#     @info typeof(col)
-# end
-# @time for name in names(dtrain)
-#     @info typeof(dtrain[:, name])
-# end
-
 @info nthread
 loss = "linear"
 if loss == "linear"
