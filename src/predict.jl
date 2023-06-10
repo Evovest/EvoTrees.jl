@@ -151,8 +151,6 @@ function pred_leaf_cpu!(
     @inbounds for k = axes(p, 1)
         p[k, n] = -params.eta * ∑[k] / max(ϵ, (∑[k+K] + params.lambda * ∑[end]))
     end
-    # @info "pred leaf ∑" ∑ 
-    # @info "pred leaf" p[:, n] 
 end
 
 # prediction in Leaf - QuantileRegression
