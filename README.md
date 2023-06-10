@@ -20,8 +20,6 @@ Efficient histogram based algorithms with support for multiple loss functions (n
 
 [R binding available](https://github.com/Evovest/EvoTrees).
 
-Input features are expected to be `Matrix{Float64/Float32}` when using the internal API. Tables/DataFrames format can be handled through [MLJ](https://github.com/alan-turing-institute/MLJ.jl). See the docs for further details. 
-
 
 ## Installation
 

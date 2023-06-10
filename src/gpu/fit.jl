@@ -1,162 +1,4 @@
-function init_gpu(
-    params::EvoTypes{L,T},
-    dtrain::AbstractDataFrame;
-    target_name,
-    fnames=nothing,
-    w_name=nothing,
-    offset_name=nothing
-) where {L,T}
-
-    target_levels = nothing
-    offset = !isnothing(offset_name) ? T.(dtrain[:, offset_name]) : nothing
-    if L == Logistic
-        K = 1
-        y = T.(dtrain[!, target_name])
-        μ = [logit(mean(y))]
-        !isnothing(offset) && (offset .= logit.(offset))
-    elseif L in [Poisson, Gamma, Tweedie]
-        K = 1
-        y = T.(dtrain[!, target_name])
-        μ = fill(log(mean(y)), 1)
-        !isnothing(offset) && (offset .= log.(offset))
-    elseif L == Softmax
-        if eltype(dtrain[!, target_name]) <: CategoricalValue
-            target_levels = CategoricalArrays.levels(dtrain[:, target_name])
-            y = UInt32.(CategoricalArrays.levelcode.(dtrain[:, target_name]))
-        else
-            target_levels = sort(unique(dtrain[!, target_name]))
-            yc = CategoricalVector(dtrain[:, target_name], levels=target_levels)
-            y = UInt32.(CategoricalArrays.levelcode.(yc))
-        end
-        K = length(target_levels)
-        μ = T.(log.(proportions(y, UInt32(1):UInt32(K))))
-        μ .-= maximum(μ)
-        !isnothing(offset) && (offset .= log.(offset))
-    elseif L == GaussianMLE
-        K = 2
-        y = T.(dtrain[!, target_name])
-        μ = [mean(y), log(std(y))]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
-    elseif L == LogisticMLE
-        K = 2
-        y = T.(dtrain[!, target_name])
-        μ = [mean(y), log(std(y) * sqrt(3) / π)]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
-    else
-        K = 1
-        y = T.(dtrain[!, target_name])
-        μ = [mean(y)]
-    end
-    y = CuArray(y)
-    μ = T.(μ)
-
-    # force a neutral/zero bias/initial tree when offset is specified
-    !isnothing(offset) && (μ .= 0)
-    # initialize preds
-    nobs = nrow(dtrain)
-    pred = CUDA.zeros(T, K, nobs)
-    pred .= CuArray(μ)
-    !isnothing(offset) && (pred .+= CuArray(offset'))
-
-    # init EvoTree
-    bias = [Tree{L,K,T}(μ)]
-
-    # set fnames
-    _w_name = isnothing(w_name) ? "" : string(w_name)
-    _offset_name = isnothing(offset_name) ? "" : string(offset_name)
-    if isnothing(fnames)
-        fnames = String[]
-        for name in names(dtrain)
-            if eltype(dtrain[!, name]) <: Union{Real,CategoricalValue}
-                push!(fnames, name)
-            end
-        end
-        fnames = setdiff(fnames, union([target_name], [_w_name], [_offset_name]))
-    else
-        isa(fnames, String) ? fnames = [fnames] : nothing
-        fnames = string.(fnames)
-        @assert isa(fnames, Vector{String})
-        for name in fnames
-            @assert eltype(dtrain[!, name]) <: Union{Real,CategoricalValue}
-        end
-    end
-    nfeats = length(fnames)
-
-    # initialize gradients and weights
-    ∇ = CUDA.zeros(T, 2 * K + 1, nobs)
-    w = isnothing(w_name) ? CUDA.ones(T, size(y)) : CuVector{T}(dtrain[!, w_name])
-    @assert (length(y) == length(w) && minimum(w) > 0)
-    ∇[end, :] .= w
-
-    # binarize data into quantiles
-    edges, featbins, feattypes = get_edges(dtrain; fnames, nbins=params.nbins, rng=params.rng)
-    x_bin = CuArray(binarize(dtrain; fnames, edges))
-
-    is_in = CUDA.zeros(UInt32, nobs)
-    is_out = CUDA.zeros(UInt32, nobs)
-    mask = CUDA.zeros(UInt8, nobs)
-    js_ = UInt32.(collect(1:nfeats))
-    js = zeros(eltype(js_), ceil(Int, params.colsample * nfeats))
-
-    # initialize histograms
-    nodes = [TrainNode(featbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
-    # h∇ = [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins]
-    h∇ = CUDA.zeros(T, 2 * K + 1, maximum(featbins), length(featbins))
-
-    out = CUDA.zeros(UInt32, nobs)
-    left = CUDA.zeros(UInt32, nobs)
-    right = CUDA.zeros(UInt32, nobs)
-
-    # assign monotone contraints in constraints vector
-    monotone_constraints = zeros(Int32, nfeats)
-    hasproperty(params, :monotone_constraints) && for (k, v) in params.monotone_constraints
-        monotone_constraints[k] = v
-    end
-
-    info = Dict(
-        :fnames => fnames,
-        :target_name => target_name,
-        :w_name => w_name,
-        :offset_name => offset_name,
-        :target_levels => target_levels,
-        :edges => edges,
-        :feattypes => feattypes,
-    )
-
-    # initialize model
-    m = EvoTreeGPU{L,K,T}(bias, info)
-
-    # store cache
-    cache = (
-        info=Dict(:nrounds => 0),
-        x_bin=x_bin,
-        y=y,
-        w=w,
-        K=K,
-        nodes=nodes,
-        pred=pred,
-        is_in=is_in,
-        is_out=is_out,
-        mask=mask,
-        js_=js_,
-        js=js,
-        out=out,
-        left=left,
-        right=right,
-        ∇=∇,
-        h∇=h∇,
-        fnames=fnames,
-        edges=edges,
-        featbins=featbins,
-        feattypes=feattypes,
-        feattypes_gpu=CuArray(feattypes),
-        monotone_constraints=monotone_constraints,
-    )
-    return m, cache
-end
-
-
-function train!(
+function grow_evotree!(
     evotree::EvoTreeGPU{L,K,T},
     cache,
     params::EvoTypes{L,T},
@@ -172,7 +14,7 @@ function train!(
 
     # assign a root and grow tree
     tree = Tree{L,K,T}(params.max_depth)
-    grow!(
+    grow_tree!(
         tree,
         cache.nodes,
         params,
@@ -194,7 +36,7 @@ function train!(
 end
 
 # grow a single tree - grow through all depth
-function grow!(
+function grow_tree!(
     tree::Tree{L,K,T},
     nodes::Vector{N},
     params::EvoTypes{L,T},

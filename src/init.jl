@@ -50,26 +50,21 @@ function init_core(params::EvoTypes{L,T}, data, fnames, y_train, w, offset) wher
     !isnothing(offset) && (μ .= 0)
     @assert (length(y) == length(w) && minimum(w) > 0)
 
-    # initialize gradients
-    ∇ = zeros(T, 2 * K + 1, nobs)
-    ∇[end, :] .= w
-
     # initialize preds
     pred = zeros(T, K, nobs)
     pred .= μ
     !isnothing(offset) && (pred .+= offset')
 
-    # init EvoTree
-    bias = [Tree{L,K,T}(μ)]
+    # initialize gradients
+    ∇ = zeros(T, 2 * K + 1, nobs)
+    ∇[end, :] .= w
 
+    # initialize indexes
     is_in = zeros(UInt32, nobs)
     is_out = zeros(UInt32, nobs)
     mask = zeros(UInt8, nobs)
     js_ = UInt32.(collect(1:nfeats))
     js = zeros(UInt32, ceil(Int, params.colsample * nfeats))
-
-    # initialize histograms
-    nodes = [TrainNode(featbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
     out = zeros(UInt32, nobs)
     left = zeros(UInt32, nobs)
     right = zeros(UInt32, nobs)
@@ -80,20 +75,21 @@ function init_core(params::EvoTypes{L,T}, data, fnames, y_train, w, offset) wher
         monotone_constraints[k] = v
     end
 
+    # model info
     info = Dict(
         :fnames => fnames,
-        # :target_name => target_name,
-        # :w_name => w_name,
-        # :offset_name => offset_name,
         :target_levels => target_levels,
         :edges => edges,
-        # :featbins => featbins,
+        :featbins => featbins,
         :feattypes => feattypes,
     )
 
     # initialize model
+    nodes = [TrainNode(featbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
+    bias = [Tree{L,K,T}(μ)]
     m = EvoTree{L,K,T}(bias, info)
 
+    # build cache
     cache = (
         info=Dict(:nrounds => 0),
         x_bin=x_bin,
@@ -120,51 +116,86 @@ function init_core(params::EvoTypes{L,T}, data, fnames, y_train, w, offset) wher
     return m, cache
 end
 
-# """
-#     init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVector, W = nothing)
+"""
+    init(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVector, W = nothing)
 
-# Initialise EvoTree
-# """
-# function init(
-#     params::EvoTypes{L,T},
-#     dtrain::AbstractDataFrame;
-#     target_name,
-#     fnames=nothing,
-#     w_name=nothing,
-#     offset_name=nothing
-# ) where {L,T}
+Initialise EvoTree
+"""
+function init(
+    params::EvoTypes{L,T},
+    dtrain::AbstractDataFrame;
+    target_name,
+    fnames=nothing,
+    w_name=nothing,
+    offset_name=nothing,
+    device="cpu"
+) where {L,T}
 
-#     nobs = nrow(dtrain)
-#     w = isnothing(w_name) ? ones(T, nobs) : Vector{T}(dtrain[!, w_name])
-#     offset = !isnothing(offset_name) ? T.(dtrain[!, offset_name]) : nothing
-#     y_train = dtrain[!, target_name]
+    # set fnames
+    _w_name = isnothing(w_name) ? "" : string(w_name)
+    _offset_name = isnothing(offset_name) ? "" : string(offset_name)
+    if isnothing(fnames)
+        fnames = String[]
+        for name in names(dtrain)
+            if eltype(dtrain[!, name]) <: Union{Real,CategoricalValue}
+                push!(fnames, name)
+            end
+        end
+        fnames = setdiff(fnames, union([target_name], [_w_name], [_offset_name]))
+    else
+        isa(fnames, String) ? fnames = [fnames] : nothing
+        fnames = string.(fnames)
+        @assert isa(fnames, Vector{String})
+        for name in fnames
+            @assert eltype(dtrain[!, name]) <: Union{Real,CategoricalValue}
+        end
+    end
 
-#     m, cache = init_core(params, dtrain, fnames, y_train, w, offset)
+    nobs = nrow(dtrain)
+    if String(device) == "gpu"
+        y_train = dtrain[!, target_name]
+        w = isnothing(w_name) ? CUDA.ones(T, nobs) : CuArray{T}(dtrain[!, w_name])
+        offset = !isnothing(offset_name) ? CuArray{T}(dtrain[!, offset_name]) : nothing
+    else
+        y_train = dtrain[!, target_name]
+        w = isnothing(w_name) ? ones(T, nobs) : Vector{T}(dtrain[!, w_name])
+        offset = !isnothing(offset_name) ? T.(dtrain[!, offset_name]) : nothing
+    end
+    m, cache = init_core(params, dtrain, fnames, y_train, w, offset)
 
-#     return m, cache
-# end
+    return m, cache
+end
 
 
-# """
-#     init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVector, W = nothing)
+"""
+    init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVector, W = nothing)
 
-# Initialise EvoTree
-# """
-# function init(
-#     params::EvoTypes{L,T},
-#     x_train::AbstractMatrix,
-#     y_train::AbstractVector;
-#     fnames=nothing,
-#     w_name=nothing,
-#     offset_name=nothing
-# ) where {L,T}
+Initialise EvoTree
+"""
+function init(
+    params::EvoTypes{L,T},
+    x_train::AbstractMatrix,
+    y_train::AbstractVector;
+    fnames=nothing,
+    w_train=nothing,
+    offset_train=nothing,
+    device="cpu"
+) where {L,T}
 
-#     # binarize data into quantiles
-#     nobs = size(x_train, 1)
-#     w = isnothing(w_name) ? ones(T, nobs) : Vector{T}(dtrain[!, w_name])
-#     offset = !isnothing(offset_name) ? T.(dtrain[!, offset_name]) : nothing
+    # initialize model and cache
+    fnames = isnothing(fnames) ? ["feat_$i" for i in axes(x_train, 2)] : string.(fnames)
+    @assert length(fnames) == size(x_train, 2)
 
-#     m, cache = init_core(params, x_train, fnames, y_train, w, offset)
+    nobs = size(x_train, 1)
+    if String(device) == "gpu"
+        w = isnothing(w_train) ? CUDA.ones(T, nobs) : CuArray{T}(w_train)
+        offset = !isnothing(offset_train) ? CuArray{T}(offset_train) : nothing
+    else
+        w = isnothing(w_train) ? ones(T, nobs) : Vector{T}(w_train)
+        offset = !isnothing(offset_train) ? T.(offset_train) : nothing
+    end
 
-#     return m, cache
-# end
+    m, cache = init_core(params, x_train, fnames, y_train, w, offset)
+
+    return m, cache
+end

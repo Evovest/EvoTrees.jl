@@ -82,48 +82,15 @@ Use `ntree_limit=N` to only predict with the first `N` trees.
 """
 function predict(
     m::EvoTree{L,K,T},
-    df::AbstractDataFrame;
+    data::Union{AbstractMatrix, AbstractDataFrame};
     ntree_limit=length(m.trees)
 ) where {L,K,T}
-    pred = zeros(T, K, nrow(df))
+    pred = zeros(T, K, size(data, 1))
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
-    x_bin = binarize(df; fnames=m.info[:fnames], edges=m.info[:edges])
-    for tree in m.trees
-        predict!(pred, tree, x_bin, m.info[:feattypes])
-    end
-    if L == Logistic
-        pred .= sigmoid.(pred)
-    elseif L ∈ [Poisson, Gamma, Tweedie]
-        pred .= exp.(pred)
-    elseif L in [GaussianMLE, LogisticMLE]
-        pred[2, :] .= exp.(pred[2, :])
-    elseif L == Softmax
-        @inbounds for i in axes(pred, 2)
-            pred[:, i] .= softmax(pred[:, i])
-        end
-    end
-    pred = K == 1 ? vec(Array(pred')) : Array(pred')
-    return pred
-end
-
-"""
-    predict(model::EvoTree, X::AbstractMatrix; ntree_limit = length(model.trees))
-
-Predictions from an EvoTree model - sums the predictions from all trees composing the model.
-Use `ntree_limit=N` to only predict with the first `N` trees.
-"""
-function predict(
-    m::EvoTree{L,K,T},
-    X::AbstractMatrix;
-    ntree_limit=length(m.trees)
-) where {L,K,T}
-    pred = zeros(T, K, size(X, 1))
-    ntrees = length(m.trees)
-    ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
-    x_bin = binarize(X; fnames=m.info[:fnames], edges=m.info[:edges])
+    x_bin = binarize(data; fnames=m.info[:fnames], edges=m.info[:edges])
     for i = 1:ntree_limit
-        predict!(pred, tree, x_bin, m.info[:feattypes])
+        predict!(pred, m.trees[i], x_bin, m.info[:feattypes])
     end
     if L == Logistic
         pred .= sigmoid.(pred)
@@ -139,6 +106,39 @@ function predict(
     pred = K == 1 ? vec(Array(pred')) : Array(pred')
     return pred
 end
+
+# """
+#     predict(model::EvoTree, X::AbstractMatrix; ntree_limit = length(model.trees))
+
+# Predictions from an EvoTree model - sums the predictions from all trees composing the model.
+# Use `ntree_limit=N` to only predict with the first `N` trees.
+# """
+# function predict(
+#     m::EvoTree{L,K,T},
+#     X::AbstractMatrix;
+#     ntree_limit=length(m.trees)
+# ) where {L,K,T}
+#     pred = zeros(T, K, size(X, 1))
+#     ntrees = length(m.trees)
+#     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
+#     x_bin = binarize(X; fnames=m.info[:fnames], edges=m.info[:edges])
+#     for i = 1:ntree_limit
+#         predict!(pred, m.trees[i], x_bin, m.info[:feattypes])
+#     end
+#     if L == Logistic
+#         pred .= sigmoid.(pred)
+#     elseif L ∈ [Poisson, Gamma, Tweedie]
+#         pred .= exp.(pred)
+#     elseif L in [GaussianMLE, LogisticMLE]
+#         pred[2, :] .= exp.(pred[2, :])
+#     elseif L == Softmax
+#         @inbounds for i in axes(pred, 2)
+#             pred[:, i] .= softmax(pred[:, i])
+#         end
+#     end
+#     pred = K == 1 ? vec(Array(pred')) : Array(pred')
+#     return pred
+# end
 
 
 function pred_leaf_cpu!(

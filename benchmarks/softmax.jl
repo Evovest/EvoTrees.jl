@@ -4,7 +4,7 @@ using StatsBase: sample
 using XGBoost
 using EvoTrees
 using BenchmarkTools
-using CUDA
+import CUDA
 
 nrounds = 200
 num_class = 5
@@ -66,8 +66,8 @@ params_evo.device = "cpu"
 # @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
 @time fit_evotree(params_evo; x_train, y_train);
 @info "evotrees predict CPU:"
-@time pred_evo = EvoTrees.predict(m_evo, x_train);
-@btime EvoTrees.predict($m_evo, $x_train);
+@time pred_evo = m_evo(x_train);
+@btime m_evo($x_train);
 
 @info "evotrees train GPU:"
 params_evo.device = "gpu"
@@ -75,5 +75,5 @@ params_evo.device = "gpu"
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
 # @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
 @info "evotrees predict GPU:"
-@time pred_evo = EvoTrees.predict(m_evo_gpu, x_train);
-@btime EvoTrees.predict($m_evo_gpu, $x_train);
+@time pred_evo = m_evo(x_train);
+@btime m_evo($x_train);

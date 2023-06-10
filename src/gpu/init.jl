@@ -48,31 +48,24 @@ function init_core(params::EvoTypes{L,T}, data, fnames, y_train, w::CuVector, of
     μ = T.(μ)
     # force a neutral/zero bias/initial tree when offset is specified
     !isnothing(offset) && (μ .= 0)
-    
+
     # initialize preds
     pred = CUDA.zeros(T, K, nobs)
     pred .= CuArray(μ)
     !isnothing(offset) && (pred .+= CuArray(offset'))
 
-    # init EvoTree
-    bias = [Tree{L,K,T}(μ)]
-
-    # initialize gradients and weights
+    # initialize gradients
+    h∇ = CUDA.zeros(T, 2 * K + 1, maximum(featbins), length(featbins))
     ∇ = CUDA.zeros(T, 2 * K + 1, nobs)
     @assert (length(y) == length(w) && minimum(w) > 0)
     ∇[end, :] .= w
 
+    # initialize indexes
     is_in = CUDA.zeros(UInt32, nobs)
     is_out = CUDA.zeros(UInt32, nobs)
     mask = CUDA.zeros(UInt8, nobs)
     js_ = UInt32.(collect(1:nfeats))
     js = zeros(eltype(js_), ceil(Int, params.colsample * nfeats))
-
-    # initialize histograms
-    nodes = [TrainNode(featbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
-    # h∇ = [CUDA.zeros(T, 2 * K + 1, nbins) for nbins in featbins]
-    h∇ = CUDA.zeros(T, 2 * K + 1, maximum(featbins), length(featbins))
-
     out = CUDA.zeros(UInt32, nobs)
     left = CUDA.zeros(UInt32, nobs)
     right = CUDA.zeros(UInt32, nobs)
@@ -83,20 +76,21 @@ function init_core(params::EvoTypes{L,T}, data, fnames, y_train, w::CuVector, of
         monotone_constraints[k] = v
     end
 
+    # model info
     info = Dict(
         :fnames => fnames,
-        # :target_name => target_name,
-        # :w_name => w_name,
-        # :offset_name => offset_name,
         :target_levels => target_levels,
         :edges => edges,
+        :featbins => featbins,
         :feattypes => feattypes,
     )
 
     # initialize model
+    nodes = [TrainNode(featbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
+    bias = [Tree{L,K,T}(μ)]
     m = EvoTreeGPU{L,K,T}(bias, info)
 
-    # store cache
+    # build cache
     cache = (
         info=Dict(:nrounds => 0),
         x_bin=x_bin,

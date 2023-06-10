@@ -4,7 +4,7 @@ using StatsBase: sample
 using XGBoost
 using EvoTrees
 using BenchmarkTools
-using CUDA
+import CUDA
 
 nrounds = 200
 nobs = Int(1e6)
@@ -35,8 +35,8 @@ params_evo.device = "cpu"
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:gaussian, print_every_n=100);
 @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=:gaussian);
 @info "evotrees predict CPU:"
-@time pred_evo = EvoTrees.predict(m_evo, x_train);
-@btime EvoTrees.predict($m_evo, $x_train);
+@time pred_evo = m_evo(x_train);
+@btime m_evo($x_train);
 
 CUDA.allowscalar(true)
 @info "evotrees train GPU:"
@@ -45,8 +45,8 @@ params_evo.device = "gpu"
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:gaussian, print_every_n=100);
 @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=:gaussian);
 @info "evotrees predict GPU:"
-@time pred_evo = EvoTrees.predict(m_evo_gpu, x_train);
-@btime EvoTrees.predict($m_evo_gpu, $x_train);
+@time pred_evo = m_evo(x_train);
+@btime m_evo($x_train);
 
 
 ################################
@@ -75,5 +75,5 @@ params_evo.device = "cpu"
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:logistic_mle, print_every_n=100);
 @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=:logistic_mle);
 @info "evotrees predict CPU:"
-@time pred_evo = EvoTrees.predict(m_evo, x_train);
-@btime EvoTrees.predict($m_evo, $x_train);
+@time pred_evo = m_evo(x_train);
+@btime m_evo($x_train);

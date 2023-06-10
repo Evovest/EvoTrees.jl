@@ -1,10 +1,9 @@
-# abstract type FeatType end
-# abstract type FeatNum <: FeatType end
-# abstract type FeatCat <: FeatType end
+"""
+    get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG()) where {T}
+    get_edges(df::AbstractDataFrame; fnames, nbins, rng=Random.TaskLocalRNG())
 
-#############################################
-# Get the braking points
-#############################################
+Get the braking points of the feature data.
+"""
 function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG()) where {T}
     nobs = min(size(X, 1), 1000 * nbins)
     idx = rand(rng, 1:size(X, 1), nobs)
@@ -40,6 +39,7 @@ function get_edges(df::AbstractDataFrame; fnames, nbins, rng=Random.TaskLocalRNG
             edges[j] = levels(col)
             featbins[j] = length(edges[j])
             feattypes[j] = false
+            @assert featbins[j] <= 255 "Max categorical levels currently limited to 255, $(fnames[j]) has $(featbins[j])."
         end
         if length(edges[j]) == 1
             edges[j] = [minimum(col)]
@@ -48,9 +48,12 @@ function get_edges(df::AbstractDataFrame; fnames, nbins, rng=Random.TaskLocalRNG
     return edges, featbins, feattypes
 end
 
-####################################################
-# Transform X matrix into a UInt8 binarized matrix
-####################################################
+"""
+    binarize(X::AbstractMatrix; fnames, edges)
+    binarize(df::AbstractDataFrame; fnames, edges)
+
+Transform feature data into a UInt8 binarized matrix.
+"""
 function binarize(X::AbstractMatrix; fnames, edges)
     x_bin = zeros(UInt8, size(X))
     @threads for j in axes(X, 2)
