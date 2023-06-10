@@ -25,7 +25,7 @@ end
 function get_edges(df::AbstractDataFrame; fnames, nbins, rng=Random.TaskLocalRNG())
     nobs = min(nrow(df), 1000 * nbins)
     idx = rand(rng, 1:nrow(df), nobs)
-    edges = [Vector{type}() for type in eltype.(eachcol(df[!, fnames]))]
+    edges = Vector{Any}([Vector{type}() for type in eltype.(eachcol(df[!, fnames]))])
     nfeats = length(fnames)
     featbins = Vector{UInt8}(undef, nfeats)
     feattypes = Vector{Bool}(undef, nfeats)
@@ -38,7 +38,7 @@ function get_edges(df::AbstractDataFrame; fnames, nbins, rng=Random.TaskLocalRNG
         elseif eltype(col) <: CategoricalValue
             edges[j] = levels(col)
             featbins[j] = length(edges[j])
-            feattypes[j] = false
+            feattypes[j] = isordered(col) ? true : false
             @assert featbins[j] <= 255 "Max categorical levels currently limited to 255, $(fnames[j]) has $(featbins[j])."
         end
         if length(edges[j]) == 1

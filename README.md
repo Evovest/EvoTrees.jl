@@ -82,6 +82,8 @@ Model training is performed using `fit_evotree`.
 It supports additional arguments to allowing to track out of sample metric and perform early stopping. 
 Look at the docs for more details on available hyper-parameters for each of the above constructors and other options for training.
 
+### Matrix features input
+
 ```julia
 using EvoTrees
 
@@ -95,6 +97,19 @@ config = EvoTreeRegressor(
 x_train, y_train = rand(1_000, 10), rand(1_000)
 m = fit_evotree(config; x_train, y_train)
 preds = m(x_train)
+```
+
+### DataFrames input
+
+When using a DataFrames as input, features `Real` and `Categorical` are automatically recognized as input features. Alternatively, `fnames` kwarg can be used. 
+
+`Categorical` features are treated accordingly by the algorithm, considering each level as independent of all the others. Support is currently limited to a maximum of 255 levels.
+
+```julia
+dtrain = DataFrame(x_train, :auto)
+dtrain.y .= y_train
+m = fit_evotree(config, dtrain; target_name="y");
+m = fit_evotree(config, dtrain; target_name="y", fnames=["x1", "x3"]);
 ```
 
 ## Feature importance

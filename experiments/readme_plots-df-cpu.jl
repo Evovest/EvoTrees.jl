@@ -15,7 +15,10 @@ using EvoTrees: predict, sigmoid, logit
 nobs = 10_000
 Random.seed!(123)
 x_num = rand(nobs) .* 5
-x_cat = categorical(rand(["A", "B", "C"], nobs))
+lvls = ["A", "B", "C"]
+x_cat = categorical(rand(lvls, nobs), levels=lvls, ordered=true)
+levels(x_cat)
+isordered(x_cat)
 
 y = sin.(x_num) .* 0.5 .+ 0.5
 y = logit(y) .+ 1.0 .* (x_cat .== "B") .- 1.0 .* (x_cat .== "C") + randn(nobs)
@@ -48,10 +51,10 @@ params1 = EvoTreeRegressor(
     rng=123,
 )
 
-@time model = EvoTrees.train(
+@time model = fit_evotree(
     params1,
     dtrain;
-    fnames=["x_num", "x_cat"],
+    fnames=["x_cat", "x_num"],
     target_name="y",
     deval,
     metric=:mse,
@@ -61,7 +64,7 @@ params1 = EvoTreeRegressor(
 );
 pred = model(dtrain);
 
-# @btime model = EvoTrees.train(
+# @btime model = fit_evotree(
 #     params1,
 #     dtrain;
 #     fnames="x_num",
@@ -132,7 +135,7 @@ params1 = EvoTreeRegressor(
     rowsample=0.5,
     colsample=1.0,
 )
-@time model = EvoTrees.train(
+@time model = fit_evotree(
     params1,
     dtrain;
     fnames=["x_num", "x_cat"],

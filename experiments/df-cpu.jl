@@ -20,7 +20,7 @@ using Random: seed!
 
 seed!(123)
 nrounds = 200
-nobs = Int(1e6)
+nobs = Int(10e6)
 nfeats_num = Int(100)
 T = Float32
 nthread = Base.Threads.nthreads()
@@ -31,8 +31,8 @@ y_train = rand(T, nobs);
 dtrain = DataFrame(x_train, :auto);
 dtrain[:, :y] = y_train;
 
-# dtrain[:, :x_cat_1] = rand(["lvl1", "lvl2", "lvl3"], nobs);
-# transform!(dtrain, "x_cat_1" => (x -> categorical(x, ordered = false)) => "x_cat_1")
+dtrain[:, :x_cat_1] = rand(["lvl1", "lvl2", "lvl3"], nobs);
+transform!(dtrain, "x_cat_1" => (x -> categorical(x, ordered = false)) => "x_cat_1")
 
 # levels(dtrain.x_cat_1)
 # levelcode.(dtrain.x_cat_1)
