@@ -187,28 +187,3 @@ function predict(
     pred = K == 1 ? vec(Array(pred')) : Array(pred')
     return pred
 end
-
-# prediction from single tree - assign each observation to its final leaf
-# function predict(
-#     m::EvoTreeGPU{L,K,T},
-#     X::AbstractMatrix;
-#     ntree_limit=length(m.trees)
-# ) where {L,K,T}
-#     pred = CUDA.zeros(T, K, size(X, 1))
-#     X_gpu = CuArray(X)
-#     ntrees = length(m.trees)
-#     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
-#     for i = 1:ntree_limit
-#         predict!(pred, m.trees[i], X_gpu)
-#     end
-#     if L == Logistic
-#         pred .= sigmoid.(pred)
-#     elseif L ∈ [Poisson, Gamma, Tweedie]
-#         pred .= exp.(pred)
-#     elseif L == GaussianMLE
-#         pred[2, :] .= exp.(pred[2, :])
-#     end
-#     pred = K == 1 ? vec(Array(pred')) : Array(pred')
-#     return pred
-# end
-

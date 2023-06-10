@@ -1,4 +1,3 @@
-
 # gradient-boosted tree is formed by a vector of trees
 struct EvoTreeGPU{L,K,T}
     trees::Vector{Tree{L,K,T}}

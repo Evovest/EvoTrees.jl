@@ -82,13 +82,13 @@ Use `ntree_limit=N` to only predict with the first `N` trees.
 """
 function predict(
     m::EvoTree{L,K,T},
-    data::Union{AbstractMatrix, AbstractDataFrame};
-    ntree_limit=length(m.trees)
-) where {L,K,T}
-    pred = zeros(T, K, size(data, 1))
+    data::Union{AbstractMatrix,AbstractDataFrame};
+    ntree_limit=length(m.trees)) where {L,K,T}
+
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
     x_bin = binarize(data; fnames=m.info[:fnames], edges=m.info[:edges])
+    pred = zeros(T, K, size(data, 1))
     for i = 1:ntree_limit
         predict!(pred, m.trees[i], x_bin, m.info[:feattypes])
     end
