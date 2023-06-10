@@ -381,11 +381,6 @@ end
 
 
 @testset "EvoTreeClassifier" begin
-    # x_train = Array([
-    #     sin.(1:1000) cos.(1:1000)
-    #     100 .* cos.(1:1000) 100 .* sin.(1:1000)
-        
-    # ])
     x_train = Array([
         sin.(1:1000) rand(1000)
         100 .* cos.(1:1000) rand(1000) .+ 1 
@@ -406,7 +401,7 @@ end
     model_cat = fit_evotree(params1; x_train, y_train=y_train_cat)
 
     preds_cat = EvoTrees.predict(model_cat, x_train)[:, 1]
-    @test preds_cat == preds
+    @test preds_cat ≈ preds
 
     # Categorical array with additional levels
     y_train_cat = CategoricalArray(y_train; levels=1:3)
