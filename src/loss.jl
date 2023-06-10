@@ -1,10 +1,5 @@
 # linear
-function update_grads!(
-    ∇::Matrix,
-    p::Matrix,
-    y::Vector,
-    ::EvoTreeRegressor{L,T}
-) where {L<:Linear,T}
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T}) where {L<:Linear,T}
     @threads for i in eachindex(y)
         @inbounds ∇[1, i] = 2 * (p[1, i] - y[i]) * ∇[3, i]
         @inbounds ∇[2, i] = 2 * ∇[3, i]
@@ -156,12 +151,14 @@ function get_gain(
     params::EvoTypes{L,T},
     ∑::AbstractVector{T},
 ) where {L<:GradientRegression,T}
-    ∑[1]^2 / (∑[2] + params.lambda * ∑[3]) / 2
+    ϵ = eps(T)
+    ∑[1]^2 / max(ϵ, (∑[2] + params.lambda * ∑[3])) / 2
 end
 
 # GaussianRegression
 function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:MLE2P,T}
-    (∑[1]^2 / (∑[3] + params.lambda * ∑[5]) + ∑[2]^2 / (∑[4] + params.lambda * ∑[5])) / 2
+    ϵ = eps(T)
+    (∑[1]^2 / max(ϵ, (∑[3] + params.lambda * ∑[5])) + ∑[2]^2 / max(ϵ, (∑[4] + params.lambda * ∑[5]))) / 2
 end
 
 # MultiClassRegression
@@ -169,10 +166,11 @@ function get_gain(
     params::EvoTypes{L,T},
     ∑::AbstractVector{T},
 ) where {L<:MultiClassRegression,T}
+    ϵ = eps(T)
     gain = zero(T)
     K = (length(∑) - 1) ÷ 2
     @inbounds for k = 1:K
-        gain += ∑[k]^2 / (∑[k+K] + params.lambda * ∑[2*K+1]) / 2
+        gain += ∑[k]^2 / max(ϵ, (∑[k+K] + params.lambda * ∑[2*K+1])) / 2
     end
     return gain
 end
