@@ -101,9 +101,9 @@ preds = m(x_train)
 
 ### DataFrames input
 
-When using a DataFrames as input, features `Real` and `Categorical` are automatically recognized as input features. Alternatively, `fnames` kwarg can be used. 
+When using a DataFrames as input, features with elements types `Real` (incl. `Bool`) and `Categorical` are automatically recognized as input features. Alternatively, `fnames` kwarg can be used. 
 
-`Categorical` features are treated accordingly by the algorithm, considering each level as independent of all the others. Support is currently limited to a maximum of 255 levels.
+`Categorical` features are treated accordingly by the algorithm. Ordered variables will be treated as numerical features, using `≤` split rule, while unordered variables are using `==`. Support is currently limited to a maximum of 255 levels. `Bool` variables are treated as unordered, 2-levels cat variables.
 
 ```julia
 dtrain = DataFrame(x_train, :auto)

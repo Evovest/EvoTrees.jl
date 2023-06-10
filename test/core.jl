@@ -38,7 +38,7 @@ y_train, y_eval = Y[i_train], Y[i_eval]
         rng = 123,
     )
 
-    model, cache = EvoTrees.init_evotree(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1; x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -71,7 +71,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init_evotree(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1; x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -104,7 +104,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init_evotree(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1; x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -137,7 +137,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init_evotree(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1; x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -172,7 +172,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init_evotree(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1; x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -207,7 +207,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init_evotree(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1; x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -240,7 +240,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init_evotree(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1; x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -274,7 +274,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init_evotree(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1; x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -308,7 +308,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init_evotree(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1; x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -341,7 +341,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init_evotree(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1; x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(

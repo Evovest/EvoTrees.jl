@@ -31,15 +31,21 @@ function get_edges(df::AbstractDataFrame; fnames, nbins, rng=Random.TaskLocalRNG
     feattypes = Vector{Bool}(undef, nfeats)
     @threads for j in eachindex(fnames)
         col = view(df, idx, fnames[j])
-        if eltype(col) <: Real
-            edges[j] = unique(quantile(col, (1:nbins-1) / nbins))
-            featbins[j] = length(edges[j]) + 1
-            feattypes[j] = true
+        if eltype(col) <: Bool
+            edges[j] = [false, true]
+            featbins[j] = 2
+            feattypes[j] = false
         elseif eltype(col) <: CategoricalValue
             edges[j] = levels(col)
             featbins[j] = length(edges[j])
             feattypes[j] = isordered(col) ? true : false
             @assert featbins[j] <= 255 "Max categorical levels currently limited to 255, $(fnames[j]) has $(featbins[j])."
+        elseif eltype(col) <: Real
+            edges[j] = unique(quantile(col, (1:nbins-1) / nbins))
+            featbins[j] = length(edges[j]) + 1
+            feattypes[j] = true
+        else
+            @error "Invalid feature eltype: $(fnames[j]) is $(eltype(col))"
         end
         if length(edges[j]) == 1
             edges[j] = [minimum(col)]
