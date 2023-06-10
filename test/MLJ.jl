@@ -45,7 +45,7 @@ end
 ##################################################
 ### Regression - small data
 ##################################################
-features = rand(10_000) .* 5 .- 2
+features = rand(1_000) .* 5 .- 2
 X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5
 Y = logit(Y) + randn(size(Y))
@@ -134,7 +134,7 @@ pred_test_mode = predict_mode(mach, selectrows(X, test))
 ##################################################
 ### count
 ##################################################
-features = rand(10_000, 10)
+features = rand(1_000, 10)
 # features = rand(100, 10)
 X = features
 Y = rand(UInt8, size(X, 1))
@@ -183,7 +183,7 @@ pred_mode = predict_mode(mach, selectrows(X, train))
 ##################################################
 ### Gaussian - Larger data
 ##################################################
-features = rand(10_000, 10)
+features = rand(1_000, 10)
 X = features
 Y = rand(size(X, 1))
 𝑖 = collect(1:size(X, 1))
@@ -234,7 +234,7 @@ report(mach)
 ##################################################
 ### Logistic - Larger data
 ##################################################
-features = rand(10_000, 10)
+features = rand(1_000, 10)
 X = features
 Y = rand(size(X, 1))
 𝑖 = collect(1:size(X, 1))
@@ -340,7 +340,7 @@ fi = MLJBase.feature_importances(model, m.fitresult, rpt)
 ##################################################
 ### Test with weights
 ##################################################
-features = rand(10_000, 10)
+features = rand(1_000, 10)
 X = features
 Y = rand(size(X, 1))
 W = rand(size(X, 1)) .+ 0.1

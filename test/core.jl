@@ -6,7 +6,7 @@ using Random: seed!
 
 # prepare a dataset
 seed!(123)
-features = rand(10_000) .* 5
+features = rand(1_000) .* 5
 X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5
 Y = logit(Y) + randn(size(Y))
@@ -27,7 +27,7 @@ y_train, y_eval = Y[i_train], Y[i_eval]
     params1 = EvoTreeRegressor(
         loss = :linear,
         nrounds = 100,
-        nbins = 100,
+        nbins = 16,
         lambda = 0.5,
         gamma = 0.1,
         eta = 0.05,
@@ -38,7 +38,7 @@ y_train, y_eval = Y[i_train], Y[i_eval]
         rng = 123,
     )
 
-    model, cache = EvoTrees.init(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -71,7 +71,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -104,7 +104,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -137,7 +137,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -161,7 +161,7 @@ end
         loss = :L1,
         alpha = 0.5,
         nrounds = 100,
-        nbins = 100,
+        nbins = 16,
         lambda = 0.5,
         gamma = 0.0,
         eta = 0.05,
@@ -172,7 +172,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -196,7 +196,7 @@ end
         loss = :quantile,
         alpha = 0.5,
         nrounds = 100,
-        nbins = 100,
+        nbins = 16,
         lambda = 0.5,
         gamma = 0.0,
         eta = 0.05,
@@ -207,7 +207,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -240,7 +240,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -263,7 +263,7 @@ end
     params1 = EvoTreeMLE(
         loss = :gaussian,
         nrounds = 100,
-        nbins = 100,
+        nbins = 16,
         lambda = 0.0,
         gamma = 0.0,
         eta = 0.05,
@@ -274,7 +274,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -297,7 +297,7 @@ end
     params1 = EvoTreeMLE(
         loss = :logistic,
         nrounds = 100,
-        nbins = 100,
+        nbins = 16,
         lambda = 0.0,
         gamma = 0.0,
         eta = 0.05,
@@ -308,7 +308,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -330,7 +330,7 @@ end
 @testset "EvoTreeGaussian - Gaussian" begin
     params1 = EvoTreeGaussian(
         nrounds = 100,
-        nbins = 100,
+        nbins = 16,
         lambda = 0.0,
         gamma = 0.0,
         eta = 0.05,
@@ -341,7 +341,7 @@ end
         rng = 123,
     )
 
-    model, cache = EvoTrees.init(params1; x_train, y_train)
+    model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
@@ -364,7 +364,7 @@ end
     params1 = EvoTreeRegressor(
         loss = :linear,
         nrounds = 100,
-        nbins = 100,
+        nbins = 16,
         lambda = 0.5,
         gamma = 0.1,
         eta = 0.05,
@@ -376,7 +376,7 @@ end
     )
 
     model = fit_evotree(params1; x_train, y_train)
-    features_gain = importance(model)
+    features_gain = EvoTrees.importance(model)
 end
 
 

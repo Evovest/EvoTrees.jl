@@ -1,10 +1,5 @@
 function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
-  if model.device == "gpu"
-    fitresult, cache =
-      init_evotree_gpu(model; x_train=A.matrix, y_train=y, w_train=w)
-  else
-    fitresult, cache = init_evotree(model; x_train=A.matrix, y_train=y, w_train=w)
-  end
+  fitresult, cache = init(model, A.matrix, y; w_train=w)
   while cache[:info][:nrounds] < model.nrounds
     grow_evotree!(fitresult, cache, model)
   end
@@ -66,7 +61,7 @@ end
 
 function predict(::EvoTreeClassifier, fitresult, A)
   pred = predict(fitresult, A.matrix)
-  return MMI.UnivariateFinite(fitresult.info[:levels], pred, pool=missing)
+  return MMI.UnivariateFinite(fitresult.info[:target_levels], pred, pool=missing)
 end
 
 function predict(::EvoTreeCount, fitresult, A)

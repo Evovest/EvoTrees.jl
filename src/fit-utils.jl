@@ -168,11 +168,6 @@ function split_set_threads!(
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
-    # @info "length(is)" length(is)
-    # @info "offset" offset
-    # @info "chunk_size" chunk_size
-    # @info "nblocks" nblocks
-
     @threads for bid = 1:nblocks
         lefts[bid], rights[bid] = split_set_chunk!(
             left,
@@ -244,7 +239,7 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Array{T,3},
+    hist::Vector{Matrix{T}},
     ∇::Matrix{T},
     x_bin::Matrix,
     is::AbstractVector,
@@ -253,11 +248,11 @@ function update_hist!(
     @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
-            hist[1, bin, j] += ∇[1, i]
-            hist[2, bin, j] += ∇[2, i]
-            hist[3, bin, j] += ∇[3, i]
-            hist[4, bin, j] += ∇[4, i]
-            hist[5, bin, j] += ∇[5, i]
+            hist[j][1, bin] += ∇[1, i]
+            hist[j][2, bin] += ∇[2, i]
+            hist[j][3, bin] += ∇[3, i]
+            hist[j][4, bin] += ∇[4, i]
+            hist[j][5, bin] += ∇[5, i]
         end
     end
     return nothing
@@ -265,11 +260,11 @@ end
 
 """
     update_hist!
-        Generic fallback
+        Generic fallback - Softmax
 """
 function update_hist!(
     ::Type{L},
-    hist::Array{T,3},
+    hist::Vector{Matrix{T}},
     ∇::Matrix{T},
     x_bin::Matrix,
     is::AbstractVector,
@@ -279,7 +274,7 @@ function update_hist!(
         @inbounds for i in is
             bin = x_bin[i, j]
             @inbounds @simd for k in axes(∇, 1)
-                hist[k, bin, j] += ∇[k, i]
+                hist[j][k, bin] += ∇[k, i]
             end
         end
     end
