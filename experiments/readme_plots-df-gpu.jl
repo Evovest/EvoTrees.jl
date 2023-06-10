@@ -11,6 +11,7 @@ using CategoricalArrays
 using EvoTrees: predict, sigmoid, logit
 # using ProfileView
 
+device = "gpu"
 # prepare a dataset
 nobs = 10_000
 Random.seed!(123)
@@ -45,26 +46,23 @@ params1 = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
-    rng=122,
-    device="gpu"
+    rng=123,
 )
 
-@time model = EvoTrees.fit_evotree_df(
-    params1;
-    dtrain,
-    fnames_num="x_num",
-    fnames_cat="x_cat",
+@time model = EvoTrees.train(
+    params1,
+    dtrain;
+    fnames=["x_num", "x_cat"],
     target_name="y",
     deval,
+    device,
     metric=:mse,
     print_every_n=25,
     early_stopping_rounds=20,
     verbosity=0
 );
 
-dinfer = dtrain[dtrain.x_cat.=="A", :]
-pred = model(dinfer)
-x_perm = sortperm(dinfer.x_num)
+pred = model(dtrain);
 
 # @btime model = EvoTrees.fit_evotree_df(
 #     params1;
@@ -95,6 +93,9 @@ plot(
     legend=true,
     label="",
 )
+dinfer = dtrain[dtrain.x_cat.=="A", :]
+pred = model(dinfer)
+x_perm = sortperm(dinfer.x_num)
 plot!(
     dinfer.x_num[x_perm],
     pred[x_perm],

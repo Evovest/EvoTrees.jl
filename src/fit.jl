@@ -1,189 +1,9 @@
 """
-    init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVector, W = nothing)
-    
-Initialise EvoTree
-"""
-function init_evotree_df(
-    params::EvoTypes{L,T},
-    dtrain::AbstractDataFrame;
-    target_name,
-    fnames_num=nothing,
-    fnames_cat=nothing,
-    w_name=nothing,
-    offset_name=nothing,
-    group_name=nothing
-) where {L,T}
-
-    levels = nothing
-    offset = !isnothing(offset_name) ? T.(dtrain[:, offset_name]) : nothing
-    if L == Logistic
-        K = 1
-        y = T.(dtrain[!, target_name])
-        μ = [logit(mean(y))]
-        !isnothing(offset) && (offset .= logit.(offset))
-    elseif L in [Poisson, Gamma, Tweedie]
-        K = 1
-        y = T.(dtrain[!, target_name])
-        μ = fill(log(mean(y)), 1)
-        !isnothing(offset) && (offset .= log.(offset))
-    elseif L == Softmax
-        if eltype(dtrain[!, target_name]) <: CategoricalValue
-            levels = CategoricalArrays.levels(dtrain[:, target_name])
-            y = UInt32.(CategoricalArrays.levelcode.(dtrain[:, target_name]))
-        else
-            levels = sort(unique(dtrain[!, target_name]))
-            yc = CategoricalVector(dtrain[:, target_name], levels=levels)
-            y = UInt32.(CategoricalArrays.levelcode.(yc))
-        end
-        K = length(levels)
-        μ = T.(log.(proportions(y, UInt32(1):UInt32(K))))
-        μ .-= maximum(μ)
-        !isnothing(offset) && (offset .= log.(offset))
-    elseif L == GaussianMLE
-        K = 2
-        y = T.(dtrain[!, target_name])
-        μ = [mean(y), log(std(y))]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
-    elseif L == LogisticMLE
-        K = 2
-        y = T.(dtrain[!, target_name])
-        μ = [mean(y), log(std(y) * sqrt(3) / π)]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
-    else
-        K = 1
-        y = T.(dtrain[!, target_name])
-        μ = [mean(y)]
-    end
-    μ = T.(μ)
-
-    # force a neutral/zero bias/initial tree when offset is specified
-    !isnothing(offset) && (μ .= 0)
-    # initialize preds
-    nobs = nrow(dtrain)
-    pred = zeros(T, K, nobs)
-    @threads for i in axes(pred, 2)
-        @inbounds view(pred, :, i) .= μ
-    end
-    !isnothing(offset) && (pred .+= offset')
-
-    # init EvoTree
-    bias = [Tree{L,K,T}(μ)]
-
-    _w_name = isnothing(w_name) ? "" : [string(w_name)]
-    _offset_name = isnothing(offset_name) ? "" : string(offset_name)
-
-    if isnothing(fnames_cat)
-        fnames_cat = String[]
-    else
-        isa(fnames_cat, String) ? fnames_cat = [fnames_cat] : nothing
-        fnames_cat = string.(fnames_cat)
-        @assert isa(fnames_cat, Vector{String})
-        for name in fnames_cat
-            @assert typeof(dtrain[!, name]) <: AbstractCategoricalVector "$name should be <: AbstractCategoricalVector"
-            @assert !isordered(dtrain[!, name]) "fnames_cat are expected to be unordered - $name is ordered"
-        end
-        fnames_cat = string.(fnames_cat)
-    end
-
-    if isnothing(fnames_num)
-        fnames_num = String[]
-        for name in names(dtrain)
-            if eltype(dtrain[!, name]) <: Number
-                push!(fnames_num, name)
-            end
-        end
-        fnames_num = setdiff(fnames_num, union(fnames_cat, [target_name], [_w_name], [_offset_name]))
-    else
-        isa(fnames_num, String) ? fnames_num = [fnames_num] : nothing
-        fnames_num = string.(fnames_num)
-        @assert isa(fnames_num, Vector{String})
-        for name in fnames_num
-            # @info name
-            # @info eltype(dtrain[!, name])
-            @assert eltype(dtrain[!, name]) <: Number
-        end
-    end
-
-    fnames = vcat(fnames_num, fnames_cat)
-    nfeats = length(fnames)
-
-    # initialize gradients and weights
-    ∇ = zeros(T, 2 * K + 1, nobs)
-    w = isnothing(w_name) ? ones(T, size(y)) : Vector{T}(dtrain[!, w_name])
-    @assert (length(y) == length(w) && minimum(w) > 0)
-    ∇[end, :] .= w
-
-    # binarize data into quantiles
-    edges, featbins, feattypes = get_edges(dtrain; fnames, nbins=params.nbins, rng=params.rng)
-    x_bin = binarize(dtrain; fnames, edges)
-
-    is_in = zeros(UInt32, nobs)
-    is_out = zeros(UInt32, nobs)
-    mask = zeros(UInt8, nobs)
-    js_ = UInt32.(collect(1:nfeats))
-    js = zeros(UInt32, ceil(Int, params.colsample * nfeats))
-
-    # initialize histograms
-    nodes = [TrainNode(featbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
-    out = zeros(UInt32, nobs)
-    left = zeros(UInt32, nobs)
-    right = zeros(UInt32, nobs)
-
-    # assign monotone contraints in constraints vector
-    monotone_constraints = zeros(Int32, nfeats)
-    hasproperty(params, :monotone_constraints) && for (k, v) in params.monotone_constraints
-        monotone_constraints[k] = v
-    end
-
-    info = Dict(
-        :fnames_num => fnames_num,
-        :fnames_cat => fnames_cat,
-        :fnames => fnames,
-        :target_name => target_name,
-        :w_name => w_name,
-        :offset_name => offset_name,
-        :group_name => group_name,
-        :levels => levels,
-        :edges => edges,
-        :fnames => fnames,
-        :feattypes => feattypes,
-    )
-
-    # initialize model
-    m = EvoTree{L,K,T}(bias, info)
-
-    cache = (
-        info=Dict(:nrounds => 0),
-        x_bin=x_bin,
-        y=y,
-        w=w,
-        K=K,
-        nodes=nodes,
-        pred=pred,
-        is_in=is_in,
-        is_out=is_out,
-        mask=mask,
-        js_=js_,
-        js=js,
-        out=out,
-        left=left,
-        right=right,
-        ∇=∇,
-        edges=edges,
-        fnames=fnames,
-        featbins=featbins,
-        feattypes=feattypes,
-        monotone_constraints=monotone_constraints,
-    )
-    return m, cache
-end
-
-"""
     grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) where {L,K,T}
 
 Given a instantiate
 """
-function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) where {L,K,T}
+function grow_evotree!(m::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) where {L,K,T}
 
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, params)
@@ -208,7 +28,7 @@ function grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) wh
         cache.feattypes,
         cache.monotone_constraints
     )
-    push!(evotree.trees, tree)
+    push!(m.trees, tree)
     predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
     cache[:info][:nrounds] += 1
     return nothing
@@ -328,25 +148,33 @@ end
 
 
 """
-    fit_evotree(params;
-        x_train, y_train, w_train=nothing, offset_train=nothing;
-        x_eval=nothing, y_eval=nothing, w_eval=nothing, offset_eval=nothing,
+    fit_evotree(
+        params::EvoTypes{L,T}, 
+        dtrain::AbstractDataFrame;
+        target_name,
+        fnames_num=nothing,
+        fnames_cat=nothing,
+        w_name=nothing,
+        offset_name=nothing,
+        deval=nothing,
+        metric=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
-        verbosity=1)
+        verbosity=1,
+        return_logger=false)
 
 Main training function. Performs model fitting given configuration `params`, `x_train`, `y_train` input data. 
 
 # Arguments
 
 - `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` comprises EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount and EvoTreeMLE.
+- `dtrain::DataFrames`: DataFrame containing features and target variables. 
 
 # Keyword arguments
 
-- `x_train::Matrix`: training data of size `[#observations, #features]`. 
-- `y_train::Vector`: vector of train targets of length `#observations`.
-- `w_train::Vector`: vector of train weights of length `#observations`. If `nothing`, a vector of ones is assumed.
-- `offset_train::VecOrMat`: offset for the training data. Should match the size of the predictions.
+- `target_name`: name of target variable. 
+- `w_name`: vector of train weights of length `#observations`. If `nothing`, a vector of ones is assumed.
+- `offset_name`: name of the offset variable.
 - `x_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
 - `y_eval::Vector`: vector of evaluation targets of length `#observations`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
@@ -373,27 +201,21 @@ function fit_evotree(
     params::EvoTypes{L,T},
     dtrain::AbstractDataFrame;
     target_name,
-    fnames_num=nothing,
-    fnames_cat=nothing,
+    fnames=nothing,
     w_name=nothing,
     offset_name=nothing,
-    group_name=nothing,
     deval=nothing,
     metric=nothing,
     early_stopping_rounds=9999,
     print_every_n=9999,
     verbosity=1,
-    return_logger=false
+    return_logger=false,
+    device="cpu"
 ) where {L,T}
 
     verbosity == 1 && @info params
 
-    # initialize model and cache
-    if String(params.device) == "gpu"
-        m, cache = init_evotree_gpu(params, dtrain; target_name, fnames_num, fnames_cat, w_name, offset_name, group_name)
-    else
-        m, cache = init_evotree_df(params, dtrain; target_name, fnames_num, fnames_cat, w_name, offset_name, group_name)
-    end
+    m, cache = init(params, dtrain; target_name, fnames, w_name, offset_name, device)
 
     # initialize callback and logger if tracking eval data
     metric = isnothing(metric) ? nothing : Symbol(metric)
@@ -402,41 +224,37 @@ function fit_evotree(
     if !logging_flag && any_flag
         @warn "To track eval metric in logger, both `metric` and `deval` must be provided."
     end
-    logger = nothing
     if logging_flag
-        cb = CallBack(params, m; deval, target_name, w_name, offset_name, metric)
-        logger = init_logger(;
-            T,
-            metric,
-            maximise=is_maximise(cb.feval),
-            early_stopping_rounds
-        )
+        cb = CallBack(params, m, deval; target_name, w_name, offset_name, metric, device)
+        logger = init_logger(; T, metric, maximise=is_maximise(cb.feval), early_stopping_rounds)
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
+    else
+        logger, cb = nothing, nothing
     end
 
-    # train loop
-    for iter = 1:params.nrounds
+    for i = 1:params.nrounds
         grow_evotree!(m, cache, params)
         if !isnothing(logger)
-            cb(logger, iter, m.trees[end])
-            if iter % print_every_n == 0 && verbosity > 0
-                @info "iter $iter" metric = logger[:metrics][end]
+            cb(logger, i, m.trees[end])
+            if i % print_every_n == 0 && verbosity > 0
+                @info "iter $i" metric = logger[:metrics][end]
             end
             (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
-        end # end of callback
+        end
     end
-    if String(params.device) == "gpu"
+    if String(device) == "gpu"
         GC.gc(true)
         CUDA.reclaim()
     end
+
     if return_logger
         return (m, logger)
     else
         return m
     end
-end
 
+end
 
 
 """
@@ -483,65 +301,58 @@ Main training function. Performs model fitting given configuration `params`, `x_
 """
 function fit_evotree(
     params::EvoTypes{L,T};
-    x_train::Matrix,
-    y_train,
-    fnames_num=nothing,
-    fnames_cat=nothing,
-    w_name=nothing,
-    offset_name=nothing,
-    group_name=nothing,
-    deval=nothing,
+    x_train::AbstractMatrix,
+    y_train::AbstractVector,
+    w_train=nothing,
+    offset_train=nothing,
+    x_eval=nothing,
+    y_eval=nothing,
+    w_eval=nothing,
+    offset_eval=nothing,
     metric=nothing,
     early_stopping_rounds=9999,
     print_every_n=9999,
     verbosity=1,
-    return_logger=false
+    fnames=nothing,
+    return_logger=false,
+    device="cpu"
 ) where {L,T}
 
     verbosity == 1 && @info params
 
-    # initialize model and cache
-    if String(params.device) == "gpu"
-        m, cache = init_evotree_gpu(params; target_name, fnames_num, fnames_cat, w_name, offset_name, group_name)
-    else
-        m, cache = init_evotree_df(params; target_name, fnames_num, fnames_cat, w_name, offset_name, group_name)
-    end
+    m, cache = init(params, x_train, y_train; fnames, w_train, offset_train, device)
 
     # initialize callback and logger if tracking eval data
     metric = isnothing(metric) ? nothing : Symbol(metric)
-    logging_flag = !isnothing(metric) && !isnothing(deval)
-    any_flag = !isnothing(metric) || !isnothing(deval)
+    logging_flag = !isnothing(metric) && !isnothing(x_eval) && !isnothing(y_eval)
+    any_flag = !isnothing(metric) || !isnothing(x_eval) || !isnothing(y_eval)
     if !logging_flag && any_flag
-        @warn "To track eval metric in logger, both `metric` and `deval` must be provided."
+        @warn "To track eval metric in logger, `metric`, `x_eval` and `y_eval` must all be provided."
     end
-    logger = nothing
     if logging_flag
-        cb = CallBack(params, m; deval, target_name, w_name, offset_name, metric)
-        logger = init_logger(;
-            T,
-            metric,
-            maximise=is_maximise(cb.feval),
-            early_stopping_rounds
-        )
+        cb = CallBack(params, m, x_eval, y_eval; w_eval, offset_eval, metric, device)
+        logger = init_logger(; T, metric, maximise=is_maximise(cb.feval), early_stopping_rounds)
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
+    else
+        logger, cb = nothing, nothing
     end
 
-    # train loop
-    for iter = 1:params.nrounds
+    for i = 1:params.nrounds
         grow_evotree!(m, cache, params)
         if !isnothing(logger)
-            cb(logger, iter, m.trees[end])
-            if iter % print_every_n == 0 && verbosity > 0
-                @info "iter $iter" metric = logger[:metrics][end]
+            cb(logger, i, m.trees[end])
+            if i % print_every_n == 0 && verbosity > 0
+                @info "iter $i" metric = logger[:metrics][end]
             end
             (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
-        end # end of callback
+        end
     end
-    if String(params.device) == "gpu"
+    if String(device) == "gpu"
         GC.gc(true)
         CUDA.reclaim()
     end
+
     if return_logger
         return (m, logger)
     else

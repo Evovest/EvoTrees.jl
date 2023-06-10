@@ -3,12 +3,10 @@ using EvoTrees
 using MLUtils
 using CSV
 using DataFrames
-using CategoricalArrays
-using Arrow
-using CUDA
+using CategoricalArrays: categorical
+import CUDA
 using Base.Iterators: partition
 using Base.Threads: nthreads, @threads
-using Tables
 using BenchmarkTools
 using Random: seed!
 
@@ -33,8 +31,8 @@ y_train = rand(T, nobs);
 dtrain = DataFrame(x_train, :auto);
 dtrain[:, :y] = y_train;
 
-dtrain[:, :x_cat_1] = rand(["lvl1", "lvl2", "lvl3"], nobs);
-transform!(dtrain, "x_cat_1" => (x -> categorical(x, ordered = false)) => "x_cat_1")
+# dtrain[:, :x_cat_1] = rand(["lvl1", "lvl2", "lvl3"], nobs);
+# transform!(dtrain, "x_cat_1" => (x -> categorical(x, ordered = false)) => "x_cat_1")
 
 # levels(dtrain.x_cat_1)
 # levelcode.(dtrain.x_cat_1)
@@ -75,8 +73,8 @@ hyper = EvoTreeRegressor(
 )
 
 target_name = "y"
-# @time model, cache = EvoTrees.init_evotree_df(hyper, dtrain; target_name, fnames_cat = ["x_cat_1"]);
-@time model, cache = EvoTrees.init_evotree_df(hyper, dtrain; target_name);
+device = "cpu"
+@time model, cache = EvoTrees.init(hyper, dtrain; target_name);
 # cache.edges[11]
 # cache.featbins
 # cache.feattypes
@@ -86,11 +84,11 @@ target_name = "y"
 @time EvoTrees.grow_evotree!(model, cache, hyper);
 # @btime EvoTrees.grow_evotree!(model, cache, hyper);
 
-@time m = EvoTrees.fit_evotree(hyper, dtrain; target_name, verbosity = false);
-# @btime EvoTrees.fit_evotree(hyper, dtrain; target_name, verbosity = false);
+@time m = fit_evotree(hyper, dtrain; target_name, device, verbosity = false);
+# @btime fit_evotree(hyper, dtrain; target_name, verbosity = false);
 
-@time m = EvoTrees.fit_evotree(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100, verbosity = false);
-@btime m = EvoTrees.fit_evotree(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, print_every_n=100, verbosity = false);
+@time m = fit_evotree(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100, verbosity = false);
+@btime m = fit_evotree(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100, verbosity = false);
 
 @time pred= m(dtrain);
 @btime m($dtrain);

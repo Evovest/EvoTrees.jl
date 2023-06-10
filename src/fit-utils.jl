@@ -1,25 +1,28 @@
-abstract type FeatType end
-abstract type FeatNum <: FeatType end
-abstract type FeatCat <: FeatType end
+"""
+    get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG()) where {T}
+    get_edges(df::AbstractDataFrame; fnames, nbins, rng=Random.TaskLocalRNG())
 
-#############################################
-# Get the braking points
-#############################################
-function get_edges(X::AbstractMatrix{T}, nbins, rng=Random.MersenneTwister()) where {T}
+Get the braking points of the feature data.
+"""
+function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG()) where {T}
     nobs = min(size(X, 1), 1000 * nbins)
     idx = rand(rng, 1:size(X, 1), nobs)
     nfeats = size(X, 2)
     edges = Vector{Vector{T}}(undef, nfeats)
+    featbins = Vector{UInt8}(undef, nfeats)
+    feattypes = Vector{Bool}(undef, nfeats)
     @threads for j in 1:size(X, 2)
         edges[j] = quantile(view(X, idx, j), (1:nbins-1) / nbins)
         if length(edges[j]) == 1
             edges[j] = [minimum(view(X, idx, j))]
         end
+        featbins[j] = length(edges[j]) + 1
+        feattypes[j] = true
     end
-    return edges
+    return edges, featbins, feattypes
 end
 
-function get_edges(df::AbstractDataFrame; fnames, nbins, rng)
+function get_edges(df::AbstractDataFrame; fnames, nbins, rng=Random.TaskLocalRNG())
     nobs = min(nrow(df), 1000 * nbins)
     idx = rand(rng, 1:nrow(df), nobs)
     edges = [Vector{type}() for type in eltype.(eachcol(df[!, fnames]))]
@@ -36,6 +39,7 @@ function get_edges(df::AbstractDataFrame; fnames, nbins, rng)
             edges[j] = levels(col)
             featbins[j] = length(edges[j])
             feattypes[j] = false
+            @assert featbins[j] <= 255 "Max categorical levels currently limited to 255, $(fnames[j]) has $(featbins[j])."
         end
         if length(edges[j]) == 1
             edges[j] = [minimum(col)]
@@ -44,10 +48,13 @@ function get_edges(df::AbstractDataFrame; fnames, nbins, rng)
     return edges, featbins, feattypes
 end
 
-####################################################
-# Transform X matrix into a UInt8 binarized matrix
-####################################################
-function binarize(X::AbstractMatrix, edges)
+"""
+    binarize(X::AbstractMatrix; fnames, edges)
+    binarize(df::AbstractDataFrame; fnames, edges)
+
+Transform feature data into a UInt8 binarized matrix.
+"""
+function binarize(X::AbstractMatrix; fnames, edges)
     x_bin = zeros(UInt8, size(X))
     @threads for j in axes(X, 2)
         x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), view(X, :, j))

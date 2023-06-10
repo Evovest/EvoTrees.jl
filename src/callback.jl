@@ -1,21 +1,21 @@
-struct CallBack{F,B,M,V,Y}
-    feval::F
-    x_bin::B
-    p::M
-    y::Y
-    w::V
-    feattypes::AbstractVector
+struct CallBack
+    feval
+    x_bin
+    p
+    y
+    w
+    feattypes
 end
 
 function CallBack(
     params::EvoTypes{L,T},
-    m::Union{EvoTree{L,K,T},EvoTreeGPU{L,K,T}};
-    metric,
-    deval,
+    m::Union{EvoTree{L,K,T},EvoTreeGPU{L,K,T}},
+    deval::AbstractDataFrame;
     target_name,
     w_name=nothing,
     offset_name=nothing,
-    group_name=nothing
+    metric,
+    device="cpu"
 ) where {L,K,T}
     feval = metric_dict[metric]
     x_bin = binarize(deval; fnames=m.info[:fnames], edges=m.info[:edges])
@@ -46,7 +46,53 @@ function CallBack(
         p .+= offset'
     end
 
-    if params.device == "gpu"
+    if device == "gpu"
+        return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), CuArray(m.info[:feattypes]))
+    else
+        return CallBack(feval, x_bin, p, y, w, m.info[:feattypes])
+    end
+end
+
+function CallBack(
+    params::EvoTypes{L,T},
+    m::Union{EvoTree{L,K,T},EvoTreeGPU{L,K,T}},
+    x_eval::AbstractMatrix,
+    y_eval;
+    w_eval=nothing,
+    offset_eval=nothing,
+    metric,
+    device="cpu"
+) where {L,K,T}
+    feval = metric_dict[metric]
+    x_bin = binarize(x_eval; fnames=m.info[:fnames], edges=m.info[:edges])
+    p = zeros(T, K, size(x_eval, 1))
+    if L == Softmax
+        if eltype(y_eval) <: CategoricalValue
+            levels = CategoricalArrays.levels(y_eval)
+            μ = zeros(T, K)
+            y = UInt32.(CategoricalArrays.levelcode.(y_eval))
+        else
+            levels = sort(unique(y_eval))
+            yc = CategoricalVector(y_eval, levels=levels)
+            μ = zeros(T, K)
+            y = UInt32.(CategoricalArrays.levelcode.(yc))
+        end
+    else
+        y = T.(y_eval)
+    end
+    w = isnothing(w_eval) ? ones(T, size(y)) : Vector{T}(w_eval)
+
+    offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
+    if !isnothing(offset)
+        L == Logistic && (offset .= logit.(offset))
+        L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
+        L == Softmax && (offset .= log.(offset))
+        L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
+        offset = T.(offset)
+        p .+= offset'
+    end
+
+    if device == "gpu"
         return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), CuArray(m.info[:feattypes]))
     else
         return CallBack(feval, x_bin, p, y, w, m.info[:feattypes])
