@@ -63,7 +63,20 @@ function Base.show(io::IO, tree::Tree)
     end
 end
 
-# gradient-boosted tree is formed by a vector of trees
+"""
+    EvoTree{L,K,T}
+
+An `EvoTree` holds the structure of a fitted gradient-boosted tree.
+
+# Fields
+- trees::Vector{Tree{L,K,T}}
+- info::Dict
+
+`EvoTree` acts as a functor to perform inference on input data: 
+```
+pred = (m::EvoTree; ntree_limit=length(m.trees))(x)
+```
+"""
 struct EvoTree{L,K,T}
     trees::Vector{Tree{L,K,T}}
     info::Dict
