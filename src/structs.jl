@@ -66,7 +66,7 @@ end
 """
     EvoTree{L,K,T}
 
-An EvoTree holds the structure of a fitted gradient-boosted tree.
+An `EvoTree` holds the structure of a fitted gradient-boosted tree.
 
 # Fields
 - trees::Vector{Tree{L,K,T}}
