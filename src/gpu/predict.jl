@@ -77,7 +77,7 @@ function predict_kernel!(
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
             nid = nid << 1 + !cond
         end
-        pred[1, i] = min(T(10), max(T(-10), pred[1, i] + leaf_pred[1, nid]))
+        pred[1, i] = min(T(15), max(T(-15), pred[1, i] + leaf_pred[1, nid]))
     end
     sync_threads()
     return nothing
@@ -106,7 +106,7 @@ function predict_kernel!(
             nid = nid << 1 + !cond
         end
         pred[1, i] += leaf_pred[1, nid]
-        pred[2, i] = max(T(-10), pred[2, i] + leaf_pred[2, nid])
+        pred[2, i] = max(T(-15), pred[2, i] + leaf_pred[2, nid])
     end
     sync_threads()
     return nothing
@@ -114,7 +114,7 @@ end
 
 # prediction from single tree - assign each observation to its final leaf
 function predict!(
-    pred::AbstractMatrix{T},
+    pred::CuMatrix{T},
     tree::Tree{L,K,T},
     x_bin::CuMatrix,
     feattypes::CuVector{Bool};
@@ -156,7 +156,7 @@ function predict!(
         feattypes,
     )
     CUDA.synchronize()
-    pred .= max.(T(-10), pred .- maximum(pred, dims=1))
+    pred .= max.(T(-15), pred .- maximum(pred, dims=1))
 end
 
 # prediction from single tree - assign each observation to its final leaf

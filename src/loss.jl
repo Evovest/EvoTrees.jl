@@ -170,7 +170,7 @@ function get_gain(
     gain = zero(T)
     K = (length(∑) - 1) ÷ 2
     @inbounds for k = 1:K
-        gain += ∑[k]^2 / max(ϵ, (∑[k+K] + params.lambda * ∑[2*K+1])) / 2
+        gain += ∑[k]^2 / max(ϵ, (∑[k+K] + params.lambda * ∑[end])) / 2
     end
     return gain
 end
