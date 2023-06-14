@@ -10,7 +10,7 @@ end
 function CallBack(
     params::EvoTypes{L,T},
     m::Union{EvoTree{L,K,T},EvoTreeGPU{L,K,T}},
-    deval::AbstractDataFrame;
+    deval;
     target_name,
     w_name=nothing,
     offset_name=nothing,
@@ -19,7 +19,8 @@ function CallBack(
 ) where {L,K,T}
     feval = metric_dict[metric]
     x_bin = binarize(deval; fnames=m.info[:fnames], edges=m.info[:edges])
-    p = zeros(T, K, nrow(deval))
+    nobs = length(Tables.getcolumn(deval, 1))
+    p = zeros(T, K, nobs)
     if L == Softmax
         if eltype(deval[!, target_name]) <: CategoricalValue
             levels = CategoricalArrays.levels(deval[!, target_name])

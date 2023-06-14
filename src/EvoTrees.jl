@@ -16,7 +16,7 @@ using StatsBase: sample, sample!, quantile, proportions
 using Random
 using Random: seed!, AbstractRNG
 using Distributions
-using DataFrames
+using Tables
 using CategoricalArrays
 using LoopVectorization
 using Tables

@@ -1,6 +1,6 @@
 """
     get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG()) where {T}
-    get_edges(df::AbstractDataFrame; fnames, nbins, rng=Random.TaskLocalRNG())
+    get_edges(df; fnames, nbins, rng=Random.TaskLocalRNG())
 
 Get the braking points of the feature data.
 """
@@ -22,15 +22,16 @@ function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG(
     return edges, featbins, feattypes
 end
 
-function get_edges(df::AbstractDataFrame; fnames, nbins, rng=Random.TaskLocalRNG())
-    nobs = min(nrow(df), 1000 * nbins)
-    idx = rand(rng, 1:nrow(df), nobs)
-    edges = Vector{Any}([Vector{type}() for type in eltype.(eachcol(df[!, fnames]))])
+function get_edges(df; fnames, nbins, rng=Random.TaskLocalRNG())
+    _nobs = length(Tables.getcolumn(df, 1))
+    nobs = min(_nobs, 1000 * nbins)
+    idx = rand(rng, 1:_nobs, nobs)
+    edges = Vector{Any}([Vector{eltype(Tables.getcolumn(df, col))}() for col in fnames])
     nfeats = length(fnames)
     featbins = Vector{UInt8}(undef, nfeats)
     feattypes = Vector{Bool}(undef, nfeats)
     @threads for j in eachindex(fnames)
-        col = view(df, idx, fnames[j])
+        col = view(Tables.getcolumn(df, fnames[j]), idx)
         if eltype(col) <: Bool
             edges[j] = [false, true]
             featbins[j] = 2
@@ -56,7 +57,7 @@ end
 
 """
     binarize(X::AbstractMatrix; fnames, edges)
-    binarize(df::AbstractDataFrame; fnames, edges)
+    binarize(df; fnames, edges)
 
 Transform feature data into a UInt8 binarized matrix.
 """
@@ -68,14 +69,17 @@ function binarize(X::AbstractMatrix; fnames, edges)
     return x_bin
 end
 
-function binarize(df::AbstractDataFrame; fnames, edges)
-    x_bin = zeros(UInt8, nrow(df), length(fnames))
+function binarize(df; fnames, edges)
+    nobs = length(Tables.getcolumn(df, 1))
+    x_bin = zeros(UInt8, nobs, length(fnames))
     @threads for j in eachindex(fnames)
-        col = view(df, :, fnames[j])
-        if eltype(col) <: Real
-            x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), col)
+        col = Tables.getcolumn(df, fnames[j])
+        if eltype(col) <: Bool
+            x_bin[:, j] .= col .+ 1
         elseif eltype(col) <: CategoricalValue
             x_bin[:, j] .= levelcode.(col)
+        elseif eltype(col) <: Real
+            x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), col)
         end
     end
     return x_bin

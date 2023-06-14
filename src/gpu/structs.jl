@@ -3,8 +3,7 @@ struct EvoTreeGPU{L,K,T}
     trees::Vector{Tree{L,K,T}}
     info::Dict
 end
-(m::EvoTreeGPU)(x::AbstractMatrix; ntree_limit=length(m.trees)) = predict(m, x; ntree_limit)
-(m::EvoTreeGPU)(df::AbstractDataFrame; ntree_limit=length(m.trees)) = predict(m, df; ntree_limit)
+(m::EvoTreeGPU)(data; ntree_limit=length(m.trees)) = predict(m, data; ntree_limit)
 get_types(::EvoTreeGPU{L,K,T}) where {L,K,T} = (L, T)
 
 function Base.show(io::IO, evotree::EvoTreeGPU)

@@ -162,7 +162,7 @@ end
 # prediction from single tree - assign each observation to its final leaf
 function predict(
     m::EvoTreeGPU{L,K,T},
-    data::Union{AbstractMatrix, AbstractDataFrame};
+    data;
     ntree_limit=length(m.trees)
 ) where {L,K,T}
     pred = CUDA.zeros(T, K, size(data, 1))

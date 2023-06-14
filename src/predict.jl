@@ -82,7 +82,7 @@ Use `ntree_limit=N` to only predict with the first `N` trees.
 """
 function predict(
     m::EvoTree{L,K,T},
-    data::Union{AbstractMatrix,AbstractDataFrame};
+    data;
     ntree_limit=length(m.trees)) where {L,K,T}
 
     ntrees = length(m.trees)

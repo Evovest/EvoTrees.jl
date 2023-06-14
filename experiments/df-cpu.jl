@@ -1,11 +1,8 @@
 using Revise
 using EvoTrees
-using MLUtils
-using CSV
 using DataFrames
 using CategoricalArrays: categorical
 import CUDA
-using Base.Iterators: partition
 using Base.Threads: nthreads, @threads
 using BenchmarkTools
 using Random: seed!
@@ -20,7 +17,7 @@ using Random: seed!
 
 seed!(123)
 nrounds = 200
-nobs = Int(10e6)
+nobs = Int(1e4)
 nfeats_num = Int(100)
 T = Float32
 nthread = Base.Threads.nthreads()
@@ -74,21 +71,27 @@ hyper = EvoTreeRegressor(
 
 target_name = "y"
 device = "cpu"
+@info "init"
 @time model, cache = EvoTrees.init(hyper, dtrain; target_name);
+@info "pred"
+@time pred= model(dtrain);
+
 # cache.edges[11]
 # cache.featbins
 # cache.feattypes
 # cache.nodes[1].gains[1]
 # model.trees[1]
 
+@info "grow_evotree!"
 @time EvoTrees.grow_evotree!(model, cache, hyper);
 # @btime EvoTrees.grow_evotree!(model, cache, hyper);
 
+@info "fit_evotree"
 @time m = fit_evotree(hyper, dtrain; target_name, device, verbosity = false);
 # @btime fit_evotree(hyper, dtrain; target_name, verbosity = false);
 
 @time m = fit_evotree(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100, verbosity = false);
-@btime m = fit_evotree(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100, verbosity = false);
+# @btime m = fit_evotree(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100, verbosity = false);
 
 @time pred= m(dtrain);
-@btime m($dtrain);
+# @btime m($dtrain);

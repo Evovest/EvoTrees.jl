@@ -123,7 +123,7 @@ Initialise EvoTree
 """
 function init(
     params::EvoTypes{L,T},
-    dtrain::AbstractDataFrame;
+    dtrain;
     target_name,
     fnames=nothing,
     w_name=nothing,
@@ -132,26 +132,30 @@ function init(
 ) where {L,T}
 
     # set fnames
+    schema = Tables.schema(dtrain)
     _w_name = isnothing(w_name) ? "" : string(w_name)
     _offset_name = isnothing(offset_name) ? "" : string(offset_name)
+    @info "setting fnames" 
     if isnothing(fnames)
-        fnames = String[]
-        for name in names(dtrain)
-            if eltype(dtrain[!, name]) <: Union{Real,CategoricalValue}
-                push!(fnames, name)
+        fnames = Symbol[]
+        for i in eachindex(schema.names)
+            if schema.types[i] <: Union{Real,CategoricalValue}
+                push!(fnames, schema.names[i])
             end
         end
         fnames = setdiff(fnames, union([target_name], [_w_name], [_offset_name]))
     else
         isa(fnames, String) ? fnames = [fnames] : nothing
-        fnames = string.(fnames)
-        @assert isa(fnames, Vector{String})
+        fnames = Symbol.(fnames)
+        @assert isa(fnames, Vector{Symbol})
+        @assert all(fnames .∈ Ref(schema.names))
         for name in fnames
-            @assert eltype(dtrain[!, name]) <: Union{Real,CategoricalValue}
+            @assert schema.types[findfirst(name .== schema.names)] <: Union{Real,CategoricalValue}
         end
     end
 
-    nobs = nrow(dtrain)
+    @info "set w & offset"
+    nobs = length(Tables.getcolumn(dtrain, 1))
     if String(device) == "gpu"
         y_train = dtrain[!, target_name]
         w = isnothing(w_name) ? CUDA.ones(T, nobs) : CuArray{T}(dtrain[!, w_name])
@@ -161,6 +165,7 @@ function init(
         w = isnothing(w_name) ? ones(T, nobs) : Vector{T}(dtrain[!, w_name])
         offset = !isnothing(offset_name) ? T.(dtrain[!, offset_name]) : nothing
     end
+    @info "start init core"
     m, cache = init_core(params, dtrain, fnames, y_train, w, offset)
 
     return m, cache
