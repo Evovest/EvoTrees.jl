@@ -25,7 +25,7 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 
 @testset "EvoTreeRegressor - NTuples" begin
     # linear
-    params1 = EvoTreeRegressor(
+    config = EvoTreeRegressor(
         loss = :linear,
         nrounds = 100,
         nbins = 16,
@@ -39,7 +39,10 @@ y_train, y_eval = Y[i_train], Y[i_eval]
         rng = 123,
     )
 
-    model, cache = EvoTrees.init(params1, x_train, y_train)
+    dtrain = (x1 = x_train[:, 1], y = y_train)
+    deval = (x1 = x_eval[:, 1], y = y_eval)
+
+    model, cache = EvoTrees.init(config, dtrain; target_name = "y")
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
