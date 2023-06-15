@@ -18,7 +18,6 @@ using Random: seed!, AbstractRNG
 using Distributions
 using Tables
 using CategoricalArrays
-using LoopVectorization
 using Tables
 using CUDA
 using CUDA: @allowscalar, allowscalar

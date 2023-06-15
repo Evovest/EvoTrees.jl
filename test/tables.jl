@@ -41,22 +41,22 @@ config = EvoTreeRegressor(
     rng=123,
 )
 
-@testset "EvoTreeRegressor - NTuples" begin
+@testset "Tables - NTuples" begin
 
     dtrain = (x1=x_num[i_train], y=y_tot[i_train])
     deval = (x1=x_num[i_eval], y=y_tot[i_eval])
-    y_eval = y_tot[i_eval]
+    y_train, y_eval = y_tot[i_train], y_tot[i_eval]
 
     m, cache = EvoTrees.init(config, dtrain; target_name="y")
     preds_ini = EvoTrees.predict(m, deval)
-    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
+    mse_error_ini = mean((preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
         config,
         dtrain;
         target_name)
 
     preds = EvoTrees.predict(model, deval)
-    mse_error = mean(abs.(preds .- y_eval) .^ 2)
+    mse_error = mean((preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 
@@ -69,27 +69,28 @@ config = EvoTreeRegressor(
         print_every_n=25)
 
     preds = EvoTrees.predict(model, deval)
-    mse_error = mean(abs.(preds .- y_eval) .^ 2)
+    mse_error = mean((preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 
 end
 
-@testset "EvoTreeRegressor - DataFrames" begin
+@testset "Tables - DataFrames" begin
 
     df_tot = DataFrame(x_num=x_num, y=y_tot)
     dtrain, deval = df_tot[i_train, :], df_tot[i_eval, :]
+    y_train, y_eval = y_tot[i_train], y_tot[i_eval]
 
     m, cache = EvoTrees.init(config, dtrain; target_name="y")
     preds_ini = EvoTrees.predict(m, deval)
-    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
+    mse_error_ini = mean((preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
         config,
         dtrain;
         target_name)
 
     preds = EvoTrees.predict(model, deval)
-    mse_error = mean(abs.(preds .- y_eval) .^ 2)
+    mse_error = mean((preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 
@@ -102,23 +103,26 @@ end
         print_every_n=25)
 
     preds = EvoTrees.predict(model, deval)
-    mse_error = mean(abs.(preds .- y_eval) .^ 2)
+    mse_error = mean((preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 
 end
 
 
-@testset "EvoTreeRegressor - DataFrames - num/bool/cat" begin
+@testset "Tables - num/bool/cat" begin
 
     y_tot = sin.(x_num) .* 0.5 .+ 0.5
-    y_tot = logit(y_tot) .+ randn(nobs) .+ 1.0 .* (x_cat .== "b") .- 1.0 .* (x_cat .== "c") .+ 1.0 .* (x_bool)
+    y_tot = logit(y_tot) .+ randn(nobs) .+ 1.0 .* (x_cat .== "b") .- 1.0 .* (x_cat .== "c") .+ 1.0 .* x_bool
     y_tot = sigmoid(y_tot)
     y_train, y_eval = y_tot[i_train], y_tot[i_eval]
 
     df_tot = DataFrame(x_num=x_num, x_bool=x_bool, x_cat=x_cat, y=y_tot)
     dtrain, deval = df_tot[i_train, :], df_tot[i_eval, :]
 
+    m, cache = EvoTrees.init(config, dtrain; target_name)
+    preds_ini = EvoTrees.predict(m, deval)
+    mse_error_ini = mean((preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
         config,
         dtrain;
@@ -127,30 +131,33 @@ end
     @test model.info[:fnames] == [:x_num, :x_bool, :x_cat]
 
     preds = EvoTrees.predict(model, deval)
-    mse_error = mean(abs.(preds .- y_eval) .^ 2)
+    mse_error = mean((preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 
 end
 
-@testset "EvoTreeRegressor - DataFrames - bool/cat" begin
+@testset "Tables - bool/cat" begin
 
     y_tot = sin.(x_num) .* 0.1 .+ 0.5
-    y_tot = logit(y_tot) .+ randn(nobs) .+ 2.0 .* (x_cat .== "b") .- 1.0 .* (x_cat .== "c") .+ 3.0 .* (x_bool)
-    # y_tot = randn(nobs) .+ 1.0 .* (x_cat .== "b") .- 1.0 .* (x_cat .== "c") .+ 1.0 .* (x_bool)
+    y_tot = logit(y_tot) .+ randn(nobs) .+ 2.0 .* (x_cat .== "b") .- 3.0 .* (x_cat .== "c") .+ 3.0 .* x_bool
     y_tot = sigmoid(y_tot)
     y_train, y_eval = y_tot[i_train], y_tot[i_eval]
-    
+
     df_tot = DataFrame(x_num=x_num, x_bool=x_bool, x_cat=x_cat, y=y_tot)
     dtrain, deval = df_tot[i_train, :], df_tot[i_eval, :]
+    fnames = [:x_bool, :x_cat]
 
+    m, cache = EvoTrees.init(config, dtrain; target_name, fnames)
+    preds_ini = EvoTrees.predict(m, deval)
+    mse_error_ini = mean((preds_ini .- y_eval) .^ 2)
     model = fit_evotree(
         config,
         dtrain;
         target_name,
-        fnames=[:x_bool, :x_cat])
+        fnames)
 
-    @test model.info[:fnames] == [:x_bool, :x_cat]
+    @test model.info[:fnames] == fnames
 
     preds = EvoTrees.predict(model, deval)
     mse_error = mean((preds .- y_eval) .^ 2)

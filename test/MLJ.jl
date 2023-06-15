@@ -1,7 +1,6 @@
 using StatsBase: sample
 using EvoTrees: sigmoid, logit
 using MLJBase
-
 using MLJTestInterface
 
 @testset "generic interface tests" begin
