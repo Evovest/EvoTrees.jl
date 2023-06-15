@@ -1,19 +1,17 @@
 abstract type ModelType end
 abstract type GradientRegression <: ModelType end
+abstract type MLE2P <: ModelType end # 2-parameters max-likelihood
+
+abstract type Linear <: GradientRegression end
+abstract type Logistic <: GradientRegression end
+abstract type Poisson <: GradientRegression end
+abstract type Gamma <: GradientRegression end
+abstract type Tweedie <: GradientRegression end
+abstract type GaussianMLE <: MLE2P end
+abstract type LogisticMLE <: MLE2P end
 abstract type L1Regression <: ModelType end
 abstract type QuantileRegression <: ModelType end
 abstract type MultiClassRegression <: ModelType end
-abstract type MLE2P <: ModelType end # 2-parameters max-likelihood
-struct Linear <: GradientRegression end
-struct Logistic <: GradientRegression end
-struct Poisson <: GradientRegression end
-struct Gamma <: GradientRegression end
-struct Tweedie <: GradientRegression end
-struct L1 <: L1Regression end
-struct Quantile <: QuantileRegression end
-struct Softmax <: MultiClassRegression end
-struct GaussianMLE <: MLE2P end
-struct LogisticMLE <: MLE2P end
 
 # make a Random Number Generator object
 mk_rng(rng::AbstractRNG) = rng
@@ -43,7 +41,7 @@ end
 function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
 
     # Check integer parameters
-    check_parameter(Int, args[:nrounds], 1, typemax(Int), :nrounds)
+    check_parameter(Int, args[:nrounds], 0, typemax(Int), :nrounds)
     check_parameter(Int, args[:max_depth], 1, typemax(Int), :max_depth)
     check_parameter(Int, args[:nbins], 2, 255, :nbins)
 
@@ -56,7 +54,7 @@ function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
     check_parameter(T, args[:alpha], zero(T), one(T), :alpha)
     check_parameter(T, args[:rowsample], eps(T), one(T), :rowsample)
     check_parameter(T, args[:colsample], eps(T), one(T), :colsample)
-    check_parameter(T, args[:eta], eps(T), typemax(T), :eta)
+    check_parameter(T, args[:eta], zero(T), typemax(T), :eta)
 end
 
 mutable struct EvoTreeRegressor{L<:ModelType,T} <: MMI.Deterministic
@@ -111,13 +109,13 @@ function EvoTreeRegressor(; kwargs...)
         L = Gamma
     elseif args[:loss] == :tweedie
         L = Tweedie
-    elseif args[:loss] == :L1
-        L = L1
+    elseif args[:loss] == :l1
+        L = L1Regression
     elseif args[:loss] == :quantile
-        L = Quantile
+        L = QuantileRegression
     else
         error(
-            "Invalid loss: $(args[:loss]). Only [`:linear`, `:logistic`, `:L1`, `:quantile`] are supported at the moment by EvoTreeRegressor.",
+            "Invalid loss: $(args[:loss]). Only [`:linear`, `:logistic`, `:l1`, `:quantile`] are supported at the moment by EvoTreeRegressor.",
         )
     end
 
@@ -141,9 +139,9 @@ function EvoTreeRegressor(; kwargs...)
     return model
 end
 
-# Converts Linear -> :linear (special case is L1 -> :L1)
+# Converts Linear -> :linear
 function _type2loss(t::Type)
-    t |> string |> lowercase |> x -> split(x, ".")[end] |> x -> ifelse(x == "l1", "L1", x) |> Symbol
+    t |> string |> lowercase |> x -> split(x, ".")[end] |> Symbol
 end
 
 function EvoTreeRegressor{L,T}(; kwargs...) where {L,T}
@@ -235,7 +233,7 @@ function EvoTreeClassifier(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :T => Float32,
+        :T => Float64,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
@@ -255,7 +253,7 @@ function EvoTreeClassifier(; kwargs...)
     end
 
     args[:rng] = mk_rng(args[:rng])
-    L = Softmax
+    L = MultiClassRegression
     T = args[:T]
 
     check_args(T, args)
@@ -454,7 +452,7 @@ function check_args(model::EvoTypes{L,T}) where {L,T<:Real}
 
     # Check integer parameters
     check_parameter(Int, model.max_depth, 1, typemax(Int), :max_depth)
-    check_parameter(Int, model.nrounds, 1, typemax(Int), :nrounds)
+    check_parameter(Int, model.nrounds, 0, typemax(Int), :nrounds)
     check_parameter(Int, model.nbins, 2, 255, :nbins)
 
     # check positive float parameters
@@ -466,5 +464,5 @@ function check_args(model::EvoTypes{L,T}) where {L,T<:Real}
     check_parameter(T, model.alpha, zero(T), one(T), :alpha)
     check_parameter(T, model.rowsample, eps(T), one(T), :rowsample)
     check_parameter(T, model.colsample, eps(T), one(T), :colsample)
-    check_parameter(T, model.eta, eps(T), typemax(T), :eta)
+    check_parameter(T, model.eta, zero(T), typemax(T), :eta)
 end

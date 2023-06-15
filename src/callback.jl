@@ -28,7 +28,7 @@ function CallBack(
 
     y_eval = Tables.getcolumn(deval, _target_name)
 
-    if L == Softmax
+    if L == MultiClassRegression
         if eltype(y_eval) <: CategoricalValue
             levels = CategoricalArrays.levels(y_eval)
             μ = zeros(T, K)
@@ -48,7 +48,7 @@ function CallBack(
     if !isnothing(offset)
         L == Logistic && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
-        L == Softmax && (offset .= log.(offset))
+        L == MultiClassRegression && (offset .= log.(offset))
         L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
         offset = T.(offset)
         p .+= offset'
@@ -75,7 +75,7 @@ function CallBack(
     x_bin = binarize(x_eval; fnames=m.info[:fnames], edges=m.info[:edges])
     p = zeros(T, K, size(x_eval, 1))
 
-    if L == Softmax
+    if L == MultiClassRegression
         if eltype(y_eval) <: CategoricalValue
             levels = CategoricalArrays.levels(y_eval)
             μ = zeros(T, K)
@@ -95,7 +95,7 @@ function CallBack(
     if !isnothing(offset)
         L == Logistic && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
-        L == Softmax && (offset .= log.(offset))
+        L == MultiClassRegression && (offset .= log.(offset))
         L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
         offset = T.(offset)
         p .+= offset'

@@ -154,7 +154,7 @@ function update_grads!(
     y::CuVector,
     ::EvoTreeClassifier{L,T};
     MAX_THREADS=1024
-) where {L<:Softmax,T}
+) where {L<:MultiClassRegression,T}
     p_prob = exp.(p) ./ sum(exp.(p), dims=1)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, (length(y)) / threads)

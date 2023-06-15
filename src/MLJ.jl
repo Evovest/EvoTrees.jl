@@ -174,7 +174,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:gamma`
   - `:tweedie`
   - `:quantile`
-  - `:L1`
+  - `:l1`
 - `nrounds=10`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.   
@@ -182,7 +182,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 - `gamma::T=0.0`:         Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `alpha::T=0.5`:         Loss specific parameter in the [0, 1] range:
                             - `:quantile`: target quantile for the regression.
-                            - `:L1`: weighting parameters to positive vs negative residuals.
+                            - `:l1`: weighting parameters to positive vs negative residuals.
                                   - Positive residual weights = `alpha`
                                   - Negative residual weights = `(1 - alpha)`
 - `max_depth=5`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
