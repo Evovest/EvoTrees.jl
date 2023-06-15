@@ -7,7 +7,6 @@ export EvoTreeRegressor,
     EvoTreeMLE,
     EvoTreeGaussian,
     EvoTree,
-    EvoTreeGPU,
     Random
 
 using Base.Threads: @threads, @spawn, nthreads, threadid
@@ -42,7 +41,6 @@ include("subsample.jl")
 include("fit-utils.jl")
 include("fit.jl")
 
-include("gpu/structs.jl")
 include("gpu/loss.jl")
 include("gpu/eval.jl")
 include("gpu/predict.jl")
@@ -56,29 +54,8 @@ include("importance.jl")
 include("plot.jl")
 include("MLJ.jl")
 
-function convert(::Type{EvoTree}, m::EvoTreeGPU{L,K,T}) where {L,K,T}
-    EvoTrees.EvoTree{L,K,T}(
-        [
-            EvoTrees.Tree{L,K,T}(
-                Array(tree.feat),
-                Array(tree.cond_bin),
-                Array(tree.cond_float),
-                Array(tree.gain),
-                Array(tree.pred),
-                Array(tree.split),
-            ) for tree in m.trees
-        ],
-        m.info,
-    )
-end
-
 function save(model::EvoTree, path)
     BSON.bson(path, Dict(:model => model))
-end
-
-function save(model::EvoTreeGPU, path)
-    m = convert(EvoTree, model)
-    save(m, path)
 end
 
 function load(path)

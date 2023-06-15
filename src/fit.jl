@@ -3,7 +3,7 @@
 
 Given a instantiate
 """
-function grow_evotree!(m::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) where {L,K,T}
+function grow_evotree!(m::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}, ::Type{D}=CPU) where {L,K,T,D<:Device}
 
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, params)
@@ -215,8 +215,10 @@ function fit_evotree(
 
     @assert Tables.istable(dtrain) "fit_evotree(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
     verbosity == 1 && @info params
+    @assert string(device) ∈ ["cpu", "gpu"]
+    _device = string(device) == "cpu" ? CPU : GPU
 
-    m, cache = init(params, dtrain; target_name, fnames, w_name, offset_name, device)
+    m, cache = init(params, dtrain, _device; target_name, fnames, w_name, offset_name)
 
     # initialize callback and logger if tracking eval data
     metric = isnothing(metric) ? nothing : Symbol(metric)
@@ -226,7 +228,7 @@ function fit_evotree(
         @warn "To track eval metric in logger, both `metric` and `deval` must be provided."
     end
     if logging_flag
-        cb = CallBack(params, m, deval; target_name, w_name, offset_name, metric, device)
+        cb = CallBack(params, m, deval, _device; target_name, w_name, offset_name, metric)
         logger = init_logger(; T, metric, maximise=is_maximise(cb.feval), early_stopping_rounds)
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
@@ -235,7 +237,7 @@ function fit_evotree(
     end
 
     for i = 1:params.nrounds
-        grow_evotree!(m, cache, params)
+        grow_evotree!(m, cache, params, _device)
         if !isnothing(logger)
             cb(logger, i, m.trees[end])
             if i % print_every_n == 0 && verbosity > 0
@@ -320,8 +322,10 @@ function fit_evotree(
 ) where {L,T}
 
     verbosity == 1 && @info params
+    @assert string(device) ∈ ["cpu", "gpu"]
+    _device = string(device) == "cpu" ? CPU : GPU
 
-    m, cache = init(params, x_train, y_train; fnames, w_train, offset_train, device)
+    m, cache = init(params, x_train, y_train, _device; fnames, w_train, offset_train)
 
     # initialize callback and logger if tracking eval data
     metric = isnothing(metric) ? nothing : Symbol(metric)
@@ -331,7 +335,7 @@ function fit_evotree(
         @warn "To track eval metric in logger, `metric`, `x_eval` and `y_eval` must all be provided."
     end
     if logging_flag
-        cb = CallBack(params, m, x_eval, y_eval; w_eval, offset_eval, metric, device)
+        cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval, metric)
         logger = init_logger(; T, metric, maximise=is_maximise(cb.feval), early_stopping_rounds)
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
@@ -340,7 +344,7 @@ function fit_evotree(
     end
 
     for i = 1:params.nrounds
-        grow_evotree!(m, cache, params)
+        grow_evotree!(m, cache, params, _device)
         if !isnothing(logger)
             cb(logger, i, m.trees[end])
             if i % print_every_n == 0 && verbosity > 0
@@ -349,7 +353,7 @@ function fit_evotree(
             (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
         end
     end
-    if String(device) == "gpu"
+    if _device <: GPU
         GC.gc(true)
         CUDA.reclaim()
     end

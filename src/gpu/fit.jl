@@ -1,14 +1,15 @@
 function grow_evotree!(
-    evotree::EvoTreeGPU{L,K,T},
+    evotree::EvoTree{L,K,T},
     cache,
     params::EvoTypes{L,T},
+    ::Type{GPU}
 ) where {L,K,T}
 
     # compute gradients
-    update_grads_gpu!(cache.∇, cache.pred, cache.y, params)
+    update_grads!(cache.∇, cache.pred, cache.y, params)
     # subsample rows
     cache.nodes[1].is =
-        subsample_gpu(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
+        subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
     # subsample cols
     sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
 
@@ -88,9 +89,7 @@ function grow_tree!(
                         end
                     end
                 else
-                    # @info "hist"
                     update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
-                    # update_hist_gpu_vec!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, js)
                 end
             end
         end

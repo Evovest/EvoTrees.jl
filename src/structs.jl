@@ -1,3 +1,7 @@
+abstract type Device end
+abstract type CPU <: Device end
+abstract type GPU <: Device end
+
 """
     Carries training information for a given tree node
 """
@@ -81,7 +85,14 @@ struct EvoTree{L,K,T}
     trees::Vector{Tree{L,K,T}}
     info::Dict
 end
-(m::EvoTree)(data; ntree_limit=length(m.trees)) = predict(m, data; ntree_limit)
+# (m::EvoTree)(data, device::Type{D}=CPU; ntree_limit=length(m.trees)) where {D<:Device} =
+#     predict(m, data, device; ntree_limit)
+function (m::EvoTree)(data; ntree_limit=length(m.trees), device="cpu")
+    @assert string(device) ∈ ["cpu", "gpu"]
+    _device = string(device) == "cpu" ? CPU : GPU
+    return predict(m, data, _device; ntree_limit)
+end
+
 get_types(::EvoTree{L,K,T}) where {L,K,T} = (L, T)
 
 function Base.show(io::IO, evotree::EvoTree)

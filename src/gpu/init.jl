@@ -1,4 +1,4 @@
-function init_core(params::EvoTypes{L,T}, data, fnames, y_train, w::CuVector, offset) where {L,T}
+function init_core(params::EvoTypes{L,T}, ::Type{GPU}, data, fnames, y_train, w, offset) where {L,T}
 
     # binarize data into quantiles
     edges, featbins, feattypes = get_edges(data; fnames, nbins=params.nbins, rng=params.rng)
@@ -88,7 +88,7 @@ function init_core(params::EvoTypes{L,T}, data, fnames, y_train, w::CuVector, of
     # initialize model
     nodes = [TrainNode(featbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
     bias = [Tree{L,K,T}(μ)]
-    m = EvoTreeGPU{L,K,T}(bias, info)
+    m = EvoTree{L,K,T}(bias, info)
 
     # build cache
     cache = (

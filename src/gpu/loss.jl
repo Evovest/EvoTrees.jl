@@ -9,7 +9,7 @@ function kernel_linear_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceV
     end
     return
 end
-function update_grads_gpu!(
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
@@ -35,7 +35,7 @@ function kernel_logistic_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDevic
     end
     return
 end
-function update_grads_gpu!(
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
@@ -61,7 +61,7 @@ function kernel_poisson_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDevice
     end
     return
 end
-function update_grads_gpu!(
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
@@ -87,7 +87,7 @@ function kernel_gamma_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVe
     end
     return
 end
-function update_grads_gpu!(
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
@@ -115,7 +115,7 @@ function kernel_tweedie_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDevice
     end
     return
 end
-function update_grads_gpu!(
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
@@ -148,7 +148,7 @@ function kernel_softmax_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDevice
     end
     return
 end
-function update_grads_gpu!(
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
@@ -182,7 +182,7 @@ function kernel_gauss_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVe
     return
 end
 
-function update_grads_gpu!(
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
@@ -194,10 +194,4 @@ function update_grads_gpu!(
     @cuda blocks = blocks threads = threads kernel_gauss_∇!(∇, p, y)
     CUDA.synchronize()
     return
-end
-
-function update_childs_∑_gpu!(::Type{L}, nodes, n, bin, feat) where {L}
-    nodes[n<<1].∑ .= nodes[n].hL[feat][:, bin]
-    nodes[n<<1+1].∑ .= nodes[n].hR[feat][:, bin]
-    return nothing
 end

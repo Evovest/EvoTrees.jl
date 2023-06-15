@@ -1,4 +1,4 @@
-function init_core(params::EvoTypes{L,T}, data, fnames, y_train, w, offset) where {L,T}
+function init_core(params::EvoTypes{L,T}, ::Type{CPU}, data, fnames, y_train, w, offset) where {L,T}
 
     # binarize data into quantiles
     edges, featbins, feattypes = get_edges(data; fnames, nbins=params.nbins, rng=params.rng)
@@ -123,12 +123,12 @@ Initialise EvoTree
 """
 function init(
     params::EvoTypes{L,T},
-    dtrain;
+    dtrain,
+    device::Type{<:Device}=CPU;
     target_name,
     fnames=nothing,
     w_name=nothing,
-    offset_name=nothing,
-    device="cpu"
+    offset_name=nothing
 ) where {L,T}
 
     # set fnames
@@ -156,14 +156,15 @@ function init(
 
     nobs = length(Tables.getcolumn(dtrain, 1))
     y_train = Tables.getcolumn(dtrain, _target_name)
-    if String(device) == "gpu"
+    if device <: GPU
         w = isnothing(w_name) ? CUDA.ones(T, nobs) : CuArray{T}(Tables.getcolumn(dtrain, _w_name))
         offset = !isnothing(offset_name) ? CuArray{T}(Tables.getcolumn(dtrain, _offset_name)) : nothing
     else
         w = isnothing(w_name) ? ones(T, nobs) : Vector{T}(Tables.getcolumn(dtrain, _w_name))
         offset = !isnothing(offset_name) ? T.(Tables.getcolumn(dtrain, _offset_name)) : nothing
     end
-    m, cache = init_core(params, dtrain, fnames, y_train, w, offset)
+
+    m, cache = init_core(params, device, dtrain, fnames, y_train, w, offset)
 
     return m, cache
 end
@@ -177,11 +178,11 @@ Initialise EvoTree
 function init(
     params::EvoTypes{L,T},
     x_train::AbstractMatrix,
-    y_train::AbstractVector;
+    y_train::AbstractVector,
+    device::Type{<:Device}=CPU;
     fnames=nothing,
     w_train=nothing,
-    offset_train=nothing,
-    device="cpu"
+    offset_train=nothing
 ) where {L,T}
 
     # initialize model and cache
@@ -189,7 +190,7 @@ function init(
     @assert length(fnames) == size(x_train, 2)
 
     nobs = size(x_train, 1)
-    if String(device) == "gpu"
+    if device <: GPU
         w = isnothing(w_train) ? CUDA.ones(T, nobs) : CuArray{T}(w_train)
         offset = !isnothing(offset_train) ? CuArray{T}(offset_train) : nothing
     else
@@ -197,7 +198,7 @@ function init(
         offset = !isnothing(offset_train) ? T.(offset_train) : nothing
     end
 
-    m, cache = init_core(params, x_train, fnames, y_train, w, offset)
+    m, cache = init_core(params, device, x_train, fnames, y_train, w, offset)
 
     return m, cache
 end
