@@ -51,7 +51,7 @@ function subsample_step_2_kernel(is_in, is_out, counts, counts_cum, chunk_size)
     sync_threads()
 end
 
-function subsample_gpu(is_in::CuVector, is_out::CuVector, mask::CuVector, rowsample::AbstractFloat, rng)
+function subsample(is_in::CuVector, is_out::CuVector, mask::CuVector, rowsample::AbstractFloat, rng)
     get_rand_gpu!(mask)
     cond = round(UInt8, 255 * rowsample)
     chunk_size = cld(length(is_in), min(cld(length(is_in), 128), 2048))

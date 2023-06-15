@@ -13,6 +13,7 @@ function predict_kernel!(
 ) where {L,T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
+    K = size(pred, 1)
     @inbounds if i <= size(pred, 2)
         @inbounds while split[nid]
             feat = feats[nid]
@@ -136,12 +137,12 @@ function predict!(
     CUDA.synchronize()
 end
 function predict!(
-    pred::AbstractMatrix{T},
+    pred::CuMatrix{T},
     tree::Tree{L,K,T},
     x_bin::CuMatrix,
     feattypes::CuVector{Bool};
     MAX_THREADS=1024
-) where {L<:Softmax,K,T}
+) where {L<:MultiClassRegression,K,T}
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
     blocks = cld(n, threads)
@@ -161,10 +162,11 @@ end
 
 # prediction from single tree - assign each observation to its final leaf
 function predict(
-    m::EvoTreeGPU{L,K,T},
-    data;
-    ntree_limit=length(m.trees)
-) where {L,K,T}
+    m::EvoTree{L,K,T},
+    data,
+    ::Type{GPU};
+    ntree_limit=length(m.trees)) where {L,K,T}
+
     pred = CUDA.zeros(T, K, size(data, 1))
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
@@ -179,7 +181,7 @@ function predict(
         pred .= exp.(pred)
     elseif L in [GaussianMLE, LogisticMLE]
         pred[2, :] .= exp.(pred[2, :])
-    elseif L == Softmax
+    elseif L == MultiClassRegression
         # @inbounds for i in axes(pred, 2)
         #     pred[:, i] .= softmax(pred[:, i])
         # end

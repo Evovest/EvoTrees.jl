@@ -15,7 +15,6 @@ loss_xgb = "multi:softmax"
 metric_xgb = "mlogloss"
 metric_evo = :mlogloss
 
-
 # xgboost aprams
 params_xgb = Dict(
     :num_round => nrounds,
@@ -33,7 +32,7 @@ metrics = [metric_xgb]
 
 # EvoTrees params
 params_evo = EvoTreeClassifier(;
-    T=Float32,
+    T=Float64,
     nrounds=nrounds,
     alpha=0.5,
     lambda=0.0,
@@ -59,8 +58,12 @@ watchlist = Dict("train" => DMatrix(x_train, y_train .- 1))
 @time pred_xgb = XGBoost.predict(m_xgb, x_train);
 @btime XGBoost.predict($m_xgb, $x_train);
 
-@info "evotrees train CPU:"
+@info "EvoTrees CPU"
 device = "cpu"
+@info "train - no eval"
+@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
+@info "train - eval"
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, print_every_n=100);
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, print_every_n=100);
 # @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
@@ -71,9 +74,13 @@ device = "cpu"
 
 @info "evotrees train GPU:"
 device = "gpu"
-@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, print_every_n=100);
+@info "train - no eval"
+@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
+@info "train - eval"
+@time m_evo_gpu = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, print_every_n=1);
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, print_every_n=100);
 # @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
 @info "evotrees predict GPU:"
-@time pred_evo = m_evo(x_train);
-@btime m_evo($x_train);
+@time pred_evo = m_evo(x_train; device);
+@btime m_evo($x_train; device);

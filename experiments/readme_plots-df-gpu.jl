@@ -49,7 +49,7 @@ params1 = EvoTreeRegressor(
     rng=123,
 )
 
-@time model = EvoTrees.train(
+@time model = EvoTrees.fit_evotree(
     params1,
     dtrain;
     fnames=["x_num", "x_cat"],
@@ -62,7 +62,8 @@ params1 = EvoTreeRegressor(
     verbosity=0
 );
 
-pred = model(dtrain);
+@time pred = model(dtrain);
+@time pred = model(dtrain; device);
 
 # @btime model = EvoTrees.fit_evotree_df(
 #     params1;

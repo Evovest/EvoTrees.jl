@@ -109,8 +109,8 @@ params_evo = EvoTreeRegressor(
 @info "EvoTrees CPU"
 device = "cpu"
 @info "init"
-@time m, cache = EvoTrees.init(params_evo, x_train, y_train; device);
-@time m, cache = EvoTrees.init(params_evo, x_train, y_train; device);
+@time m, cache = EvoTrees.init(params_evo, x_train, y_train);
+@time m, cache = EvoTrees.init(params_evo, x_train, y_train);
 
 # @info "train - no eval"
 # @time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
@@ -133,5 +133,5 @@ device = "gpu"
 # @time m_evo = fit_evotree(params_evo; x_train, y_train);
 # @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo, device, verbosity);
 @info "predict"
-@time pred_evo = m_evo(x_train);
-@btime m_evo($x_train);
+@time pred_evo = m_evo(x_train; device);
+@btime m_evo($x_train; device);

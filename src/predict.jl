@@ -38,7 +38,7 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feat
     return nothing
 end
 
-function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:Softmax,K,T}
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:MultiClassRegression,K,T}
     @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
@@ -82,7 +82,8 @@ Use `ntree_limit=N` to only predict with the first `N` trees.
 """
 function predict(
     m::EvoTree{L,K,T},
-    data;
+    data,
+    ::Type{<:Device}=CPU;
     ntree_limit=length(m.trees)) where {L,K,T}
 
     ntrees = length(m.trees)
@@ -99,10 +100,10 @@ function predict(
         pred .= exp.(pred)
     elseif L in [GaussianMLE, LogisticMLE]
         pred[2, :] .= exp.(pred[2, :])
-    elseif L == Softmax
-        @inbounds for i in axes(pred, 2)
-            pred[:, i] .= softmax(pred[:, i])
-        end
+    elseif L == MultiClassRegression
+        # @inbounds for i in axes(pred, 2)
+        #     pred[:, i] .= softmax(pred[:, i])
+        # end
     end
     pred = K == 1 ? vec(Array(pred')) : Array(pred')
     return pred

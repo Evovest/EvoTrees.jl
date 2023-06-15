@@ -44,8 +44,8 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T
     end
 end
 
-# L1
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, params::EvoTreeRegressor{L,T}) where {L<:L1,T}
+# L1Regression
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, params::EvoTreeRegressor{L,T}) where {L<:L1Regression,T}
     @threads for i in eachindex(y)
         @inbounds ∇[1, i] =
             (params.alpha * max(y[i] - p[1, i], 0) - (1 - params.alpha) * max(p[1, i] - y[i], 0)) *
@@ -54,7 +54,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, params::EvoTreeRegress
 end
 
 # Softmax
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeClassifier{L,T}) where {L<:Softmax,T}
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeClassifier{L,T}) where {L<:MultiClassRegression,T}
     sums = sum(exp.(p), dims=1)
     K = (size(∇, 1) - 1) ÷ 2
     @threads for i in eachindex(y)
@@ -70,8 +70,8 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeClassifier{L,
     end
 end
 
-# Quantile
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, params::EvoTreeRegressor{L,T}) where {L<:Quantile,T}
+# QuantileRegression
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, params::EvoTreeRegressor{L,T}) where {L<:QuantileRegression,T}
     @threads for i in eachindex(y)
         @inbounds ∇[1, i] = y[i] > p[1, i] ? params.alpha * ∇[3, i] : (params.alpha - 1) * ∇[3, i]
         @inbounds ∇[2, i] = y[i] - p[1, i] # δ² serves to calculate the quantile value - hence no weighting on δ²
@@ -142,6 +142,12 @@ function softmax(x::AbstractVector{T}) where {T<:AbstractFloat}
     return x
 end
 
+# function softmax(x::Matrix{T}) where {T<:AbstractFloat}
+#     x .-= maximum(x)
+#     x = exp.(x) ./ sum(exp.(x))
+#     return x
+# end
+
 
 ##############################
 # get the gain metric
@@ -162,10 +168,7 @@ function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:MLE2P
 end
 
 # MultiClassRegression
-function get_gain(
-    params::EvoTypes{L,T},
-    ∑::AbstractVector{T},
-) where {L<:MultiClassRegression,T}
+function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:MultiClassRegression,T}
     ϵ = eps(T)
     gain = zero(T)
     K = (length(∑) - 1) ÷ 2
@@ -176,10 +179,7 @@ function get_gain(
 end
 
 # QuantileRegression
-function get_gain(
-    params::EvoTypes{L,T},
-    ∑::AbstractVector{T},
-) where {L<:QuantileRegression,T}
+function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:QuantileRegression,T}
     abs(∑[1])
 end
 

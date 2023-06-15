@@ -8,15 +8,14 @@ struct CallBack
 end
 
 function CallBack(
-    params::EvoTypes{L,T},
-    m::Union{EvoTree{L,K,T},EvoTreeGPU{L,K,T}},
-    deval;
+    ::EvoTypes{L,T},
+    m::EvoTree{L,K,T},
+    deval,
+    device::Type{D};
     target_name,
     w_name=nothing,
     offset_name=nothing,
-    metric,
-    device="cpu"
-) where {L,K,T}
+    metric) where {L,K,T,D<:Device}
 
     _w_name = isnothing(w_name) ? Symbol("") : Symbol(w_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
@@ -29,7 +28,7 @@ function CallBack(
 
     y_eval = Tables.getcolumn(deval, _target_name)
 
-    if L == Softmax
+    if L == MultiClassRegression
         if eltype(y_eval) <: CategoricalValue
             levels = CategoricalArrays.levels(y_eval)
             μ = zeros(T, K)
@@ -49,13 +48,13 @@ function CallBack(
     if !isnothing(offset)
         L == Logistic && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
-        L == Softmax && (offset .= log.(offset))
+        L == MultiClassRegression && (offset .= log.(offset))
         L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
         offset = T.(offset)
         p .+= offset'
     end
 
-    if device == "gpu"
+    if device <: GPU
         return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), CuArray(m.info[:feattypes]))
     else
         return CallBack(feval, x_bin, p, y, w, m.info[:feattypes])
@@ -63,21 +62,20 @@ function CallBack(
 end
 
 function CallBack(
-    params::EvoTypes{L,T},
-    m::Union{EvoTree{L,K,T},EvoTreeGPU{L,K,T}},
+    ::EvoTypes{L,T},
+    m::EvoTree{L,K,T},
     x_eval::AbstractMatrix,
-    y_eval;
+    y_eval,
+    device::Type{D};
     w_eval=nothing,
     offset_eval=nothing,
-    metric,
-    device="cpu"
-) where {L,K,T}
+    metric) where {L,K,T,D<:Device}
 
     feval = metric_dict[metric]
     x_bin = binarize(x_eval; fnames=m.info[:fnames], edges=m.info[:edges])
     p = zeros(T, K, size(x_eval, 1))
 
-    if L == Softmax
+    if L == MultiClassRegression
         if eltype(y_eval) <: CategoricalValue
             levels = CategoricalArrays.levels(y_eval)
             μ = zeros(T, K)
@@ -97,13 +95,13 @@ function CallBack(
     if !isnothing(offset)
         L == Logistic && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
-        L == Softmax && (offset .= log.(offset))
+        L == MultiClassRegression && (offset .= log.(offset))
         L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
         offset = T.(offset)
         p .+= offset'
     end
 
-    if device == "gpu"
+    if device <: GPU
         return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), CuArray(m.info[:feattypes]))
     else
         return CallBack(feval, x_bin, p, y, w, m.info[:feattypes])
