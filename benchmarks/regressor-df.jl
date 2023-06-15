@@ -79,8 +79,8 @@ params_evo = EvoTreeRegressor(
 device = "cpu"
 
 @info "init"
-@time m_df, cache_df = EvoTrees.init(params_evo, dtrain; target_name, device);
-@time m_df, cache_df = EvoTrees.init(params_evo, dtrain; target_name, device);
+@time m_df, cache_df = EvoTrees.init(params_evo, dtrain; target_name);
+@time m_df, cache_df = EvoTrees.init(params_evo, dtrain; target_name);
 
 # @info "train - no eval"
 # @time m_evo_df = fit_evotree(params_evo, dtrain; target_name, device, verbosity, print_every_n=100);
