@@ -133,9 +133,9 @@ function init(
 
     # set fnames
     schema = Tables.schema(dtrain)
-    _w_name = isnothing(w_name) ? "" : string(w_name)
-    _offset_name = isnothing(offset_name) ? "" : string(offset_name)
-    @info "setting fnames" 
+    _w_name = isnothing(w_name) ? Symbol("") : Symbol(w_name)
+    _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
+    _target_name = Symbol(target_name)
     if isnothing(fnames)
         fnames = Symbol[]
         for i in eachindex(schema.names)
@@ -143,7 +143,7 @@ function init(
                 push!(fnames, schema.names[i])
             end
         end
-        fnames = setdiff(fnames, union([target_name], [_w_name], [_offset_name]))
+        fnames = setdiff(fnames, union([_target_name], [_w_name], [_offset_name]))
     else
         isa(fnames, String) ? fnames = [fnames] : nothing
         fnames = Symbol.(fnames)
@@ -154,18 +154,15 @@ function init(
         end
     end
 
-    @info "set w & offset"
     nobs = length(Tables.getcolumn(dtrain, 1))
+    y_train = Tables.getcolumn(dtrain, _target_name)
     if String(device) == "gpu"
-        y_train = dtrain[!, target_name]
-        w = isnothing(w_name) ? CUDA.ones(T, nobs) : CuArray{T}(dtrain[!, w_name])
-        offset = !isnothing(offset_name) ? CuArray{T}(dtrain[!, offset_name]) : nothing
+        w = isnothing(w_name) ? CUDA.ones(T, nobs) : CuArray{T}(Tables.getcolumn(dtrain, _w_name))
+        offset = !isnothing(offset_name) ? CuArray{T}(Tables.getcolumn(dtrain, _offset_name)) : nothing
     else
-        y_train = dtrain[!, target_name]
-        w = isnothing(w_name) ? ones(T, nobs) : Vector{T}(dtrain[!, w_name])
-        offset = !isnothing(offset_name) ? T.(dtrain[!, offset_name]) : nothing
+        w = isnothing(w_name) ? ones(T, nobs) : Vector{T}(Tables.getcolumn(dtrain, _w_name))
+        offset = !isnothing(offset_name) ? T.(Tables.getcolumn(dtrain, _offset_name)) : nothing
     end
-    @info "start init core"
     m, cache = init_core(params, dtrain, fnames, y_train, w, offset)
 
     return m, cache
@@ -188,7 +185,7 @@ function init(
 ) where {L,T}
 
     # initialize model and cache
-    fnames = isnothing(fnames) ? ["feat_$i" for i in axes(x_train, 2)] : string.(fnames)
+    fnames = isnothing(fnames) ? [Symbol("feat_$i") for i in axes(x_train, 2)] : Symbol.(fnames)
     @assert length(fnames) == size(x_train, 2)
 
     nobs = size(x_train, 1)
