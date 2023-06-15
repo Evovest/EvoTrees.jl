@@ -150,7 +150,7 @@ end
 """
     fit_evotree(
         params::EvoTypes{L,T}, 
-        dtrain::AbstractDataFrame;
+        dtrain;
         target_name,
         fnames_num=nothing,
         fnames_cat=nothing,
@@ -196,6 +196,8 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `verbosity`: set to 1 to print logging info during training.
 - `fnames`: the names of the `x_train` features. If provided, should be a vector of string with `length(fnames) = size(x_train, 2)`.
 - `return_logger::Bool = false`: if set to true (default), `fit_evotree` return a tuple `(m, logger)` where logger is a dict containing various tracking information.
+- `device="cpu"`: Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`. Following losses are not GPU supported at the moment`
+    :L1`, `:quantile`, `:LogisticMLE`.
 """
 function fit_evotree(
     params::EvoTypes{L,T},

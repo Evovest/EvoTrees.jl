@@ -196,7 +196,6 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   Only `:linear`, `:logistic`, `:gamma` and `tweedie` losses are supported at the moment.
 - `T=Float32`:            The float precision on which the model will be trained. One of `Float32` or `Float64`.
 - `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `device="cpu"`:         Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`. Only `:linear`, `:logistic`, `:gamma` and `tweedie` losses are supported on GPU.
 
 # Internal API
 
@@ -312,7 +311,6 @@ EvoTreeClassifier is used to perform multi-class classification, using cross-ent
 - `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `T=Float32`:                  The float precision on which the model will be trained. One of `Float32` or `Float64`.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
 # Internal API
 
@@ -436,7 +434,6 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing).
 - `T=Float32`:                  The float precision on which the model will be trained. One of `Float32` or `Float64`.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
 # Internal API
 
@@ -565,7 +562,6 @@ EvoTreeGaussian is used to perform Gaussian probabilistic regression, fitting μ
   !Experimental feature: note that for Gaussian regression, constraints may not be enforce systematically.
 - `T=Float64`:                  The float precision on which the model will be trained. One of `Float32` or `Float64`.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
 # Internal API
 
@@ -701,7 +697,6 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
   !Experimental feature: note that for MLE regression, constraints may not be enforced systematically.
 - `T=Float64`:                  The float precision on which the model will be trained. One of `Float32` or `Float64`.
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `device="cpu"`:               Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`.
 
 # Internal API
 

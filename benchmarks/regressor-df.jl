@@ -103,5 +103,5 @@ device = "gpu"
 # @btime m_evo = fit_evotree($params_evo, $dtrain; target_name, device);
 # @btime fit_evotree($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
 @info "predict"
-@time pred_evo = m_evo(dtrain);
-@btime m_evo($dtrain);
+@time pred_evo = m_evo(dtrain; device);
+@btime m_evo($dtrain; device);
