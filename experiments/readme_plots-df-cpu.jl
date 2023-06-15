@@ -16,7 +16,7 @@ nobs = 10_000
 Random.seed!(123)
 x_num = rand(nobs) .* 5
 lvls = ["A", "B", "C"]
-x_cat = categorical(rand(lvls, nobs), levels=lvls, ordered=true)
+x_cat = categorical(rand(lvls, nobs), levels=lvls, ordered=false)
 levels(x_cat)
 isordered(x_cat)
 

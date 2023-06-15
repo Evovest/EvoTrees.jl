@@ -88,7 +88,8 @@ function predict(
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
     x_bin = binarize(data; fnames=m.info[:fnames], edges=m.info[:edges])
-    pred = zeros(T, K, size(data, 1))
+    nobs = length(Tables.getcolumn(data, 1))
+    pred = zeros(T, K, nobs)
     for i = 1:ntree_limit
         predict!(pred, m.trees[i], x_bin, m.info[:feattypes])
     end
