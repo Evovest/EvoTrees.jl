@@ -10,33 +10,42 @@ end
 function CallBack(
     params::EvoTypes{L,T},
     m::Union{EvoTree{L,K,T},EvoTreeGPU{L,K,T}},
-    deval::AbstractDataFrame;
+    deval;
     target_name,
     w_name=nothing,
     offset_name=nothing,
     metric,
     device="cpu"
 ) where {L,K,T}
+
+    _w_name = isnothing(w_name) ? Symbol("") : Symbol(w_name)
+    _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
+    _target_name = Symbol(target_name)
+
     feval = metric_dict[metric]
     x_bin = binarize(deval; fnames=m.info[:fnames], edges=m.info[:edges])
-    p = zeros(T, K, nrow(deval))
+    nobs = length(Tables.getcolumn(deval, 1))
+    p = zeros(T, K, nobs)
+
+    y_eval = Tables.getcolumn(deval, _target_name)
+
     if L == Softmax
-        if eltype(deval[!, target_name]) <: CategoricalValue
-            levels = CategoricalArrays.levels(deval[!, target_name])
+        if eltype(y_eval) <: CategoricalValue
+            levels = CategoricalArrays.levels(y_eval)
             μ = zeros(T, K)
-            y = UInt32.(CategoricalArrays.levelcode.(deval[!, target_name]))
+            y = UInt32.(CategoricalArrays.levelcode.(y_eval))
         else
-            levels = sort(unique(deval[!, target_name]))
-            yc = CategoricalVector(deval[!, target_name], levels=levels)
+            levels = sort(unique(y_eval))
+            yc = CategoricalVector(y_eval, levels=levels)
             μ = zeros(T, K)
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
     else
-        y = T.(deval[!, target_name])
+        y = T.(y_eval)
     end
-    w = isnothing(w_name) ? ones(T, size(y)) : Vector{T}(deval[!, w_name])
+    w = isnothing(w_name) ? ones(T, size(y)) : Vector{T}(Tables.getcolumn(deval, _w_name))
 
-    offset = !isnothing(offset_name) ? T.(deval[:, offset_name]) : nothing
+    offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
     if !isnothing(offset)
         L == Logistic && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
@@ -63,9 +72,11 @@ function CallBack(
     metric,
     device="cpu"
 ) where {L,K,T}
+
     feval = metric_dict[metric]
     x_bin = binarize(x_eval; fnames=m.info[:fnames], edges=m.info[:edges])
     p = zeros(T, K, size(x_eval, 1))
+
     if L == Softmax
         if eltype(y_eval) <: CategoricalValue
             levels = CategoricalArrays.levels(y_eval)

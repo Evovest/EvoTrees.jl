@@ -199,7 +199,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
 """
 function fit_evotree(
     params::EvoTypes{L,T},
-    dtrain::AbstractDataFrame;
+    dtrain;
     target_name,
     fnames=nothing,
     w_name=nothing,
@@ -213,6 +213,7 @@ function fit_evotree(
     device="cpu"
 ) where {L,T}
 
+    @assert Tables.istable(dtrain) "fit_evotree(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
     verbosity == 1 && @info params
 
     m, cache = init(params, dtrain; target_name, fnames, w_name, offset_name, device)
