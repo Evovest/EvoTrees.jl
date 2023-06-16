@@ -17,6 +17,11 @@ function mse(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, k
     return sum(eval) / sum(w)
 end
 
+"""
+    RMSE
+"""
+rmse(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat} =
+    sqrt(rmse(p, y, w; MAX_THREADS, kwargs...))
 
 """
     MAE
@@ -90,7 +95,7 @@ function eval_poisson_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::
     return nothing
 end
 
-function poisson_deviance(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
+function poisson(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
@@ -111,7 +116,7 @@ function eval_gamma_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::Cu
     return nothing
 end
 
-function gamma_deviance(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
+function gamma(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
@@ -134,7 +139,7 @@ function eval_tweedie_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::
     return nothing
 end
 
-function tweedie_deviance(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
+function tweedie(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     eval = similar(w)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
@@ -149,18 +154,22 @@ end
 """
 function mlogloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    K = size(p, 1)
     if i <= length(y)
-        @inbounds eval[i] = -w[i] * log(p[y[i], i])
+        isum = zero(T)
+        @inbounds for k in 1:K
+            isum += exp(p[k, i])
+        end
+        @inbounds eval[i] = w[i] * (log(isum) - p[y[i], i])
     end
     return nothing
 end
 
 function mlogloss(p::CuMatrix{T}, y::CuVector, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     eval = similar(w)
-    p_prob = exp.(p) ./ sum(exp.(p), dims=1)
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
-    @cuda blocks = blocks threads = threads mlogloss_kernel!(eval, p_prob, y, w)
+    @cuda blocks = blocks threads = threads mlogloss_kernel!(eval, p, y, w)
     CUDA.synchronize()
     return sum(eval) / sum(w)
 end

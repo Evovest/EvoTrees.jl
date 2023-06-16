@@ -28,7 +28,7 @@ function CallBack(
 
     y_eval = Tables.getcolumn(deval, _target_name)
 
-    if L == MultiClassRegression
+    if L == MLogLoss
         if eltype(y_eval) <: CategoricalValue
             levels = CategoricalArrays.levels(y_eval)
             μ = zeros(T, K)
@@ -46,7 +46,7 @@ function CallBack(
 
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
     if !isnothing(offset)
-        L == Logistic && (offset .= logit.(offset))
+        L == LogLoss && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
         L == MultiClassRegression && (offset .= log.(offset))
         L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
@@ -75,7 +75,7 @@ function CallBack(
     x_bin = binarize(x_eval; fnames=m.info[:fnames], edges=m.info[:edges])
     p = zeros(T, K, size(x_eval, 1))
 
-    if L == MultiClassRegression
+    if L == MLogLoss
         if eltype(y_eval) <: CategoricalValue
             levels = CategoricalArrays.levels(y_eval)
             μ = zeros(T, K)
@@ -93,9 +93,9 @@ function CallBack(
 
     offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
     if !isnothing(offset)
-        L == Logistic && (offset .= logit.(offset))
+        L == LogLoss && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
-        L == MultiClassRegression && (offset .= log.(offset))
+        L == MLogLoss && (offset .= log.(offset))
         L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
         offset = T.(offset)
         p .+= offset'

@@ -168,9 +168,9 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 
 # Hyper-parameters
 
-- `loss=:linear`:         Loss to be be minimized during training. One of:
-  - `:linear`
-  - `:logistic`
+- `loss=:mse`:         Loss to be be minimized during training. One of:
+  - `:mse`
+  - `:logloss`
   - `:gamma`
   - `:tweedie`
   - `:quantile`

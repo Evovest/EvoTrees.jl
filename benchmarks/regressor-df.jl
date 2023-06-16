@@ -32,7 +32,7 @@ elseif loss == "logistic"
     metric_evo = :logloss
 end
 
-@info "xgboost train:"
+@info "XGBoost"
 params_xgb = Dict(
     :num_round => nrounds,
     :max_depth => 5,
@@ -45,8 +45,8 @@ params_xgb = Dict(
     :max_bin => 64,
 )
 
-# dtrain = DMatrix(x_train, y_train .- 1)
-# watchlist = Dict("train" => DMatrix(x_train, y_train .- 1))
+# dtrain = DMatrix(x_train, y_train)
+# watchlist = Dict("train" => DMatrix(x_train, y_train))
 # @time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric=metric_xgb, params_xgb...);
 # # @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric=metric_xgb, params_xgb...);
 # @info "xgboost predict:"

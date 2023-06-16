@@ -24,12 +24,12 @@
     y_train, y_eval = Y[i_train], Y[i_eval]
 
     ######################################
-    ### Linear - CPU
+    ### MSE - CPU
     ######################################
     # benchmark
     params1 = EvoTreeRegressor(
         device="cpu",
-        loss=:linear,
+        loss=:mse,
         nrounds=200,
         nbins=32,
         lambda=1.0,
@@ -48,7 +48,7 @@
     # monotonic constraint
     params1 = EvoTreeRegressor(
         device="cpu",
-        loss=:linear,
+        loss=:mse,
         nrounds=200,
         nbins=32,
         lambda=1.0,
@@ -73,12 +73,12 @@
 
 
     ######################################
-    ### Linear - GPU
+    ### MSE - GPU
     ######################################
     # benchmark
     # params1 = EvoTreeRegressor(
     #     device="gpu",
-    #     loss=:linear,
+    #     loss=:mse,
     #     nrounds=200, nbins=32,
     #     lambda=1.0, gamma=0.0, eta=0.05,
     #     max_depth=6, min_weight=0.0,
@@ -90,7 +90,7 @@
     # # monotonic constraint
     # params1 = EvoTreeRegressor(
     #     device="gpu",
-    #     loss=:linear,
+    #     loss=:mse,
     #     nrounds=200, nbins=32,
     #     lambda=1.0, gamma=0.0, eta=0.5,
     #     max_depth=6, min_weight=0.0,
@@ -108,12 +108,12 @@
 
 
     ######################################
-    ### Logistic - CPU
+    ### Logloss - CPU
     ######################################
     # benchmark
     params1 = EvoTreeRegressor(
         device="cpu",
-        loss=:logistic,
+        loss=:logloss,
         nrounds=200,
         nbins=32,
         lambda=0.05,
@@ -132,7 +132,7 @@
     # monotonic constraint
     params1 = EvoTreeRegressor(
         device="cpu",
-        loss=:logistic,
+        loss=:logloss,
         nrounds=200,
         nbins=32,
         lambda=0.05,
@@ -156,12 +156,12 @@
 
 
     ######################################
-    ### Logistic - GPU
+    ### LogLoss - GPU
     ######################################
     # benchmark
     # params1 = EvoTreeRegressor(
     #     device="gpu",
-    #     loss=:logistic, metric=:logloss,
+    #     loss=:logloss, metric=:logloss,
     #     nrounds=200, nbins=32,
     #     lambda=0.05, gamma=0.0, eta=0.05,
     #     max_depth=6, min_weight=0.0,
@@ -173,7 +173,7 @@
     # # monotonic constraint
     # params1 = EvoTreeRegressor(
     #     device="gpu",
-    #     loss=:logistic, metric=:logloss,
+    #     loss=:logloss, metric=:logloss,
     #     nrounds=200, nbins=32,
     #     lambda=0.05, gamma=0.0, eta=0.05,
     #     max_depth=6, min_weight=0.0,

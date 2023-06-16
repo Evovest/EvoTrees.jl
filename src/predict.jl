@@ -11,7 +11,7 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feat
     return nothing
 end
 
-function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:Logistic,K,T}
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:LogLoss,K,T}
     @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
@@ -38,7 +38,7 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feat
     return nothing
 end
 
-function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:MultiClassRegression,K,T}
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:MLogLoss,K,T}
     @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
@@ -94,13 +94,13 @@ function predict(
     for i = 1:ntree_limit
         predict!(pred, m.trees[i], x_bin, m.info[:feattypes])
     end
-    if L == Logistic
+    if L == LogLoss
         pred .= sigmoid.(pred)
     elseif L ∈ [Poisson, Gamma, Tweedie]
         pred .= exp.(pred)
     elseif L in [GaussianMLE, LogisticMLE]
         pred[2, :] .= exp.(pred[2, :])
-    elseif L == MultiClassRegression
+    elseif L == MLogLoss
         # @inbounds for i in axes(pred, 2)
         #     pred[:, i] .= softmax(pred[:, i])
         # end
@@ -147,7 +147,7 @@ function pred_leaf_cpu!(
     params::EvoTypes{L,T},
     ∇,
     is,
-) where {L<:MultiClassRegression,T}
+) where {L<:MLogLoss,T}
     K = size(p, 1)
     ϵ = eps(T)
     @inbounds for k = axes(p, 1)
@@ -155,7 +155,7 @@ function pred_leaf_cpu!(
     end
 end
 
-# prediction in Leaf - QuantileRegression
+# prediction in Leaf - Quantile
 function pred_leaf_cpu!(
     p,
     n,
@@ -163,11 +163,11 @@ function pred_leaf_cpu!(
     params::EvoTypes{L,T},
     ∇,
     is,
-) where {L<:QuantileRegression,T}
+) where {L<:Quantile,T}
     p[1, n] = params.eta * quantile(∇[2, is], params.alpha) / (1 + params.lambda)
 end
 
-# prediction in Leaf - L1Regression
+# prediction in Leaf - L1
 function pred_leaf_cpu!(
     p,
     n,
@@ -175,12 +175,12 @@ function pred_leaf_cpu!(
     params::EvoTypes{L,T},
     ∇,
     is,
-) where {L<:L1Regression,T}
+) where {L<:L1,T}
     p[1, n] = params.eta * ∑[1] / (∑[3] * (1 + params.lambda))
 end
 function pred_scalar(
     ∑::AbstractVector{T},
     params::EvoTypes{L,T},
-) where {L<:L1Regression,T}
+) where {L<:L1,T}
     params.eta * ∑[1] / (∑[3] * (1 + params.lambda))
 end

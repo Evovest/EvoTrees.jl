@@ -69,7 +69,7 @@ function predict_kernel!(
     leaf_pred,
     x_bin,
     feattypes,
-) where {L<:Logistic,T}
+) where {L<:LogLoss,T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if i <= size(pred, 2)
@@ -142,7 +142,7 @@ function predict!(
     x_bin::CuMatrix,
     feattypes::CuVector{Bool};
     MAX_THREADS=1024
-) where {L<:MultiClassRegression,K,T}
+) where {L<:MLogLoss,K,T}
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
     blocks = cld(n, threads)
@@ -175,13 +175,13 @@ function predict(
     for i = 1:ntree_limit
         predict!(pred, m.trees[i], x_bin, feattypes)
     end
-    if L == Logistic
+    if L == LogLoss
         pred .= sigmoid.(pred)
     elseif L ∈ [Poisson, Gamma, Tweedie]
         pred .= exp.(pred)
     elseif L in [GaussianMLE, LogisticMLE]
         pred[2, :] .= exp.(pred[2, :])
-    elseif L == MultiClassRegression
+    elseif L == MLogLoss
         # @inbounds for i in axes(pred, 2)
         #     pred[:, i] .= softmax(pred[:, i])
         # end

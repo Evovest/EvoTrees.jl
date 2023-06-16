@@ -19,7 +19,7 @@ x_train = rand(T, nobs, num_feat)
 y_train = rand(T, size(x_train, 1))
 
 @info nthread
-loss = "linear"
+loss = "logistic"
 if loss == "linear"
     loss_xgb = "reg:squarederror"
     metric_xgb = "mae"
@@ -32,7 +32,7 @@ elseif loss == "logistic"
     metric_evo = :logloss
 end
 
-@info "EvoTrees"
+@info "XGBoost"
 @info "train"
 params_xgb = Dict(
     :num_round => nrounds,
@@ -46,8 +46,8 @@ params_xgb = Dict(
     :max_bin => 64,
 )
 
-dtrain = DMatrix(x_train, y_train .- 1)
-watchlist = Dict("train" => DMatrix(x_train, y_train .- 1))
+dtrain = DMatrix(x_train, y_train)
+watchlist = Dict("train" => DMatrix(x_train, y_train));
 @time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
 # @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
 @info "predict"
@@ -117,7 +117,7 @@ device = "cpu"
 # @time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
 
 @info "train - eval"
-@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity = 1, print_every_n=10);
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
 
 # @time m_evo = fit_evotree(params_evo; x_train, y_train, device);

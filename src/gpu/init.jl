@@ -16,7 +16,7 @@ function init_core(params::EvoTypes{L,T}, ::Type{GPU}, data, fnames, y_train, w,
         y = T.(y_train)
         μ = fill(log(mean(y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
-    elseif L == MultiClassRegression
+    elseif L == MLogLoss
         if eltype(y_train) <: CategoricalValue
             target_levels = CategoricalArrays.levels(y_train)
             y = UInt32.(CategoricalArrays.levelcode.(y_train))

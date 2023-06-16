@@ -14,7 +14,7 @@ Y = sigmoid(Y)
 is = collect(1:size(X, 1))
 
 # train-eval split
-i_sample = sample(is, size(is, 1), replace = false)
+i_sample = sample(is, size(is, 1), replace=false)
 train_size = 0.8
 i_train = i_sample[1:floor(Int, train_size * size(is, 1))]
 i_eval = i_sample[floor(Int, train_size * size(is, 1))+1:end]
@@ -22,20 +22,20 @@ i_eval = i_sample[floor(Int, train_size * size(is, 1))+1:end]
 x_train, x_eval = X[i_train, :], X[i_eval, :]
 y_train, y_eval = Y[i_train], Y[i_eval]
 
-@testset "EvoTreeRegressor - Linear" begin
-    # linear
+@testset "EvoTreeRegressor - MSE" begin
+    # mse
     params1 = EvoTreeRegressor(
-        loss = :linear,
-        nrounds = 100,
-        nbins = 16,
-        lambda = 0.5,
-        gamma = 0.1,
-        eta = 0.05,
-        max_depth = 6,
-        min_weight = 1.0,
-        rowsample = 0.5,
-        colsample = 1.0,
-        rng = 123,
+        loss=:mse,
+        nrounds=100,
+        nbins=16,
+        lambda=0.5,
+        gamma=0.1,
+        eta=0.05,
+        max_depth=6,
+        min_weight=1.0,
+        rowsample=0.5,
+        colsample=1.0,
+        rng=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -47,8 +47,8 @@ y_train, y_eval = Y[i_train], Y[i_eval]
         y_train,
         x_eval,
         y_eval,
-        metric = :mse,
-        print_every_n = 25,
+        metric=:mse,
+        print_every_n=25
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -57,18 +57,18 @@ y_train, y_eval = Y[i_train], Y[i_eval]
     @test mse_gain_pct < -0.75
 end
 
-@testset "EvoTreeRegressor - Logistic" begin
+@testset "EvoTreeRegressor - logloss" begin
     params1 = EvoTreeRegressor(
-        loss = :logistic,
-        nrounds = 100,
-        lambda = 0.5,
-        gamma = 0.1,
-        eta = 0.05,
-        max_depth = 6,
-        min_weight = 1.0,
-        rowsample = 0.5,
-        colsample = 1.0,
-        rng = 123,
+        loss=:logloss,
+        nrounds=100,
+        lambda=0.5,
+        gamma=0.1,
+        eta=0.05,
+        max_depth=6,
+        min_weight=1.0,
+        rowsample=0.5,
+        colsample=1.0,
+        rng=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -80,8 +80,8 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric = :logloss,
-        print_every_n = 25,
+        metric=:logloss,
+        print_every_n=25
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -92,16 +92,16 @@ end
 
 @testset "EvoTreeRegressor - Gamma" begin
     params1 = EvoTreeRegressor(
-        loss = :gamma,
-        nrounds = 100,
-        lambda = 0.5,
-        gamma = 0.1,
-        eta = 0.05,
-        max_depth = 6,
-        min_weight = 1.0,
-        rowsample = 0.5,
-        colsample = 1.0,
-        rng = 123,
+        loss=:gamma,
+        nrounds=100,
+        lambda=0.5,
+        gamma=0.1,
+        eta=0.05,
+        max_depth=6,
+        min_weight=1.0,
+        rowsample=0.5,
+        colsample=1.0,
+        rng=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -113,8 +113,8 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric = :gamma,
-        print_every_n = 25,
+        metric=:gamma,
+        print_every_n=25
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -125,16 +125,16 @@ end
 
 @testset "EvoTreeRegressor - Tweedie" begin
     params1 = EvoTreeRegressor(
-        loss = :tweedie,
-        nrounds = 100,
-        lambda = 0.5,
-        gamma = 0.1,
-        eta = 0.05,
-        max_depth = 6,
-        min_weight = 1.0,
-        rowsample = 0.5,
-        colsample = 1.0,
-        rng = 123,
+        loss=:tweedie,
+        nrounds=100,
+        lambda=0.5,
+        gamma=0.1,
+        eta=0.05,
+        max_depth=6,
+        min_weight=1.0,
+        rowsample=0.5,
+        colsample=1.0,
+        rng=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -146,8 +146,8 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric = :tweedie,
-        print_every_n = 25,
+        metric=:tweedie,
+        print_every_n=25
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -158,18 +158,18 @@ end
 
 @testset "EvoTreeRegressor - L1" begin
     params1 = EvoTreeRegressor(
-        loss = :L1,
-        alpha = 0.5,
-        nrounds = 100,
-        nbins = 16,
-        lambda = 0.5,
-        gamma = 0.0,
-        eta = 0.05,
-        max_depth = 6,
-        min_weight = 1.0,
-        rowsample = 0.5,
-        colsample = 1.0,
-        rng = 123,
+        loss=:l1,
+        alpha=0.5,
+        nrounds=100,
+        nbins=16,
+        lambda=0.5,
+        gamma=0.0,
+        eta=0.05,
+        max_depth=6,
+        min_weight=1.0,
+        rowsample=0.5,
+        colsample=1.0,
+        rng=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -181,8 +181,8 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric = :mae,
-        print_every_n = 25,
+        metric=:mae,
+        print_every_n=25
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -193,18 +193,18 @@ end
 
 @testset "EvoTreeRegressor - Quantile" begin
     params1 = EvoTreeRegressor(
-        loss = :quantile,
-        alpha = 0.5,
-        nrounds = 100,
-        nbins = 16,
-        lambda = 0.5,
-        gamma = 0.0,
-        eta = 0.05,
-        max_depth = 6,
-        min_weight = 1.0,
-        rowsample = 0.5,
-        colsample = 1.0,
-        rng = 123,
+        loss=:quantile,
+        alpha=0.5,
+        nrounds=100,
+        nbins=16,
+        lambda=0.5,
+        gamma=0.0,
+        eta=0.05,
+        max_depth=6,
+        min_weight=1.0,
+        rowsample=0.5,
+        colsample=1.0,
+        rng=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -216,8 +216,8 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric = :wmae,
-        print_every_n = 25,
+        metric=:wmae,
+        print_every_n=25
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -228,16 +228,16 @@ end
 
 @testset "EvoTreeCount - Count" begin
     params1 = EvoTreeCount(
-        loss = :poisson,
-        nrounds = 100,
-        lambda = 0.5,
-        gamma = 0.1,
-        eta = 0.05,
-        max_depth = 6,
-        min_weight = 1.0,
-        rowsample = 0.5,
-        colsample = 1.0,
-        rng = 123,
+        loss=:poisson,
+        nrounds=100,
+        lambda=0.5,
+        gamma=0.1,
+        eta=0.05,
+        max_depth=6,
+        min_weight=1.0,
+        rowsample=0.5,
+        colsample=1.0,
+        rng=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -249,8 +249,8 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric = :poisson_deviance,
-        print_every_n = 25,
+        metric=:poisson_deviance,
+        print_every_n=25
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -261,17 +261,17 @@ end
 
 @testset "EvoTreeMLE - Gaussian" begin
     params1 = EvoTreeMLE(
-        loss = :gaussian,
-        nrounds = 100,
-        nbins = 16,
-        lambda = 0.0,
-        gamma = 0.0,
-        eta = 0.05,
-        max_depth = 6,
-        min_weight = 10.0,
-        rowsample = 0.5,
-        colsample = 1.0,
-        rng = 123,
+        loss=:gaussian,
+        nrounds=100,
+        nbins=16,
+        lambda=0.0,
+        gamma=0.0,
+        eta=0.05,
+        max_depth=6,
+        min_weight=10.0,
+        rowsample=0.5,
+        colsample=1.0,
+        rng=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -283,8 +283,8 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric = :gaussian,
-        print_every_n = 25,
+        metric=:gaussian,
+        print_every_n=25
     )
 
     preds = EvoTrees.predict(model, x_eval)[:, 1]
@@ -295,17 +295,17 @@ end
 
 @testset "EvoTreeMLE - Logistic" begin
     params1 = EvoTreeMLE(
-        loss = :logistic,
-        nrounds = 100,
-        nbins = 16,
-        lambda = 0.0,
-        gamma = 0.0,
-        eta = 0.05,
-        max_depth = 6,
-        min_weight = 10.0,
-        rowsample = 0.5,
-        colsample = 1.0,
-        rng = 123,
+        loss=:logistic,
+        nrounds=100,
+        nbins=16,
+        lambda=0.0,
+        gamma=0.0,
+        eta=0.05,
+        max_depth=6,
+        min_weight=10.0,
+        rowsample=0.5,
+        colsample=1.0,
+        rng=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -317,8 +317,8 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric = :logistic_mle,
-        print_every_n = 25,
+        metric=:logistic_mle,
+        print_every_n=25
     )
 
     preds = EvoTrees.predict(model, x_eval)[:, 1]
@@ -329,16 +329,16 @@ end
 
 @testset "EvoTreeGaussian - Gaussian" begin
     params1 = EvoTreeGaussian(
-        nrounds = 100,
-        nbins = 16,
-        lambda = 0.0,
-        gamma = 0.0,
-        eta = 0.05,
-        max_depth = 6,
-        min_weight = 10.0,
-        rowsample = 0.5,
-        colsample = 1.0,
-        rng = 123,
+        nrounds=100,
+        nbins=16,
+        lambda=0.0,
+        gamma=0.0,
+        eta=0.05,
+        max_depth=6,
+        min_weight=10.0,
+        rowsample=0.5,
+        colsample=1.0,
+        rng=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -350,8 +350,8 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric = "gaussian_mle",
-        print_every_n = 25,
+        metric="gaussian_mle",
+        print_every_n=25
     )
 
     preds = EvoTrees.predict(model, x_eval)[:, 1]
@@ -362,17 +362,17 @@ end
 
 @testset "EvoTrees - Feature Importance" begin
     params1 = EvoTreeRegressor(
-        loss = :linear,
-        nrounds = 100,
-        nbins = 16,
-        lambda = 0.5,
-        gamma = 0.1,
-        eta = 0.05,
-        max_depth = 6,
-        min_weight = 1.0,
-        rowsample = 0.5,
-        colsample = 1.0,
-        rng = 123,
+        loss=:mse,
+        nrounds=100,
+        nbins=16,
+        lambda=0.5,
+        gamma=0.1,
+        eta=0.05,
+        max_depth=6,
+        min_weight=1.0,
+        rowsample=0.5,
+        colsample=1.0,
+        rng=123,
     )
 
     model = fit_evotree(params1; x_train, y_train)
@@ -383,12 +383,12 @@ end
 @testset "EvoTreeClassifier" begin
     x_train = Array([
         sin.(1:1000) rand(1000)
-        100 .* cos.(1:1000) rand(1000) .+ 1 
+        100 .* cos.(1:1000) rand(1000).+1
     ])
-    y_train = repeat(1:2; inner = 1000)
+    y_train = repeat(1:2; inner=1000)
 
     rng = rand(UInt32)
-    params1 = EvoTreeClassifier(; T = Float32, nrounds = 100, eta = 0.3, rng)
+    params1 = EvoTreeClassifier(; T=Float32, nrounds=100, eta=0.3, rng)
     model = fit_evotree(params1; x_train, y_train)
 
     preds = EvoTrees.predict(model, x_train)[:, 1]
@@ -397,7 +397,7 @@ end
     # Categorical array
     y_train_cat = CategoricalArray(y_train; levels=1:2)
 
-    params1 = EvoTreeClassifier(; T = Float32, nrounds = 100, eta = 0.3, rng)
+    params1 = EvoTreeClassifier(; T=Float32, nrounds=100, eta=0.3, rng)
     model_cat = fit_evotree(params1; x_train, y_train=y_train_cat)
 
     preds_cat = EvoTrees.predict(model_cat, x_train)[:, 1]
@@ -406,7 +406,7 @@ end
     # Categorical array with additional levels
     y_train_cat = CategoricalArray(y_train; levels=1:3)
 
-    params1 = EvoTreeClassifier(; T = Float32, nrounds = 100, eta = 0.3, rng)
+    params1 = EvoTreeClassifier(; T=Float32, nrounds=100, eta=0.3, rng)
     model_cat = fit_evotree(params1; x_train, y_train=y_train_cat)
 
     preds_cat = EvoTrees.predict(model_cat, x_train)[:, 1]
@@ -417,9 +417,9 @@ end
 
     @testset "_type2loss" begin
         # utility that converts types into loss symbols for EvoTreeRegressor
-        @test EvoTrees._type2loss(EvoTrees.Linear) == :linear
-        @test EvoTrees._type2loss(EvoTrees.L1) == :L1
-        @test EvoTrees._type2loss(EvoTrees.Logistic) == :logistic
+        @test EvoTrees._type2loss(EvoTrees.MSE) == :mse
+        @test EvoTrees._type2loss(EvoTrees.L1) == :l1
+        @test EvoTrees._type2loss(EvoTrees.LogLoss) == :logloss
         @test EvoTrees._type2loss(EvoTrees.Gamma) == :gamma
         @test EvoTrees._type2loss(EvoTrees.Tweedie) == :tweedie
         @test EvoTrees._type2loss(EvoTrees.Quantile) == :quantile
@@ -427,13 +427,13 @@ end
 
     # check if we retain the parametric information properly
     for EvoParamType in [
-        EvoTreeRegressor{EvoTrees.Linear,Float64},
+        EvoTreeRegressor{EvoTrees.MSE,Float64},
         EvoTreeRegressor{EvoTrees.L1,Float64},
         EvoTreeCount{EvoTrees.Poisson,Float64},
-        EvoTreeClassifier{EvoTrees.Softmax,Float64},
+        EvoTreeClassifier{EvoTrees.MLogLoss,Float64},
         EvoTreeMLE{EvoTrees.LogisticMLE,Float64},
-        EvoTreeGaussian{EvoTrees.GaussianMLE,Float64} 
-        ]
+        EvoTreeGaussian{EvoTrees.GaussianMLE,Float64}
+    ]
 
         config = EvoParamType(; max_depth=2)
         @test config isa EvoParamType
@@ -458,18 +458,18 @@ end
         # Out of range tests
         @test_throws ErrorException check_parameter(Int, -5, 0, typemax(Int), :nrounds)
         @test_throws ErrorException check_parameter(Float64, -0.1, 0.0, typemax(Float64), :lambda)
-        @test_throws ErrorException check_parameter(Int, typemax(Int64), 0, typemax(Int)-1, :nrounds)
-        @test_throws ErrorException check_parameter(Float64, typemax(Float64), 0.0, 10^6, :lambda)        
+        @test_throws ErrorException check_parameter(Int, typemax(Int64), 0, typemax(Int) - 1, :nrounds)
+        @test_throws ErrorException check_parameter(Float64, typemax(Float64), 0.0, 10^6, :lambda)
     end
 
     # Check the implemented parameters on construction
     @testset "check_args all for EvoTreeRegressor" begin
-        for (key,vals_to_test) in zip(
+        for (key, vals_to_test) in zip(
             [:nrounds, :max_depth, :nbins, :lambda, :gamma, :min_weight, :alpha, :rowsample, :colsample, :eta],
-            [[-1, 0, 1.5], [0, 1.5], [1, 256, 100.5], [-eps(Float64)], [-eps(Float64)], [-eps(Float64)], 
-            [-0.1, 1.1], [0.0f0, 1.1f0], [0.0, 1.1], [0.0]]) 
+            [[-1, 1.5], [0, 1.5], [1, 256, 100.5], [-eps(Float64)], [-eps(Float64)], [-eps(Float64)],
+                [-0.1, 1.1], [0.0f0, 1.1f0], [0.0, 1.1], [-eps(Float64)]])
             for val in vals_to_test
-                @test_throws Exception EvoTreeRegressor(;zip([key], [val])...)
+                @test_throws Exception EvoTreeRegressor(; zip([key], [val])...)
             end
         end
     end
@@ -479,9 +479,9 @@ end
         for EvoTreeType in [EvoTreeMLE, EvoTreeGaussian, EvoTreeCount, EvoTreeClassifier, EvoTreeRegressor]
             config = EvoTreeType(nbins=32)
             # should not throw an exception
-            @test check_args(config) == nothing 
+            @test check_args(config) == nothing
             # invalid nbins
-            config.nbins=256
+            config.nbins = 256
             @test_throws Exception check_args(config)
         end
     end
