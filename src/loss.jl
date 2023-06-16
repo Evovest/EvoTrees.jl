@@ -54,7 +54,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, params::EvoTreeRegress
 end
 
 # MLogLoss
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector, ::EvoTreeClassifier{L,T}) where {L<:MLogLoss ,T}
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector, ::EvoTreeClassifier{L,T}) where {L<:MLogLoss,T}
     K = size(p, 1)
     @threads for i in eachindex(y)
         isum = zero(T)
@@ -137,19 +137,6 @@ end
 @inline function sigmoid(x::T) where {T<:AbstractFloat}
     @fastmath 1 / (1 + exp(-x))
 end
-
-# function softmax(x::AbstractVector{T}) where {T<:AbstractFloat}
-#     x .-= maximum(x)
-#     x = exp.(x) ./ sum(exp.(x))
-#     return x
-# end
-
-# function softmax(x::Matrix{T}) where {T<:AbstractFloat}
-#     x .-= maximum(x)
-#     x = exp.(x) ./ sum(exp.(x))
-#     return x
-# end
-
 
 ##############################
 # get the gain metric

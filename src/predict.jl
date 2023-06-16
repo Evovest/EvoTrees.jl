@@ -101,12 +101,20 @@ function predict(
     elseif L in [GaussianMLE, LogisticMLE]
         pred[2, :] .= exp.(pred[2, :])
     elseif L == MLogLoss
-        # @inbounds for i in axes(pred, 2)
-        #     pred[:, i] .= softmax(pred[:, i])
-        # end
+        softmax!(pred)
     end
     pred = K == 1 ? vec(Array(pred')) : Array(pred')
     return pred
+end
+
+function softmax!(p::AbstractMatrix{T}) where {T}
+    @threads for i in axes(p, 2)
+        _p = view(p, :, i)
+        _p .= exp.(_p)
+        isum = sum(_p)
+        _p ./= isum
+    end
+    return nothing
 end
 
 function pred_leaf_cpu!(
