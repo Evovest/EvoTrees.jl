@@ -1,7 +1,7 @@
 #####################
-# linear
+# MSE
 #####################
-function kernel_linear_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
+function kernel_mse_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
         @inbounds ∇[1, i] = 2 * (p[i] - y[i]) * ∇[3, i]
@@ -9,16 +9,16 @@ function kernel_linear_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceV
     end
     return
 end
-function update_grads_gpu!(
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
     ::EvoTreeRegressor{L,T};
     MAX_THREADS=1024
-) where {L<:Linear,T}
+) where {L<:MSE,T}
     threads = min(MAX_THREADS, length(y))
-    blocks = ceil(Int, (length(y)) / threads)
-    @cuda blocks = blocks threads = threads kernel_linear_∇!(∇, p, y)
+    blocks = cld(length(y), threads)
+    @cuda blocks = blocks threads = threads kernel_mse_∇!(∇, p, y)
     CUDA.synchronize()
     return
 end
@@ -26,7 +26,7 @@ end
 #####################
 # Logistic
 #####################
-function kernel_logistic_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
+function kernel_logloss_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
         @inbounds pred = sigmoid(p[1, i])
@@ -35,16 +35,16 @@ function kernel_logistic_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDevic
     end
     return
 end
-function update_grads_gpu!(
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
     ::EvoTreeRegressor{L,T};
     MAX_THREADS=1024
-) where {L<:Logistic,T}
+) where {L<:LogLoss,T}
     threads = min(MAX_THREADS, length(y))
-    blocks = ceil(Int, (length(y)) / threads)
-    @cuda blocks = blocks threads = threads kernel_logistic_∇!(∇, p, y)
+    blocks = cld(length(y), threads)
+    @cuda blocks = blocks threads = threads kernel_logloss_∇!(∇, p, y)
     CUDA.synchronize()
     return
 end
@@ -61,7 +61,7 @@ function kernel_poisson_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDevice
     end
     return
 end
-function update_grads_gpu!(
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
@@ -69,7 +69,7 @@ function update_grads_gpu!(
     MAX_THREADS=1024
 ) where {L<:Poisson,T}
     threads = min(MAX_THREADS, length(y))
-    blocks = ceil(Int, (length(y)) / threads)
+    blocks = cld(length(y), threads)
     @cuda blocks = blocks threads = threads kernel_poisson_∇!(∇, p, y)
     CUDA.synchronize()
     return
@@ -87,7 +87,7 @@ function kernel_gamma_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVe
     end
     return
 end
-function update_grads_gpu!(
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
@@ -95,7 +95,7 @@ function update_grads_gpu!(
     MAX_THREADS=1024
 ) where {L<:Gamma,T}
     threads = min(MAX_THREADS, length(y))
-    blocks = ceil(Int, (length(y)) / threads)
+    blocks = cld(length(y), threads)
     @cuda blocks = blocks threads = threads kernel_gamma_∇!(∇, p, y)
     CUDA.synchronize()
     return
@@ -115,7 +115,7 @@ function kernel_tweedie_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDevice
     end
     return
 end
-function update_grads_gpu!(
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
@@ -123,7 +123,7 @@ function update_grads_gpu!(
     MAX_THREADS=1024
 ) where {L<:Tweedie,T}
     threads = min(MAX_THREADS, length(y))
-    blocks = ceil(Int, (length(y)) / threads)
+    blocks = cld(length(y), threads)
     @cuda blocks = blocks threads = threads kernel_tweedie_∇!(∇, p, y)
     CUDA.synchronize()
     return
@@ -133,32 +133,37 @@ end
 #####################
 # Softmax
 #####################
-function kernel_softmax_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
+function kernel_mlogloss_∇!(∇::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector) where {T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-    K = (size(∇, 1) - 1) ÷ 2
+    K = size(p, 1)
     if i <= length(y)
-        @inbounds for k = 1:K
+        isum = zero(T)
+        @inbounds for k in 1:K
+            isum += exp(p[k, i])
+        end
+        @inbounds for k in 1:K
+            iexp = exp(p[k, i])
             if k == y[i]
-                ∇[k, i] = (p[k, i] - 1) * ∇[2*K+1, i]
+                ∇[k, i] = (iexp / isum - 1) * ∇[end, i]
             else
-                ∇[k, i] = p[k, i] * ∇[2*K+1, i]
+                ∇[k, i] = iexp / isum * ∇[end, i]
             end
-            ∇[k+K, i] = (1 - p[k, i]) * ∇[2*K+1, i]
+            ∇[k+K, i] = 1 / isum * (1 - iexp / isum) * ∇[end, i]
         end
     end
     return
 end
-function update_grads_gpu!(
+
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
     ::EvoTreeClassifier{L,T};
     MAX_THREADS=1024
-) where {L<:Softmax,T}
-    p_prob = exp.(p) ./ sum(exp.(p), dims=1)
+) where {L<:MLogLoss,T}
     threads = min(MAX_THREADS, length(y))
-    blocks = ceil(Int, (length(y)) / threads)
-    @cuda blocks = blocks threads = threads kernel_softmax_∇!(∇, p_prob, y)
+    blocks = cld(length(y), threads)
+    @cuda blocks = blocks threads = threads kernel_mlogloss_∇!(∇, p, y)
     CUDA.synchronize()
     return
 end
@@ -182,7 +187,7 @@ function kernel_gauss_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVe
     return
 end
 
-function update_grads_gpu!(
+function update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
@@ -190,14 +195,8 @@ function update_grads_gpu!(
     MAX_THREADS=1024
 ) where {L<:GaussianMLE,T}
     threads = min(MAX_THREADS, length(y))
-    blocks = ceil(Int, (length(y)) / threads)
+    blocks = cld(length(y), threads)
     @cuda blocks = blocks threads = threads kernel_gauss_∇!(∇, p, y)
     CUDA.synchronize()
     return
-end
-
-function update_childs_∑_gpu!(::Type{L}, nodes, n, bin, feat) where {L}
-    nodes[n<<1].∑ .= nodes[n].hL[:, bin, feat]
-    nodes[n<<1+1].∑ .= nodes[n].hR[:, bin, feat]
-    return nothing
 end

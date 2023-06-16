@@ -40,7 +40,6 @@ params1 = EvoTreeRegressor(
     min_weight = 1.0,
     rowsample = 0.5,
     colsample = 1.0,
-    device = "gpu",
 )
 
 # @time model = fit_evotree(params1; x_train, y_train);

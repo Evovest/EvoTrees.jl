@@ -8,8 +8,7 @@ function eval_mse_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDe
     end
     return nothing
 end
-function mse(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
-    eval = similar(w)
+function mse(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_mse_kernel!(eval, p, y, w)
@@ -17,6 +16,11 @@ function mse(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, k
     return sum(eval) / sum(w)
 end
 
+"""
+    RMSE
+"""
+rmse(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat} =
+    sqrt(rmse(p, y, w; MAX_THREADS, kwargs...))
 
 """
     MAE
@@ -28,8 +32,7 @@ function eval_mae_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDe
     end
     return nothing
 end
-function mae(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
-    eval = similar(w)
+function mae(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_mae_kernel!(eval, p, y, w)
@@ -48,8 +51,7 @@ function eval_logloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::
     end
     return nothing
 end
-function logloss(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
-    eval = similar(w)
+function logloss(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_logloss_kernel!(eval, p, y, w)
@@ -68,8 +70,7 @@ function eval_gaussian_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y:
     end
     return nothing
 end
-function gaussian_mle(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
-    eval = similar(w)
+function gaussian_mle(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_gaussian_kernel!(eval, p, y, w)
@@ -90,8 +91,7 @@ function eval_poisson_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::
     return nothing
 end
 
-function poisson_deviance(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
-    eval = similar(w)
+function poisson(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_poisson_kernel!(eval, p, y, w)
@@ -111,8 +111,7 @@ function eval_gamma_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::Cu
     return nothing
 end
 
-function gamma_deviance(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
-    eval = similar(w)
+function gamma(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_gamma_kernel!(eval, p, y, w)
@@ -134,8 +133,7 @@ function eval_tweedie_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::
     return nothing
 end
 
-function tweedie_deviance(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
-    eval = similar(w)
+function tweedie(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
     @cuda blocks = blocks threads = threads eval_tweedie_kernel!(eval, p, y, w)
@@ -149,18 +147,21 @@ end
 """
 function mlogloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    K = size(p, 1)
     if i <= length(y)
-        @inbounds eval[i] = -w[i] * log(p[y[i], i])
+        isum = zero(T)
+        @inbounds for k in 1:K
+            isum += exp(p[k, i])
+        end
+        @inbounds eval[i] = w[i] * (log(isum) - p[y[i], i])
     end
     return nothing
 end
 
-function mlogloss(p::CuMatrix{T}, y::CuVector, w::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
-    eval = similar(w)
-    p_prob = exp.(p) ./ sum(exp.(p), dims=1)
+function mlogloss(p::CuMatrix{T}, y::CuVector, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = ceil(Int, length(y) / threads)
-    @cuda blocks = blocks threads = threads mlogloss_kernel!(eval, p_prob, y, w)
+    @cuda blocks = blocks threads = threads mlogloss_kernel!(eval, p, y, w)
     CUDA.synchronize()
     return sum(eval) / sum(w)
 end

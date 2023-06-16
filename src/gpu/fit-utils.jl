@@ -1,11 +1,11 @@
 """
-    hist_kernel_gauss!
+    hist_kernel!
 """
 function hist_kernel!(h∇, ∇, x_bin, is, js)
-    tix, tiy, k = threadIdx().x, threadIdx().y, threadIdx().z
-    bdx, bdy = blockDim().x, blockDim().y
-    bix, biy = blockIdx().x, blockIdx().y
-    gdx = gridDim().x
+    tix, tiy, k = threadIdx().z, threadIdx().y, threadIdx().x
+    bdx, bdy = blockDim().z, blockDim().y
+    bix, biy = blockIdx().z, blockIdx().y
+    gdx = gridDim().z
 
     j = tiy + bdy * (biy - 1)
     if j <= length(js)
@@ -26,26 +26,79 @@ function hist_kernel!(h∇, ∇, x_bin, is, js)
     return nothing
 end
 
-"""
- dim(x) = dim(i) + 1
-"""
-@inline index_f(x, i) = x[i]
-
-# base approach - block built along the cols first, the rows (limit collisions)
-function update_hist_gpu!(h∇, ∇, x_bin, is, js)
+function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
     kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
     max_threads = config.threads ÷ 4
     max_blocks = config.blocks * 4
-    @assert size(h∇, 1) <= max_threads "number of classes cannot be larger than 31 on GPU"
-    tz = min(64, size(h∇, 1))
+    tz = size(h∇, 1)
     ty = max(1, min(length(js), fld(max_threads, tz)))
     tx = max(1, min(length(is), fld(max_threads, tz * ty)))
-    threads = (tx, ty, tz)
+    threads = (tz, ty, tx)
     by = cld(length(js), ty)
     bx = min(cld(max_blocks, by), cld(length(is), tx))
-    blocks = (bx, by, 1)
+    blocks = (1, by, bx)
+    h∇ .= 0
     kernel(h∇, ∇, x_bin, is, js; threads, blocks)
+    CUDA.synchronize()
+    CUDA.@sync for j in jsc
+        nbins = size(h[j], 2)
+        copyto!(h[j], view(h∇, :, 1:nbins, j))
+    end
+    return nothing
+end
+
+"""
+    hist_kernel_vec!
+"""
+function hist_kernel_vec!(h∇, ∇, x_bin, is)
+    tix, k = threadIdx().x, threadIdx().y
+    bdx = blockDim().x
+    bix = blockIdx().x
+    gdx = gridDim().x
+
+    i_max = length(is)
+    niter = cld(i_max, bdx * gdx)
+    @inbounds for iter in 1:niter
+        i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
+        if i <= i_max
+            idx = is[i]
+            bin = x_bin[idx]
+            hid = Base._to_linear_index(h∇, k, bin)
+            CUDA.atomic_add!(pointer(h∇, hid), ∇[k, idx])
+        end
+    end
+    # CUDA.sync_threads()
+    return nothing
+end
+function update_hist_gpu_vec!(h, h∇, ∇, x_bin, is, js::Vector)
+    kernel = @cuda launch = false hist_kernel_vec!(h∇[js[1]], ∇, view(x_bin, :, js[1]), is)
+    config = launch_configuration(kernel.fun)
+    max_threads = config.threads
+    max_blocks = config.blocks
+    @assert size(h∇[js[1]], 1) <= max_threads "number of classes cannot be larger than 31 on GPU"
+    ty = min(64, size(h∇[js[1]], 1))
+    tx = max(1, min(length(is), fld(max_threads, ty)))
+    threads = (tx, ty, 1)
+    bx = min(max_blocks, cld(length(is), tx))
+    blocks = (bx, 1, 1)
+    # @sync for j in js
+    #     @async h∇[j] .= 0
+    # end
+    for j in js
+        h∇[j] .= 0
+        h[j] .= 0
+    end
+    CUDA.synchronize()
+    # @info "hist" max_blocks length(is) threads blocks
+    @sync for j in js
+        @async kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
+        # kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
+    end
+    CUDA.synchronize()
+    for j in js
+        copyto!(h[j], h∇[j])
+    end
     CUDA.synchronize()
     return nothing
 end
@@ -61,6 +114,7 @@ function split_chunk_kernel!(
     x_bin,
     feat,
     cond_bin,
+    feattype,
     offset,
     chunk_size,
     lefts,
@@ -79,7 +133,8 @@ function split_chunk_kernel!(
     i_max = i + bsize - 1
 
     @inbounds while i <= i_max
-        @inbounds if x_bin[is[i], feat] <= cond_bin
+        cond = feattype ? x_bin[is[i], feat] <= cond_bin : x_bin[is[i], feat] == cond_bin
+        if cond
             left_count += 1
             left[offset+chunk_size*(bid-1)+left_count] = is[i]
         else
@@ -88,8 +143,8 @@ function split_chunk_kernel!(
         end
         i += 1
     end
-    @inbounds lefts[bid] = left_count
-    @inbounds rights[bid] = right_count
+    lefts[bid] = left_count
+    rights[bid] = right_count
     sync_threads()
     return nothing
 end
@@ -128,8 +183,7 @@ function split_views_kernel!(
     return nothing
 end
 
-function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, offset)
-
+function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, feattype, offset)
     chunk_size = cld(length(is), min(cld(length(is), 128), 2048))
     nblocks = cld(length(is), chunk_size)
     lefts = CUDA.zeros(Int, nblocks)
@@ -143,6 +197,7 @@ function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, off
         x_bin,
         feat,
         cond_bin,
+        feattype,
         offset,
         chunk_size,
         lefts,
@@ -171,73 +226,4 @@ function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, off
         view(out, offset+1:offset+sum_lefts),
         view(out, offset+sum_lefts+1:offset+length(is)),
     )
-end
-
-
-"""
-    update_gains!
-        GradientRegression
-"""
-function update_gains!(
-    node::TrainNodeGPU,
-    js::AbstractVector,
-    params::EvoTypes{L,T},
-    monotone_constraints,
-) where {L,T}
-
-    cumsum!(node.hL, node.h, dims = 2)
-    node.hR .= view(node.hL, :, params.nbins:params.nbins, :) .- node.hL
-
-    threads = params.nbins
-    blocks = length(js)
-    @cuda blocks = blocks threads = threads update_gains_kernel!(
-        node.gains,
-        node.hL,
-        node.hR,
-        js,
-        params.nbins,
-        params.lambda,
-        params.min_weight,
-        monotone_constraints,
-    )
-    CUDA.synchronize()
-    return nothing
-end
-
-function update_gains_kernel!(
-    gains::CuDeviceMatrix{T},
-    hL::CuDeviceArray{T,3},
-    hR::CuDeviceArray{T,3},
-    js::CuDeviceVector,
-    nbins,
-    lambda,
-    min_weight,
-    monotone_constraints,
-) where {T}
-    bin = threadIdx().x
-    j = js[blockIdx().x]
-    monotone_constraint = monotone_constraints[j]
-    K = (size(hL, 1) - 1) ÷ 2
-    @inbounds for k = 1:K
-        if bin == nbins
-            gains[bin, j] +=
-                hL[k, bin, j]^2 / (hL[k+K, bin, j] + lambda * hL[end, bin, j]) / 2
-        elseif hL[end, bin, j] > min_weight && hR[end, bin, j] > min_weight
-            if monotone_constraint != 0
-                predL = -hL[k, bin, j] / (hL[k+K, bin, j] + lambda * hL[end, bin, j])
-                predR = -hR[k, bin, j] / (hR[k+K, bin, j] + lambda * hR[end, bin, j])
-            end
-            if (monotone_constraint == 0) ||
-               (monotone_constraint == -1 && predL > predR) ||
-               (monotone_constraint == 1 && predL < predR)
-                gains[bin, j] +=
-                    (
-                        hL[k, bin, j]^2 / (hL[k+K, bin, j] + lambda * hL[end, bin, j]) +
-                        hR[k, bin, j]^2 / (hR[k+K, bin, j] + lambda * hR[end, bin, j])
-                    ) / 2
-            end
-        end
-    end # loop on K
-    sync_threads()
-    return nothing
 end

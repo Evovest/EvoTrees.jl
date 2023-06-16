@@ -1,36 +1,55 @@
-function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:GradientRegression,K,T}
-    @inbounds @threads for i in axes(X, 1)
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:GradientRegression,K,T}
+    @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 :
-            nid = nid << 1 + 1
+            feat = tree.feat[nid]
+            cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
+            nid = nid << 1 + !cond
         end
         @inbounds pred[1, i] += tree.pred[1, nid]
     end
     return nothing
 end
 
-function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:Logistic,K,T}
-    @inbounds @threads for i in axes(X, 1)
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:LogLoss,K,T}
+    @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 :
-            nid = nid << 1 + 1
+            feat = tree.feat[nid]
+            cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
+            nid = nid << 1 + !cond
         end
-        @inbounds pred[1, i] = clamp(pred[1, i] + tree.pred[1, nid], T(-10), T(10))
+        @inbounds pred[1, i] = clamp(pred[1, i] + tree.pred[1, nid], T(-15), T(15))
     end
     return nothing
 end
 
-function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:MLE2P,K,T}
-    @inbounds @threads for i in axes(X, 1)
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:MLE2P,K,T}
+    @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 :
-            nid = nid << 1 + 1
+            feat = tree.feat[nid]
+            cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
+            nid = nid << 1 + !cond
         end
         @inbounds pred[1, i] += tree.pred[1, nid]
-        @inbounds pred[2, i] = max(T(-10), pred[2, i] + tree.pred[2, nid])
+        @inbounds pred[2, i] = max(T(-15), pred[2, i] + tree.pred[2, nid])
+    end
+    return nothing
+end
+
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:MLogLoss,K,T}
+    @inbounds @threads for i in axes(x_bin, 1)
+        nid = 1
+        @inbounds while tree.split[nid]
+            feat = tree.feat[nid]
+            cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
+            nid = nid << 1 + !cond
+        end
+        @inbounds for k = 1:K
+            pred[k, i] += tree.pred[k, nid]
+        end
+        @views pred[:, i] .= max.(T(-15), pred[:, i] .- maximum(pred[:, i]))
     end
     return nothing
 end
@@ -40,49 +59,19 @@ end
 
 Generic fallback to add predictions of `tree` to existing `pred` matrix.
 """
-function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L<:Softmax,K,T}
-    @inbounds @threads for i in axes(X, 1)
+function predict!(pred::Matrix{T}, tree::Tree{L,K,T}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L,K,T}
+    @inbounds @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 :
-            nid = nid << 1 + 1
-        end
-        @inbounds for k = 1:K
-            pred[k, i] += tree.pred[k, nid]
-        end
-        @views pred[:, i] .= max.(T(-10), pred[:, i] .- maximum(pred[:, i]))
-    end
-    return nothing
-end
-
-"""
-    predict!(pred::Matrix, tree::Tree, X)
-
-Generic fallback to add predictions of `tree` to existing `pred` matrix.
-"""
-function predict!(pred::Matrix, tree::Tree{L,K,T}, X) where {L,K,T}
-    @inbounds @threads for i in axes(X, 1)
-        nid = 1
-        @inbounds while tree.split[nid]
-            X[i, tree.feat[nid]] < tree.cond_float[nid] ? nid = nid << 1 :
-            nid = nid << 1 + 1
+            feat = tree.feat[nid]
+            cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
+            nid = nid << 1 + !cond
         end
         @inbounds for k = 1:K
             pred[k, i] += tree.pred[k, nid]
         end
     end
     return nothing
-end
-
-"""
-    predict(tree::Tree{L,K,T}, X::AbstractMatrix)
-
-Prediction from a single tree - assign each observation to its final leaf.
-"""
-function predict(tree::Tree{L,K,T}, X::AbstractMatrix) where {L,K,T}
-    pred = zeros(T, K, size(X, 1))
-    predict!(pred, tree, X)
-    return pred
 end
 
 """
@@ -93,30 +82,32 @@ Use `ntree_limit=N` to only predict with the first `N` trees.
 """
 function predict(
     m::EvoTree{L,K,T},
-    X::AbstractMatrix;
-    ntree_limit=length(m.trees)
-) where {L,K,T}
-    pred = zeros(T, K, size(X, 1))
+    data,
+    ::Type{<:Device}=CPU;
+    ntree_limit=length(m.trees)) where {L,K,T}
+
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
+    x_bin = binarize(data; fnames=m.info[:fnames], edges=m.info[:edges])
+    nobs = Tables.istable(data) ? length(Tables.getcolumn(data, 1)) : size(data, 1)
+    pred = zeros(T, K, nobs)
     for i = 1:ntree_limit
-        predict!(pred, m.trees[i], X)
+        predict!(pred, m.trees[i], x_bin, m.info[:feattypes])
     end
-    if L == Logistic
+    if L == LogLoss
         pred .= sigmoid.(pred)
     elseif L ∈ [Poisson, Gamma, Tweedie]
         pred .= exp.(pred)
     elseif L in [GaussianMLE, LogisticMLE]
         pred[2, :] .= exp.(pred[2, :])
-    elseif L == Softmax
-        @inbounds for i in axes(pred, 2)
-            pred[:, i] .= softmax(pred[:, i])
-        end
+    elseif L == MLogLoss
+        # @inbounds for i in axes(pred, 2)
+        #     pred[:, i] .= softmax(pred[:, i])
+        # end
     end
     pred = K == 1 ? vec(Array(pred')) : Array(pred')
     return pred
 end
-
 
 function pred_leaf_cpu!(
     p,
@@ -126,22 +117,26 @@ function pred_leaf_cpu!(
     ∇,
     is,
 ) where {L<:GradientRegression,T}
-    p[1, n] = -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3])
+    ϵ = eps(T)
+    p[1, n] = -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3]))
 end
 function pred_scalar(
     ∑::AbstractVector{T},
     params::EvoTypes{L,T},
 ) where {L<:GradientRegression,T}
-    -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3])
+    ϵ = eps(T)
+    -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3]))
 end
 
 # prediction in Leaf - MLE2P
 function pred_leaf_cpu!(p, n, ∑::Vector, params::EvoTypes{L,T}, ∇, is) where {L<:MLE2P,T}
-    p[1, n] = -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5])
-    p[2, n] = -params.eta * ∑[2] / (∑[4] + params.lambda * ∑[5])
+    ϵ = eps(T)
+    p[1, n] = -params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[5]))
+    p[2, n] = -params.eta * ∑[2] / max(ϵ, (∑[4] + params.lambda * ∑[5]))
 end
 function pred_scalar(∑::AbstractVector{T}, params::EvoTypes{L,T}) where {L<:MLE2P,T}
-    -params.eta * ∑[1] / (∑[3] + params.lambda * ∑[5])
+    ϵ = eps(T)
+    -params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[5]))
 end
 
 # prediction in Leaf - MultiClassRegression
@@ -152,14 +147,15 @@ function pred_leaf_cpu!(
     params::EvoTypes{L,T},
     ∇,
     is,
-) where {L<:MultiClassRegression,T}
+) where {L<:MLogLoss,T}
     K = size(p, 1)
+    ϵ = eps(T)
     @inbounds for k = axes(p, 1)
-        p[k, n] = -params.eta * ∑[k] / (∑[k+K] + params.lambda * ∑[2*K+1])
+        p[k, n] = -params.eta * ∑[k] / max(ϵ, (∑[k+K] + params.lambda * ∑[end]))
     end
 end
 
-# prediction in Leaf - QuantileRegression
+# prediction in Leaf - Quantile
 function pred_leaf_cpu!(
     p,
     n,
@@ -167,11 +163,11 @@ function pred_leaf_cpu!(
     params::EvoTypes{L,T},
     ∇,
     is,
-) where {L<:QuantileRegression,T}
+) where {L<:Quantile,T}
     p[1, n] = params.eta * quantile(∇[2, is], params.alpha) / (1 + params.lambda)
 end
 
-# prediction in Leaf - L1Regression
+# prediction in Leaf - L1
 function pred_leaf_cpu!(
     p,
     n,
@@ -179,12 +175,12 @@ function pred_leaf_cpu!(
     params::EvoTypes{L,T},
     ∇,
     is,
-) where {L<:L1Regression,T}
+) where {L<:L1,T}
     p[1, n] = params.eta * ∑[1] / (∑[3] * (1 + params.lambda))
 end
 function pred_scalar(
     ∑::AbstractVector{T},
     params::EvoTypes{L,T},
-) where {L<:L1Regression,T}
+) where {L<:L1,T}
     params.eta * ∑[1] / (∑[3] * (1 + params.lambda))
 end

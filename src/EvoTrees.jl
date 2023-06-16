@@ -1,13 +1,12 @@
 module EvoTrees
 
-export init_evotree, grow_evotree!, fit_evotree, importance
+export fit_evotree
 export EvoTreeRegressor,
     EvoTreeCount,
     EvoTreeClassifier,
     EvoTreeMLE,
     EvoTreeGaussian,
     EvoTree,
-    EvoTreeGPU,
     Random
 
 using Base.Threads: @threads, @spawn, nthreads, threadid
@@ -16,8 +15,8 @@ using StatsBase: sample, sample!, quantile, proportions
 using Random
 using Random: seed!, AbstractRNG
 using Distributions
+using Tables
 using CategoricalArrays
-using LoopVectorization
 using Tables
 using CUDA
 using CUDA: @allowscalar, allowscalar
@@ -37,46 +36,26 @@ include("structs.jl")
 include("loss.jl")
 include("eval.jl")
 include("predict.jl")
-include("find_split.jl")
+include("init.jl")
 include("subsample.jl")
+include("fit-utils.jl")
 include("fit.jl")
 
-include("gpu/structs_gpu.jl")
-include("gpu/loss_gpu.jl")
-include("gpu/eval_gpu.jl")
-include("gpu/predict_gpu.jl")
-include("gpu/find_split_gpu.jl")
+include("gpu/loss.jl")
+include("gpu/eval.jl")
+include("gpu/predict.jl")
+include("gpu/init.jl")
 include("gpu/subsample.jl")
-include("gpu/fit_gpu.jl")
+include("gpu/fit-utils.jl")
+include("gpu/fit.jl")
 
 include("callback.jl")
 include("importance.jl")
 include("plot.jl")
 include("MLJ.jl")
 
-function convert(::Type{EvoTree}, m::EvoTreeGPU{L,K,T}) where {L,K,T}
-    EvoTrees.EvoTree{L,K,T}(
-        [
-            EvoTrees.Tree{L,K,T}(
-                Array(tree.feat),
-                Array(tree.cond_bin),
-                Array(tree.cond_float),
-                Array(tree.gain),
-                Array(tree.pred),
-                Array(tree.split),
-            ) for tree in m.trees
-        ],
-        m.info,
-    )
-end
-
 function save(model::EvoTree, path)
     BSON.bson(path, Dict(:model => model))
-end
-
-function save(model::EvoTreeGPU, path)
-    m = convert(EvoTree, model)
-    save(m, path)
 end
 
 function load(path)

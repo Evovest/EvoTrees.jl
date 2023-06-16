@@ -1,18 +1,13 @@
-# linear
-function update_grads!(
-    ∇::Matrix,
-    p::Matrix,
-    y::Vector,
-    ::EvoTreeRegressor{L,T}
-) where {L<:Linear,T}
+# MSE
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T}) where {L<:MSE,T}
     @threads for i in eachindex(y)
         @inbounds ∇[1, i] = 2 * (p[1, i] - y[i]) * ∇[3, i]
         @inbounds ∇[2, i] = 2 * ∇[3, i]
     end
 end
 
-# logistic - on linear predictor
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T}) where {L<:Logistic,T}
+# LogLoss - on linear predictor
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T}) where {L<:LogLoss,T}
     @threads for i in eachindex(y)
         @inbounds pred = sigmoid(p[1, i])
         @inbounds ∇[1, i] = (pred - y[i]) * ∇[3, i]
@@ -58,19 +53,22 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, params::EvoTreeRegress
     end
 end
 
-# Softmax
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeClassifier{L,T}) where {L<:Softmax,T}
-    sums = sum(exp.(p), dims=1)
-    K = (size(∇, 1) - 1) ÷ 2
+# MLogLoss
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector, ::EvoTreeClassifier{L,T}) where {L<:MLogLoss ,T}
+    K = size(p, 1)
     @threads for i in eachindex(y)
+        isum = zero(T)
         @inbounds for k = 1:K
-            # ∇[k, i] = (exp(p[k, i]) / sums[i] - (onehot(y[i], 1:K))) * ∇[2 * K + 1, i]
+            isum += exp(p[k, i])
+        end
+        @inbounds for k = 1:K
+            iexp = exp(p[k, i])
             if k == y[i]
-                ∇[k, i] = (exp(p[k, i]) / sums[i] - 1) * ∇[2*K+1, i]
+                ∇[k, i] = (iexp / isum - 1) * ∇[end, i]
             else
-                ∇[k, i] = (exp(p[k, i]) / sums[i]) * ∇[2*K+1, i]
+                ∇[k, i] = iexp / isum * ∇[end, i]
             end
-            ∇[k+K, i] = 1 / sums[i] * (1 - exp(p[k, i]) / sums[i]) * ∇[2*K+1, i]
+            ∇[k+K, i] = 1 / isum * (1 - iexp / isum) * ∇[end, i]
         end
     end
 end
@@ -102,7 +100,6 @@ end
 # pred[i][1] = μ
 # pred[i][2] = log(s)
 function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeMLE{L,T}) where {L<:LogisticMLE,T}
-    ϵ = eltype(p)(2e-7)
     @threads for i in eachindex(y)
         # first order
         @inbounds ∇[1, i] =
@@ -141,11 +138,17 @@ end
     @fastmath 1 / (1 + exp(-x))
 end
 
-function softmax(x::AbstractVector{T}) where {T<:AbstractFloat}
-    x .-= maximum(x)
-    x = exp.(x) ./ sum(exp.(x))
-    return x
-end
+# function softmax(x::AbstractVector{T}) where {T<:AbstractFloat}
+#     x .-= maximum(x)
+#     x = exp.(x) ./ sum(exp.(x))
+#     return x
+# end
+
+# function softmax(x::Matrix{T}) where {T<:AbstractFloat}
+#     x .-= maximum(x)
+#     x = exp.(x) ./ sum(exp.(x))
+#     return x
+# end
 
 
 ##############################
@@ -156,36 +159,33 @@ function get_gain(
     params::EvoTypes{L,T},
     ∑::AbstractVector{T},
 ) where {L<:GradientRegression,T}
-    ∑[1]^2 / (∑[2] + params.lambda * ∑[3]) / 2
+    ϵ = eps(T)
+    ∑[1]^2 / max(ϵ, (∑[2] + params.lambda * ∑[3])) / 2
 end
 
 # GaussianRegression
 function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:MLE2P,T}
-    (∑[1]^2 / (∑[3] + params.lambda * ∑[5]) + ∑[2]^2 / (∑[4] + params.lambda * ∑[5])) / 2
+    ϵ = eps(T)
+    (∑[1]^2 / max(ϵ, (∑[3] + params.lambda * ∑[5])) + ∑[2]^2 / max(ϵ, (∑[4] + params.lambda * ∑[5]))) / 2
 end
 
 # MultiClassRegression
-function get_gain(
-    params::EvoTypes{L,T},
-    ∑::AbstractVector{T},
-) where {L<:MultiClassRegression,T}
+function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:MLogLoss,T}
+    ϵ = eps(T)
     gain = zero(T)
     K = (length(∑) - 1) ÷ 2
     @inbounds for k = 1:K
-        gain += ∑[k]^2 / (∑[k+K] + params.lambda * ∑[2*K+1]) / 2
+        gain += ∑[k]^2 / max(ϵ, (∑[k+K] + params.lambda * ∑[end])) / 2
     end
     return gain
 end
 
-# QuantileRegression
-function get_gain(
-    params::EvoTypes{L,T},
-    ∑::AbstractVector{T},
-) where {L<:QuantileRegression,T}
+# Quantile
+function get_gain(::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:Quantile,T}
     abs(∑[1])
 end
 
-# L1 Regression
-function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:L1Regression,T}
+# L1
+function get_gain(::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:L1,T}
     abs(∑[1])
 end

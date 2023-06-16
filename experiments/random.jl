@@ -5,7 +5,7 @@ using EvoTrees
 using BenchmarkTools
 
 # prepare a dataset
-features = rand(Int(1.25e6), 100)
+features = rand(Int(1.25e6), 11)
 # features = rand(100, 10)
 X = features
 Y = rand(size(X, 1))
@@ -43,7 +43,7 @@ gain = importance(model)
 plot(logger[:metrics])
 
 @time model, cache = EvoTrees.init_evotree(params1; x_train, y_train);
-@time EvoTrees.grow_evotree!(model, cache);
+@time EvoTrees.grow_evotree!(model, cache, params1);
 
 #############################
 # CPU - Logistic

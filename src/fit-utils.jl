@@ -1,27 +1,86 @@
-#############################################
-# Get the braking points
-#############################################
-function get_edges(X::AbstractMatrix{T}, nbins, rng = Random.MersenneTwister()) where {T}
+"""
+    get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG()) where {T}
+    get_edges(df; fnames, nbins, rng=Random.TaskLocalRNG())
+
+Get the braking points of the feature data.
+"""
+function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG()) where {T}
     nobs = min(size(X, 1), 1000 * nbins)
-    obs = rand(rng, 1:size(X, 1), nobs)
-    edges = Vector{Vector{T}}(undef, size(X, 2))
-    @threads for i = 1:size(X, 2)
-        edges[i] = quantile(view(X, obs, i), (1:nbins) / nbins)
-        if length(edges[i]) == 0
-            edges[i] = [minimum(view(X, obs, i))]
+    idx = rand(rng, 1:size(X, 1), nobs)
+    nfeats = size(X, 2)
+    edges = Vector{Vector{T}}(undef, nfeats)
+    featbins = Vector{UInt8}(undef, nfeats)
+    feattypes = Vector{Bool}(undef, nfeats)
+    @threads for j in 1:size(X, 2)
+        edges[j] = quantile(view(X, idx, j), (1:nbins-1) / nbins)
+        if length(edges[j]) == 1
+            edges[j] = [minimum(view(X, idx, j))]
         end
+        featbins[j] = length(edges[j]) + 1
+        feattypes[j] = true
     end
-    return edges
+    return edges, featbins, feattypes
 end
 
-####################################################
-# Transform X matrix into a UInt8 binarized matrix
-####################################################
-function binarize(X, edges)
+function get_edges(df; fnames, nbins, rng=Random.TaskLocalRNG())
+    _nobs = length(Tables.getcolumn(df, 1))
+    nobs = min(_nobs, 1000 * nbins)
+    idx = rand(rng, 1:_nobs, nobs)
+    edges = Vector{Any}([Vector{eltype(Tables.getcolumn(df, col))}() for col in fnames])
+    nfeats = length(fnames)
+    featbins = Vector{UInt8}(undef, nfeats)
+    feattypes = Vector{Bool}(undef, nfeats)
+    @threads for j in eachindex(fnames)
+        col = view(Tables.getcolumn(df, fnames[j]), idx)
+        if eltype(col) <: Bool
+            edges[j] = [false, true]
+            featbins[j] = 2
+            feattypes[j] = false
+        elseif eltype(col) <: CategoricalValue
+            edges[j] = levels(col)
+            featbins[j] = length(edges[j])
+            feattypes[j] = isordered(col) ? true : false
+            @assert featbins[j] <= 255 "Max categorical levels currently limited to 255, $(fnames[j]) has $(featbins[j])."
+        elseif eltype(col) <: Real
+            edges[j] = unique(quantile(col, (1:nbins-1) / nbins))
+            featbins[j] = length(edges[j]) + 1
+            feattypes[j] = true
+        else
+            @error "Invalid feature eltype: $(fnames[j]) is $(eltype(col))"
+        end
+        if length(edges[j]) == 1
+            edges[j] = [minimum(col)]
+        end
+    end
+    return edges, featbins, feattypes
+end
+
+"""
+    binarize(X::AbstractMatrix; fnames, edges)
+    binarize(df; fnames, edges)
+
+Transform feature data into a UInt8 binarized matrix.
+"""
+function binarize(X::AbstractMatrix; fnames, edges)
     x_bin = zeros(UInt8, size(X))
-    @threads for i = 1:size(X, 2)
-        @inbounds x_bin[:, i] .=
-            searchsortedlast.(Ref(edges[i][1:end-1]), view(X, :, i)) .+ 1
+    @threads for j in axes(X, 2)
+        x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), view(X, :, j))
+    end
+    return x_bin
+end
+
+function binarize(df; fnames, edges)
+    nobs = length(Tables.getcolumn(df, 1))
+    x_bin = zeros(UInt8, nobs, length(fnames))
+    @threads for j in eachindex(fnames)
+        col = Tables.getcolumn(df, fnames[j])
+        if eltype(col) <: Bool
+            x_bin[:, j] .= col .+ 1
+        elseif eltype(col) <: CategoricalValue
+            x_bin[:, j] .= levelcode.(col)
+        elseif eltype(col) <: Real
+            x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), col)
+        end
     end
     return x_bin
 end
@@ -39,6 +98,7 @@ function split_set_chunk!(
     x_bin,
     feat,
     cond_bin,
+    feattype,
     offset,
     chunk_size,
 )
@@ -50,7 +110,8 @@ function split_set_chunk!(
     i_max = i + bsize - 1
 
     @inbounds while i <= i_max
-        if x_bin[is[i], feat] <= cond_bin
+        cond = feattype ? x_bin[is[i], feat] <= cond_bin : x_bin[is[i], feat] == cond_bin
+        if cond
             left_count += 1
             left[offset+chunk_size*(bid-1)+left_count] = is[i]
         else
@@ -101,6 +162,7 @@ function split_set_threads!(
     x_bin::Matrix{S},
     feat,
     cond_bin,
+    feattype,
     offset,
 ) where {S}
 
@@ -109,11 +171,6 @@ function split_set_threads!(
 
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
-
-    # @info "length(is)" length(is)
-    # @info "offset" offset
-    # @info "chunk_size" chunk_size
-    # @info "nblocks" nblocks
 
     @threads for bid = 1:nblocks
         lefts[bid], rights[bid] = split_set_chunk!(
@@ -125,6 +182,7 @@ function split_set_threads!(
             x_bin,
             feat,
             cond_bin,
+            feattype,
             offset,
             chunk_size,
         )
@@ -162,7 +220,7 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Array{T,3},
+    hist::Vector{Matrix{T}},
     ∇::Matrix{T},
     x_bin::Matrix,
     is::AbstractVector,
@@ -171,9 +229,9 @@ function update_hist!(
     @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
-            hist[1, bin, j] += ∇[1, i]
-            hist[2, bin, j] += ∇[2, i]
-            hist[3, bin, j] += ∇[3, i]
+            hist[j][1, bin] += ∇[1, i]
+            hist[j][2, bin] += ∇[2, i]
+            hist[j][3, bin] += ∇[3, i]
         end
     end
     return nothing
@@ -185,7 +243,7 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Array{T,3},
+    hist::Vector{Matrix{T}},
     ∇::Matrix{T},
     x_bin::Matrix,
     is::AbstractVector,
@@ -194,11 +252,11 @@ function update_hist!(
     @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
-            hist[1, bin, j] += ∇[1, i]
-            hist[2, bin, j] += ∇[2, i]
-            hist[3, bin, j] += ∇[3, i]
-            hist[4, bin, j] += ∇[4, i]
-            hist[5, bin, j] += ∇[5, i]
+            hist[j][1, bin] += ∇[1, i]
+            hist[j][2, bin] += ∇[2, i]
+            hist[j][3, bin] += ∇[3, i]
+            hist[j][4, bin] += ∇[4, i]
+            hist[j][5, bin] += ∇[5, i]
         end
     end
     return nothing
@@ -206,11 +264,11 @@ end
 
 """
     update_hist!
-        Generic fallback
+        Generic fallback - Softmax
 """
 function update_hist!(
     ::Type{L},
-    hist::Array{T,3},
+    hist::Vector{Matrix{T}},
     ∇::Matrix{T},
     x_bin::Matrix,
     is::AbstractVector,
@@ -220,7 +278,7 @@ function update_hist!(
         @inbounds for i in is
             bin = x_bin[i, j]
             @inbounds @simd for k in axes(∇, 1)
-                hist[k, bin, j] += ∇[k, i]
+                hist[j][k, bin] += ∇[k, i]
             end
         end
     end
@@ -239,8 +297,9 @@ Generic fallback
 """
 function update_gains!(
     node::TrainNode,
-    js::Vector,
+    js,
     params::EvoTypes{L,T},
+    feattypes::Vector{Bool},
     monotone_constraints,
 ) where {L,T}
 
@@ -248,25 +307,30 @@ function update_gains!(
     hL = node.hL
     hR = node.hR
     gains = node.gains
-
-    cumsum!(hL, h, dims = 2)
-    hR .= view(hL, :, params.nbins:params.nbins, :) .- hL
+    ∑ = node.∑
 
     @inbounds for j in js
+        if feattypes[j]
+            cumsum!(hL[j], h[j], dims=2)
+            hR[j] .= ∑ .- hL[j]
+        else
+            hR[j] .= ∑ .- h[j]
+            hL[j] .= h[j]
+        end
         monotone_constraint = monotone_constraints[j]
-        @inbounds for bin = 1:params.nbins
-            if hL[end, bin, j] > params.min_weight && hR[end, bin, j] > params.min_weight
+        @inbounds for bin in eachindex(gains[j])
+            if hL[j][end, bin] > params.min_weight && hR[j][end, bin] > params.min_weight
                 if monotone_constraint != 0
-                    predL = pred_scalar(view(hL, :, bin, j), params)
-                    predR = pred_scalar(view(hR, :, bin, j), params)
+                    predL = pred_scalar(view(hL[j], :, bin), params)
+                    predR = pred_scalar(view(hR[j], :, bin), params)
                 end
                 if (monotone_constraint == 0) ||
                    (monotone_constraint == -1 && predL > predR) ||
                    (monotone_constraint == 1 && predL < predR)
 
-                    gains[bin, j] =
-                        get_gain(params, view(hL, :, bin, j)) +
-                        get_gain(params, view(hR, :, bin, j))
+                    gains[j][bin] =
+                        get_gain(params, view(hL[j], :, bin)) +
+                        get_gain(params, view(hR[j], :, bin))
                 end
             end
         end

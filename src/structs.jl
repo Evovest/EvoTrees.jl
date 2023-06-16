@@ -1,25 +1,29 @@
+abstract type Device end
+abstract type CPU <: Device end
+abstract type GPU <: Device end
+
 """
     Carries training information for a given tree node
 """
-mutable struct TrainNode{T<:AbstractFloat,S}
+mutable struct TrainNode{T<:AbstractFloat,S,V,M}
     gain::T
     is::S
-    ∑::Vector{T}
-    h::Array{T,3}
-    hL::Array{T,3}
-    hR::Array{T,3}
-    gains::Matrix{T}
+    ∑::V
+    h::Vector{M}
+    hL::Vector{M}
+    hR::Vector{M}
+    gains::Vector{V}
 end
 
-function TrainNode(nvars, nbins, K, is, T)
+function TrainNode(featbins, K, is, T)
     node = TrainNode(
         zero(T),
         is,
         zeros(T, 2 * K + 1),
-        zeros(T, 2 * K + 1, nbins, nvars),
-        zeros(T, 2 * K + 1, nbins, nvars),
-        zeros(T, 2 * K + 1, nbins, nvars),
-        zeros(T, nbins, nvars),
+        [zeros(T, 2 * K + 1, nbins) for nbins in featbins],
+        [zeros(T, 2 * K + 1, nbins) for nbins in featbins],
+        [zeros(T, 2 * K + 1, nbins) for nbins in featbins],
+        [zeros(T, nbins) for nbins in featbins],
     )
     return node
 end
@@ -28,7 +32,7 @@ end
 struct Tree{L,K,T}
     feat::Vector{Int}
     cond_bin::Vector{UInt8}
-    cond_float::Vector{T}
+    cond_float::Vector{Any}
     gain::Vector{T}
     pred::Matrix{T}
     split::Vector{Bool}
@@ -63,13 +67,33 @@ function Base.show(io::IO, tree::Tree)
     end
 end
 
-# gradient-boosted tree is formed by a vector of trees
+"""
+    EvoTree{L,K,T}
+
+An `EvoTree` holds the structure of a fitted gradient-boosted tree.
+
+# Fields
+- trees::Vector{Tree{L,K,T}}
+- info::Dict
+
+`EvoTree` acts as a functor to perform inference on input data: 
+```
+pred = (m::EvoTree; ntree_limit=length(m.trees))(x)
+```
+"""
 struct EvoTree{L,K,T}
     trees::Vector{Tree{L,K,T}}
     info::Dict
 end
-(m::EvoTree)(x::AbstractMatrix) = predict(m, x)
-get_types(::EvoTree{L,K,T}) where {L,K,T} = (L,T)
+# (m::EvoTree)(data, device::Type{D}=CPU; ntree_limit=length(m.trees)) where {D<:Device} =
+#     predict(m, data, device; ntree_limit)
+function (m::EvoTree)(data; ntree_limit=length(m.trees), device="cpu")
+    @assert string(device) ∈ ["cpu", "gpu"]
+    _device = string(device) == "cpu" ? CPU : GPU
+    return predict(m, data, _device; ntree_limit)
+end
+
+get_types(::EvoTree{L,K,T}) where {L,K,T} = (L, T)
 
 function Base.show(io::IO, evotree::EvoTree)
     println(io, "$(typeof(evotree))")

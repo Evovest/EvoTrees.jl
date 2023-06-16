@@ -1,30 +1,42 @@
 abstract type ModelType end
 abstract type GradientRegression <: ModelType end
-abstract type L1Regression <: ModelType end
-abstract type QuantileRegression <: ModelType end
-abstract type MultiClassRegression <: ModelType end
 abstract type MLE2P <: ModelType end # 2-parameters max-likelihood
-struct Linear <: GradientRegression end
-struct Logistic <: GradientRegression end
-struct Poisson <: GradientRegression end
-struct Gamma <: GradientRegression end
-struct Tweedie <: GradientRegression end
-struct L1 <: L1Regression end
-struct Quantile <: QuantileRegression end
-struct Softmax <: MultiClassRegression end
-struct GaussianMLE <: MLE2P end
-struct LogisticMLE <: MLE2P end
+
+abstract type MSE <: GradientRegression end
+abstract type LogLoss <: GradientRegression end
+abstract type Poisson <: GradientRegression end
+abstract type Gamma <: GradientRegression end
+abstract type Tweedie <: GradientRegression end
+abstract type MLogLoss <: ModelType end
+abstract type GaussianMLE <: MLE2P end
+abstract type LogisticMLE <: MLE2P end
+abstract type Quantile <: ModelType end
+abstract type L1 <: ModelType end
+
+# Converts MSE -> :mse
+const _type2loss_dict = Dict(
+    MSE => :mse,
+    LogLoss => :logloss,
+    Poisson => :poisson,
+    Gamma => :gamma,
+    Tweedie => :tweedie,
+    MLogLoss => :mlogloss,
+    GaussianMLE => :gaussian_mle,
+    LogisticMLE => :logistic_mle,
+    Quantile => :quantile,
+    L1 => :l1
+)
+_type2loss(L::Type) = _type2loss_dict[L]
 
 # make a Random Number Generator object
-mk_rng(rng::AbstractRNG, device = "cpu") = rng
-function mk_rng(int::Integer, device = "cpu")
+mk_rng(rng::AbstractRNG) = rng
+function mk_rng(int::Integer)
     if VERSION < v"1.7"
         rng = Random.MersenneTwister()
     else
         rng = Random.TaskLocalRNG()
     end
     seed!(rng, int)
-    device == "gpu" && CUDA.seed!(int)
     return rng
 end
 
@@ -33,7 +45,7 @@ function check_parameter(::Type{<:T}, value, min_value::Real, max_value::Real, l
     min_value = max(typemin(T), min_value)
     max_value = min(typemax(T), max_value)
     try
-        convert(T,value)
+        convert(T, value)
         @assert min_value <= value <= max_value
     catch
         error("Invalid value for parameter `$(string(label))`: $value. `$(string(label))` must be of type $T with value between $min_value and $max_value.")
@@ -44,7 +56,7 @@ end
 function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
 
     # Check integer parameters
-    check_parameter(Int, args[:nrounds], 1, typemax(Int), :nrounds)
+    check_parameter(Int, args[:nrounds], 0, typemax(Int), :nrounds)
     check_parameter(Int, args[:max_depth], 1, typemax(Int), :max_depth)
     check_parameter(Int, args[:nbins], 2, 255, :nbins)
 
@@ -57,7 +69,7 @@ function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
     check_parameter(T, args[:alpha], zero(T), one(T), :alpha)
     check_parameter(T, args[:rowsample], eps(T), one(T), :rowsample)
     check_parameter(T, args[:colsample], eps(T), one(T), :colsample)
-    check_parameter(T, args[:eta], eps(T), typemax(T), :eta)
+    check_parameter(T, args[:eta], zero(T), typemax(T), :eta)
 end
 
 mutable struct EvoTreeRegressor{L<:ModelType,T} <: MMI.Deterministic
@@ -73,7 +85,6 @@ mutable struct EvoTreeRegressor{L<:ModelType,T} <: MMI.Deterministic
     alpha::T
     monotone_constraints::Any
     rng::Any
-    device::Any
 end
 
 function EvoTreeRegressor(; kwargs...)
@@ -81,7 +92,7 @@ function EvoTreeRegressor(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :T => Float32,
-        :loss => :linear,
+        :loss => :mse,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
@@ -94,7 +105,6 @@ function EvoTreeRegressor(; kwargs...)
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
         :rng => 123,
-        :device => "cpu",
     )
 
     args_override = intersect(keys(args), keys(kwargs))
@@ -102,25 +112,31 @@ function EvoTreeRegressor(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng], String(args[:device]))
+    args[:rng] = mk_rng(args[:rng])
     args[:loss] = Symbol(args[:loss])
     T = args[:T]
 
-    if args[:loss] == :linear
-        L = Linear
+    if args[:loss] == :mse
+        L = MSE
+    elseif args[:loss] == :linear
+        @warn "Loss `:linear` loss is being deprecated and will stop being supported in future release. Use `:mse` instead."
+        L = MSE
+    elseif args[:loss] == :logloss
+        L = LogLoss
     elseif args[:loss] == :logistic
-        L = Logistic
+        @warn "Loss `:logistic` loss is being deprecated and will stop being supported in future release. Use `:logloss` instead."
+        L = LogLoss
     elseif args[:loss] == :gamma
         L = Gamma
     elseif args[:loss] == :tweedie
         L = Tweedie
-    elseif args[:loss] == :L1
+    elseif args[:loss] == :l1
         L = L1
     elseif args[:loss] == :quantile
         L = Quantile
     else
         error(
-            "Invalid loss: $(args[:loss]). Only [`:linear`, `:logistic`, `:L1`, `:quantile`] are supported at the moment by EvoTreeRegressor.",
+            "Invalid loss: $(args[:loss]). Only [`:mse`, `:logloss`, `:gamma`, `:tweedie`, `:l1`, `:quantile`] are supported by EvoTreeRegressor.",
         )
     end
 
@@ -139,15 +155,9 @@ function EvoTreeRegressor(; kwargs...)
         T(args[:alpha]),
         args[:monotone_constraints],
         args[:rng],
-        args[:device],
     )
 
     return model
-end
-
-# Converts Linear -> :linear (special case is L1 -> :L1)
-function _type2loss(t::Type)
-    t|>string|>lowercase|>x->split(x,".")[end]|>x->ifelse(x=="l1","L1",x)|>Symbol
 end
 
 function EvoTreeRegressor{L,T}(; kwargs...) where {L,T}
@@ -167,14 +177,13 @@ mutable struct EvoTreeCount{L<:ModelType,T} <: MMI.Probabilistic
     alpha::T
     monotone_constraints::Any
     rng::Any
-    device::Any
 end
 
 function EvoTreeCount(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :T => Float32,
+        :T => Float64,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
@@ -187,7 +196,6 @@ function EvoTreeCount(; kwargs...)
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
         :rng => 123,
-        :device => "cpu",
     )
 
     args_override = intersect(keys(args), keys(kwargs))
@@ -195,7 +203,7 @@ function EvoTreeCount(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng], String(args[:device]))
+    args[:rng] = mk_rng(args[:rng])
     L = Poisson
     T = args[:T]
 
@@ -214,7 +222,6 @@ function EvoTreeCount(; kwargs...)
         T(args[:alpha]),
         args[:monotone_constraints],
         args[:rng],
-        args[:device],
     )
 
     return model
@@ -236,14 +243,13 @@ mutable struct EvoTreeClassifier{L<:ModelType,T} <: MMI.Probabilistic
     nbins::Int
     alpha::T
     rng::Any
-    device::Any
 end
 
 function EvoTreeClassifier(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :T => Float32,
+        :T => Float64,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
@@ -255,7 +261,6 @@ function EvoTreeClassifier(; kwargs...)
         :nbins => 32,
         :alpha => 0.5,
         :rng => 123,
-        :device => "cpu",
     )
 
     args_override = intersect(keys(args), keys(kwargs))
@@ -263,8 +268,8 @@ function EvoTreeClassifier(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng], String(args[:device]))
-    L = Softmax
+    args[:rng] = mk_rng(args[:rng])
+    L = MLogLoss
     T = args[:T]
 
     check_args(T, args)
@@ -281,7 +286,6 @@ function EvoTreeClassifier(; kwargs...)
         args[:nbins],
         T(args[:alpha]),
         args[:rng],
-        args[:device],
     )
 
     return model
@@ -304,7 +308,6 @@ mutable struct EvoTreeMLE{L<:ModelType,T} <: MMI.Probabilistic
     alpha::T
     monotone_constraints::Any
     rng::Any
-    device::Any
 end
 
 function EvoTreeMLE(; kwargs...)
@@ -312,7 +315,7 @@ function EvoTreeMLE(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :T => Float64,
-        :loss => :gaussian,
+        :loss => :gaussian_mle,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
@@ -325,7 +328,6 @@ function EvoTreeMLE(; kwargs...)
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
         :rng => 123,
-        :device => "cpu",
     )
 
     args_override = intersect(keys(args), keys(kwargs))
@@ -333,7 +335,7 @@ function EvoTreeMLE(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng], String(args[:device]))
+    args[:rng] = mk_rng(args[:rng])
     args[:loss] = Symbol(args[:loss])
     T = args[:T]
 
@@ -343,7 +345,7 @@ function EvoTreeMLE(; kwargs...)
         L = LogisticMLE
     else
         error(
-            "Invalid loss: $(args[:loss]). Only `:gaussian` / `:gaussian_mle` and `:logistic` / `:logistic_mle` are supported at the moment by EvoTreeMLE.",
+            "Invalid loss: $(args[:loss]). Only `:gaussian_mle` and `:logistic_mle` are supported by EvoTreeMLE.",
         )
     end
 
@@ -362,7 +364,6 @@ function EvoTreeMLE(; kwargs...)
         T(args[:alpha]),
         args[:monotone_constraints],
         args[:rng],
-        args[:device],
     )
 
     return model
@@ -391,7 +392,6 @@ mutable struct EvoTreeGaussian{L<:ModelType,T} <: MMI.Probabilistic
     alpha::T
     monotone_constraints::Any
     rng::Any
-    device::Any
 end
 function EvoTreeGaussian(; kwargs...)
 
@@ -410,7 +410,6 @@ function EvoTreeGaussian(; kwargs...)
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
         :rng => 123,
-        :device => "cpu",
     )
 
     args_override = intersect(keys(args), keys(kwargs))
@@ -418,7 +417,7 @@ function EvoTreeGaussian(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng], String(args[:device]))
+    args[:rng] = mk_rng(args[:rng])
     L = GaussianMLE
     T = args[:T]
 
@@ -437,7 +436,6 @@ function EvoTreeGaussian(; kwargs...)
         T(args[:alpha]),
         args[:monotone_constraints],
         args[:rng],
-        args[:device],
     )
 
     return model
@@ -470,7 +468,7 @@ function check_args(model::EvoTypes{L,T}) where {L,T<:Real}
 
     # Check integer parameters
     check_parameter(Int, model.max_depth, 1, typemax(Int), :max_depth)
-    check_parameter(Int, model.nrounds, 1, typemax(Int), :nrounds)
+    check_parameter(Int, model.nrounds, 0, typemax(Int), :nrounds)
     check_parameter(Int, model.nbins, 2, 255, :nbins)
 
     # check positive float parameters
@@ -482,5 +480,5 @@ function check_args(model::EvoTypes{L,T}) where {L,T<:Real}
     check_parameter(T, model.alpha, zero(T), one(T), :alpha)
     check_parameter(T, model.rowsample, eps(T), one(T), :rowsample)
     check_parameter(T, model.colsample, eps(T), one(T), :colsample)
-    check_parameter(T, model.eta, eps(T), typemax(T), :eta)
+    check_parameter(T, model.eta, zero(T), typemax(T), :eta)
 end

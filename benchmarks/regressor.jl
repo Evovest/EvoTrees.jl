@@ -2,10 +2,11 @@ using Revise
 using Statistics
 using StatsBase: sample
 using XGBoost
-using LightGBM
+# using LightGBM
 using EvoTrees
 using BenchmarkTools
-using CUDA
+using Random: seed!
+import CUDA
 
 nrounds = 200
 nobs = Int(1e6)
@@ -13,24 +14,26 @@ num_feat = Int(100)
 T = Float32
 nthread = Base.Threads.nthreads()
 @info "testing with: $nobs observations | $num_feat features."
+seed!(123)
 x_train = rand(T, nobs, num_feat)
 y_train = rand(T, size(x_train, 1))
 
 @info nthread
-loss = "linear"
-if loss == "linear"
+loss = "mse"
+if loss == "mse"
     loss_xgb = "reg:squarederror"
     metric_xgb = "mae"
-    loss_evo = :linear
+    loss_evo = :mse
     metric_evo = :mae
-elseif loss == "logistic"
+elseif loss == "logloss"
     loss_xgb = "reg:logistic"
     metric_xgb = "logloss"
-    loss_evo = :logistic
+    loss_evo = :logloss
     metric_evo = :logloss
 end
 
-@info "xgboost train:"
+@info "XGBoost"
+@info "train"
 params_xgb = Dict(
     :num_round => nrounds,
     :max_depth => 5,
@@ -43,12 +46,11 @@ params_xgb = Dict(
     :max_bin => 64,
 )
 
-dtrain = DMatrix(x_train, y_train .- 1)
-watchlist = Dict("train" => DMatrix(x_train, y_train .- 1))
+dtrain = DMatrix(x_train, y_train)
+watchlist = Dict("train" => DMatrix(x_train, y_train));
 @time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
-# @time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
-@btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
-@info "xgboost predict:"
+# @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
+@info "predict"
 @time pred_xgb = XGBoost.predict(m_xgb, x_train);
 @btime XGBoost.predict($m_xgb, $x_train);
 
@@ -86,8 +88,8 @@ watchlist = Dict("train" => DMatrix(x_train, y_train .- 1))
 # @time gbm_results = fit!(m_gbm, x_train, y_train, (x_train, y_train))
 # @time pred_gbm = LightGBM.predict(m_gbm, x_train) |> vec
 
-@info "evotrees train CPU:"
-# # EvoTrees params
+@info "EvoTrees"
+verbosity = 0
 params_evo = EvoTreeRegressor(
     T=T,
     loss=loss_evo,
@@ -101,24 +103,35 @@ params_evo = EvoTreeRegressor(
     rowsample=0.5,
     colsample=0.5,
     nbins=64,
-    rng = 123,
+    rng=123,
 )
 
-params_evo.device = "cpu"
-@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
-# @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
-# @time m_evo = fit_evotree(params_evo; x_train, y_train);
-@btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
-@info "evotrees predict CPU:"
-@time pred_evo = EvoTrees.predict(m_evo, x_train);
-@btime EvoTrees.predict($m_evo, $x_train);
+@info "EvoTrees CPU"
+device = "cpu"
+@info "init"
+@time m, cache = EvoTrees.init(params_evo, x_train, y_train);
+@time m, cache = EvoTrees.init(params_evo, x_train, y_train);
 
-@info "evotrees train GPU:"
-params_evo.device = "gpu"
-@time m_evo_gpu = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
-# @time m_evo_gpu = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, print_every_n=100);
-# @time m_evo_gpu = fit_evotree(params_evo; x_train, y_train);
-@btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo);
-@info "evotrees predict GPU:"
-@time pred_evo = EvoTrees.predict(m_evo_gpu, x_train);
-@btime EvoTrees.predict($m_evo_gpu, $x_train);
+# @info "train - no eval"
+# @time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
+# @time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
+
+@info "train - eval"
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity = 1, print_every_n=10);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
+
+# @time m_evo = fit_evotree(params_evo; x_train, y_train, device);
+# @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo, device, verbosity);
+@info "predict"
+@time pred_evo = m_evo(x_train);
+@btime m_evo($x_train);
+
+@info "EvoTrees GPU"
+device = "gpu"
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
+# @time m_evo = fit_evotree(params_evo; x_train, y_train);
+# @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo, device, verbosity);
+@info "predict"
+@time pred_evo = m_evo(x_train; device);
+@btime m_evo($x_train; device);

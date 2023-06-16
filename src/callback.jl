@@ -1,30 +1,35 @@
-struct CallBack{F,M,V,Y}
-    feval::F
-    x::M
-    p::M
+struct CallBack{B,P,Y,C,D}
+    feval::Function
+    x_bin::B
+    p::P
     y::Y
-    w::V
-end
-function (cb::CallBack)(logger, iter, tree)
-    predict!(cb.p, tree, cb.x)
-    metric = cb.feval(cb.p, cb.y, cb.w)
-    update_logger!(logger, iter, metric)
-    return nothing
+    w::C
+    eval::C
+    feattypes::D
 end
 
 function CallBack(
-    params::EvoTypes{L,T},
-    ::Union{EvoTree{L,K,T},EvoTreeGPU{L,K,T}};
-    metric,
-    x_eval,
-    y_eval,
-    w_eval=nothing,
-    offset_eval=nothing
-) where {L,K,T}
+    ::EvoTypes{L,T},
+    m::EvoTree{L,K,T},
+    deval,
+    device::Type{D};
+    target_name,
+    w_name=nothing,
+    offset_name=nothing,
+    metric) where {L,K,T,D<:Device}
+
+    _w_name = isnothing(w_name) ? Symbol("") : Symbol(w_name)
+    _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
+    _target_name = Symbol(target_name)
+
     feval = metric_dict[metric]
-    x = convert(Matrix{T}, x_eval)
-    p = zeros(T, K, length(y_eval))
-    if L == Softmax
+    x_bin = binarize(deval; fnames=m.info[:fnames], edges=m.info[:edges])
+    nobs = length(Tables.getcolumn(deval, 1))
+    p = zeros(T, K, nobs)
+
+    y_eval = Tables.getcolumn(deval, _target_name)
+
+    if L == MLogLoss
         if eltype(y_eval) <: CategoricalValue
             levels = CategoricalArrays.levels(y_eval)
             μ = zeros(T, K)
@@ -36,24 +41,79 @@ function CallBack(
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
     else
-        y = convert(Vector{T}, y_eval)
+        y = T.(y_eval)
     end
-    w = isnothing(w_eval) ? ones(T, size(y)) : convert(Vector{T}, w_eval)
+    w = isnothing(w_name) ? ones(T, size(y)) : Vector{T}(Tables.getcolumn(deval, _w_name))
 
-    if !isnothing(offset_eval)
-        L == Logistic && (offset_eval .= logit.(offset_eval))
-        L in [Poisson, Gamma, Tweedie] && (offset_eval .= log.(offset_eval))
-        L == Softmax && (offset_eval .= log.(offset_eval))
-        L in [GaussianMLE, LogisticMLE] && (offset_eval[:, 2] .= log.(offset_eval[:, 2]))
-        offset_eval = T.(offset_eval)
-        p .+= offset_eval'
+    offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
+    if !isnothing(offset)
+        L == LogLoss && (offset .= logit.(offset))
+        L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
+        L == MultiClassRegression && (offset .= log.(offset))
+        L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
+        offset = T.(offset)
+        p .+= offset'
     end
 
-    if params.device == "gpu"
-        return CallBack(feval, CuArray(x), CuArray(p), CuArray(y), CuArray(w))
+    if device <: GPU
+        return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), CuArray(similar(w)), CuArray(m.info[:feattypes]))
     else
-        return CallBack(feval, x, p, y, w)
+        return CallBack(feval, x_bin, p, y, w, similar(w), m.info[:feattypes])
     end
+end
+
+function CallBack(
+    ::EvoTypes{L,T},
+    m::EvoTree{L,K,T},
+    x_eval::AbstractMatrix,
+    y_eval,
+    device::Type{D};
+    w_eval=nothing,
+    offset_eval=nothing,
+    metric) where {L,K,T,D<:Device}
+
+    feval = metric_dict[metric]
+    x_bin = binarize(x_eval; fnames=m.info[:fnames], edges=m.info[:edges])
+    p = zeros(T, K, size(x_eval, 1))
+
+    if L == MLogLoss
+        if eltype(y_eval) <: CategoricalValue
+            levels = CategoricalArrays.levels(y_eval)
+            μ = zeros(T, K)
+            y = UInt32.(CategoricalArrays.levelcode.(y_eval))
+        else
+            levels = sort(unique(y_eval))
+            yc = CategoricalVector(y_eval, levels=levels)
+            μ = zeros(T, K)
+            y = UInt32.(CategoricalArrays.levelcode.(yc))
+        end
+    else
+        y = T.(y_eval)
+    end
+    w = isnothing(w_eval) ? ones(T, size(y)) : Vector{T}(w_eval)
+
+    offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
+    if !isnothing(offset)
+        L == LogLoss && (offset .= logit.(offset))
+        L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
+        L == MLogLoss && (offset .= log.(offset))
+        L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
+        offset = T.(offset)
+        p .+= offset'
+    end
+
+    if device <: GPU
+        return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), CuArray(similar(w)), CuArray(m.info[:feattypes]))
+    else
+        return CallBack(feval, x_bin, p, y, w, similar(w), m.info[:feattypes])
+    end
+end
+
+function (cb::CallBack)(logger, iter, tree)
+    predict!(cb.p, tree, cb.x_bin, cb.feattypes)
+    metric = cb.feval(cb.p, cb.y, cb.w, cb.eval)
+    update_logger!(logger, iter, metric)
+    return nothing
 end
 
 function init_logger(; T, metric, maximise, early_stopping_rounds)
