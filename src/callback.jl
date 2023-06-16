@@ -1,10 +1,11 @@
-struct CallBack
-    feval
-    x_bin
-    p
-    y
-    w
-    feattypes
+struct CallBack{B,P,Y,C,D}
+    feval::Function
+    x_bin::B
+    p::P
+    y::Y
+    w::C
+    eval::C
+    feattypes::D
 end
 
 function CallBack(
@@ -55,9 +56,9 @@ function CallBack(
     end
 
     if device <: GPU
-        return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), CuArray(m.info[:feattypes]))
+        return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), CuArray(similar(w)), CuArray(m.info[:feattypes]))
     else
-        return CallBack(feval, x_bin, p, y, w, m.info[:feattypes])
+        return CallBack(feval, x_bin, p, y, w, similar(w), m.info[:feattypes])
     end
 end
 
@@ -102,15 +103,15 @@ function CallBack(
     end
 
     if device <: GPU
-        return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), CuArray(m.info[:feattypes]))
+        return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), CuArray(similar(w)), CuArray(m.info[:feattypes]))
     else
-        return CallBack(feval, x_bin, p, y, w, m.info[:feattypes])
+        return CallBack(feval, x_bin, p, y, w, similar(w), m.info[:feattypes])
     end
 end
 
 function (cb::CallBack)(logger, iter, tree)
     predict!(cb.p, tree, cb.x_bin, cb.feattypes)
-    metric = cb.feval(cb.p, cb.y, cb.w)
+    metric = cb.feval(cb.p, cb.y, cb.w, cb.eval)
     update_logger!(logger, iter, metric)
     return nothing
 end

@@ -19,16 +19,16 @@ x_train = rand(T, nobs, num_feat)
 y_train = rand(T, size(x_train, 1))
 
 @info nthread
-loss = "logistic"
-if loss == "linear"
+loss = "mse"
+if loss == "mse"
     loss_xgb = "reg:squarederror"
     metric_xgb = "mae"
-    loss_evo = :linear
+    loss_evo = :mse
     metric_evo = :mae
-elseif loss == "logistic"
+elseif loss == "logloss"
     loss_xgb = "reg:logistic"
     metric_xgb = "logloss"
-    loss_evo = :logistic
+    loss_evo = :logloss
     metric_evo = :logloss
 end
 

@@ -19,16 +19,16 @@ x_train = rand(T, nobs, num_feat)
 y_train = rand(T, size(x_train, 1))
 
 @info nthread
-loss = "linear"
-if loss == "linear"
+loss = "mse"
+if loss == "mse"
     loss_xgb = "reg:squarederror"
     metric_xgb = "mae"
-    loss_evo = :linear
+    loss_evo = :mse
     metric_evo = :mae
-elseif loss == "logistic"
+elseif loss == "logloss"
     loss_xgb = "reg:logistic"
     metric_xgb = "logloss"
-    loss_evo = :logistic
+    loss_evo = :logloss
     metric_evo = :logloss
 end
 
@@ -93,15 +93,15 @@ device = "cpu"
 # @btime fit_evotree($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
 @info "predict"
 @time pred_evo = m_evo(dtrain);
-@btime m_evo($dtrain);
+# @btime m_evo($dtrain);
 
-@info "EvoTrees GPU"
-device = "gpu"
-@info "train"
-@time m_evo = fit_evotree(params_evo, dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
-@time m_evo = fit_evotree(params_evo, dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
-# @btime m_evo = fit_evotree($params_evo, $dtrain; target_name, device);
-# @btime fit_evotree($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
-@info "predict"
-@time pred_evo = m_evo(dtrain; device);
-@btime m_evo($dtrain; device);
+# @info "EvoTrees GPU"
+# device = "gpu"
+# @info "train"
+# @time m_evo = fit_evotree(params_evo, dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
+# @time m_evo = fit_evotree(params_evo, dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
+# # @btime m_evo = fit_evotree($params_evo, $dtrain; target_name, device);
+# # @btime fit_evotree($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
+# @info "predict"
+# @time pred_evo = m_evo(dtrain; device);
+# @btime m_evo($dtrain; device);

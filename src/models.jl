@@ -183,7 +183,7 @@ function EvoTreeCount(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :T => Float32,
+        :T => Float64,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
