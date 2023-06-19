@@ -8,12 +8,12 @@ using BenchmarkTools
 using Random: seed!
 import CUDA
 
-nrounds = 200
 nobs = Int(1e6)
 num_feat = Int(100)
+nrounds = 200
 T = Float32
 nthread = Base.Threads.nthreads()
-@info "testing with: $nobs observations | $num_feat features."
+@info "testing with: $nobs observations | $num_feat features. nthread: $nthread"
 seed!(123)
 x_train = rand(T, nobs, num_feat)
 y_train = rand(T, size(x_train, 1))

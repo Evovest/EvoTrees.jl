@@ -447,6 +447,7 @@ savefig("figures/quantiles_sinus.png")
 ## gaussian
 ###############################
 params1 = EvoTreeMLE(
+    T=Float64,
     loss=:gaussian,
     nrounds=500,
     nbins=64,

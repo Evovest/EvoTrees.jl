@@ -91,7 +91,7 @@ function EvoTreeRegressor(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :T => Float32,
+        :T => Float64,
         :loss => :mse,
         :nrounds => 10,
         :lambda => 0.0,

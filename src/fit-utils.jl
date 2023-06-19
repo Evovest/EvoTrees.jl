@@ -11,7 +11,7 @@ function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG(
     edges = Vector{Vector{T}}(undef, nfeats)
     featbins = Vector{UInt8}(undef, nfeats)
     feattypes = Vector{Bool}(undef, nfeats)
-    @threads for j in 1:size(X, 2)
+    @threads :static for j in 1:size(X, 2)
         edges[j] = quantile(view(X, idx, j), (1:nbins-1) / nbins)
         if length(edges[j]) == 1
             edges[j] = [minimum(view(X, idx, j))]
@@ -30,7 +30,7 @@ function get_edges(df; fnames, nbins, rng=Random.TaskLocalRNG())
     nfeats = length(fnames)
     featbins = Vector{UInt8}(undef, nfeats)
     feattypes = Vector{Bool}(undef, nfeats)
-    @threads for j in eachindex(fnames)
+    @threads :static for j in eachindex(fnames)
         col = view(Tables.getcolumn(df, fnames[j]), idx)
         if eltype(col) <: Bool
             edges[j] = [false, true]
@@ -63,7 +63,7 @@ Transform feature data into a UInt8 binarized matrix.
 """
 function binarize(X::AbstractMatrix; fnames, edges)
     x_bin = zeros(UInt8, size(X))
-    @threads for j in axes(X, 2)
+    @threads :static for j in axes(X, 2)
         x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), view(X, :, j))
     end
     return x_bin
@@ -72,7 +72,7 @@ end
 function binarize(df; fnames, edges)
     nobs = length(Tables.getcolumn(df, 1))
     x_bin = zeros(UInt8, nobs, length(fnames))
-    @threads for j in eachindex(fnames)
+    @threads :static for j in eachindex(fnames)
         col = Tables.getcolumn(df, fnames[j])
         if eltype(col) <: Bool
             x_bin[:, j] .= col .+ 1
@@ -172,7 +172,7 @@ function split_set_threads!(
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
-    @threads for bid = 1:nblocks
+    @threads :static for bid = 1:nblocks
         lefts[bid], rights[bid] = split_set_chunk!(
             left,
             right,
@@ -191,7 +191,7 @@ function split_set_threads!(
     sum_lefts = sum(lefts)
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
-    @threads for bid = 1:nblocks
+    @threads :static for bid = 1:nblocks
         split_views_kernel!(
             out,
             left,
@@ -226,7 +226,7 @@ function update_hist!(
     is::AbstractVector,
     js::AbstractVector,
 ) where {L<:GradientRegression,T}
-    @threads for j in js
+    @threads :static for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
             hist[j][1, bin] += ∇[1, i]
@@ -249,7 +249,7 @@ function update_hist!(
     is::AbstractVector,
     js::AbstractVector,
 ) where {L<:MLE2P,T}
-    @threads for j in js
+    @threads :static for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
             hist[j][1, bin] += ∇[1, i]
@@ -274,7 +274,7 @@ function update_hist!(
     is::AbstractVector,
     js::AbstractVector,
 ) where {L,T}
-    @threads for j in js
+    @threads :static for j in js
         @inbounds for i in is
             bin = x_bin[i, j]
             @inbounds @simd for k in axes(∇, 1)

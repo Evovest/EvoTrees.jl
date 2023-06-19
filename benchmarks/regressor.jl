@@ -8,12 +8,12 @@ using BenchmarkTools
 using Random: seed!
 import CUDA
 
-nrounds = 200
 nobs = Int(1e6)
 num_feat = Int(100)
-T = Float32
+nrounds = 200
+T = Float64
 nthread = Base.Threads.nthreads()
-@info "testing with: $nobs observations | $num_feat features."
+@info "testing with: $nobs observations | $num_feat features. nthread: $nthread"
 seed!(123)
 x_train = rand(T, nobs, num_feat)
 y_train = rand(T, size(x_train, 1))
@@ -89,9 +89,9 @@ watchlist = Dict("train" => DMatrix(x_train, y_train));
 # @time pred_gbm = LightGBM.predict(m_gbm, x_train) |> vec
 
 @info "EvoTrees"
-verbosity = 0
+verbosity = 1
 params_evo = EvoTreeRegressor(
-    T=Float32,
+    T=T,
     loss=loss_evo,
     nrounds=nrounds,
     alpha=0.5,
