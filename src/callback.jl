@@ -12,11 +12,11 @@ function CallBack(
     ::EvoTypes{L,T},
     m::EvoTree{L,K,T},
     deval,
-    device::Type{D};
+    device::Type{<:Device};
     target_name,
     w_name=nothing,
     offset_name=nothing,
-    metric) where {L,K,T,D<:Device}
+    metric) where {L,K,T}
 
     _w_name = isnothing(w_name) ? Symbol("") : Symbol(w_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
@@ -67,10 +67,10 @@ function CallBack(
     m::EvoTree{L,K,T},
     x_eval::AbstractMatrix,
     y_eval,
-    device::Type{D};
+    device::Type{<:Device};
     w_eval=nothing,
     offset_eval=nothing,
-    metric) where {L,K,T,D<:Device}
+    metric) where {L,K,T}
 
     feval = metric_dict[metric]
     x_bin = binarize(x_eval; fnames=m.info[:fnames], edges=m.info[:edges])

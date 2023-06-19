@@ -85,7 +85,6 @@ function grow_tree!(
                         end
                     end
                 else
-                    # @info "hist"
                     update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
             end

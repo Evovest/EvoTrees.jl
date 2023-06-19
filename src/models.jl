@@ -119,12 +119,10 @@ function EvoTreeRegressor(; kwargs...)
     if args[:loss] == :mse
         L = MSE
     elseif args[:loss] == :linear
-        @warn "Loss `:linear` loss is being deprecated and will stop being supported in future release. Use `:mse` instead."
         L = MSE
     elseif args[:loss] == :logloss
         L = LogLoss
     elseif args[:loss] == :logistic
-        @warn "Loss `:logistic` loss is being deprecated and will stop being supported in future release. Use `:logloss` instead."
         L = LogLoss
     elseif args[:loss] == :gamma
         L = Gamma

@@ -118,6 +118,7 @@ function grow_tree!(
                     popfirst!(n_next)
                 else
                     # @info "split" best_bin typeof(nodes[n].is) length(nodes[n].is)
+                    # @info "split typeof" typeof(out) typeof(left) typeof(nodes[n].is) typeof(x_bin)
                     _left, _right = split_set_threads_gpu!(
                         out,
                         left,
