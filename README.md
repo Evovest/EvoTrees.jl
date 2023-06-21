@@ -37,7 +37,7 @@ julia> Pkg.add("EvoTrees")
 
 ## Performance
 
-Data consists of randomly generated float32. Training is performed on 200 iterations. Code to reproduce is [here](https://github.com/Evovest/EvoTrees.jl/blob/main/experiments/benchmarks-regressor.jl). 
+Data consists of randomly generated `Matrix{Float64}`. Training is performed on 200 iterations. Code to reproduce is [here](https://github.com/Evovest/EvoTrees.jl/blob/main/benchmarks/regressor.jl). 
 
 EvoTrees: v0.15.0
 XGBoost: v2.3.0
@@ -52,9 +52,9 @@ GPU: NVIDIA RTX A4000
 |---------------------|:------------:|:--------:|:------------:|
 | 100K x 100          |     2.38s    |   1.03s  |     2.72s    |
 | 500K x 100          |     11.1s    |   3.23s  |     3.52s    |
-| 1M x 100            |     21.4s    |   6.56s  |     4.60s    |
-| 5M x 100            |     111s     |   36.4s  |     13.4s    |
-| 10M x 100           |     222s     |   75.0s  |     22.8s    |
+| 1M x 100            |     21.4s    |   6.56s  |     4.52s    |
+| 5M x 100            |     111s     |   43.8s  |     13.2s    |
+| 10M x 100           |     222s     |   88.2s  |     23.6s    |
 
 ### Inference:
 
@@ -62,9 +62,9 @@ GPU: NVIDIA RTX A4000
 |---------------------|:------------:|:--------:|:------------:|
 | 100K x 100          |    0.132s    |  0.053s  |    0.036s    |
 | 500K x 100          |    0.569s    |  0.283s  |    0.169s    |
-| 1M x 100            |    1.06s     |  0.569s  |    0.336s    |
-| 5M x 100            |    5.24s     |  2.85s   |    1.66s     |
-| 10M x 100           |    10.9s     |  6.06s   |    3.32s     |
+| 1M x 100            |    1.06s     |  0.558s  |    0.334s    |
+| 5M x 100            |    5.97s     |  3.01s   |    1.68s     |
+| 10M x 100           |    12.4s     |  5.86s   |    3.32s     |
 
 ## MLJ Integration
 
@@ -79,8 +79,8 @@ A model configuration must first be defined, using one of the model constructor:
 - `EvoTreeMLE`
 
 Model training is performed using `fit_evotree`. 
-It supports additional arguments to allowing to track out of sample metric and perform early stopping. 
-Look at the docs for more details on available hyper-parameters for each of the above constructors and other options for training.
+It supports additional keyword arguments to track evaluation metric and perform early stopping. 
+Look at the docs for more details on available hyper-parameters for each of the above constructors and other options training options.
 
 ### Matrix features input
 
@@ -88,7 +88,7 @@ Look at the docs for more details on available hyper-parameters for each of the 
 using EvoTrees
 
 config = EvoTreeRegressor(
-    loss=:linear, 
+    loss=:mse, 
     nrounds=100, 
     max_depth=6,
     nbins=32,
