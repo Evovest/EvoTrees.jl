@@ -33,7 +33,7 @@ params_evo = EvoTreeMLE(
 
 @info "evotrees train CPU:"
 device = "cpu"
-@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:gaussian, device, print_every_n=10);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:gaussian, device, print_every_n=100);
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:gaussian, device, print_every_n=100);
 # @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=:gaussian);
 @info "evotrees predict CPU:"

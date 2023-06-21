@@ -46,13 +46,13 @@ params_xgb = Dict(
     :max_bin => 64,
 )
 
-# dtrain = DMatrix(x_train, y_train)
-# watchlist = Dict("train" => DMatrix(x_train, y_train));
-# @time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
-# # @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
-# @info "predict"
-# @time pred_xgb = XGBoost.predict(m_xgb, x_train);
-# @btime XGBoost.predict($m_xgb, $x_train);
+dtrain = DMatrix(x_train, y_train)
+watchlist = Dict("train" => DMatrix(x_train, y_train));
+@time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
+# @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
+@info "predict"
+@time pred_xgb = XGBoost.predict(m_xgb, x_train);
+@btime XGBoost.predict($m_xgb, $x_train);
 
 # @info "lightgbm train:"
 # m_gbm = LGBMRegression(
@@ -107,20 +107,15 @@ params_evo = EvoTreeRegressor(
 
 @info "EvoTrees CPU"
 device = "cpu"
-@info "init"
-@time m, cache = EvoTrees.init(params_evo, x_train, y_train);
-@time m, cache = EvoTrees.init(params_evo, x_train, y_train);
-
-@info "train - no eval"
-@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
-@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
-
+# @info "init"
+# @time m, cache = EvoTrees.init(params_evo, x_train, y_train);
+# @time m, cache = EvoTrees.init(params_evo, x_train, y_train);
+# @info "train - no eval"
+# @time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
+# @time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
 @info "train - eval"
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
-
-# @time m_evo = fit_evotree(params_evo; x_train, y_train, device);
-# @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo, device, verbosity);
 @info "predict"
 @time pred_evo = m_evo(x_train);
 @time pred_evo = m_evo(x_train);
