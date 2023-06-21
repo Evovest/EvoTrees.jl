@@ -34,14 +34,14 @@ end
 """
 function predict_kernel!(
     ::Type{L},
-    pred::CuDeviceMatrix{T},
+    pred::CuDeviceMatrix,
     split,
     feats,
     cond_bins,
     leaf_pred,
     x_bin,
     feattypes,
-) where {L<:GradientRegression,T}
+) where {L<:GradientRegression}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if i <= size(pred, 2)
@@ -62,14 +62,14 @@ end
 """
 function predict_kernel!(
     ::Type{L},
-    pred::CuDeviceMatrix{T},
+    pred::CuDeviceMatrix,
     split,
     feats,
     cond_bins,
     leaf_pred,
     x_bin,
     feattypes,
-) where {L<:LogLoss,T}
+) where {L<:LogLoss}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if i <= size(pred, 2)
@@ -78,7 +78,7 @@ function predict_kernel!(
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
             nid = nid << 1 + !cond
         end
-        pred[1, i] = min(T(15), max(T(-15), pred[1, i] + leaf_pred[1, nid]))
+        pred[1, i] = min(Float32(15), max(Float32(-15), pred[1, i] + leaf_pred[1, nid]))
     end
     sync_threads()
     return nothing
@@ -90,14 +90,14 @@ end
 """
 function predict_kernel!(
     ::Type{L},
-    pred::CuDeviceMatrix{T},
+    pred::CuDeviceMatrix,
     split,
     feats,
     cond_bins,
     leaf_pred,
     x_bin,
     feattypes,
-) where {L<:MLE2P,T}
+) where {L<:MLE2P}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if i <= size(pred, 2)
@@ -107,7 +107,7 @@ function predict_kernel!(
             nid = nid << 1 + !cond
         end
         pred[1, i] += leaf_pred[1, nid]
-        pred[2, i] = max(T(-15), pred[2, i] + leaf_pred[2, nid])
+        pred[2, i] = max(Float32(-15), pred[2, i] + leaf_pred[2, nid])
     end
     sync_threads()
     return nothing
@@ -116,7 +116,7 @@ end
 # prediction from single tree - assign each observation to its final leaf
 function predict!(
     pred::CuMatrix{T},
-    tree::Tree{L,K,T},
+    tree::Tree{L,K},
     x_bin::CuMatrix,
     feattypes::CuVector{Bool};
     MAX_THREADS=1024
@@ -137,12 +137,12 @@ function predict!(
     CUDA.synchronize()
 end
 function predict!(
-    pred::CuMatrix{T},
-    tree::Tree{L,K,T},
+    pred::CuMatrix,
+    tree::Tree{L,K},
     x_bin::CuMatrix,
     feattypes::CuVector{Bool};
     MAX_THREADS=1024
-) where {L<:MLogLoss,K,T}
+) where {L<:MLogLoss,K}
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
     blocks = cld(n, threads)
@@ -157,17 +157,17 @@ function predict!(
         feattypes,
     )
     CUDA.synchronize()
-    pred .= max.(T(-15), pred .- maximum(pred, dims=1))
+    pred .= max.(Float32(-15), pred .- maximum(pred, dims=1))
 end
 
 # prediction from single tree - assign each observation to its final leaf
 function predict(
-    m::EvoTree{L,K,T},
+    m::EvoTree{L,K},
     data,
     ::Type{GPU};
-    ntree_limit=length(m.trees)) where {L,K,T}
+    ntree_limit=length(m.trees)) where {L,K}
 
-    pred = CUDA.zeros(T, K, size(data, 1))
+    pred = CUDA.zeros(K, size(data, 1))
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
     x_bin = CuArray(binarize(data; fnames=m.info[:fnames], edges=m.info[:edges]))

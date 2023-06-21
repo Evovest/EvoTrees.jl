@@ -18,7 +18,8 @@ function hist_kernel!(h∇, ∇, x_bin, is, js)
                 @inbounds idx = is[i]
                 @inbounds bin = x_bin[idx, jdx]
                 hid = Base._to_linear_index(h∇, k, bin, jdx)
-                CUDA.atomic_add!(pointer(h∇, hid), ∇[k, idx])
+                # CUDA.atomic_add!(pointer(h∇, hid), ∇[k, idx])
+                CUDA.atomic_add!(pointer(h∇, hid), Float64(∇[k, idx]))
             end
         end
     end
@@ -39,6 +40,7 @@ function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
     bx = min(cld(max_blocks, by), cld(length(is), tx))
     blocks = (1, by, bx)
     h∇ .= 0
+    # @info "typeofs" typeof(h∇) typeof(∇)
     kernel(h∇, ∇, x_bin, is, js; threads, blocks)
     CUDA.synchronize()
     CUDA.@sync for j in jsc

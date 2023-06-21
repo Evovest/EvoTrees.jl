@@ -29,7 +29,6 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 
 # linear
 params1 = EvoTreeRegressor(
-    T=Float32,
     loss=:mse,
     nrounds=200,
     nbins=64,
@@ -72,8 +71,8 @@ model, logger = fit_evotree(
 plot(logger[:metrics])
 
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
-@time pred_train_linear = predict(model, x_train);
-@time pred_eval_linear = predict(model, x_eval)
+@time pred_train_linear = model(x_train);
+@time pred_eval_linear = model(x_eval)
 mean((pred_train_linear .- y_train) .^ 2)
 mean((pred_eval_linear .- y_eval) .^ 2)
 
@@ -114,8 +113,8 @@ w_train = rand(eltype(y_train), size(y_train)) .+ 0
 # ProfileView.view()
 
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
-@time pred_train_linear_w = predict(model, x_train);
-@time pred_eval_linear_w = predict(model, x_eval)
+@time pred_train_linear_w = model(x_train);
+@time pred_eval_linear_w = model(x_eval)
 mean(abs.(pred_train_linear_w .- y_train))
 sqrt(mean((pred_train_linear_w .- y_train) .^ 2))
 
@@ -145,8 +144,8 @@ params1 = EvoTreeRegressor(
 );
 # 218.040 ms (123372 allocations: 34.71 MiB)
 # @btime model = fit_evotree($params1, $X_train, $Y_train, X_eval = $X_eval, Y_eval = $Y_eval)
-@time pred_train_logistic = predict(model, x_train);
-@time pred_eval_logistic = predict(model, x_eval)
+@time pred_train_logistic = model(x_train);
+@time pred_eval_logistic = model(x_eval)
 sqrt(mean((pred_train_logistic .- y_train) .^ 2))
 
 # L1
@@ -173,8 +172,8 @@ params1 = EvoTreeRegressor(
     early_stopping_rounds=50,
     metric=:mae
 );
-@time pred_train_L1 = predict(model, x_train)
-@time pred_eval_L1 = predict(model, x_eval)
+@time pred_train_L1 = model(x_train)
+@time pred_eval_L1 = model(x_eval)
 sqrt(mean((pred_train_L1 .- y_train) .^ 2))
 
 x_perm = sortperm(x_train[:, 1])
@@ -244,7 +243,7 @@ params1 = EvoTreeCount(
     early_stopping_rounds=50,
     metric=:poisson
 );
-@time pred_train_poisson = predict(model, x_train);
+@time pred_train_poisson = model(x_train);
 sqrt(mean((pred_train_poisson .- y_train) .^ 2))
 
 # Gamma
@@ -270,7 +269,7 @@ params1 = EvoTreeRegressor(
     early_stopping_rounds=50,
     metric=:gamma
 );
-@time pred_train_gamma = predict(model, x_train);
+@time pred_train_gamma = model(x_train);
 sqrt(mean((pred_train_gamma .- y_train) .^ 2))
 
 # Tweedie
@@ -296,7 +295,7 @@ params1 = EvoTreeRegressor(
     early_stopping_rounds=50,
     metric=:tweedie
 );
-@time pred_train_tweedie = predict(model, x_train);
+@time pred_train_tweedie = model(x_train);
 sqrt(mean((pred_train_tweedie .- y_train) .^ 2))
 
 x_perm = sortperm(x_train[:, 1])
@@ -366,7 +365,7 @@ params1 = EvoTreeRegressor(
 );
 # 116.822 ms (74496 allocations: 36.41 MiB) for 100 iterations
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
-@time pred_train_q50 = predict(model, x_train)
+@time pred_train_q50 = model(x_train)
 sum(pred_train_q50 .< y_train) / length(y_train)
 
 # q20
@@ -384,7 +383,7 @@ params1 = EvoTreeRegressor(
     colsample=1.0,
 )
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
-@time pred_train_q20 = predict(model, x_train)
+@time pred_train_q20 = model(x_train)
 sum(pred_train_q20 .< y_train) / length(y_train)
 
 # q80
@@ -402,7 +401,7 @@ params1 = EvoTreeRegressor(
     colsample=1.0,
 )
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
-@time pred_train_q80 = predict(model, x_train)
+@time pred_train_q80 = model(x_train)
 sum(pred_train_q80 .< y_train) / length(y_train)
 
 x_perm = sortperm(x_train[:, 1])
@@ -472,7 +471,7 @@ params1 = EvoTreeMLE(
     metric=:gaussian
 );
 # @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
-@time pred_train = EvoTrees.predict(model, x_train);
+@time pred_train = model(x_train);
 # @btime pred_train = EvoTrees.predict(model, X_train);
 
 pred_gauss =
@@ -556,7 +555,7 @@ params1 = EvoTrees.EvoTreeMLE(
     metric=:logistic_mle
 );
 # @time model = fit_evotree(params1, X_train, Y_train, print_every_n = 10);
-@time pred_train = EvoTrees.predict(model, x_train);
+@time pred_train = model(x_train);
 # @btime pred_train = EvoTrees.predict(model, X_train);
 
 pred_logistic = [

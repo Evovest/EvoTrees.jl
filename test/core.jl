@@ -427,12 +427,12 @@ end
 
     # check if we retain the parametric information properly
     for EvoParamType in [
-        EvoTreeRegressor{EvoTrees.MSE,Float64},
-        EvoTreeRegressor{EvoTrees.L1,Float64},
-        EvoTreeCount{EvoTrees.Poisson,Float64},
-        EvoTreeClassifier{EvoTrees.MLogLoss,Float64},
-        EvoTreeMLE{EvoTrees.LogisticMLE,Float64},
-        EvoTreeGaussian{EvoTrees.GaussianMLE,Float64}
+        EvoTreeRegressor{EvoTrees.MSE,Float32},
+        EvoTreeRegressor{EvoTrees.L1,Float32},
+        EvoTreeCount{EvoTrees.Poisson,Float32},
+        EvoTreeClassifier{EvoTrees.MLogLoss,Float32},
+        EvoTreeMLE{EvoTrees.LogisticMLE,Float32},
+        EvoTreeGaussian{EvoTrees.GaussianMLE,Float32}
     ]
 
         config = EvoParamType(; max_depth=2)
@@ -446,28 +446,28 @@ end
     # check_args should throw an exception if the parameters are invalid
     @testset "check_parameter" begin
         # Valid case tests
-        @test check_parameter(Float64, 1.5, 0.0, typemax(Float64), :lambda) == nothing
+        @test check_parameter(Float32, 1.5, 0.0, typemax(Float32), :lambda) == nothing
         @test check_parameter(Int, 5, 1, typemax(Int), :nrounds) == nothing
         @test check_parameter(Int, 1, 1, typemax(Int), :nrounds) == nothing
         @test check_parameter(Int, 1, 1, 1, :nrounds) == nothing
 
         # Invalid type tests
         @test_throws ErrorException check_parameter(Int, 1.5, 0, typemax(Int), :nrounds)
-        @test_throws ErrorException check_parameter(Float64, "1.5", 0.0, typemax(Float64), :lambda)
+        @test_throws ErrorException check_parameter(Float32, "1.5", 0.0, typemax(Float32), :lambda)
 
         # Out of range tests
         @test_throws ErrorException check_parameter(Int, -5, 0, typemax(Int), :nrounds)
-        @test_throws ErrorException check_parameter(Float64, -0.1, 0.0, typemax(Float64), :lambda)
+        @test_throws ErrorException check_parameter(Float32, -0.1, 0.0, typemax(Float32), :lambda)
         @test_throws ErrorException check_parameter(Int, typemax(Int64), 0, typemax(Int) - 1, :nrounds)
-        @test_throws ErrorException check_parameter(Float64, typemax(Float64), 0.0, 10^6, :lambda)
+        @test_throws ErrorException check_parameter(Float32, typemax(Float32), 0.0, 10^6, :lambda)
     end
 
     # Check the implemented parameters on construction
     @testset "check_args all for EvoTreeRegressor" begin
         for (key, vals_to_test) in zip(
             [:nrounds, :max_depth, :nbins, :lambda, :gamma, :min_weight, :alpha, :rowsample, :colsample, :eta],
-            [[-1, 1.5], [0, 1.5], [1, 256, 100.5], [-eps(Float64)], [-eps(Float64)], [-eps(Float64)],
-                [-0.1, 1.1], [0.0f0, 1.1f0], [0.0, 1.1], [-eps(Float64)]])
+            [[-1, 1.5], [0, 1.5], [1, 256, 100.5], [-eps(Float64)], [-eps(Float32)], [-eps(Float32)],
+                [-0.1, 1.1], [0.0f0, 1.1f0], [0.0, 1.1], [-eps(Float32)]])
             for val in vals_to_test
                 @test_throws Exception EvoTreeRegressor(; zip([key], [val])...)
             end

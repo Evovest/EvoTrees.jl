@@ -30,7 +30,6 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 
 # linear
 params1 = EvoTreeRegressor(
-    T=Float32,
     loss=:linear,
     nrounds=500,
     nbins=64,
@@ -155,7 +154,6 @@ sqrt(mean((pred_train_gamma .- y_train) .^ 2))
 
 # tweedie
 params1 = EvoTreeRegressor(
-    T=Float32,
     loss=:tweedie,
     nrounds=500,
     nbins=64,

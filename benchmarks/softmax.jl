@@ -11,7 +11,7 @@ num_feat = Int(100)
 nrounds = 200
 num_class = 5
 verbosity = 1
-T = Float32
+T = Float64
 nthread = Base.Threads.nthreads()
 @info "testing with: $nobs observations | $num_feat features. nthread: $nthread"
 x_train = rand(T, nobs, num_feat)
@@ -45,7 +45,6 @@ params_xgb = Dict(
 
 # EvoTrees params
 params_evo = EvoTreeClassifier(;
-    T=Float32,
     nrounds=200,
     alpha=0.5,
     lambda=0.0,

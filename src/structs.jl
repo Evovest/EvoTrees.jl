@@ -5,8 +5,8 @@ abstract type GPU <: Device end
 """
     Carries training information for a given tree node
 """
-mutable struct TrainNode{T<:AbstractFloat,S,V,M}
-    gain::T
+mutable struct TrainNode{S,V,M}
+    gain::Float64
     is::S
     ∑::V
     h::Vector{M}
@@ -15,47 +15,47 @@ mutable struct TrainNode{T<:AbstractFloat,S,V,M}
     gains::Vector{V}
 end
 
-function TrainNode(featbins, K, is, T)
+function TrainNode(featbins, K, is)
     node = TrainNode(
-        zero(T),
+        zero(Float64),
         is,
-        zeros(T, 2 * K + 1),
-        [zeros(T, 2 * K + 1, nbins) for nbins in featbins],
-        [zeros(T, 2 * K + 1, nbins) for nbins in featbins],
-        [zeros(T, 2 * K + 1, nbins) for nbins in featbins],
-        [zeros(T, nbins) for nbins in featbins],
+        zeros(2 * K + 1),
+        [zeros(2 * K + 1, nbins) for nbins in featbins],
+        [zeros(2 * K + 1, nbins) for nbins in featbins],
+        [zeros(2 * K + 1, nbins) for nbins in featbins],
+        [zeros(nbins) for nbins in featbins],
     )
     return node
 end
 
 # single tree is made of a vectors of length num nodes
-struct Tree{L,K,T}
+struct Tree{L,K}
     feat::Vector{Int}
     cond_bin::Vector{UInt8}
     cond_float::Vector{Any}
-    gain::Vector{T}
-    pred::Matrix{T}
+    gain::Vector{Float64}
+    pred::Matrix{Float32}
     split::Vector{Bool}
 end
 
-function Tree{L,K,T}(x::Vector) where {L,K,T}
-    Tree{L,K,T}(
+function Tree{L,K}(x::Vector) where {L,K}
+    Tree{L,K}(
         zeros(Int, 1),
         zeros(UInt8, 1),
-        zeros(T, 1),
-        zeros(T, 1),
+        zeros(Float64, 1),
+        zeros(Float64, 1),
         reshape(x, :, 1),
         zeros(Bool, 1),
     )
 end
 
-function Tree{L,K,T}(depth::Int) where {L,K,T}
-    Tree{L,K,T}(
+function Tree{L,K}(depth::Int) where {L,K}
+    Tree{L,K}(
         zeros(Int, 2^depth - 1),
         zeros(UInt8, 2^depth - 1),
-        zeros(T, 2^depth - 1),
-        zeros(T, 2^depth - 1),
-        zeros(T, K, 2^depth - 1),
+        zeros(Float64, 2^depth - 1),
+        zeros(Float64, 2^depth - 1),
+        zeros(Float32, K, 2^depth - 1),
         zeros(Bool, 2^depth - 1),
     )
 end
@@ -68,12 +68,12 @@ function Base.show(io::IO, tree::Tree)
 end
 
 """
-    EvoTree{L,K,T}
+    EvoTree{L,K}
 
 An `EvoTree` holds the structure of a fitted gradient-boosted tree.
 
 # Fields
-- trees::Vector{Tree{L,K,T}}
+- trees::Vector{Tree{L,K}}
 - info::Dict
 
 `EvoTree` acts as a functor to perform inference on input data: 
@@ -81,8 +81,8 @@ An `EvoTree` holds the structure of a fitted gradient-boosted tree.
 pred = (m::EvoTree; ntree_limit=length(m.trees))(x)
 ```
 """
-struct EvoTree{L,K,T}
-    trees::Vector{Tree{L,K,T}}
+struct EvoTree{L,K}
+    trees::Vector{Tree{L,K}}
     info::Dict
 end
 # (m::EvoTree)(data, device::Type{D}=CPU; ntree_limit=length(m.trees)) where {D<:Device} =
@@ -93,7 +93,7 @@ function (m::EvoTree)(data; ntree_limit=length(m.trees), device="cpu")
     return predict(m, data, _device; ntree_limit)
 end
 
-get_types(::EvoTree{L,K,T}) where {L,K,T} = (L, T)
+get_types(::EvoTree{L,K}) where {L,K} = (L,)
 
 function Base.show(io::IO, evotree::EvoTree)
     println(io, "$(typeof(evotree))")

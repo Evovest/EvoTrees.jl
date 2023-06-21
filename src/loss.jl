@@ -54,7 +54,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, params::EvoTreeRegress
 end
 
 # MLogLoss
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector, ::EvoTreeClassifier{L,T}) where {L<:MLogLoss,T}
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeClassifier{L,T}) where {L<:MLogLoss,T}
     K = size(p, 1)
     @threads :static for i in eachindex(y)
         isum = zero(T)
@@ -142,22 +142,19 @@ end
 # get the gain metric
 ##############################
 # GradientRegression
-function get_gain(
-    params::EvoTypes{L,T},
-    ∑::AbstractVector{T},
-) where {L<:GradientRegression,T}
+function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector) where {L<:GradientRegression,T}
     ϵ = eps(T)
     ∑[1]^2 / max(ϵ, (∑[2] + params.lambda * ∑[3])) / 2
 end
 
 # GaussianRegression
-function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:MLE2P,T}
+function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector) where {L<:MLE2P,T}
     ϵ = eps(T)
     (∑[1]^2 / max(ϵ, (∑[3] + params.lambda * ∑[5])) + ∑[2]^2 / max(ϵ, (∑[4] + params.lambda * ∑[5]))) / 2
 end
 
 # MultiClassRegression
-function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:MLogLoss,T}
+function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector) where {L<:MLogLoss,T}
     ϵ = eps(T)
     gain = zero(T)
     K = (length(∑) - 1) ÷ 2
@@ -168,11 +165,11 @@ function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:MLogL
 end
 
 # Quantile
-function get_gain(::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:Quantile,T}
+function get_gain(::EvoTypes{L,T}, ∑::AbstractVector) where {L<:Quantile,T}
     abs(∑[1])
 end
 
 # L1
-function get_gain(::EvoTypes{L,T}, ∑::AbstractVector{T}) where {L<:L1,T}
+function get_gain(::EvoTypes{L,T}, ∑::AbstractVector) where {L<:L1,T}
     abs(∑[1])
 end

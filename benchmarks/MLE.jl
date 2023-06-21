@@ -1,7 +1,7 @@
 using Revise
 using Statistics
 using StatsBase: sample
-using XGBoost
+# using XGBoost
 using EvoTrees
 using BenchmarkTools
 using Random: seed!
@@ -19,9 +19,8 @@ y_train = rand(T, size(x_train, 1))
 
 @info "Gaussian MLE"
 params_evo = EvoTreeMLE(
-    T=T,
     loss=:gaussian,
-    nrounds=nrounds,
+    nrounds=200,
     lambda=0.0,
     gamma=0.0,
     eta=0.05,
@@ -34,7 +33,7 @@ params_evo = EvoTreeMLE(
 
 @info "evotrees train CPU:"
 device = "cpu"
-@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:gaussian, device, print_every_n=100);
+@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:gaussian, device, print_every_n=10);
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:gaussian, device, print_every_n=100);
 # @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=:gaussian);
 @info "evotrees predict CPU:"
@@ -58,7 +57,6 @@ device = "gpu"
 ################################
 @info "Logistic MLE"
 params_evo = EvoTreeMLE(
-    T=T,
     loss=:logistic,
     nrounds=nrounds,
     lambda=0.0,

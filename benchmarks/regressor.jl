@@ -1,7 +1,7 @@
 using Revise
 using Statistics
 using StatsBase: sample
-using XGBoost
+# using XGBoost
 # using LightGBM
 using EvoTrees
 using BenchmarkTools
@@ -46,13 +46,13 @@ params_xgb = Dict(
     :max_bin => 64,
 )
 
-dtrain = DMatrix(x_train, y_train)
-watchlist = Dict("train" => DMatrix(x_train, y_train));
-@time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
-# @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
-@info "predict"
-@time pred_xgb = XGBoost.predict(m_xgb, x_train);
-@btime XGBoost.predict($m_xgb, $x_train);
+# dtrain = DMatrix(x_train, y_train)
+# watchlist = Dict("train" => DMatrix(x_train, y_train));
+# @time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
+# # @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
+# @info "predict"
+# @time pred_xgb = XGBoost.predict(m_xgb, x_train);
+# @btime XGBoost.predict($m_xgb, $x_train);
 
 # @info "lightgbm train:"
 # m_gbm = LGBMRegression(
@@ -91,7 +91,6 @@ watchlist = Dict("train" => DMatrix(x_train, y_train));
 @info "EvoTrees"
 verbosity = 1
 params_evo = EvoTreeRegressor(
-    T=T,
     loss=loss_evo,
     nrounds=nrounds,
     alpha=0.5,

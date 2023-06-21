@@ -6,12 +6,12 @@ using BenchmarkTools
 using Base.Threads: @threads
 
 function hist_cpu!(
-    hist::Vector{Matrix{T}},
-    ∇::Matrix{T},
+    hist::Vector,
+    ∇::Matrix,
     x_bin::Matrix,
     is::AbstractVector,
     js::AbstractVector,
-) where {T}
+)
     @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
@@ -31,10 +31,12 @@ colsample = 0.5
 
 x_bin = UInt8.(rand(1:nbins, nobs, nfeats));
 ∇ = rand(Float32, 3, nobs);
-h∇ = [zeros(Float32, 3, nbins) for n in 1:nfeats]
+h∇ = [zeros(Float64, 3, nbins) for n in 1:nfeats]
 is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
 js = sample(1:nfeats, Int(round(rowsample * nfeats)), replace=false, ordered=true)
 
+# 6.886 ms (97 allocations: 10.67 KiB)
+# 9.624 ms (97 allocations: 10.67 KiB)
 @time hist_cpu!(h∇, ∇, x_bin, is, js)
 @btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)
 

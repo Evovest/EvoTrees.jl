@@ -10,7 +10,7 @@ end
 
 function CallBack(
     ::EvoTypes{L,T},
-    m::EvoTree{L,K,T},
+    m::EvoTree{L,K},
     deval,
     device::Type{<:Device};
     target_name,
@@ -64,7 +64,7 @@ end
 
 function CallBack(
     ::EvoTypes{L,T},
-    m::EvoTree{L,K,T},
+    m::EvoTree{L,K},
     x_eval::AbstractMatrix,
     y_eval,
     device::Type{<:Device};

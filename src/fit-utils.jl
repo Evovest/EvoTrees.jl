@@ -220,12 +220,12 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Vector{Matrix{T}},
-    ∇::Matrix{T},
+    hist::Vector{Matrix{Float64}},
+    ∇::Matrix{Float32},
     x_bin::Matrix,
     is::AbstractVector,
     js::AbstractVector,
-) where {L<:GradientRegression,T}
+) where {L<:GradientRegression}
     @threads :static for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
@@ -243,12 +243,12 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Vector{Matrix{T}},
-    ∇::Matrix{T},
+    hist::Vector{Matrix{Float64}},
+    ∇::Matrix{Float32},
     x_bin::Matrix,
     is::AbstractVector,
     js::AbstractVector,
-) where {L<:MLE2P,T}
+) where {L<:MLE2P}
     @threads :static for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
@@ -268,12 +268,12 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Vector{Matrix{T}},
-    ∇::Matrix{T},
+    hist::Vector{Matrix{Float64}},
+    ∇::Matrix{Float32},
     x_bin::Matrix,
     is::AbstractVector,
     js::AbstractVector,
-) where {L,T}
+) where {L}
     @threads :static for j in js
         @inbounds for i in is
             bin = x_bin[i, j]

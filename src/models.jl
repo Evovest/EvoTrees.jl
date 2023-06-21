@@ -72,7 +72,7 @@ function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
     check_parameter(T, args[:eta], zero(T), typemax(T), :eta)
 end
 
-mutable struct EvoTreeRegressor{L<:ModelType,T} <: MMI.Deterministic
+mutable struct EvoTreeRegressor{L<:ModelType,T<:Float32} <: MMI.Deterministic
     nrounds::Int
     lambda::T
     gamma::T
@@ -91,7 +91,6 @@ function EvoTreeRegressor(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :T => Float64,
         :loss => :mse,
         :nrounds => 10,
         :lambda => 0.0,
@@ -114,7 +113,7 @@ function EvoTreeRegressor(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     args[:loss] = Symbol(args[:loss])
-    T = args[:T]
+    T = Float32
 
     if args[:loss] == :mse
         L = MSE
@@ -162,7 +161,7 @@ function EvoTreeRegressor{L,T}(; kwargs...) where {L,T}
     EvoTreeRegressor(; T=T, loss=_type2loss(L), kwargs...)
 end
 
-mutable struct EvoTreeCount{L<:ModelType,T} <: MMI.Probabilistic
+mutable struct EvoTreeCount{L<:ModelType,T<:Float32} <: MMI.Probabilistic
     nrounds::Int
     lambda::T
     gamma::T
@@ -181,7 +180,6 @@ function EvoTreeCount(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :T => Float64,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
@@ -203,7 +201,7 @@ function EvoTreeCount(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     L = Poisson
-    T = args[:T]
+    T = Float32
 
     check_args(T, args)
 
@@ -229,7 +227,7 @@ function EvoTreeCount{L,T}(; kwargs...) where {L,T}
     EvoTreeCount(; T=T, kwargs...)
 end
 
-mutable struct EvoTreeClassifier{L<:ModelType,T} <: MMI.Probabilistic
+mutable struct EvoTreeClassifier{L<:ModelType,T<:Float32} <: MMI.Probabilistic
     nrounds::Int
     lambda::T
     gamma::T
@@ -247,7 +245,6 @@ function EvoTreeClassifier(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :T => Float64,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
@@ -268,7 +265,7 @@ function EvoTreeClassifier(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     L = MLogLoss
-    T = args[:T]
+    T = Float32
 
     check_args(T, args)
 
@@ -293,7 +290,7 @@ function EvoTreeClassifier{L,T}(; kwargs...) where {L,T}
     EvoTreeClassifier(; T=T, kwargs...)
 end
 
-mutable struct EvoTreeMLE{L<:ModelType,T} <: MMI.Probabilistic
+mutable struct EvoTreeMLE{L<:ModelType,T<:Float32} <: MMI.Probabilistic
     nrounds::Int
     lambda::T
     gamma::T
@@ -312,7 +309,6 @@ function EvoTreeMLE(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :T => Float64,
         :loss => :gaussian_mle,
         :nrounds => 10,
         :lambda => 0.0,
@@ -335,7 +331,7 @@ function EvoTreeMLE(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     args[:loss] = Symbol(args[:loss])
-    T = args[:T]
+    T = Float32
 
     if args[:loss] in [:gaussian, :gaussian_mle]
         L = GaussianMLE
@@ -377,7 +373,7 @@ function EvoTreeMLE{L,T}(; kwargs...) where {L,T}
 end
 
 
-mutable struct EvoTreeGaussian{L<:ModelType,T} <: MMI.Probabilistic
+mutable struct EvoTreeGaussian{L<:ModelType,T<:Float32} <: MMI.Probabilistic
     nrounds::Int
     lambda::T
     gamma::T
@@ -395,7 +391,6 @@ function EvoTreeGaussian(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :T => Float64,
         :nrounds => 10,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
@@ -417,7 +412,7 @@ function EvoTreeGaussian(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     L = GaussianMLE
-    T = args[:T]
+    T = Float32
 
     check_args(T, args)
 

@@ -43,7 +43,7 @@
     )
 
     model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25)
-    preds_ref = predict(model, x_train);
+    preds_ref = EvoTrees.predict(model, x_train);
 
     # monotonic constraint
     params1 = EvoTreeRegressor(
@@ -63,7 +63,7 @@
     )
 
     model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25)
-    preds_mono = predict(model, x_train);
+    preds_mono = EvoTrees.predict(model, x_train);
 
     # using Plots
     # x_perm = sortperm(x_train[:, 1])
@@ -168,7 +168,7 @@
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
     # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
-    # preds_ref = predict(model, x_train);
+    # preds_ref = EvoTrees.predict(model, x_train);
 
     # # monotonic constraint
     # params1 = EvoTreeRegressor(
@@ -181,7 +181,7 @@
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
     # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
-    # preds_mono = predict(model, x_train);
+    # preds_mono = EvoTrees.predict(model, x_train);
 
     # using Plots
     # using Colors
@@ -231,7 +231,7 @@
     )
 
     model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:gaussian_mle, print_every_n=25)
-    preds_mono = predict(model, x_train)
+    preds_mono = EvoTrees.predict(model, x_train)
 
     # x_perm = sortperm(x_train[:, 1])
     # plot(x_train, y_train, msize=1, mcolor="gray", mswidth=0, background_color=RGB(1, 1, 1), seriestype=:scatter, xaxis=("feature"), yaxis=("target"), legend=true, label="")
@@ -252,7 +252,7 @@
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
     # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
-    # preds_ref = predict(model, x_train)
+    # preds_ref = EvoTrees.predict(model, x_train)
 
     # # monotonic constraint
     # params1 = EvoTreeGaussian(
@@ -265,7 +265,7 @@
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
     # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
-    # preds_mono = predict(model, x_train)
+    # preds_mono = EvoTrees.predict(model, x_train)
 
     # x_perm = sortperm(x_train[:, 1])
     # plot(x_train, y_train, msize=1, mcolor="gray", mswidth=0, background_color=RGB(1, 1, 1), seriestype=:scatter, xaxis=("feature"), yaxis=("target"), legend=true, label="GPU Gauss")
