@@ -18,8 +18,9 @@ function hist_kernel!(h∇, ∇, x_bin, is, js)
                 @inbounds idx = is[i]
                 @inbounds bin = x_bin[idx, jdx]
                 hid = Base._to_linear_index(h∇, k, bin, jdx)
-                # CUDA.atomic_add!(pointer(h∇, hid), ∇[k, idx])
-                CUDA.atomic_add!(pointer(h∇, hid), Float64(∇[k, idx]))
+                # val = Float64(∇[k, idx])
+                # CUDA.atomic_add!(pointer(h∇, hid), val)
+                CUDA.atomic_add!(pointer(h∇, hid), ∇[k, idx])
             end
         end
     end
@@ -28,6 +29,7 @@ function hist_kernel!(h∇, ∇, x_bin, is, js)
 end
 
 function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
+    # ∇ = Float64.(∇)
     kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
     max_threads = config.threads ÷ 4
@@ -40,7 +42,9 @@ function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
     bx = min(cld(max_blocks, by), cld(length(is), tx))
     blocks = (1, by, bx)
     h∇ .= 0
-    # @info "typeofs" typeof(h∇) typeof(∇)
+    @info "typeofs" typeof(h∇) typeof(∇) typeof(x_bin)
+    @info "sizes" size(h∇) size(∇) size(x_bin)
+    @info "threads blocks" threads blocks
     kernel(h∇, ∇, x_bin, is, js; threads, blocks)
     CUDA.synchronize()
     CUDA.@sync for j in jsc

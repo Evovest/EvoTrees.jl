@@ -9,7 +9,7 @@ using Random: seed!
 import CUDA
 
 nobs = Int(1e6)
-num_feat = Int(1)
+num_feat = Int(100)
 nrounds = 200
 T = Float64
 nthread = Base.Threads.nthreads()
@@ -69,7 +69,7 @@ params_evo = EvoTreeRegressor(
     max_depth=6,
     min_weight=1.0,
     rowsample=0.5,
-    colsample=1,
+    colsample=0.5,
     nbins=64,
     rng=123,
 )
