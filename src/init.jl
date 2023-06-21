@@ -4,16 +4,17 @@ function init_core(params::EvoTypes{L,T}, ::Type{CPU}, data, fnames, y_train, w,
     edges, featbins, feattypes = get_edges(data; fnames, nbins=params.nbins, rng=params.rng)
     x_bin = binarize(data; fnames, edges)
     nobs, nfeats = size(x_bin)
+    TI = Float32
 
     target_levels = nothing
     if L == Logistic
         K = 1
-        y = T.(y_train)
+        y = TI.(y_train)
         μ = [logit(mean(y))]
         !isnothing(offset) && (offset .= logit.(offset))
     elseif L in [Poisson, Gamma, Tweedie]
         K = 1
-        y = T.(y_train)
+        y = TI.(y_train)
         μ = fill(log(mean(y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == MLogLoss
@@ -26,37 +27,37 @@ function init_core(params::EvoTypes{L,T}, ::Type{CPU}, data, fnames, y_train, w,
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
         K = length(target_levels)
-        μ = T.(log.(proportions(y, UInt32(1):UInt32(K))))
+        μ = TI.(log.(proportions(y, UInt32(1):UInt32(K))))
         μ .-= maximum(μ)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
         K = 2
-        y = T.(y_train)
+        y = TI.(y_train)
         μ = [mean(y), log(std(y))]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     elseif L == LogisticMLE
         K = 2
-        y = T.(y_train)
+        y = TI.(y_train)
         μ = [mean(y), log(std(y) * sqrt(3) / π)]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     else
         K = 1
-        y = T.(y_train)
+        y = TI.(y_train)
         μ = [mean(y)]
     end
-    μ = T.(μ)
+    μ = TI.(μ)
 
     # force a neutral/zero bias/initial tree when offset is specified
     !isnothing(offset) && (μ .= 0)
     @assert (length(y) == length(w) && minimum(w) > 0)
 
     # initialize preds
-    pred = zeros(T, K, nobs)
+    pred = zeros(TI, K, nobs)
     pred .= μ
     !isnothing(offset) && (pred .+= offset')
 
     # initialize gradients
-    ∇ = zeros(T, 2 * K + 1, nobs)
+    ∇ = zeros(TI, 2 * K + 1, nobs)
     ∇[end, :] .= w
 
     # initialize indexes

@@ -13,5 +13,5 @@ EvoTrees.predict
 
 # Features Importance
 ```@docs
-importance
+EvoTrees.importance
 ```
