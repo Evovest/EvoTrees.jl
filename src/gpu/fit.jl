@@ -1,9 +1,4 @@
-function grow_evotree!(
-    evotree::EvoTree{L,K,T},
-    cache,
-    params::EvoTypes{L,T},
-    ::Type{GPU}
-) where {L,K,T}
+function grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTypes{L,T}, ::Type{GPU}) where {L,K,T}
 
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, params)
@@ -14,7 +9,7 @@ function grow_evotree!(
     sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
 
     # assign a root and grow tree
-    tree = Tree{L,K,T}(params.max_depth)
+    tree = Tree{L,K}(params.max_depth)
     grow_tree!(
         tree,
         cache.nodes,
@@ -38,16 +33,16 @@ end
 
 # grow a single tree - grow through all depth
 function grow_tree!(
-    tree::Tree{L,K,T},
+    tree::Tree{L,K},
     nodes::Vector{N},
     params::EvoTypes{L,T},
-    ∇::CuMatrix{T},
+    ∇::CuMatrix,
     edges,
     js,
     out,
     left,
     right,
-    h∇::CuArray{T,3},
+    h∇::CuArray{Float64,3},
     x_bin::CuMatrix,
     feattypes::Vector{Bool},
     monotone_constraints,
@@ -118,6 +113,7 @@ function grow_tree!(
                     popfirst!(n_next)
                 else
                     # @info "split" best_bin typeof(nodes[n].is) length(nodes[n].is)
+                    # @info "split typeof" typeof(out) typeof(left) typeof(nodes[n].is) typeof(x_bin)
                     _left, _right = split_set_threads_gpu!(
                         out,
                         left,

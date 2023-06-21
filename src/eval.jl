@@ -5,7 +5,7 @@ function mse(
     eval::AbstractVector;
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
+    @threads :static for i in eachindex(y)
         eval[i] = w[i] * (p[1, i] - y[i])^2
     end
     return sum(eval) / sum(w)
@@ -20,7 +20,7 @@ function mae(
     eval::AbstractVector;
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
+    @threads :static for i in eachindex(y)
         eval[i] = w[i] * abs(p[1, i] - y[i])
     end
     return sum(eval) / sum(w)
@@ -33,7 +33,7 @@ function logloss(
     eval::AbstractVector;
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
+    @threads :static for i in eachindex(y)
         pred = sigmoid(p[1, i])
         eval[i] = w[i] * (-y[i] * log(pred) + (y[i] - 1) * log(1 - pred))
     end
@@ -48,12 +48,12 @@ function mlogloss(
     kwargs...
 ) where {T}
     K = size(p, 1)
-    @threads for i in eachindex(y)
+    @threads :static for i in eachindex(y)
         isum = zero(T)
-        for k in 1:K
+        @inbounds for k in 1:K
             isum += exp(p[k, i])
         end
-        eval[i] = w[i] * (log(isum) - p[y[i], i])
+        @inbounds eval[i] = w[i] * (log(isum) - p[y[i], i])
     end
     return sum(eval) / sum(w)
 end
@@ -66,7 +66,7 @@ function poisson(
     kwargs...
 ) where {T}
     ϵ = eps(T)
-    @threads for i in eachindex(y)
+    @threads :static for i in eachindex(y)
         pred = exp(p[1, i])
         eval[i] = w[i] * 2 * (y[i] * log(y[i] / pred + ϵ) + pred - y[i])
     end
@@ -80,7 +80,7 @@ function gamma(
     eval::AbstractVector;
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
+    @threads :static for i in eachindex(y)
         pred = exp(p[1, i])
         eval[i] = w[i] * 2 * (log(pred / y[i]) + y[i] / pred - 1)
     end
@@ -95,7 +95,7 @@ function tweedie(
     kwargs...
 ) where {T}
     rho = T(1.5)
-    @threads for i in eachindex(y)
+    @threads :static for i in eachindex(y)
         pred = exp(p[1, i])
         eval[i] =
             w[i] *
@@ -115,7 +115,7 @@ function gaussian_mle(
     eval::AbstractVector;
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
+    @threads :static for i in eachindex(y)
         eval[i] = -w[i] * (p[2, i] + (y[i] - p[1, i])^2 / (2 * exp(2 * p[2, i])))
     end
     return sum(eval) / sum(w)
@@ -128,7 +128,7 @@ function logistic_mle(
     eval::AbstractVector;
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
+    @threads :static for i in eachindex(y)
         eval[i] = w[i] * (log(1 / 4 * sech(exp(-p[2, i]) * (y[i] - p[1, i]))^2) - p[2, i])
     end
     return sum(eval) / sum(w)
@@ -142,7 +142,7 @@ function wmae(
     alpha=0.5,
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
+    @threads :static for i in eachindex(y)
         eval[i] =
             w[i] * (
                 alpha * max(y[i] - p[1, i], zero(T)) +

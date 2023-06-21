@@ -3,7 +3,7 @@
 
 Given a instantiate
 """
-function grow_evotree!(m::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}, ::Type{D}=CPU) where {L,K,T,D<:Device}
+function grow_evotree!(m::EvoTree{L,K}, cache, params::EvoTypes{L,T}, ::Type{<:Device}=CPU) where {L,K,T}
 
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, params)
@@ -13,7 +13,7 @@ function grow_evotree!(m::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}, ::Type{D
     sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
 
     # instantiate a tree then grow it
-    tree = Tree{L,K,T}(params.max_depth)
+    tree = Tree{L,K}(params.max_depth)
     grow_tree!(
         tree,
         cache.nodes,
@@ -36,10 +36,10 @@ end
 
 # grow a single tree
 function grow_tree!(
-    tree::Tree{L,K,T},
+    tree::Tree{L,K},
     nodes::Vector{N},
     params::EvoTypes{L,T},
-    ∇::Matrix{T},
+    ∇::Matrix,
     edges,
     js,
     out,
@@ -66,7 +66,7 @@ function grow_tree!(
     depth = 1
 
     # initialize summary stats
-    nodes[1].∑ .= @views vec(sum(∇[:, nodes[1].is], dims=2))
+    nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
     nodes[1].gain = get_gain(params, nodes[1].∑)
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
@@ -85,7 +85,6 @@ function grow_tree!(
                         end
                     end
                 else
-                    # @info "hist"
                     update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
             end
@@ -95,7 +94,6 @@ function grow_tree!(
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             else
-                # @info "gains & max"
                 update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
                 best = findmax(findmax.(nodes[n].gains))
                 best_gain = best[1][1]

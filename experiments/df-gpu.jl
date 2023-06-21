@@ -1,10 +1,8 @@
 using Revise
 using EvoTrees
-using MLUtils
 using CSV
 using DataFrames
 using CategoricalArrays
-import Arrow
 import CUDA
 using Base.Iterators: partition
 using Base.Threads: nthreads, @threads
@@ -20,7 +18,7 @@ using Random: seed!
 # searchsortedfirst(edges, edges[9] + 0.01)
 
 seed!(123)
-nrounds = 200
+nrounds = 20
 nobs = Int(1e6)
 nfeats_num = Int(100)
 T = Float32
@@ -38,10 +36,10 @@ dtrain[:, :y] = y_train;
 @info nthread
 loss = "linear"
 if loss == "linear"
-    loss_evo = :linear
+    loss_evo = :mse
     metric_evo = :mae
 elseif loss == "logistic"
-    loss_evo = :logistic
+    loss_evo = :logloss
     metric_evo = :logloss
 end
 
@@ -64,16 +62,16 @@ hyper = EvoTreeRegressor(
 target_name = "y"
 device = "gpu"
 CUDA.allowscalar(false)
-@time model, cache = EvoTrees.init(hyper, dtrain; target_name, device);
+@time model, cache = EvoTrees.init(hyper, dtrain, EvoTrees.GPU; target_name);
+CUDA.@time model, cache = EvoTrees.init(hyper, dtrain, EvoTrees.GPU; target_name);
 
-@time EvoTrees.grow_evotree!(model, cache, hyper);
-# @btime EvoTrees.grow_evotree!(model, cache, hyper);
-
-@time m = fit_evotree(hyper, dtrain; target_name, device, verbosity = false);
+@time EvoTrees.grow_evotree!(model, cache, hyper, EvoTrees.GPU);
+@btime EvoTrees.grow_evotree!(model, cache, hyper, EvoTrees.GPU);
+@time m = fit_evotree(hyper, dtrain; target_name, device, verbosity=false);
 # @btime fit_evotree(hyper, dtrain; target_name, verbosity = false);
 
-@time m = fit_evotree(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100, verbosity = false);
-@btime m = fit_evotree(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100, verbosity = false);
+@time m = fit_evotree(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100, verbosity=false);
+@btime m = fit_evotree(hyper, dtrain; target_name, deval=dtrain, metric=metric_evo, device, print_every_n=100, verbosity=false);
 
-@time pred= m(dtrain);
+@time pred = m(dtrain);
 @btime m($dtrain);

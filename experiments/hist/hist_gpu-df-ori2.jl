@@ -71,7 +71,7 @@ h = [h∇[:,:,j] for j in axes(h∇, 3)]
 rowsample = 0.5
 colsample = 0.5
 is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
-js = sample(1:nfeats, Int(round(rowsample * nfeats)), replace=false, ordered=true)
+js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
 
 ∇_gpu = CuArray(∇)
 x_bin_gpu = CuArray(x_bin)
@@ -84,3 +84,50 @@ CUDA.allowscalar(false)
 CUDA.@time update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
 @time CUDA.@sync update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
 @btime update_hist_gpu2!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
+
+
+
+
+seed!(123)
+nbins = 32
+nfeats = 100
+nobs = Int(1e6)
+x_bin = UInt8.(rand(1:nbins, nobs, nfeats));
+∇ = rand(Float32, 3, nobs);
+h∇ = zeros(Float32, 3, nbins, nfeats)
+h = [h∇[:,:,j] for j in axes(h∇, 3)]
+rowsample = 0.5
+colsample = 0.5
+is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
+js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
+
+∇_gpu = CuArray(∇)
+x_bin_gpu = CuArray(x_bin)
+h∇_gpu = CuArray(h∇)
+is_gpu = CuArray(is)
+js_gpu = CuArray(js)
+
+EvoTrees.update_hist_gpu!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
+
+
+
+seed!(123)
+nbins = 32
+nfeats = 1
+nobs = Int(1e6)
+x_bin = UInt8.(rand(1:nbins, nobs, nfeats));
+∇ = rand(Float32, 3, nobs);
+h∇ = zeros(Float32, 3, nbins, nfeats)
+h = [h∇[:,:,j] for j in axes(h∇, 3)]
+rowsample = 0.5
+colsample = 1.0
+is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
+js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
+
+∇_gpu = CuArray(∇)
+x_bin_gpu = CuArray(x_bin)
+h∇_gpu = CuArray(h∇)
+is_gpu = CuArray(is)
+js_gpu = CuArray(js)
+
+EvoTrees.update_hist_gpu!(h, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)

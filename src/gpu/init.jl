@@ -55,7 +55,7 @@ function init_core(params::EvoTypes{L,T}, ::Type{GPU}, data, fnames, y_train, w,
     !isnothing(offset) && (pred .+= CuArray(offset'))
 
     # initialize gradients
-    h∇ = CUDA.zeros(T, 2 * K + 1, maximum(featbins), length(featbins))
+    h∇ = CUDA.zeros(Float64, 2 * K + 1, maximum(featbins), length(featbins))
     ∇ = CUDA.zeros(T, 2 * K + 1, nobs)
     @assert (length(y) == length(w) && minimum(w) > 0)
     ∇[end, :] .= w
@@ -86,9 +86,9 @@ function init_core(params::EvoTypes{L,T}, ::Type{GPU}, data, fnames, y_train, w,
     )
 
     # initialize model
-    nodes = [TrainNode(featbins, K, view(is_in, 1:0), T) for n = 1:2^params.max_depth-1]
-    bias = [Tree{L,K,T}(μ)]
-    m = EvoTree{L,K,T}(bias, info)
+    nodes = [TrainNode(featbins, K, view(is_in, 1:0)) for n = 1:2^params.max_depth-1]
+    bias = [Tree{L,K}(μ)]
+    m = EvoTree{L,K}(bias, info)
 
     # build cache
     cache = (
