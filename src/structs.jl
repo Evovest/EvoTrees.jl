@@ -34,7 +34,7 @@ struct Tree{L,K}
     cond_bin::Vector{UInt8}
     cond_float::Vector{Any}
     gain::Vector{Float64}
-    pred::Matrix{Float32}
+    pred::Matrix{Float64}
     split::Vector{Bool}
 end
 
@@ -55,7 +55,7 @@ function Tree{L,K}(depth::Int) where {L,K}
         zeros(UInt8, 2^depth - 1),
         zeros(Float64, 2^depth - 1),
         zeros(Float64, 2^depth - 1),
-        zeros(Float32, K, 2^depth - 1),
+        zeros(Float64, K, 2^depth - 1),
         zeros(Bool, 2^depth - 1),
     )
 end

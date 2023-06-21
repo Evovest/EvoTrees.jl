@@ -72,7 +72,7 @@ function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
     check_parameter(T, args[:eta], zero(T), typemax(T), :eta)
 end
 
-mutable struct EvoTreeRegressor{L<:ModelType,T<:Float32} <: MMI.Deterministic
+mutable struct EvoTreeRegressor{L<:ModelType,T<:Float64} <: MMI.Deterministic
     nrounds::Int
     lambda::T
     gamma::T
@@ -113,7 +113,7 @@ function EvoTreeRegressor(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     args[:loss] = Symbol(args[:loss])
-    T = Float32
+    T = Float64
 
     if args[:loss] == :mse
         L = MSE
@@ -161,7 +161,7 @@ function EvoTreeRegressor{L,T}(; kwargs...) where {L,T}
     EvoTreeRegressor(; T=T, loss=_type2loss(L), kwargs...)
 end
 
-mutable struct EvoTreeCount{L<:ModelType,T<:Float32} <: MMI.Probabilistic
+mutable struct EvoTreeCount{L<:ModelType,T<:Float64} <: MMI.Probabilistic
     nrounds::Int
     lambda::T
     gamma::T
@@ -201,7 +201,7 @@ function EvoTreeCount(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     L = Poisson
-    T = Float32
+    T = Float64
 
     check_args(T, args)
 
@@ -227,7 +227,7 @@ function EvoTreeCount{L,T}(; kwargs...) where {L,T}
     EvoTreeCount(; T=T, kwargs...)
 end
 
-mutable struct EvoTreeClassifier{L<:ModelType,T<:Float32} <: MMI.Probabilistic
+mutable struct EvoTreeClassifier{L<:ModelType,T<:Float64} <: MMI.Probabilistic
     nrounds::Int
     lambda::T
     gamma::T
@@ -265,7 +265,7 @@ function EvoTreeClassifier(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     L = MLogLoss
-    T = Float32
+    T = Float64
 
     check_args(T, args)
 
@@ -290,7 +290,7 @@ function EvoTreeClassifier{L,T}(; kwargs...) where {L,T}
     EvoTreeClassifier(; T=T, kwargs...)
 end
 
-mutable struct EvoTreeMLE{L<:ModelType,T<:Float32} <: MMI.Probabilistic
+mutable struct EvoTreeMLE{L<:ModelType,T<:Float64} <: MMI.Probabilistic
     nrounds::Int
     lambda::T
     gamma::T
@@ -331,7 +331,7 @@ function EvoTreeMLE(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     args[:loss] = Symbol(args[:loss])
-    T = Float32
+    T = Float64
 
     if args[:loss] in [:gaussian, :gaussian_mle]
         L = GaussianMLE
@@ -373,7 +373,7 @@ function EvoTreeMLE{L,T}(; kwargs...) where {L,T}
 end
 
 
-mutable struct EvoTreeGaussian{L<:ModelType,T<:Float32} <: MMI.Probabilistic
+mutable struct EvoTreeGaussian{L<:ModelType,T<:Float64} <: MMI.Probabilistic
     nrounds::Int
     lambda::T
     gamma::T
@@ -412,7 +412,7 @@ function EvoTreeGaussian(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     L = GaussianMLE
-    T = Float32
+    T = Float64
 
     check_args(T, args)
 

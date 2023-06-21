@@ -53,7 +53,7 @@ function grow_tree!(
     # reset nodes
     for n in nodes
         n.∑ .= 0
-        n.gain = Float64(0)
+        n.gain = T(0)
         @inbounds for i in eachindex(n.h)
             n.h[i] .= 0
             n.gains[i] .= 0

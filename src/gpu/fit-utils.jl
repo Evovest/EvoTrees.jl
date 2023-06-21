@@ -27,7 +27,6 @@ function hist_kernel!(h∇, ∇, x_bin, is, js)
 end
 
 function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
-    ∇ = Float64.(∇)
     kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
     max_threads = config.threads ÷ 4
