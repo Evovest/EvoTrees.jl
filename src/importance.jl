@@ -1,13 +1,13 @@
 function importance!(gain::AbstractVector, tree::Tree)
     @inbounds for n in eachindex(tree.split)
-        if @allowscalar(tree.split[n])
-            @allowscalar(gain[tree.feat[n]] += tree.gain[n])
+        if tree.split[n]
+            gain[tree.feat[n]] += tree.gain[n]
         end
     end
 end
 
 """
-    importance(model::Union{EvoTree,EvoTreeGPU})
+    importance(model::EvoTree; fnames=model.info[:fnames])
 
 Sorted normalized feature importance based on loss function gain.
 Feature names associated to the model are stored in `model.info[:fnames]` as a string `Vector` and can be updated at any time. Eg: `model.info[:fnames] = new_fnames_vec`.
