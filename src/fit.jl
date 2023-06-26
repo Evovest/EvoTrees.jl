@@ -1,5 +1,5 @@
 """
-    grow_evotree!(evotree::EvoTree{L,K,T}, cache, params::EvoTypes{L,T}) where {L,K,T}
+    grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTypes{L}, ::Type{<:Device}=CPU) where {L,K}
 
 Given a instantiate
 """
@@ -147,11 +147,10 @@ end
 
 """
     fit_evotree(
-        params::EvoTypes{L,T}, 
+        params::EvoTypes{L}, 
         dtrain;
         target_name,
-        fnames_num=nothing,
-        fnames_cat=nothing,
+        fnames=nothing,
         w_name=nothing,
         offset_name=nothing,
         deval=nothing,
@@ -159,25 +158,24 @@ end
         early_stopping_rounds=9999,
         print_every_n=9999,
         verbosity=1,
-        return_logger=false)
+        return_logger=false,
+        device="cpu")
 
 Main training function. Performs model fitting given configuration `params`, `x_train`, `y_train` input data. 
 
 # Arguments
 
 - `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` comprises EvoTreeRegressor, EvoTreeClassifier, EvoTreeCount and EvoTreeMLE.
-- `dtrain::DataFrames`: DataFrame containing features and target variables. 
+- `dtrain`: A Tables compatible training data (named tuples, DataFrame...) containing features and target variables. 
 
 # Keyword arguments
 
 - `target_name`: name of target variable. 
-- `w_name`: vector of train weights of length `#observations`. If `nothing`, a vector of ones is assumed.
-- `offset_name`: name of the offset variable.
-- `x_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
-- `y_eval::Vector`: vector of evaluation targets of length `#observations`.
-- `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
-- `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
-- `metric`: The evaluation metric that wil be tracked on `x_eval`, `y_eval` and optionally `w_eval` / `offset_eval` data. 
+- `fnames = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(fnames) = size(x_train, 2)`.
+- `w_name = nothing`: name of the variable containing weights. If `nothing`, common weights on one will be used.
+- `offset_name = nothing`: name of the offset variable.
+- `deval`: A Tables compatible evaluation data containing features and target variables. 
+- `metric`: The evaluation metric that wil be tracked on `deval`. 
     Supported metrics are: 
     - `:mse`: mean-squared error. Adapted for general regression models.
     - `:rmse`: root-mean-squared error (CPU only). Adapted for general regression models.
@@ -192,10 +190,9 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
-- `fnames`: the names of the `x_train` features. If provided, should be a vector of string with `length(fnames) = size(x_train, 2)`.
 - `return_logger::Bool = false`: if set to true (default), `fit_evotree` return a tuple `(m, logger)` where logger is a dict containing various tracking information.
 - `device="cpu"`: Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`. Following losses are not GPU supported at the moment`
-    :L1`, `:quantile`, `:LogisticMLE`.
+    :l1`, `:quantile`, `:logistic_mle`.
 """
 function fit_evotree(
     params::EvoTypes{L},
@@ -261,8 +258,8 @@ end
 
 
 """
-    fit_evotree(params;
-        x_train, y_train, w_train=nothing, offset_train=nothing;
+    fit_evotree(params::EvoTypes{L};
+        x_train::AbstractMatrix, y_train::AbstractVector, w_train=nothing, offset_train=nothing,
         x_eval=nothing, y_eval=nothing, w_eval=nothing, offset_eval=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
@@ -301,6 +298,8 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `verbosity`: set to 1 to print logging info during training.
 - `fnames`: the names of the `x_train` features. If provided, should be a vector of string with `length(fnames) = size(x_train, 2)`.
 - `return_logger::Bool = false`: if set to true (default), `fit_evotree` return a tuple `(m, logger)` where logger is a dict containing various tracking information.
+- `device="cpu"`: Hardware device to use for computations. Can be either `"cpu"` or `"gpu"`. Following losses are not GPU supported at the moment`
+    :l1`, `:quantile`, `:logistic_mle`.
 """
 function fit_evotree(
     params::EvoTypes{L};
