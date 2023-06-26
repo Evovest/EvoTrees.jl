@@ -53,7 +53,7 @@ function check_parameter(::Type{<:T}, value, min_value::Real, max_value::Real, l
 end
 
 # check model arguments if they are valid
-function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
+function check_args(args::Dict{Symbol,Any})
 
     # Check integer parameters
     check_parameter(Int, args[:nrounds], 0, typemax(Int), :nrounds)
@@ -61,28 +61,28 @@ function check_args(::Type{<:T}, args::Dict{Symbol,Any}) where {T<:Real}
     check_parameter(Int, args[:nbins], 2, 255, :nbins)
 
     # check positive float parameters
-    check_parameter(T, args[:lambda], zero(T), typemax(T), :lambda)
-    check_parameter(T, args[:gamma], zero(T), typemax(T), :gamma)
-    check_parameter(T, args[:min_weight], zero(T), typemax(T), :min_weight)
+    check_parameter(Float64, args[:lambda], zero(Float64), typemax(Float64), :lambda)
+    check_parameter(Float64, args[:gamma], zero(Float64), typemax(Float64), :gamma)
+    check_parameter(Float64, args[:min_weight], zero(Float64), typemax(Float64), :min_weight)
 
     # check bounded parameters
-    check_parameter(T, args[:alpha], zero(T), one(T), :alpha)
-    check_parameter(T, args[:rowsample], eps(T), one(T), :rowsample)
-    check_parameter(T, args[:colsample], eps(T), one(T), :colsample)
-    check_parameter(T, args[:eta], zero(T), typemax(T), :eta)
+    check_parameter(Float64, args[:alpha], zero(Float64), one(Float64), :alpha)
+    check_parameter(Float64, args[:rowsample], eps(Float64), one(Float64), :rowsample)
+    check_parameter(Float64, args[:colsample], eps(Float64), one(Float64), :colsample)
+    check_parameter(Float64, args[:eta], zero(Float64), typemax(Float64), :eta)
 end
 
-mutable struct EvoTreeRegressor{L<:ModelType,T<:Float64} <: MMI.Deterministic
+mutable struct EvoTreeRegressor{L<:ModelType} <: MMI.Deterministic
     nrounds::Int
-    lambda::T
-    gamma::T
-    eta::T
+    lambda::Float64
+    gamma::Float64
+    eta::Float64
     max_depth::Int
-    min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
-    rowsample::T # subsample
-    colsample::T
+    min_weight::Float64 # real minimum number of observations, different from xgboost (but same for linear)
+    rowsample::Float64 # subsample
+    colsample::Float64
     nbins::Int
-    alpha::T
+    alpha::Float64
     monotone_constraints::Any
     rng::Any
 end
@@ -113,7 +113,6 @@ function EvoTreeRegressor(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     args[:loss] = Symbol(args[:loss])
-    T = Float64
 
     if args[:loss] == :mse
         L = MSE
@@ -137,19 +136,19 @@ function EvoTreeRegressor(; kwargs...)
         )
     end
 
-    check_args(T, args)
+    check_args(args)
 
-    model = EvoTreeRegressor{L,T}(
+    model = EvoTreeRegressor{L}(
         args[:nrounds],
-        T(args[:lambda]),
-        T(args[:gamma]),
-        T(args[:eta]),
+        args[:lambda],
+        args[:gamma],
+        args[:eta],
         args[:max_depth],
-        T(args[:min_weight]),
-        T(args[:rowsample]),
-        T(args[:colsample]),
+        args[:min_weight],
+        args[:rowsample],
+        args[:colsample],
         args[:nbins],
-        T(args[:alpha]),
+        args[:alpha],
         args[:monotone_constraints],
         args[:rng],
     )
@@ -157,21 +156,21 @@ function EvoTreeRegressor(; kwargs...)
     return model
 end
 
-function EvoTreeRegressor{L,T}(; kwargs...) where {L,T}
-    EvoTreeRegressor(; T=T, loss=_type2loss(L), kwargs...)
+function EvoTreeRegressor{L}(; kwargs...) where {L}
+    EvoTreeRegressor(; loss=_type2loss(L), kwargs...)
 end
 
-mutable struct EvoTreeCount{L<:ModelType,T<:Float64} <: MMI.Probabilistic
+mutable struct EvoTreeCount{L<:ModelType} <: MMI.Probabilistic
     nrounds::Int
-    lambda::T
-    gamma::T
-    eta::T
+    lambda::Float64
+    gamma::Float64
+    eta::Float64
     max_depth::Int
-    min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
-    rowsample::T # subsample
-    colsample::T
+    min_weight::Float64 # real minimum number of observations, different from xgboost (but same for linear)
+    rowsample::Float64 # subsample
+    colsample::Float64
     nbins::Int
-    alpha::T
+    alpha::Float64
     monotone_constraints::Any
     rng::Any
 end
@@ -201,21 +200,19 @@ function EvoTreeCount(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     L = Poisson
-    T = Float64
+    check_args(args)
 
-    check_args(T, args)
-
-    model = EvoTreeCount{L,T}(
+    model = EvoTreeCount{L}(
         args[:nrounds],
-        T(args[:lambda]),
-        T(args[:gamma]),
-        T(args[:eta]),
+        args[:lambda],
+        args[:gamma],
+        args[:eta],
         args[:max_depth],
-        T(args[:min_weight]),
-        T(args[:rowsample]),
-        T(args[:colsample]),
+        args[:min_weight],
+        args[:rowsample],
+        args[:colsample],
         args[:nbins],
-        T(args[:alpha]),
+        args[:alpha],
         args[:monotone_constraints],
         args[:rng],
     )
@@ -223,21 +220,21 @@ function EvoTreeCount(; kwargs...)
     return model
 end
 
-function EvoTreeCount{L,T}(; kwargs...) where {L,T}
-    EvoTreeCount(; T=T, kwargs...)
+function EvoTreeCount{L}(; kwargs...) where {L}
+    EvoTreeCount(; kwargs...)
 end
 
-mutable struct EvoTreeClassifier{L<:ModelType,T<:Float64} <: MMI.Probabilistic
+mutable struct EvoTreeClassifier{L<:ModelType} <: MMI.Probabilistic
     nrounds::Int
-    lambda::T
-    gamma::T
-    eta::T
+    lambda::Float64
+    gamma::Float64
+    eta::Float64
     max_depth::Int
-    min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
-    rowsample::T # subsample
-    colsample::T
+    min_weight::Float64 # real minimum number of observations, different from xgboost (but same for linear)
+    rowsample::Float64 # subsample
+    colsample::Float64
     nbins::Int
-    alpha::T
+    alpha::Float64
     rng::Any
 end
 
@@ -265,42 +262,40 @@ function EvoTreeClassifier(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     L = MLogLoss
-    T = Float64
+    check_args(args)
 
-    check_args(T, args)
-
-    model = EvoTreeClassifier{L,T}(
+    model = EvoTreeClassifier{L}(
         args[:nrounds],
-        T(args[:lambda]),
-        T(args[:gamma]),
-        T(args[:eta]),
+        args[:lambda],
+        args[:gamma],
+        args[:eta],
         args[:max_depth],
-        T(args[:min_weight]),
-        T(args[:rowsample]),
-        T(args[:colsample]),
+        args[:min_weight],
+        args[:rowsample],
+        args[:colsample],
         args[:nbins],
-        T(args[:alpha]),
+        args[:alpha],
         args[:rng],
     )
 
     return model
 end
 
-function EvoTreeClassifier{L,T}(; kwargs...) where {L,T}
-    EvoTreeClassifier(; T=T, kwargs...)
+function EvoTreeClassifier{L}(; kwargs...) where {L}
+    EvoTreeClassifier(; kwargs...)
 end
 
-mutable struct EvoTreeMLE{L<:ModelType,T<:Float64} <: MMI.Probabilistic
+mutable struct EvoTreeMLE{L<:ModelType} <: MMI.Probabilistic
     nrounds::Int
-    lambda::T
-    gamma::T
-    eta::T
+    lambda::Float64
+    gamma::Float64
+    eta::Float64
     max_depth::Int
-    min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
-    rowsample::T # subsample
-    colsample::T
+    min_weight::Float64 # real minimum number of observations, different from xgboost (but same for linear)
+    rowsample::Float64 # subsample
+    colsample::Float64
     nbins::Int
-    alpha::T
+    alpha::Float64
     monotone_constraints::Any
     rng::Any
 end
@@ -331,7 +326,6 @@ function EvoTreeMLE(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     args[:loss] = Symbol(args[:loss])
-    T = Float64
 
     if args[:loss] in [:gaussian, :gaussian_mle]
         L = GaussianMLE
@@ -343,19 +337,19 @@ function EvoTreeMLE(; kwargs...)
         )
     end
 
-    check_args(T, args)
+    check_args(args)
 
-    model = EvoTreeMLE{L,T}(
+    model = EvoTreeMLE{L}(
         args[:nrounds],
-        T(args[:lambda]),
-        T(args[:gamma]),
-        T(args[:eta]),
+        args[:lambda],
+        args[:gamma],
+        args[:eta],
         args[:max_depth],
-        T(args[:min_weight]),
-        T(args[:rowsample]),
-        T(args[:colsample]),
+        args[:min_weight],
+        args[:rowsample],
+        args[:colsample],
         args[:nbins],
-        T(args[:alpha]),
+        args[:alpha],
         args[:monotone_constraints],
         args[:rng],
     )
@@ -363,27 +357,27 @@ function EvoTreeMLE(; kwargs...)
     return model
 end
 
-function EvoTreeMLE{L,T}(; kwargs...) where {L,T}
+function EvoTreeMLE{L}(; kwargs...) where {L}
     if L == GaussianMLE
         loss = :gaussian_mle
     elseif L == LogisticMLE
         loss = :logistic_mle
     end
-    EvoTreeMLE(; T=T, loss=loss, kwargs...)
+    EvoTreeMLE(; loss=loss, kwargs...)
 end
 
 
-mutable struct EvoTreeGaussian{L<:ModelType,T<:Float64} <: MMI.Probabilistic
+mutable struct EvoTreeGaussian{L<:ModelType} <: MMI.Probabilistic
     nrounds::Int
-    lambda::T
-    gamma::T
-    eta::T
+    lambda::Float64
+    gamma::Float64
+    eta::Float64
     max_depth::Int
-    min_weight::T # real minimum number of observations, different from xgboost (but same for linear)
-    rowsample::T # subsample
-    colsample::T
+    min_weight::Float64 # real minimum number of observations, different from xgboost (but same for linear)
+    rowsample::Float64 # subsample
+    colsample::Float64
     nbins::Int
-    alpha::T
+    alpha::Float64
     monotone_constraints::Any
     rng::Any
 end
@@ -412,21 +406,19 @@ function EvoTreeGaussian(; kwargs...)
 
     args[:rng] = mk_rng(args[:rng])
     L = GaussianMLE
-    T = Float64
+    check_args(args)
 
-    check_args(T, args)
-
-    model = EvoTreeGaussian{L,T}(
+    model = EvoTreeGaussian{L}(
         args[:nrounds],
-        T(args[:lambda]),
-        T(args[:gamma]),
-        T(args[:eta]),
+        args[:lambda],
+        args[:gamma],
+        args[:eta],
         args[:max_depth],
-        T(args[:min_weight]),
-        T(args[:rowsample]),
-        T(args[:colsample]),
+        args[:min_weight],
+        args[:rowsample],
+        args[:colsample],
         args[:nbins],
-        T(args[:alpha]),
+        args[:alpha],
         args[:monotone_constraints],
         args[:rng],
     )
@@ -434,19 +426,19 @@ function EvoTreeGaussian(; kwargs...)
     return model
 end
 
-function EvoTreeGaussian{L,T}(; kwargs...) where {L,T}
-    EvoTreeGaussian(; T=T, kwargs...)
+function EvoTreeGaussian{L}(; kwargs...) where {L}
+    EvoTreeGaussian(; kwargs...)
 end
 
-const EvoTypes{L,T} = Union{
-    EvoTreeRegressor{L,T},
-    EvoTreeCount{L,T},
-    EvoTreeClassifier{L,T},
-    EvoTreeGaussian{L,T},
-    EvoTreeMLE{L,T},
+const EvoTypes{L} = Union{
+    EvoTreeRegressor{L},
+    EvoTreeCount{L},
+    EvoTreeClassifier{L},
+    EvoTreeGaussian{L},
+    EvoTreeMLE{L},
 }
 
-get_types(::EvoTypes{L,T}) where {L,T} = (L, T)
+_get_struct_loss(::EvoTypes{L}) where {L} = L
 
 function Base.show(io::IO, config::EvoTypes)
     println(io, "$(typeof(config))")
@@ -457,7 +449,7 @@ end
 
 # check model arguments if they are valid (eg, after mutation when tuning hyperparams)
 # Note: does not check consistency of model type and loss selected
-function check_args(model::EvoTypes{L,T}) where {L,T<:Real}
+function check_args(model::EvoTypes{L}) where {L}
 
     # Check integer parameters
     check_parameter(Int, model.max_depth, 1, typemax(Int), :max_depth)
@@ -465,13 +457,13 @@ function check_args(model::EvoTypes{L,T}) where {L,T<:Real}
     check_parameter(Int, model.nbins, 2, 255, :nbins)
 
     # check positive float parameters
-    check_parameter(T, model.lambda, zero(T), typemax(T), :lambda)
-    check_parameter(T, model.gamma, zero(T), typemax(T), :gamma)
-    check_parameter(T, model.min_weight, zero(T), typemax(T), :min_weight)
+    check_parameter(Float64, model.lambda, zero(Float64), typemax(Float64), :lambda)
+    check_parameter(Float64, model.gamma, zero(Float64), typemax(Float64), :gamma)
+    check_parameter(Float64, model.min_weight, zero(Float64), typemax(Float64), :min_weight)
 
     # check bounded parameters
-    check_parameter(T, model.alpha, zero(T), one(T), :alpha)
-    check_parameter(T, model.rowsample, eps(T), one(T), :rowsample)
-    check_parameter(T, model.colsample, eps(T), one(T), :colsample)
-    check_parameter(T, model.eta, zero(T), typemax(T), :eta)
+    check_parameter(Float64, model.alpha, zero(Float64), one(Float64), :alpha)
+    check_parameter(Float64, model.rowsample, eps(Float64), one(Float64), :rowsample)
+    check_parameter(Float64, model.colsample, eps(Float64), one(Float64), :colsample)
+    check_parameter(Float64, model.eta, zero(Float64), typemax(Float64), :eta)
 end

@@ -42,7 +42,7 @@ params_xgb = Dict(
     :print_every_n => 5,
     :subsample => 0.5,
     :colsample_bytree => 0.5,
-    :tree_method => "hist",
+    :tree_method => "hist", # hist/gpu_hist
     :max_bin => 64,
 )
 
@@ -123,6 +123,10 @@ device = "cpu"
 
 @info "EvoTrees GPU"
 device = "gpu"
+# @info "train - no eval"
+# CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
+# CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
+@info "train - eval"
 CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
 CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
 # @time m_evo = fit_evotree(params_evo; x_train, y_train);

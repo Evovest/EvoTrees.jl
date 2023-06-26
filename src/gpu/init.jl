@@ -1,9 +1,10 @@
-function init_core(params::EvoTypes{L,T}, ::Type{GPU}, data, fnames, y_train, w, offset) where {L,T}
+function init_core(params::EvoTypes{L}, ::Type{GPU}, data, fnames, y_train, w, offset) where {L}
 
     # binarize data into quantiles
     edges, featbins, feattypes = get_edges(data; fnames, nbins=params.nbins, rng=params.rng)
     x_bin = CuArray(binarize(data; fnames, edges))
     nobs, nfeats = size(x_bin)
+    T = Float32
 
     target_levels = nothing
     if L == Logistic

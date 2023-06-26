@@ -3,7 +3,7 @@
 
 Given a instantiate
 """
-function grow_evotree!(m::EvoTree{L,K}, cache, params::EvoTypes{L,T}, ::Type{<:Device}=CPU) where {L,K,T}
+function grow_evotree!(m::EvoTree{L,K}, cache, params::EvoTypes{L}, ::Type{<:Device}=CPU) where {L,K}
 
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, params)
@@ -38,7 +38,7 @@ end
 function grow_tree!(
     tree::Tree{L,K},
     nodes::Vector{N},
-    params::EvoTypes{L,T},
+    params::EvoTypes{L},
     ∇::Matrix,
     edges,
     js,
@@ -48,12 +48,12 @@ function grow_tree!(
     x_bin,
     feattypes::Vector{Bool},
     monotone_constraints
-) where {L,K,T,N}
+) where {L,K,N}
 
     # reset nodes
     for n in nodes
         n.∑ .= 0
-        n.gain = T(0)
+        n.gain = 0.0
         @inbounds for i in eachindex(n.h)
             n.h[i] .= 0
             n.gains[i] .= 0
@@ -198,7 +198,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
     :L1`, `:quantile`, `:LogisticMLE`.
 """
 function fit_evotree(
-    params::EvoTypes{L,T},
+    params::EvoTypes{L},
     dtrain;
     target_name,
     fnames=nothing,
@@ -211,7 +211,7 @@ function fit_evotree(
     verbosity=1,
     return_logger=false,
     device="cpu"
-) where {L,T}
+) where {L}
 
     @assert Tables.istable(dtrain) "fit_evotree(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
     verbosity == 1 && @info params
@@ -229,7 +229,7 @@ function fit_evotree(
     end
     if logging_flag
         cb = CallBack(params, m, deval, _device; target_name, w_name, offset_name, metric)
-        logger = init_logger(; T, metric, maximise=is_maximise(cb.feval), early_stopping_rounds)
+        logger = init_logger(; metric, maximise=is_maximise(cb.feval), early_stopping_rounds)
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
     else
@@ -303,7 +303,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `return_logger::Bool = false`: if set to true (default), `fit_evotree` return a tuple `(m, logger)` where logger is a dict containing various tracking information.
 """
 function fit_evotree(
-    params::EvoTypes{L,T};
+    params::EvoTypes{L};
     x_train::AbstractMatrix,
     y_train::AbstractVector,
     w_train=nothing,
@@ -319,7 +319,7 @@ function fit_evotree(
     fnames=nothing,
     return_logger=false,
     device="cpu"
-) where {L,T}
+) where {L}
 
     verbosity == 1 && @info params
     @assert string(device) ∈ ["cpu", "gpu"]
@@ -336,7 +336,7 @@ function fit_evotree(
     end
     if logging_flag
         cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval, metric)
-        logger = init_logger(; T, metric, maximise=is_maximise(cb.feval), early_stopping_rounds)
+        logger = init_logger(; metric, maximise=is_maximise(cb.feval), early_stopping_rounds)
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
     else

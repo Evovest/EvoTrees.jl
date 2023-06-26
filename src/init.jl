@@ -1,9 +1,10 @@
-function init_core(params::EvoTypes{L,T}, ::Type{CPU}, data, fnames, y_train, w, offset) where {L,T}
+function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, offset) where {L}
 
     # binarize data into quantiles
     edges, featbins, feattypes = get_edges(data; fnames, nbins=params.nbins, rng=params.rng)
     x_bin = binarize(data; fnames, edges)
     nobs, nfeats = size(x_bin)
+    T = Float32
 
     target_levels = nothing
     if L == Logistic
@@ -122,14 +123,14 @@ end
 Initialise EvoTree
 """
 function init(
-    params::EvoTypes{L,T},
+    params::EvoTypes,
     dtrain,
     device::Type{<:Device}=CPU;
     target_name,
     fnames=nothing,
     w_name=nothing,
     offset_name=nothing
-) where {L,T}
+)
 
     # set fnames
     schema = Tables.schema(dtrain)
@@ -154,6 +155,7 @@ function init(
         end
     end
 
+    T = Float32
     nobs = length(Tables.getcolumn(dtrain, 1))
     y_train = Tables.getcolumn(dtrain, _target_name)
     if device <: GPU
@@ -176,19 +178,20 @@ end
 Initialise EvoTree
 """
 function init(
-    params::EvoTypes{L,T},
+    params::EvoTypes,
     x_train::AbstractMatrix,
     y_train::AbstractVector,
     device::Type{<:Device}=CPU;
     fnames=nothing,
     w_train=nothing,
     offset_train=nothing
-) where {L,T}
+)
 
     # initialize model and cache
     fnames = isnothing(fnames) ? [Symbol("feat_$i") for i in axes(x_train, 2)] : Symbol.(fnames)
     @assert length(fnames) == size(x_train, 2)
 
+    T = Float32
     nobs = size(x_train, 1)
     if device <: GPU
         w = isnothing(w_train) ? CUDA.ones(T, nobs) : CuArray{T}(w_train)

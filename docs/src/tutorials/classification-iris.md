@@ -25,15 +25,14 @@ Before we can train our model, we need to preprocess the dataset. We will conver
 Random.seed!(123)
 
 df[!, :class] = categorical(df[!, :class])
+target_name = "class"
+fnames = setdiff(names(df), [target_name])
 
 train_ratio = 0.8
 train_indices = randperm(nrow(df))[1:Int(train_ratio * nrow(df))]
 
-train_data = df[train_indices, :]
-eval_data = df[setdiff(1:nrow(df), train_indices), :]
-
-x_train, y_train = Matrix(train_data[:, 1:4]), train_data[:, :class]
-x_eval, y_eval = Matrix(eval_data[:, 1:4]), eval_data[:, :class]
+dtrain = df[train_indices, :]
+deval = df[setdiff(1:nrow(df), train_indices), :]
 ```
 
 ## Training
@@ -42,10 +41,11 @@ Now we are ready to train our model. We will first define a model configuration 
 Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass optional `x_eval` and `y_eval` arguments, which enable the usage of early stopping. 
 
 ```julia
-config = EvoTreeClassifier(nrounds=200, eta=0.1, max_depth=5, lambda=0.01, rowsample = 0.8)
-model = fit_evotree(config;
-    x_train, y_train,
-    x_eval, y_eval,
+config = EvoTreeClassifier(nrounds=200, eta=0.05, max_depth=5, lambda=0.1, rowsample = 0.8, colsample=0.8)
+model = fit_evotree(config, dtrain;
+    target_name,
+    fnames,
+    deval,
     metric = :mlogloss,
     early_stopping_rounds=10,
     print_every_n=10)
@@ -62,9 +62,9 @@ idx_eval = [findmax(row)[2] for row in eachrow(pred_eval)]
 ```
 
 ```julia-repl
-julia> mean(idx_eval .== levelcode.(y_eval))
+julia> mean(idx_train .== levelcode.(y_train))
 1.0
 
 julia> mean(idx_eval .== levelcode.(y_eval))
-1.0
+0.9333333333333333
 ```

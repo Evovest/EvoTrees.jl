@@ -427,12 +427,12 @@ end
 
     # check if we retain the parametric information properly
     for EvoParamType in [
-        EvoTreeRegressor{EvoTrees.MSE,Float64},
-        EvoTreeRegressor{EvoTrees.L1,Float64},
-        EvoTreeCount{EvoTrees.Poisson,Float64},
-        EvoTreeClassifier{EvoTrees.MLogLoss,Float64},
-        EvoTreeMLE{EvoTrees.LogisticMLE,Float64},
-        EvoTreeGaussian{EvoTrees.GaussianMLE,Float64}
+        EvoTreeRegressor{EvoTrees.MSE},
+        EvoTreeRegressor{EvoTrees.L1},
+        EvoTreeCount{EvoTrees.Poisson},
+        EvoTreeClassifier{EvoTrees.MLogLoss},
+        EvoTreeMLE{EvoTrees.LogisticMLE},
+        EvoTreeGaussian{EvoTrees.GaussianMLE}
     ]
 
         config = EvoParamType(; max_depth=2)

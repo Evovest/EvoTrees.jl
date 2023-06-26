@@ -11,6 +11,7 @@ Minimal example to fit a noisy sinus wave.
 ```julia
 using EvoTrees
 using EvoTrees: sigmoid, logit
+using StatsBase: sample
 
 # prepare a dataset
 features = rand(10000) .* 20 .- 10
@@ -29,52 +30,52 @@ train_size = 0.8
 x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
 y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 
-params1 = EvoTreeRegressor(
-    loss=:linear, metric=:mse,
+config = EvoTreeRegressor(
+    loss=:mse,
     nrounds=100, nbins = 100,
     lambda = 0.5, gamma=0.1, eta=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
-pred_eval_linear = predict(model, x_eval)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n = 25)
+pred_eval_linear = model(x_eval)
 
 # logistic / cross-entropy
-params1 = EvoTreeRegressor(
-    loss=:logistic, metric = :logloss,
+config = EvoTreeRegressor(
+    loss=:logistic,
     nrounds=100, nbins = 100,
     lambda = 0.5, gamma=0.1, eta=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
-pred_eval_logistic = predict(model, x_eval)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :logloss, print_every_n = 25)
+pred_eval_logistic = model(x_eval)
 
 # L1
-params1 = EvoTreeRegressor(
-    loss=:L1, alpha=0.5, metric = :mae,
+config = EvoTreeRegressor(
+    loss=:l1, alpha=0.5,
     nrounds=100, nbins=100,
     lambda = 0.5, gamma=0.0, eta=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
-pred_eval_L1 = predict(model, x_eval)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :mae, print_every_n = 25)
+pred_eval_L1 = model(x_eval)
 ```
 
 ## Poisson Count
 
 ```julia
 # Poisson
-params1 = EvoTreeCount(
-    loss=:poisson, metric = :poisson,
+config = EvoTreeCount(
+    loss=:poisson,
     nrounds=100, nbins = 100,
     lambda = 0.5, gamma=0.1, eta=0.1,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
-pred_eval_poisson = predict(model, x_eval)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :poisson, print_every_n = 25)
+pred_eval_poisson = model(x_eval)
 ```
 
 ## Quantile Regression
@@ -83,37 +84,37 @@ pred_eval_poisson = predict(model, x_eval)
 
 ```julia
 # q50
-params1 = EvoTreeRegressor(
-    loss=:quantile, alpha=0.5, metric = :quantile,
+config = EvoTreeRegressor(
+    loss=:quantile, alpha=0.5,
     nrounds=200, nbins = 100,
     lambda = 0.1, gamma=0.0, eta=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
-pred_train_q50 = predict(model, x_train)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :quantile, print_every_n = 25)
+pred_train_q50 = model(x_train)
 
 # q20
-params1 = EvoTreeRegressor(
-    loss=:quantile, alpha=0.2, metric = :quantile,
+config = EvoTreeRegressor(
+    loss=:quantile, alpha=0.2,
     nrounds=200, nbins = 100,
     lambda = 0.1, gamma=0.0, eta=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
-pred_train_q20 = predict(model, x_train)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :quantile, print_every_n = 25)
+pred_train_q20 = model(x_train)
 
 # q80
-params1 = EvoTreeRegressor(
+config = EvoTreeRegressor(
     loss=:quantile, alpha=0.8,
     nrounds=200, nbins = 100,
     lambda = 0.1, gamma=0.0, eta=0.05,
     max_depth = 6, min_weight = 1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n = 25)
-pred_train_q80 = predict(model, x_train)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :quantile, print_every_n = 25)
+pred_train_q80 = model(x_train)
 ```
 
 ## Gaussian Max Likelihood
@@ -121,8 +122,8 @@ pred_train_q80 = predict(model, x_train)
 ![](../assets/gaussian_sinus.png)
 
 ```julia
-params1 = EvoTreeMLE(
-    loss=:gaussian_mle, metric=:gaussian_mle,
+config = EvoTreeMLE(
+    loss=:gaussian_mle,
     nrounds=100, nbins=100,
     lambda = 0.0, gamma=0.0, eta=0.1,
     max_depth = 6, min_weight = 1.0,

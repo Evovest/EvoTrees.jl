@@ -1,4 +1,4 @@
-function grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTypes{L,T}, ::Type{GPU}) where {L,K,T}
+function grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTypes{L}, ::Type{GPU}) where {L,K}
 
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, params)
@@ -35,7 +35,7 @@ end
 function grow_tree!(
     tree::Tree{L,K},
     nodes::Vector{N},
-    params::EvoTypes{L,T},
+    params::EvoTypes{L},
     ∇::CuMatrix,
     edges,
     js,
@@ -46,13 +46,13 @@ function grow_tree!(
     x_bin::CuMatrix,
     feattypes::Vector{Bool},
     monotone_constraints,
-) where {L,K,T,N}
+) where {L,K,N}
 
     jsg = CuVector(js)
     # reset nodes
     for n in nodes
         n.∑ .= 0
-        n.gain = T(0)
+        n.gain = 0.0
         @inbounds for i in eachindex(n.h)
             n.h[i] .= 0
             n.gains[i] .= 0

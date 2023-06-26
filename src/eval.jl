@@ -65,10 +65,9 @@ function poisson(
     eval::AbstractVector;
     kwargs...
 ) where {T}
-    ϵ = eps(T)
     @threads :static for i in eachindex(y)
         pred = exp(p[1, i])
-        eval[i] = w[i] * 2 * (y[i] * log(y[i] / pred + ϵ) + pred - y[i])
+        eval[i] = w[i] * 2 * (y[i] * (log(y[i]) - log(pred)) + pred - y[i])
     end
     return sum(eval) / sum(w)
 end

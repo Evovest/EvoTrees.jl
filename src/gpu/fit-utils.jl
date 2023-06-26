@@ -1,7 +1,7 @@
 """
     hist_kernel!
 """
-function hist_kernel!(h∇, ∇, x_bin, is, js)
+function hist_kernel!(h∇::CuDeviceArray{T,3}, ∇::CuDeviceMatrix{S}, x_bin, is, js) where {T,S}
     tix, tiy, k = threadIdx().z, threadIdx().y, threadIdx().x
     bdx, bdy = blockDim().z, blockDim().y
     bix, biy = blockIdx().z, blockIdx().y
@@ -18,7 +18,7 @@ function hist_kernel!(h∇, ∇, x_bin, is, js)
                 @inbounds idx = is[i]
                 @inbounds bin = x_bin[idx, jdx]
                 hid = Base._to_linear_index(h∇, k, bin, jdx)
-                CUDA.atomic_add!(pointer(h∇, hid), ∇[k, idx])
+                CUDA.atomic_add!(pointer(h∇, hid), T(∇[k, idx]))
             end
         end
     end

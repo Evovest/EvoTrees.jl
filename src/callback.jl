@@ -9,15 +9,16 @@ struct CallBack{B,P,Y,C,D}
 end
 
 function CallBack(
-    ::EvoTypes{L,T},
+    ::EvoTypes{L},
     m::EvoTree{L,K},
     deval,
     device::Type{<:Device};
     target_name,
     w_name=nothing,
     offset_name=nothing,
-    metric) where {L,K,T}
+    metric) where {L,K}
 
+    T = Float32
     _w_name = isnothing(w_name) ? Symbol("") : Symbol(w_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
     _target_name = Symbol(target_name)
@@ -63,15 +64,16 @@ function CallBack(
 end
 
 function CallBack(
-    ::EvoTypes{L,T},
+    ::EvoTypes{L},
     m::EvoTree{L,K},
     x_eval::AbstractMatrix,
     y_eval,
     device::Type{<:Device};
     w_eval=nothing,
     offset_eval=nothing,
-    metric) where {L,K,T}
+    metric) where {L,K}
 
+    T = Float32
     feval = metric_dict[metric]
     x_bin = binarize(x_eval; fnames=m.info[:fnames], edges=m.info[:edges])
     p = zeros(T, K, size(x_eval, 1))
@@ -116,14 +118,14 @@ function (cb::CallBack)(logger, iter, tree)
     return nothing
 end
 
-function init_logger(; T, metric, maximise, early_stopping_rounds)
+function init_logger(; metric, maximise, early_stopping_rounds)
     logger = Dict(
         :name => String(metric),
         :maximise => maximise,
         :early_stopping_rounds => early_stopping_rounds,
         :nrounds => 0,
         :iter => Int[],
-        :metrics => T[],
+        :metrics => Float64[],
         :iter_since_best => 0,
         :best_iter => 0,
         :best_metric => 0.0,

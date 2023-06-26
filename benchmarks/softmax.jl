@@ -34,13 +34,13 @@ params_xgb = Dict(
     :max_bin => 64,
     :num_class => num_class,
 )
-# @info "xgboost train:"
-# metrics = [metric_xgb]
-# dtrain = DMatrix(x_train, y_train .- 1);
-# watchlist = Dict("train" => DMatrix(x_train, y_train .- 1))
-# @time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, params_xgb...);
-# @info "xgboost predict:"
-# @time pred_xgb = XGBoost.predict(m_xgb, x_train);
+@info "xgboost train:"
+metrics = [metric_xgb]
+dtrain = DMatrix(x_train, y_train .- 1);
+watchlist = Dict("train" => DMatrix(x_train, y_train .- 1))
+@time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, params_xgb...);
+@info "xgboost predict:"
+@time pred_xgb = XGBoost.predict(m_xgb, x_train);
 # @btime XGBoost.predict($m_xgb, $x_train);
 
 # EvoTrees params

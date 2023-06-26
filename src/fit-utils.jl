@@ -221,7 +221,7 @@ end
 function update_hist!(
     ::Type{L},
     hist::Vector{Matrix{Float64}},
-    ∇::Matrix{Float64},
+    ∇::Matrix{Float32},
     x_bin::Matrix,
     is::AbstractVector,
     js::AbstractVector,
@@ -244,7 +244,7 @@ end
 function update_hist!(
     ::Type{L},
     hist::Vector{Matrix{Float64}},
-    ∇::Matrix{Float64},
+    ∇::Matrix{Float32},
     x_bin::Matrix,
     is::AbstractVector,
     js::AbstractVector,
@@ -269,7 +269,7 @@ end
 function update_hist!(
     ::Type{L},
     hist::Vector{Matrix{Float64}},
-    ∇::Matrix{Float64},
+    ∇::Matrix{Float32},
     x_bin::Matrix,
     is::AbstractVector,
     js::AbstractVector,
@@ -298,10 +298,10 @@ Generic fallback
 function update_gains!(
     node::TrainNode,
     js,
-    params::EvoTypes{L,T},
+    params::EvoTypes{L},
     feattypes::Vector{Bool},
     monotone_constraints,
-) where {L,T}
+) where {L}
 
     h = node.h
     hL = node.hL
