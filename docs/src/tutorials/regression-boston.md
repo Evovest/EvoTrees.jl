@@ -58,8 +58,8 @@ pred_eval = model(x_eval)
 
 ```julia-repl
 julia> mean(abs.(pred_train .- y_train))
-1.121228068080949
+1.056997874224627
 
 julia> mean(abs.(pred_eval .- y_eval))
-2.399116769167456
+2.3298767665825264
 ```

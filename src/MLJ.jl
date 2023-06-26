@@ -9,7 +9,7 @@ end
 
 function okay_to_continue(model, fitresult, cache)
   return model.nrounds - cache[:info][:nrounds] >= 0 &&
-         all(get_types(model) .== get_types(fitresult))
+         all(_get_struct_loss(model) .== _get_struct_loss(fitresult))
 end
 
 # Generate names to be used by feature_importances in the report
@@ -74,12 +74,12 @@ function predict(::EvoTreeGaussian, fitresult, A)
   return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
-function predict(::EvoTreeMLE{L,T}, fitresult, A) where {L<:GaussianMLE,T}
+function predict(::EvoTreeMLE{L}, fitresult, A) where {L<:GaussianMLE}
   pred = predict(fitresult, A.matrix)
   return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
-function predict(::EvoTreeMLE{L,T}, fitresult, A) where {L<:LogisticMLE,T}
+function predict(::EvoTreeMLE{L}, fitresult, A) where {L<:LogisticMLE}
   pred = predict(fitresult, A.matrix)
   return [Distributions.Logistic(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end

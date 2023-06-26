@@ -93,7 +93,7 @@ function (m::EvoTree)(data; ntree_limit=length(m.trees), device="cpu")
     return predict(m, data, _device; ntree_limit)
 end
 
-get_types(::EvoTree{L,K}) where {L,K} = (L,)
+_get_struct_loss(::EvoTree{L,K}) where {L,K} = L
 
 function Base.show(io::IO, evotree::EvoTree)
     println(io, "$(typeof(evotree))")

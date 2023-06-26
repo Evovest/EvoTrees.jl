@@ -11,7 +11,8 @@ fit_evotree
 EvoTrees.predict
 ```
 
-# Features Importance
+## Features Importance
+
 ```@docs
 EvoTrees.importance
 ```

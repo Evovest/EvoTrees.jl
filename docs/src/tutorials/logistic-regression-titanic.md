@@ -65,8 +65,8 @@ pred_eval = model(x_eval)
 
 ```julia-repl
 julia> mean((pred_train .> 0.5) .== y_train)
-0.8625525946704067
+0.8835904628330996
 
 julia> mean((pred_eval .> 0.5) .== y_eval)
-0.8258426966292135
+0.8370786516853933
 ```

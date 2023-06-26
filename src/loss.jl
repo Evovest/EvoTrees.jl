@@ -1,5 +1,5 @@
 # MSE
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T}) where {L<:MSE,T}
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L}) where {L<:MSE}
     @threads :static for i in eachindex(y)
         @inbounds ∇[1, i] = 2 * (p[1, i] - y[i]) * ∇[3, i]
         @inbounds ∇[2, i] = 2 * ∇[3, i]
@@ -7,7 +7,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T
 end
 
 # LogLoss - on linear predictor
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T}) where {L<:LogLoss,T}
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L}) where {L<:LogLoss}
     @threads :static for i in eachindex(y)
         @inbounds pred = sigmoid(p[1, i])
         @inbounds ∇[1, i] = (pred - y[i]) * ∇[3, i]
@@ -16,7 +16,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T
 end
 
 # Poisson
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeCount{L,T}) where {L<:Poisson,T}
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeCount{L}) where {L<:Poisson}
     @threads :static for i in eachindex(y)
         @inbounds pred = exp(p[1, i])
         @inbounds ∇[1, i] = (pred - y[i]) * ∇[3, i]
@@ -25,7 +25,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeCount{L,T}) w
 end
 
 # Gamma
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T}) where {L<:Gamma,T}
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L}) where {L<:Gamma}
     @threads :static for i in eachindex(y)
         @inbounds pred = exp(p[1, i])
         @inbounds ∇[1, i] = 2 * (1 - y[i] / pred) * ∇[3, i]
@@ -34,7 +34,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T
 end
 
 # Tweedie
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T}) where {L<:Tweedie,T}
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L}) where {L<:Tweedie}
     rho = eltype(p)(1.5)
     @threads :static for i in eachindex(y)
         @inbounds pred = exp(p[1, i])
@@ -45,7 +45,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L,T
 end
 
 # L1
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, params::EvoTreeRegressor{L,T}) where {L<:L1,T}
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, params::EvoTreeRegressor{L}) where {L<:L1}
     @threads :static for i in eachindex(y)
         @inbounds ∇[1, i] =
             (params.alpha * max(y[i] - p[1, i], 0) - (1 - params.alpha) * max(p[1, i] - y[i], 0)) *
@@ -54,7 +54,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, params::EvoTreeRegress
 end
 
 # MLogLoss
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeClassifier{L,T}) where {L<:MLogLoss,T}
+function update_grads!(∇::Matrix{T}, p::Matrix, y::Vector, ::EvoTreeClassifier{L}) where {L<:MLogLoss,T}
     K = size(p, 1)
     @threads :static for i in eachindex(y)
         isum = zero(T)
@@ -74,7 +74,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeClassifier{L,
 end
 
 # Quantile
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, params::EvoTreeRegressor{L,T}) where {L<:Quantile,T}
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, params::EvoTreeRegressor{L}) where {L<:Quantile}
     @threads :static for i in eachindex(y)
         @inbounds ∇[1, i] = y[i] > p[1, i] ? params.alpha * ∇[3, i] : (params.alpha - 1) * ∇[3, i]
         @inbounds ∇[2, i] = y[i] - p[1, i] # δ² serves to calculate the quantile value - hence no weighting on δ²
@@ -84,7 +84,7 @@ end
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Union{EvoTreeGaussian{L,T},EvoTreeMLE{L,T}}) where {L<:GaussianMLE,T}
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Union{EvoTreeGaussian{L},EvoTreeMLE{L}}) where {L<:GaussianMLE}
     @threads :static for i in eachindex(y)
         # first order
         @inbounds ∇[1, i] = (p[1, i] - y[i]) / exp(2 * p[2, i]) * ∇[5, i]
@@ -99,7 +99,7 @@ end
 # pdf = 
 # pred[i][1] = μ
 # pred[i][2] = log(s)
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeMLE{L,T}) where {L<:LogisticMLE,T}
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeMLE{L}) where {L<:LogisticMLE}
     @threads :static for i in eachindex(y)
         # first order
         @inbounds ∇[1, i] =
@@ -142,20 +142,20 @@ end
 # get the gain metric
 ##############################
 # GradientRegression
-function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector) where {L<:GradientRegression,T}
-    ϵ = eps(T)
+function get_gain(params::EvoTypes{L}, ∑::AbstractVector) where {L<:GradientRegression}
+    ϵ = eps(eltype(∑))
     ∑[1]^2 / max(ϵ, (∑[2] + params.lambda * ∑[3])) / 2
 end
 
 # GaussianRegression
-function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector) where {L<:MLE2P,T}
-    ϵ = eps(T)
+function get_gain(params::EvoTypes{L}, ∑::AbstractVector) where {L<:MLE2P}
+    ϵ = eps(eltype(∑))
     (∑[1]^2 / max(ϵ, (∑[3] + params.lambda * ∑[5])) + ∑[2]^2 / max(ϵ, (∑[4] + params.lambda * ∑[5]))) / 2
 end
 
 # MultiClassRegression
-function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector) where {L<:MLogLoss,T}
-    ϵ = eps(T)
+function get_gain(params::EvoTypes{L}, ∑::AbstractVector{T}) where {L<:MLogLoss,T}
+    ϵ = eps(eltype(∑))
     gain = zero(T)
     K = (length(∑) - 1) ÷ 2
     @inbounds for k = 1:K
@@ -165,11 +165,11 @@ function get_gain(params::EvoTypes{L,T}, ∑::AbstractVector) where {L<:MLogLoss
 end
 
 # Quantile
-function get_gain(::EvoTypes{L,T}, ∑::AbstractVector) where {L<:Quantile,T}
+function get_gain(::EvoTypes{L}, ∑::AbstractVector) where {L<:Quantile}
     abs(∑[1])
 end
 
 # L1
-function get_gain(::EvoTypes{L,T}, ∑::AbstractVector) where {L<:L1,T}
+function get_gain(::EvoTypes{L}, ∑::AbstractVector) where {L<:L1}
     abs(∑[1])
 end

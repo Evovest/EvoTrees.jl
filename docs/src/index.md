@@ -59,5 +59,3 @@ preds = m(x_train)
 EvoTrees.save(m, "data/model.bson")
 m = EvoTrees.load("data/model.bson");
 ```
-
-A GPU model must first be converted into a CPU one before saving: `m_cpu = convert(EvoTree, m_gpu)`.

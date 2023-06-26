@@ -1,20 +1,20 @@
-function init_core(params::EvoTypes{L,T}, ::Type{CPU}, data, fnames, y_train, w, offset) where {L,T}
+function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, offset) where {L}
 
     # binarize data into quantiles
     edges, featbins, feattypes = get_edges(data; fnames, nbins=params.nbins, rng=params.rng)
     x_bin = binarize(data; fnames, edges)
     nobs, nfeats = size(x_bin)
-    TI = Float32
+    T = Float32
 
     target_levels = nothing
     if L == Logistic
         K = 1
-        y = TI.(y_train)
+        y = T.(y_train)
         μ = [logit(mean(y))]
         !isnothing(offset) && (offset .= logit.(offset))
     elseif L in [Poisson, Gamma, Tweedie]
         K = 1
-        y = TI.(y_train)
+        y = T.(y_train)
         μ = fill(log(mean(y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == MLogLoss
@@ -27,37 +27,37 @@ function init_core(params::EvoTypes{L,T}, ::Type{CPU}, data, fnames, y_train, w,
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         end
         K = length(target_levels)
-        μ = TI.(log.(proportions(y, UInt32(1):UInt32(K))))
+        μ = T.(log.(proportions(y, UInt32(1):UInt32(K))))
         μ .-= maximum(μ)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
         K = 2
-        y = TI.(y_train)
+        y = T.(y_train)
         μ = [mean(y), log(std(y))]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     elseif L == LogisticMLE
         K = 2
-        y = TI.(y_train)
+        y = T.(y_train)
         μ = [mean(y), log(std(y) * sqrt(3) / π)]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     else
         K = 1
-        y = TI.(y_train)
+        y = T.(y_train)
         μ = [mean(y)]
     end
-    μ = TI.(μ)
+    μ = T.(μ)
 
     # force a neutral/zero bias/initial tree when offset is specified
     !isnothing(offset) && (μ .= 0)
     @assert (length(y) == length(w) && minimum(w) > 0)
 
     # initialize preds
-    pred = zeros(TI, K, nobs)
+    pred = zeros(T, K, nobs)
     pred .= μ
     !isnothing(offset) && (pred .+= offset')
 
     # initialize gradients
-    ∇ = zeros(TI, 2 * K + 1, nobs)
+    ∇ = zeros(T, 2 * K + 1, nobs)
     ∇[end, :] .= w
 
     # initialize indexes
@@ -123,14 +123,14 @@ end
 Initialise EvoTree
 """
 function init(
-    params::EvoTypes{L,T},
+    params::EvoTypes,
     dtrain,
     device::Type{<:Device}=CPU;
     target_name,
     fnames=nothing,
     w_name=nothing,
     offset_name=nothing
-) where {L,T}
+)
 
     # set fnames
     schema = Tables.schema(dtrain)
@@ -155,6 +155,7 @@ function init(
         end
     end
 
+    T = Float32
     nobs = length(Tables.getcolumn(dtrain, 1))
     y_train = Tables.getcolumn(dtrain, _target_name)
     if device <: GPU
@@ -177,19 +178,20 @@ end
 Initialise EvoTree
 """
 function init(
-    params::EvoTypes{L,T},
+    params::EvoTypes,
     x_train::AbstractMatrix,
     y_train::AbstractVector,
     device::Type{<:Device}=CPU;
     fnames=nothing,
     w_train=nothing,
     offset_train=nothing
-) where {L,T}
+)
 
     # initialize model and cache
     fnames = isnothing(fnames) ? [Symbol("feat_$i") for i in axes(x_train, 2)] : Symbol.(fnames)
     @assert length(fnames) == size(x_train, 2)
 
+    T = Float32
     nobs = size(x_train, 1)
     if device <: GPU
         w = isnothing(w_train) ? CUDA.ones(T, nobs) : CuArray{T}(w_train)

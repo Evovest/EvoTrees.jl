@@ -123,9 +123,9 @@ device = "cpu"
 
 @info "EvoTrees GPU"
 device = "gpu"
-@info "train - no eval"
-CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
-CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
+# @info "train - no eval"
+# CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
+# CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
 @info "train - eval"
 CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
 CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);

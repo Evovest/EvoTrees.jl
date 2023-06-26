@@ -1,3 +1,10 @@
+# Models
+
+```@index
+Modules = [EvoTrees]
+Order   = [:type, :function]
+```
+
 ## EvoTreeRegressor
 ```@docs
 EvoTreeRegressor

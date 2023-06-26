@@ -298,10 +298,10 @@ Generic fallback
 function update_gains!(
     node::TrainNode,
     js,
-    params::EvoTypes{L,T},
+    params::EvoTypes{L},
     feattypes::Vector{Bool},
     monotone_constraints,
-) where {L,T}
+) where {L}
 
     h = node.h
     hL = node.hL
