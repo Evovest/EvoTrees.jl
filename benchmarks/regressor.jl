@@ -42,7 +42,7 @@ params_xgb = Dict(
     :print_every_n => 5,
     :subsample => 0.5,
     :colsample_bytree => 0.5,
-    :tree_method => "hist",
+    :tree_method => "hist", # hist/gpu_hist
     :max_bin => 64,
 )
 
