@@ -37,14 +37,16 @@ julia> Pkg.add("EvoTrees")
 
 ## Performance
 
-Data consists of randomly generated `Matrix{Float64}`. Training is performed on 200 iterations. Code to reproduce is [here](https://github.com/Evovest/EvoTrees.jl/blob/main/benchmarks/regressor.jl). 
+Data consists of randomly generated `Matrix{Float64}`. Training is performed on 200 iterations.  
+Code to reproduce is availabe in [`benchmarks/regressor.jl`](https://github.com/Evovest/EvoTrees.jl/blob/main/benchmarks/regressor.jl). 
 
-EvoTrees: v0.15.0
-XGBoost: v2.3.0
-Julia v1.9.1
-
-CPU: 12 threads on AMD Ryzen 5900X
-GPU: NVIDIA RTX A4000
+- Run Environment:
+    - CPU: 12 threads on AMD Ryzen 5900X.
+    - GPU: NVIDIA RTX A4000.
+    - Julia: v1.9.1.
+- Algorithms
+    - XGBoost: v2.3.0 (Using the `hist` algorithm).
+    - EvoTrees: v0.15.0.
 
 ### Training: 
 
@@ -58,7 +60,7 @@ GPU: NVIDIA RTX A4000
 
 ### Inference:
 
-| Dimensions   / Algo | XGBoost Hist | EvoTrees | XGBoost GPU | EvoTrees GPU |
+| Dimensions   / Algo | XGBoost CPU  | EvoTrees | XGBoost GPU | EvoTrees GPU |
 |---------------------|:------------:|:--------:|:-----------:|:------------:|
 | 100K x 100          |    0.151s    |  0.053s  |     NA      |    0.036s    |
 | 500K x 100          |    0.628s    |  0.276s  |     NA      |    0.169s    |
