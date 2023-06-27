@@ -60,13 +60,13 @@ Code to reproduce is availabe in [`benchmarks/regressor.jl`](https://github.com/
 
 ### Inference:
 
-| Dimensions   / Algo | XGBoost CPU  | EvoTrees | XGBoost GPU | EvoTrees GPU |
-|---------------------|:------------:|:--------:|:-----------:|:------------:|
-| 100K x 100          |    0.151s    |  0.053s  |     NA      |    0.036s    |
-| 500K x 100          |    0.628s    |  0.276s  |     NA      |    0.169s    |
-| 1M x 100            |    1.26s     |  0.558s  |     NA      |    0.334s    |
-| 5M x 100            |    6.04s     |  2.87s   |     NA      |    1.66s     |
-| 10M x 100           |    12.4s     |  5.71s   |     NA      |    3.31s     |
+| Dimensions   / Algo | XGBoost CPU  | EvoTrees CPU | XGBoost GPU | EvoTrees GPU |
+|---------------------|:------------:|:------------:|:-----------:|:------------:|
+| 100K x 100          |    0.151s    |    0.053s    |     NA      |    0.036s    |
+| 500K x 100          |    0.628s    |    0.276s    |     NA      |    0.169s    |
+| 1M x 100            |    1.26s     |    0.558s    |     NA      |    0.334s    |
+| 5M x 100            |    6.04s     |    2.87s     |     NA      |    1.66s     |
+| 10M x 100           |    12.4s     |    5.71s     |     NA      |    3.31s     |
 
 ## MLJ Integration
 
