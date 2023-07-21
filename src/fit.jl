@@ -288,7 +288,7 @@ function grow_otree!(
         end
         n_current = copy(n_next)
         depth += 1
-    end # end of loop over active ids for a given depth
+    end # end of loop over current nodes for a given depth
     return nothing
 end
 
