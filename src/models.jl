@@ -40,38 +40,6 @@ function mk_rng(int::Integer)
     return rng
 end
 
-# check model parameter if it's valid
-function check_parameter(::Type{<:T}, value, min_value::Real, max_value::Real, label::Symbol) where {T<:Number}
-    min_value = max(typemin(T), min_value)
-    max_value = min(typemax(T), max_value)
-    try
-        convert(T, value)
-        @assert min_value <= value <= max_value
-    catch
-        error("Invalid value for parameter `$(string(label))`: $value. `$(string(label))` must be of type $T with value between $min_value and $max_value.")
-    end
-end
-
-# check model arguments if they are valid
-function check_args(args::Dict{Symbol,Any})
-
-    # Check integer parameters
-    check_parameter(Int, args[:nrounds], 0, typemax(Int), :nrounds)
-    check_parameter(Int, args[:max_depth], 1, typemax(Int), :max_depth)
-    check_parameter(Int, args[:nbins], 2, 255, :nbins)
-
-    # check positive float parameters
-    check_parameter(Float64, args[:lambda], zero(Float64), typemax(Float64), :lambda)
-    check_parameter(Float64, args[:gamma], zero(Float64), typemax(Float64), :gamma)
-    check_parameter(Float64, args[:min_weight], zero(Float64), typemax(Float64), :min_weight)
-
-    # check bounded parameters
-    check_parameter(Float64, args[:alpha], zero(Float64), one(Float64), :alpha)
-    check_parameter(Float64, args[:rowsample], eps(Float64), one(Float64), :rowsample)
-    check_parameter(Float64, args[:colsample], eps(Float64), one(Float64), :colsample)
-    check_parameter(Float64, args[:eta], zero(Float64), typemax(Float64), :eta)
-end
-
 mutable struct EvoTreeRegressor{L<:ModelType} <: MMI.Deterministic
     nrounds::Int
     lambda::Float64
@@ -84,6 +52,7 @@ mutable struct EvoTreeRegressor{L<:ModelType} <: MMI.Deterministic
     nbins::Int
     alpha::Float64
     monotone_constraints::Any
+    tree_type::String
     rng::Any
 end
 
@@ -103,6 +72,7 @@ function EvoTreeRegressor(; kwargs...)
         :nbins => 32,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
+        :tree_type => "binary",
         :rng => 123,
     )
 
@@ -150,6 +120,7 @@ function EvoTreeRegressor(; kwargs...)
         args[:nbins],
         args[:alpha],
         args[:monotone_constraints],
+        args[:tree_type],
         args[:rng],
     )
 
@@ -172,6 +143,7 @@ mutable struct EvoTreeCount{L<:ModelType} <: MMI.Probabilistic
     nbins::Int
     alpha::Float64
     monotone_constraints::Any
+    tree_type::String
     rng::Any
 end
 
@@ -190,6 +162,7 @@ function EvoTreeCount(; kwargs...)
         :nbins => 32,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
+        :tree_type => "binary",
         :rng => 123,
     )
 
@@ -214,6 +187,7 @@ function EvoTreeCount(; kwargs...)
         args[:nbins],
         args[:alpha],
         args[:monotone_constraints],
+        args[:tree_type],
         args[:rng],
     )
 
@@ -235,6 +209,7 @@ mutable struct EvoTreeClassifier{L<:ModelType} <: MMI.Probabilistic
     colsample::Float64
     nbins::Int
     alpha::Float64
+    tree_type::String
     rng::Any
 end
 
@@ -252,6 +227,7 @@ function EvoTreeClassifier(; kwargs...)
         :colsample => 1.0,
         :nbins => 32,
         :alpha => 0.5,
+        :tree_type => "binary",
         :rng => 123,
     )
 
@@ -275,6 +251,7 @@ function EvoTreeClassifier(; kwargs...)
         args[:colsample],
         args[:nbins],
         args[:alpha],
+        args[:tree_type],
         args[:rng],
     )
 
@@ -297,6 +274,7 @@ mutable struct EvoTreeMLE{L<:ModelType} <: MMI.Probabilistic
     nbins::Int
     alpha::Float64
     monotone_constraints::Any
+    tree_type::String
     rng::Any
 end
 
@@ -316,6 +294,7 @@ function EvoTreeMLE(; kwargs...)
         :nbins => 32,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
+        :tree_type => "binary",
         :rng => 123,
     )
 
@@ -351,6 +330,7 @@ function EvoTreeMLE(; kwargs...)
         args[:nbins],
         args[:alpha],
         args[:monotone_constraints],
+        args[:tree_type],
         args[:rng],
     )
 
@@ -379,6 +359,7 @@ mutable struct EvoTreeGaussian{L<:ModelType} <: MMI.Probabilistic
     nbins::Int
     alpha::Float64
     monotone_constraints::Any
+    tree_type::String
     rng::Any
 end
 function EvoTreeGaussian(; kwargs...)
@@ -396,6 +377,7 @@ function EvoTreeGaussian(; kwargs...)
         :nbins => 32,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
+        :tree_type => "binary",
         :rng => 123,
     )
 
@@ -420,6 +402,7 @@ function EvoTreeGaussian(; kwargs...)
         args[:nbins],
         args[:alpha],
         args[:monotone_constraints],
+        args[:tree_type],
         args[:rng],
     )
 
@@ -447,8 +430,60 @@ function Base.show(io::IO, config::EvoTypes)
     end
 end
 
-# check model arguments if they are valid (eg, after mutation when tuning hyperparams)
-# Note: does not check consistency of model type and loss selected
+"""
+    check_parameter(::Type{<:T}, value, min_value::Real, max_value::Real, label::Symbol) where {T<:Number}
+
+Check model parameter if it's valid
+"""
+function check_parameter(::Type{<:T}, value, min_value::Real, max_value::Real, label::Symbol) where {T<:Number}
+    min_value = max(typemin(T), min_value)
+    max_value = min(typemax(T), max_value)
+    try
+        convert(T, value)
+        @assert min_value <= value <= max_value
+    catch
+        error("Invalid value for parameter `$(string(label))`: $value. `$(string(label))` must be of type $T with value between $min_value and $max_value.")
+    end
+end
+
+"""
+    check_args(args::Dict{Symbol,Any})
+
+Check model arguments if they are valid
+"""
+function check_args(args::Dict{Symbol,Any})
+
+    # Check integer parameters
+    check_parameter(Int, args[:nrounds], 0, typemax(Int), :nrounds)
+    check_parameter(Int, args[:max_depth], 1, typemax(Int), :max_depth)
+    check_parameter(Int, args[:nbins], 2, 255, :nbins)
+
+    # check positive float parameters
+    check_parameter(Float64, args[:lambda], zero(Float64), typemax(Float64), :lambda)
+    check_parameter(Float64, args[:gamma], zero(Float64), typemax(Float64), :gamma)
+    check_parameter(Float64, args[:min_weight], zero(Float64), typemax(Float64), :min_weight)
+
+    # check bounded parameters
+    check_parameter(Float64, args[:alpha], zero(Float64), one(Float64), :alpha)
+    check_parameter(Float64, args[:rowsample], eps(Float64), one(Float64), :rowsample)
+    check_parameter(Float64, args[:colsample], eps(Float64), one(Float64), :colsample)
+    check_parameter(Float64, args[:eta], zero(Float64), typemax(Float64), :eta)
+
+    try
+        tree_type = string(args[:tree_type])
+        @assert tree_type ∈ ["binary", "oblivious"]
+    catch
+        error("Invalid input for `tree_type` parameter: `$(args[:tree_type])`. Must be of one of `binary` or `oblivious`")
+    end
+
+end
+
+"""
+    check_args(model::EvoTypes{L}) where {L}
+
+Check model arguments if they are valid (eg, after mutation when tuning hyperparams)
+Note: does not check consistency of model type and loss selected
+"""
 function check_args(model::EvoTypes{L}) where {L}
 
     # Check integer parameters
@@ -466,4 +501,11 @@ function check_args(model::EvoTypes{L}) where {L}
     check_parameter(Float64, model.rowsample, eps(Float64), one(Float64), :rowsample)
     check_parameter(Float64, model.colsample, eps(Float64), one(Float64), :colsample)
     check_parameter(Float64, model.eta, zero(Float64), typemax(Float64), :eta)
+
+    try
+        tree_type = string(model.tree_type)
+        @assert tree_type ∈ ["binary", "oblivious"]
+    catch
+        error("Invalid input for `tree_type` parameter: `$(model.tree_type)`. Must be of one of `binary` or `oblivious`")
+    end
 end

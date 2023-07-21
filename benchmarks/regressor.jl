@@ -11,9 +11,10 @@ import CUDA
 nobs = Int(1e6)
 num_feat = Int(100)
 nrounds = 200
+tree_type = "binary"
 T = Float64
 nthread = Base.Threads.nthreads()
-@info "testing with: $nobs observations | $num_feat features. nthread: $nthread"
+@info "testing with: $nobs observations | $num_feat features. nthread: $nthread | tree_type : $tree_type"
 seed!(123)
 x_train = rand(T, nobs, num_feat)
 y_train = rand(T, size(x_train, 1))
@@ -48,7 +49,7 @@ params_xgb = Dict(
 
 dtrain = DMatrix(x_train, y_train)
 watchlist = Dict("train" => DMatrix(x_train, y_train));
-@time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
+@time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric=metric_xgb, params_xgb...);
 # @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
 @info "predict"
 @time pred_xgb = XGBoost.predict(m_xgb, x_train);
@@ -90,7 +91,7 @@ watchlist = Dict("train" => DMatrix(x_train, y_train));
 
 @info "EvoTrees"
 verbosity = 1
-params_evo = EvoTreeRegressor(
+params_evo = EvoTreeRegressor(;
     loss=loss_evo,
     nrounds=nrounds,
     alpha=0.5,
@@ -102,7 +103,8 @@ params_evo = EvoTreeRegressor(
     rowsample=0.5,
     colsample=0.5,
     nbins=64,
-    rng=123,
+    tree_type,
+    rng=123
 )
 
 @info "EvoTrees CPU"
@@ -115,6 +117,9 @@ device = "cpu"
 # @time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
 @info "train - eval"
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
+# using Plots
+# plot(m_evo, 2)
+
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
 @info "predict"
 @time pred_evo = m_evo(x_train);
