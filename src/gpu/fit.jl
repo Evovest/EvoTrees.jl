@@ -76,11 +76,11 @@ function grow_tree!(
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
-                        @inbounds for j in eachindex(nodes[n].h)
+                        @inbounds for j in js
                             nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j]
                         end
                     else
-                        @inbounds for j in eachindex(nodes[n].h)
+                        @inbounds for j in js
                             nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
                         end
                     end
@@ -210,11 +210,11 @@ function grow_otree!(
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
-                        @inbounds for j in eachindex(nodes[n].h)
+                        @inbounds for j in js
                             nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j]
                         end
                     else
-                        @inbounds for j in eachindex(nodes[n].h)
+                        @inbounds for j in js
                             nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
                         end
                     end
