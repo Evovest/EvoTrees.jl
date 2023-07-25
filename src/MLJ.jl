@@ -194,6 +194,9 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 - `nbins=32`:             Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   Only `:linear`, `:logistic`, `:gamma` and `tweedie` losses are supported at the moment.
+- `tree_type="binary"`    Tree structure to be used. One of:
+  - `binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
+  - `oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
 - `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 
 # Internal API
@@ -308,6 +311,9 @@ EvoTreeClassifier is used to perform multi-class classification, using cross-ent
 - `rowsample=1.0`:              Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `colsample=1.0`:              Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
+- `tree_type="binary"`    Tree structure to be used. One of:
+  - `binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
+  - `oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 
 # Internal API
@@ -430,6 +436,9 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
 - `colsample=1.0`:              Proportion of columns / features that are sampled at each iteration to build the tree. Should be `]0, 1]`.
 - `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing).
+- `tree_type="binary"`    Tree structure to be used. One of:
+  - `binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
+  - `oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 
 # Internal API
@@ -557,6 +566,9 @@ EvoTreeGaussian is used to perform Gaussian probabilistic regression, fitting μ
 - `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   !Experimental feature: note that for Gaussian regression, constraints may not be enforce systematically.
+- `tree_type="binary"`    Tree structure to be used. One of:
+  - `binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
+  - `oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 
 # Internal API
@@ -691,6 +703,9 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
 - `nbins=32`:                   Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   !Experimental feature: note that for MLE regression, constraints may not be enforced systematically.
+- `tree_type="binary"`          Tree structure to be used. One of:
+  - `binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
+  - `oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
 - `rng=123`:                    Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
 
 # Internal API
