@@ -47,11 +47,13 @@ config = EvoTreeRegressor(T=Float32,
     max_depth=5,
     rowsample=0.5,
     colsample=0.8,
-    nrounds=400, eta=0.05)
+    nrounds=400,
+    tree_type="oblivious",
+    eta=0.05)
 
 # @time m = fit_evotree(config; x_train, y_train, print_every_n=25);
-@time m = fit_evotree(config; x_train, y_train, x_eval, y_eval, early_stopping_rounds = 50, print_every_n=25, metric=:logloss);
-pred_eval_evo = m(x_eval) |> vec
+@time m = fit_evotree(config; x_train, y_train, x_eval, y_eval, early_stopping_rounds=50, print_every_n=25, metric=:logloss);
+pred_eval_evo = m(x_eval) |> vec;
 
 params_xgb = [
     "objective" => "reg:logistic",

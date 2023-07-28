@@ -9,6 +9,8 @@ using EvoTrees
 using EvoTrees: predict, sigmoid, logit
 # using ProfileView
 
+tree_type = "binary"
+
 # prepare a dataset
 Random.seed!(123)
 features = rand(10_000) .* 5
@@ -28,8 +30,9 @@ x_train, x_eval = X[i_train, :], X[i_eval, :]
 y_train, y_eval = Y[i_train], Y[i_eval]
 
 # linear
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(;
     loss=:mse,
+    alpha=1,
     nrounds=200,
     nbins=64,
     lambda=0.01,
@@ -39,7 +42,8 @@ params1 = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
-    rng=122,
+    tree_type,
+    rng=122
 )
 
 @time model = fit_evotree(
@@ -52,6 +56,8 @@ params1 = EvoTreeRegressor(
     print_every_n=25,
     early_stopping_rounds=20
 );
+
+# plot(model, 2)
 # laptop: 51.651 ms (237548 allocations: 23.94 MiB)
 # @btime model = fit_evotree(params1; x_train, y_train, x_eval = x_eval, y_eval = y_eval, metric = :mse, print_every_n = 999, verbosity=0);
 # Profile.clear()  # in case we have any previous profiling data
@@ -68,7 +74,7 @@ model, logger = fit_evotree(
     print_every_n=10,
     return_logger=true
 );
-plot(logger[:metrics])
+# plot(logger[:metrics])
 
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
 @time pred_train_linear = model(x_train);
@@ -77,7 +83,7 @@ mean((pred_train_linear .- y_train) .^ 2)
 mean((pred_eval_linear .- y_eval) .^ 2)
 
 # linear weighted
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(;
     T=Float64,
     loss=:linear,
     nrounds=500,
@@ -89,7 +95,8 @@ params1 = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
-    rng=123,
+    tree_type,
+    rng=123
 )
 
 # W_train = ones(eltype(Y_train), size(Y_train)) .* 5
@@ -119,7 +126,7 @@ mean(abs.(pred_train_linear_w .- y_train))
 sqrt(mean((pred_train_linear_w .- y_train) .^ 2))
 
 # logistic / cross-entropy
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(;
     loss=:logistic,
     nrounds=200,
     nbins=64,
@@ -130,6 +137,7 @@ params1 = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
+    tree_type
 )
 
 @time model = fit_evotree(
@@ -149,7 +157,7 @@ params1 = EvoTreeRegressor(
 sqrt(mean((pred_train_logistic .- y_train) .^ 2))
 
 # L1
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(;
     loss=:l1,
     alpha=0.5,
     nrounds=500,
@@ -161,6 +169,7 @@ params1 = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
+    tree_type,
 )
 @time model = fit_evotree(
     params1;
@@ -218,10 +227,10 @@ plot!(
     linewidth=1.5,
     label="L1",
 )
-savefig("figures/regression_sinus.png")
+savefig("figures/regression-sinus-$tree_type.png")
 
 # Poisson
-params1 = EvoTreeCount(
+params1 = EvoTreeCount(;
     loss=:poisson,
     nrounds=500,
     nbins=64,
@@ -232,6 +241,7 @@ params1 = EvoTreeCount(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
+    tree_type,
 )
 @time model = fit_evotree(
     params1;
@@ -247,17 +257,18 @@ params1 = EvoTreeCount(
 sqrt(mean((pred_train_poisson .- y_train) .^ 2))
 
 # Gamma
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(;
     loss=:gamma,
     nrounds=500,
     nbins=64,
     lambda=0.1,
     gamma=0.1,
-    eta=0.02,
+    eta=0.1,
     max_depth=6,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
+    tree_type,
 )
 @time model = fit_evotree(
     params1;
@@ -273,7 +284,7 @@ params1 = EvoTreeRegressor(
 sqrt(mean((pred_train_gamma .- y_train) .^ 2))
 
 # Tweedie
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(;
     loss=:tweedie,
     nrounds=500,
     nbins=64,
@@ -284,6 +295,7 @@ params1 = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
+    tree_type,
 )
 @time model = fit_evotree(
     params1;
@@ -333,14 +345,14 @@ plot!(
     linewidth=1.5,
     label="Tweedie",
 )
-savefig("figures/regression_sinus2.png")
+savefig("figures/regression-sinus2-$tree_type.png")
 
 
 ###############################
 ## Quantiles
 ###############################
 # q50
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(;
     loss=:quantile,
     alpha=0.5,
     nrounds=500,
@@ -352,6 +364,7 @@ params1 = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
+    tree_type,
 )
 @time model = fit_evotree(
     params1;
@@ -369,7 +382,7 @@ params1 = EvoTreeRegressor(
 sum(pred_train_q50 .< y_train) / length(y_train)
 
 # q20
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(;
     loss=:quantile,
     alpha=0.2,
     nrounds=300,
@@ -381,13 +394,14 @@ params1 = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
+    tree_type,
 )
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
 @time pred_train_q20 = model(x_train)
 sum(pred_train_q20 .< y_train) / length(y_train)
 
 # q80
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(;
     loss=:quantile,
     alpha=0.8,
     nrounds=300,
@@ -399,6 +413,7 @@ params1 = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
+    tree_type,
 )
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 @time pred_train_q80 = model(x_train)
@@ -439,13 +454,12 @@ plot!(
     linewidth=1.5,
     label="Q80",
 )
-savefig("figures/quantiles_sinus.png")
-
+savefig("figures/quantiles-sinus-$tree_type.png")
 
 ###############################
 ## gaussian
 ###############################
-params1 = EvoTreeMLE(
+params1 = EvoTreeMLE(;
     T=Float64,
     loss=:gaussian,
     nrounds=500,
@@ -458,6 +472,7 @@ params1 = EvoTreeMLE(
     rowsample=1.0,
     colsample=1.0,
     rng=123,
+    tree_type,
 )
 
 @time model = fit_evotree(
@@ -524,13 +539,13 @@ plot!(
     linewidth=1.5,
     label="q80",
 )
-savefig("figures/gaussian-sinus.png")
+savefig("figures/gaussian-sinus-$tree_type.png")
 
 
 ###############################
 ## Logistic
 ###############################
-params1 = EvoTrees.EvoTreeMLE(
+params1 = EvoTrees.EvoTreeMLE(;
     loss=:logistic,
     nrounds=500,
     nbins=64,
@@ -541,6 +556,7 @@ params1 = EvoTrees.EvoTreeMLE(
     min_weight=1.0,
     rowsample=1.0,
     colsample=1.0,
+    tree_type,
     rng=123,
 )
 
@@ -609,4 +625,4 @@ plot!(
     linewidth=1.5,
     label="q80",
 )
-savefig("figures/logistic-sinus.png")
+savefig("figures/logistic-sinus-$tree_type.png")

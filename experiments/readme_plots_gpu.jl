@@ -10,7 +10,9 @@ using EvoTrees: predict, sigmoid, logit
 # using ProfileView
 
 # prepare a dataset
+tree_type = "binary"
 device = "gpu"
+
 Random.seed!(123)
 features = rand(10_000) .* 5
 X = reshape(features, (size(features)[1], 1))
@@ -29,7 +31,7 @@ x_train, x_eval = X[i_train, :], X[i_eval, :]
 y_train, y_eval = Y[i_train], Y[i_eval]
 
 # linear
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(;
     loss=:linear,
     nrounds=500,
     nbins=64,
@@ -40,6 +42,7 @@ params1 = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
+    tree_type
 )
 
 # @time model = fit_evotree(params1; x_train, y_train);
@@ -65,7 +68,7 @@ mean(abs.(pred_train_linear .- y_train))
 sqrt(mean((pred_train_linear .- y_train) .^ 2))
 
 # logistic / cross-entropy
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(;
     T=Float32,
     loss=:logistic,
     nrounds=500,
@@ -77,6 +80,7 @@ params1 = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
+    tree_type
 )
 
 @time model = fit_evotree(
@@ -94,7 +98,7 @@ params1 = EvoTreeRegressor(
 sqrt(mean((pred_train_logistic .- y_train) .^ 2))
 
 # poisson
-params1 = EvoTreeCount(
+params1 = EvoTreeCount(;
     T=Float32,
     loss=:poisson,
     nrounds=500,
@@ -106,6 +110,7 @@ params1 = EvoTreeCount(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
+    tree_type
 )
 
 @time model = fit_evotree(
@@ -123,18 +128,19 @@ params1 = EvoTreeCount(
 sqrt(mean((pred_train_poisson .- y_train) .^ 2))
 
 # gamma
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(;
     T=Float32,
     loss=:gamma,
     nrounds=500,
     nbins=64,
     lambda=0.1,
     gamma=0.1,
-    eta=0.03,
+    eta=0.1,
     max_depth=6,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
+    tree_type
 )
 
 @time model = fit_evotree(
@@ -153,17 +159,18 @@ sqrt(mean((pred_train_gamma .- y_train) .^ 2))
 
 
 # tweedie
-params1 = EvoTreeRegressor(
+params1 = EvoTreeRegressor(;
     loss=:tweedie,
     nrounds=500,
     nbins=64,
     lambda=0.1,
     gamma=0.1,
-    eta=0.05,
+    eta=0.1,
     max_depth=6,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
+    tree_type
 )
 
 @time model = fit_evotree(
@@ -229,23 +236,24 @@ plot!(
     linewidth=1.5,
     label="Tweedie",
 )
-savefig("figures/regression_sinus_gpu.png")
+savefig("figures/regression-sinus-$tree_type-gpu.png")
 
 
 ###############################
 ## gaussian
 ###############################
-params1 = EvoTreeGaussian(
+params1 = EvoTreeGaussian(;
     nrounds=500,
     nbins=64,
     lambda=0.1,
     gamma=0.1,
-    eta=0.05,
+    eta=0.1,
     max_depth=6,
     min_weight=20,
     rowsample=0.5,
     colsample=1.0,
     rng=123,
+    tree_type
 )
 
 @time model = fit_evotree(params1; x_train, y_train);
@@ -315,4 +323,4 @@ plot!(
     linewidth=1.5,
     label="q80",
 )
-savefig("figures/gaussian-sinus-gpu.png")
+savefig("figures/gaussian-sinus-$tree_type-gpu.png")

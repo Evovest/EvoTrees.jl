@@ -9,6 +9,7 @@ using Test
 
     @testset "Internal API" begin
         include("core.jl")
+        include("oblivious.jl")
         include("tables.jl")
         include("monotonic.jl")
     end
