@@ -288,7 +288,7 @@ function EvoTreeMLE(; kwargs...)
         :gamma => 0.0, # min gain to split
         :eta => 0.1, # learning rate
         :max_depth => 5,
-        :min_weight => 1.0, # minimal weight, different from xgboost (but same for linear)
+        :min_weight => 8.0, # minimal weight, different from xgboost (but same for linear)
         :rowsample => 1.0,
         :colsample => 1.0,
         :nbins => 32,
@@ -371,7 +371,7 @@ function EvoTreeGaussian(; kwargs...)
         :gamma => 0.0, # min gain to split
         :eta => 0.1, # learning rate
         :max_depth => 5,
-        :min_weight => 1.0, # minimal weight, different from xgboost (but same for linear)
+        :min_weight => 8.0, # minimal weight, different from xgboost (but same for linear)
         :rowsample => 1.0,
         :colsample => 1.0,
         :nbins => 32,
