@@ -166,18 +166,19 @@ function split_set_threads!(
     offset,
 ) where {S}
 
-    chunk_size = cld(length(is), min(cld(length(is), 1024), Threads.nthreads()))
+    chunk_size = cld(length(is), min(cld(length(is), 64_000), Threads.nthreads()))
     nblocks = cld(length(is), chunk_size)
 
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
-    @threads :static for bid = 1:nblocks
-        lefts[bid], rights[bid] = split_set_chunk!(
+    # @threads :static for bid = 1:nblocks
+    if nblocks == 1
+        lefts[1], rights[1] = split_set_chunk!(
             left,
             right,
             is,
-            bid,
+            1,
             nblocks,
             x_bin,
             feat,
@@ -186,17 +187,33 @@ function split_set_threads!(
             offset,
             chunk_size,
         )
+    else
+        @threads :static for bid = 1:nblocks
+            lefts[bid], rights[bid] = split_set_chunk!(
+                left,
+                right,
+                is,
+                bid,
+                nblocks,
+                x_bin,
+                feat,
+                cond_bin,
+                feattype,
+                offset,
+                chunk_size,
+            )
+        end
     end
 
     sum_lefts = sum(lefts)
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
-    @threads :static for bid = 1:nblocks
+    if nblocks == 1
         split_views_kernel!(
             out,
             left,
             right,
-            bid,
+            1,
             offset,
             chunk_size,
             lefts,
@@ -205,6 +222,22 @@ function split_set_threads!(
             cumsum_lefts,
             cumsum_rights,
         )
+    else
+        @threads :static for bid = 1:nblocks
+            split_views_kernel!(
+                out,
+                left,
+                right,
+                bid,
+                offset,
+                chunk_size,
+                lefts,
+                rights,
+                sum_lefts,
+                cumsum_lefts,
+                cumsum_rights,
+            )
+        end
     end
 
     return (
@@ -226,12 +259,23 @@ function update_hist!(
     is::AbstractVector,
     js::AbstractVector,
 ) where {L<:GradientRegression}
-    @threads :static for j in js
-        @inbounds @simd for i in is
-            bin = x_bin[i, j]
-            hist[j][1, bin] += ∇[1, i]
-            hist[j][2, bin] += ∇[2, i]
-            hist[j][3, bin] += ∇[3, i]
+    if length(is) < 16_000
+        for j in js
+            @inbounds @simd for i in is
+                bin = x_bin[i, j]
+                hist[j][1, bin] += ∇[1, i]
+                hist[j][2, bin] += ∇[2, i]
+                hist[j][3, bin] += ∇[3, i]
+            end
+        end
+    else
+        @threads :static for j in js
+            @inbounds @simd for i in is
+                bin = x_bin[i, j]
+                hist[j][1, bin] += ∇[1, i]
+                hist[j][2, bin] += ∇[2, i]
+                hist[j][3, bin] += ∇[3, i]
+            end
         end
     end
     return nothing
