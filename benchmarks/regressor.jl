@@ -37,7 +37,7 @@ end
 @info "train"
 params_xgb = Dict(
     :num_round => nrounds,
-    :max_depth => 5,
+    :max_depth => 9,
     :eta => 0.05,
     :objective => loss_xgb,
     :print_every_n => 5,
@@ -98,7 +98,7 @@ params_evo = EvoTreeRegressor(;
     lambda=0.0,
     gamma=0.0,
     eta=0.05,
-    max_depth=6,
+    max_depth=10,
     min_weight=1.0,
     rowsample=0.5,
     colsample=0.5,

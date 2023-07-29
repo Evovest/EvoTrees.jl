@@ -91,12 +91,16 @@ function grow_tree!(
             end
         end
 
+        @threads :static for n ∈ sort(n_current)
+            update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
+        end
+
         for n ∈ sort(n_current)
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
                 popfirst!(n_next)
             else
-                update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
+                # update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
                 best = findmax(findmax.(nodes[n].gains))
                 best_gain = best[1][1]
                 best_bin = best[1][2]

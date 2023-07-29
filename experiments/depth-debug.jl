@@ -16,11 +16,10 @@ y_train = rand(size(x_train, 1))
 config = EvoTreeRegressor(;
     loss=:mse,
     nrounds=1,
-    alpha=0.5,
     lambda=0.0,
     gamma=0.0,
     eta=0.05,
-    max_depth=12,
+    max_depth=10,
     min_weight=1.0,
     rowsample=0.5,
     colsample=0.5,
@@ -34,14 +33,14 @@ config = EvoTreeRegressor(;
 ################################
 @time m, cache = EvoTrees.init(config, x_train, y_train);
 @time EvoTrees.grow_evotree!(m, cache, config)
+@btime EvoTrees.grow_evotree!(m, cache, config)
 
 Profile.clear()
 # Profile.init()
-Profile.init(n = 10^7, delay = 0.001)
+Profile.init(n = 10^5, delay = 0.01)
 # @profile m, cache = EvoTrees.init(config, x_train, y_train);
 @profile EvoTrees.grow_evotree!(m, cache, config)
 Profile.print()
-@profview EvoTrees.grow_evotree!(m, cache, config)
 
 ################################
 # mid-level

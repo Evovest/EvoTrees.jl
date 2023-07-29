@@ -166,13 +166,12 @@ function split_set_threads!(
     offset,
 ) where {S}
 
-    chunk_size = cld(length(is), min(cld(length(is), 64_000), Threads.nthreads()))
+    chunk_size = cld(length(is), min(cld(length(is), 16_000), Threads.nthreads()))
     nblocks = cld(length(is), chunk_size)
 
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
-    # @threads :static for bid = 1:nblocks
     if nblocks == 1
         lefts[1], rights[1] = split_set_chunk!(
             left,
@@ -259,25 +258,25 @@ function update_hist!(
     is::AbstractVector,
     js::AbstractVector,
 ) where {L<:GradientRegression}
-    if length(is) < 16_000
-        for j in js
-            @inbounds @simd for i in is
-                bin = x_bin[i, j]
-                hist[j][1, bin] += ∇[1, i]
-                hist[j][2, bin] += ∇[2, i]
-                hist[j][3, bin] += ∇[3, i]
-            end
-        end
-    else
-        @threads :static for j in js
-            @inbounds @simd for i in is
-                bin = x_bin[i, j]
-                hist[j][1, bin] += ∇[1, i]
-                hist[j][2, bin] += ∇[2, i]
-                hist[j][3, bin] += ∇[3, i]
-            end
+    # if length(is) < 1_000
+    #     for j in js
+    #         @inbounds @simd for i in is
+    #             bin = x_bin[i, j]
+    #             hist[j][1, bin] += ∇[1, i]
+    #             hist[j][2, bin] += ∇[2, i]
+    #             hist[j][3, bin] += ∇[3, i]
+    #         end
+    #     end
+    # else
+    @threads :static for j in js
+        @inbounds @simd for i in is
+            bin = x_bin[i, j]
+            hist[j][1, bin] += ∇[1, i]
+            hist[j][2, bin] += ∇[2, i]
+            hist[j][3, bin] += ∇[3, i]
         end
     end
+    # end
     return nothing
 end
 
