@@ -8,12 +8,17 @@ using BenchmarkTools
 using Random: seed!
 import CUDA
 
+### v.0.15.1
+# desktop | 1e6 | depth 11 | cpu: 37.2s
+# desktop | 10e6 | depth 11 | cpu
+
+### perf depth
 # desktop | 1e6 | depth 11 | cpu: 28s gpu: 73 sec  | xgboost: 26s
 # desktop | 10e6 | depth 11 | cpu 205s gpu: 109 sec | xgboost 260s
 nobs = Int(1e6)
 num_feat = Int(100)
 nrounds = 200
-max_depth = 11
+max_depth = 6
 tree_type = "binary"
 T = Float64
 nthread = Base.Threads.nthreads()
@@ -120,14 +125,11 @@ device = "cpu"
 # @time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
 @info "train - eval"
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
-# using Plots
-# plot(m_evo, 2)
-
 @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
 @info "predict"
 @time pred_evo = m_evo(x_train);
 @time pred_evo = m_evo(x_train);
-@btime m_evo($x_train);
+# @btime m_evo($x_train);
 
 @info "EvoTrees GPU"
 device = "gpu"
@@ -142,4 +144,4 @@ CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_e
 @info "predict"
 CUDA.@time pred_evo = m_evo(x_train; device);
 CUDA.@time pred_evo = m_evo(x_train; device);
-@btime m_evo($x_train; device);
+# @btime m_evo($x_train; device);

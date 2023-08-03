@@ -172,58 +172,32 @@ function split_set_threads!(
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
-    if nblocks == 1
-        lefts[1], rights[1] = split_set_chunk!(
-            left,
-            right,
-            is,
-            1,
-            nblocks,
-            x_bin,
-            feat,
-            cond_bin,
-            feattype,
-            offset,
-            chunk_size,
-        )
-    else
-        @threads :static for bid = 1:nblocks
-            lefts[bid], rights[bid] = split_set_chunk!(
-                left,
-                right,
-                is,
-                bid,
-                nblocks,
-                x_bin,
-                feat,
-                cond_bin,
-                feattype,
-                offset,
-                chunk_size,
-            )
+    @sync begin
+        for bid = 1:nblocks
+            @spawn begin
+                lefts[bid], rights[bid] = split_set_chunk!(
+                    left,
+                    right,
+                    is,
+                    bid,
+                    nblocks,
+                    x_bin,
+                    feat,
+                    cond_bin,
+                    feattype,
+                    offset,
+                    chunk_size,
+                )
+            end
         end
     end
 
     sum_lefts = sum(lefts)
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
-    if nblocks == 1
-        split_views_kernel!(
-            out,
-            left,
-            right,
-            1,
-            offset,
-            chunk_size,
-            lefts,
-            rights,
-            sum_lefts,
-            cumsum_lefts,
-            cumsum_rights,
-        )
-    else
-        @threads :static for bid = 1:nblocks
-            split_views_kernel!(
+    @sync begin
+        for bid = 1:nblocks
+            @spawn split_views_kernel!(
                 out,
                 left,
                 right,
@@ -258,16 +232,6 @@ function update_hist!(
     is::AbstractVector,
     js::AbstractVector,
 ) where {L<:GradientRegression}
-    # if length(is) < 1_000
-    #     for j in js
-    #         @inbounds @simd for i in is
-    #             bin = x_bin[i, j]
-    #             hist[j][1, bin] += ∇[1, i]
-    #             hist[j][2, bin] += ∇[2, i]
-    #             hist[j][3, bin] += ∇[3, i]
-    #         end
-    #     end
-    # else
     @threads :static for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
@@ -276,7 +240,6 @@ function update_hist!(
             hist[j][3, bin] += ∇[3, i]
         end
     end
-    # end
     return nothing
 end
 
