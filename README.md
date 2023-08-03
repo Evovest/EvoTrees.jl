@@ -46,27 +46,27 @@ Code to reproduce is availabe in [`benchmarks/regressor.jl`](https://github.com/
     - Julia: v1.9.1.
 - Algorithms
     - XGBoost: v2.3.0 (Using the `hist` algorithm).
-    - EvoTrees: v0.15.0.
+    - EvoTrees: v0.15.2.
 
 ### Training: 
 
 | Dimensions   / Algo | XGBoost CPU | EvoTrees CPU | XGBoost GPU | EvoTrees GPU |
 |---------------------|:-----------:|:------------:|:-----------:|:------------:|
-| 100K x 100          |    2.33s    |     1.09s    |    0.90s    |     2.72s    |
-| 500K x 100          |    10.7s    |     2.96s    |    1.84s    |     3.65s    |
-| 1M x 100            |    20.9s    |     6.48s    |    3.10s    |     4.45s    |
-| 5M x 100            |    108s     |     35.8s    |    12.9s    |     12.7s    |
-| 10M x 100           |    216s     |     71.6s    |    25.5s    |     23.0s    |
+| 100K x 100          |    2.34s    |     1.01s    |    0.90s    |     2.61s    |
+| 500K x 100          |    10.7s    |     3.95s    |    1.84s    |     3.41s    |
+| 1M x 100            |    21.1s    |     6.57s    |    3.10s    |     4.47s    |
+| 5M x 100            |    108s     |     36.1s    |    12.9s    |     12.5s    |
+| 10M x 100           |    218s     |     72.6s    |    25.5s    |     23.0s    |
 
 ### Inference:
 
 | Dimensions   / Algo | XGBoost CPU  | EvoTrees CPU | XGBoost GPU | EvoTrees GPU |
 |---------------------|:------------:|:------------:|:-----------:|:------------:|
-| 100K x 100          |    0.151s    |    0.053s    |     NA      |    0.036s    |
-| 500K x 100          |    0.628s    |    0.276s    |     NA      |    0.169s    |
-| 1M x 100            |    1.26s     |    0.558s    |     NA      |    0.334s    |
+| 100K x 100          |    0.151s    |    0.058s    |     NA      |    0.045s    |
+| 500K x 100          |    0.647s    |    0.248s    |     NA      |    0.172s    |
+| 1M x 100            |    1.26s     |    0.573s    |     NA      |    0.327s    |
 | 5M x 100            |    6.04s     |    2.87s     |     NA      |    1.66s     |
-| 10M x 100           |    12.4s     |    5.71s     |     NA      |    3.31s     |
+| 10M x 100           |    12.4s     |    5.71s     |     NA      |    3.40s     |
 
 ## MLJ Integration
 

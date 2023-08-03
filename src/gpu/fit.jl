@@ -61,16 +61,18 @@ function grow_tree!(
     end
 
     # initialize
-    n_next = [1]
-    n_current = copy(n_next)
+    n_current = [1]
     depth = 1
 
     # initialize summary stats
     nodes[1].∑ .= Vector(vec(sum(∇[:, nodes[1].is], dims=2)))
     nodes[1].gain = get_gain(params, nodes[1].∑) # should use a GPU version?
-    # grow while there are remaining active nodes - TO DO histogram substraction hits issue on GPU
+
+    # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
+        n_next = Int[]
+
         if depth < params.max_depth
             for n_id in eachindex(n_current)
                 n = n_current[n_id]
@@ -88,34 +90,26 @@ function grow_tree!(
                     update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
                 end
             end
+            @threads :static for n ∈ sort(n_current)
+                update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
+            end
         end
 
-        # grow while there are remaining active nodes
         for n ∈ sort(n_current)
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
-                popfirst!(n_next)
             else
-                # @info "gain & max"
-                update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
                 best = findmax(findmax.(nodes[n].gains))
                 best_gain = best[1][1]
                 best_bin = best[1][2]
                 best_feat = best[2]
-                # if best_gain > nodes[n].gain + params.gamma && best_gain > nodes[n].gains[best_feat][end] + params.gamma
                 if best_gain > nodes[n].gain + params.gamma
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
                     tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
-                end
-                tree.split[n] = tree.cond_bin[n] != 0
-                if !tree.split[n]
-                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
-                    popfirst!(n_next)
-                else
-                    # @info "split" best_bin typeof(nodes[n].is) length(nodes[n].is)
-                    # @info "split typeof" typeof(out) typeof(left) typeof(nodes[n].is) typeof(x_bin)
+                    tree.split[n] = best_bin != 0
+
                     _left, _right = split_set_threads_gpu!(
                         out,
                         left,
@@ -127,12 +121,14 @@ function grow_tree!(
                         feattypes[best_feat],
                         offset,
                     )
+
                     offset += length(nodes[n].is)
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
                     nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
                     nodes[n<<1].gain = get_gain(params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = get_gain(params, nodes[n<<1+1].∑)
+
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
                         push!(n_next, n << 1 + 1)
@@ -140,8 +136,8 @@ function grow_tree!(
                         push!(n_next, n << 1 + 1)
                         push!(n_next, n << 1)
                     end
-                    # @info "split post" length(_left) length(_right)
-                    popfirst!(n_next)
+                else
+                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
                 end
             end
         end
@@ -182,8 +178,7 @@ function grow_otree!(
     end
 
     # initialize
-    n_next = [1]
-    n_current = copy(n_next)
+    n_current = [1]
     depth = 1
 
     # initialize summary stats
@@ -193,6 +188,7 @@ function grow_otree!(
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
+        n_next = Int[]
 
         min_weight_flag = false
         for n in n_current
@@ -202,7 +198,6 @@ function grow_otree!(
             for n in n_current
                 # @info "length(nodes[n].is)" length(nodes[n].is) depth n
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
-                popfirst!(n_next)
             end
         else
             # update histograms
@@ -222,6 +217,9 @@ function grow_otree!(
                     update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
                 end
             end
+            @threads :static for n ∈ n_current
+                update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
+            end
 
             # initialize gains for node 1 in which all gains of a given depth will be accumulated
             if depth > 1
@@ -232,7 +230,6 @@ function grow_otree!(
             gain = 0
             # update gains based on the aggregation of all nodes of a given depth. One gains matrix per depth (vs one per node in binary trees).
             for n ∈ sort(n_current)
-                update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
                 if n > 1 # accumulate gains in node 1
                     for j in js
                         nodes[1].gains[j] .+= nodes[n].gains[j]
@@ -286,12 +283,10 @@ function grow_otree!(
                         push!(n_next, n << 1 + 1)
                         push!(n_next, n << 1)
                     end
-                    popfirst!(n_next)
                 end
             else
                 for n in n_current
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
-                    popfirst!(n_next)
                 end
             end
         end

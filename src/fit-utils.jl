@@ -166,45 +166,51 @@ function split_set_threads!(
     offset,
 ) where {S}
 
-    chunk_size = cld(length(is), min(cld(length(is), 1024), Threads.nthreads()))
+    chunk_size = cld(length(is), min(cld(length(is), 16_000), Threads.nthreads()))
     nblocks = cld(length(is), chunk_size)
 
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
-    @threads :static for bid = 1:nblocks
-        lefts[bid], rights[bid] = split_set_chunk!(
-            left,
-            right,
-            is,
-            bid,
-            nblocks,
-            x_bin,
-            feat,
-            cond_bin,
-            feattype,
-            offset,
-            chunk_size,
-        )
+    @sync begin
+        for bid = 1:nblocks
+            @spawn begin
+                lefts[bid], rights[bid] = split_set_chunk!(
+                    left,
+                    right,
+                    is,
+                    bid,
+                    nblocks,
+                    x_bin,
+                    feat,
+                    cond_bin,
+                    feattype,
+                    offset,
+                    chunk_size,
+                )
+            end
+        end
     end
 
     sum_lefts = sum(lefts)
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
-    @threads :static for bid = 1:nblocks
-        split_views_kernel!(
-            out,
-            left,
-            right,
-            bid,
-            offset,
-            chunk_size,
-            lefts,
-            rights,
-            sum_lefts,
-            cumsum_lefts,
-            cumsum_rights,
-        )
+    @sync begin
+        for bid = 1:nblocks
+            @spawn split_views_kernel!(
+                out,
+                left,
+                right,
+                bid,
+                offset,
+                chunk_size,
+                lefts,
+                rights,
+                sum_lefts,
+                cumsum_lefts,
+                cumsum_rights,
+            )
+        end
     end
 
     return (
