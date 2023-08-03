@@ -15,7 +15,7 @@ y_train = rand(size(x_train, 1))
 
 config = EvoTreeRegressor(;
     loss=:mse,
-    nrounds=1,
+    nrounds=200,
     lambda=0.0,
     gamma=0.0,
     eta=0.05,
@@ -31,6 +31,9 @@ config = EvoTreeRegressor(;
 ################################
 # high-level
 ################################
+_device = EvoTrees.GPU
+@time EvoTrees.fit_evotree(config; x_train, y_train, device = "gpu")
+
 @time m, cache = EvoTrees.init(config, x_train, y_train);
 @time EvoTrees.grow_evotree!(m, cache, config)
 @btime EvoTrees.grow_evotree!(m, cache, config)

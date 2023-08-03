@@ -8,13 +8,16 @@ using BenchmarkTools
 using Random: seed!
 import CUDA
 
+# desktop | 1e6 | depth 11 | cpu: 28s gpu: 73 sec  | xgboost: 26s
+# desktop | 10e6 | depth 11 | cpu 205s gpu: 109 sec | xgboost 260s
 nobs = Int(1e6)
 num_feat = Int(100)
 nrounds = 200
+max_depth = 11
 tree_type = "binary"
 T = Float64
 nthread = Base.Threads.nthreads()
-@info "testing with: $nobs observations | $num_feat features. nthread: $nthread | tree_type : $tree_type"
+@info "testing with: $nobs observations | $num_feat features. nthread: $nthread | tree_type : $tree_type | max_depth : $max_depth"
 seed!(123)
 x_train = rand(T, nobs, num_feat)
 y_train = rand(T, size(x_train, 1))
@@ -37,7 +40,7 @@ end
 @info "train"
 params_xgb = Dict(
     :num_round => nrounds,
-    :max_depth => 9,
+    :max_depth => max_depth - 1,
     :eta => 0.05,
     :objective => loss_xgb,
     :print_every_n => 5,
@@ -98,7 +101,7 @@ params_evo = EvoTreeRegressor(;
     lambda=0.0,
     gamma=0.0,
     eta=0.05,
-    max_depth=10,
+    max_depth=max_depth,
     min_weight=1.0,
     rowsample=0.5,
     colsample=0.5,
