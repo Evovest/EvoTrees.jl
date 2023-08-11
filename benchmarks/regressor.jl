@@ -15,6 +15,10 @@ import CUDA
 ### perf depth
 # desktop | 1e6 | depth 11 | cpu: 28s gpu: 73 sec  | xgboost: 26s
 # desktop | 10e6 | depth 11 | cpu 205s gpu: 109 sec | xgboost 260s
+
+#threads
+# laptop depth 6: 12.717845 seconds (2.08 M allocations: 466.228 MiB)
+
 nobs = Int(1e6)
 num_feat = Int(100)
 nrounds = 200
@@ -55,13 +59,13 @@ params_xgb = Dict(
     :max_bin => 64,
 )
 
-dtrain = DMatrix(x_train, y_train)
-watchlist = Dict("train" => DMatrix(x_train, y_train));
-@time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric=metric_xgb, params_xgb...);
-# @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
-@info "predict"
-@time pred_xgb = XGBoost.predict(m_xgb, x_train);
-# @btime XGBoost.predict($m_xgb, $x_train);
+# dtrain = DMatrix(x_train, y_train)
+# watchlist = Dict("train" => DMatrix(x_train, y_train));
+# @time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric=metric_xgb, params_xgb...);
+# # @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
+# @info "predict"
+# @time pred_xgb = XGBoost.predict(m_xgb, x_train);
+# # @btime XGBoost.predict($m_xgb, $x_train);
 
 # @info "lightgbm train:"
 # m_gbm = LGBMRegression(

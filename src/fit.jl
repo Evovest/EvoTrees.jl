@@ -91,7 +91,7 @@ function grow_tree!(
                     update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
             end
-            @threads :static for n ∈ sort(n_current)
+            @threads for n ∈ sort(n_current)
                 update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
             end
         end
@@ -215,7 +215,7 @@ function grow_otree!(
                     update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
             end
-            @threads :static for n ∈ n_current
+            @threads for n ∈ n_current
                 update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
             end
 
