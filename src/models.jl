@@ -61,15 +61,15 @@ function EvoTreeRegressor(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :loss => :mse,
-        :nrounds => 10,
+        :nrounds => 100,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
         :eta => 0.1, # learning rate
-        :max_depth => 5,
+        :max_depth => 6,
         :min_weight => 1.0, # minimal weight, different from xgboost (but same for linear)
         :rowsample => 1.0,
         :colsample => 1.0,
-        :nbins => 32,
+        :nbins => 64,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => "binary",
@@ -151,15 +151,15 @@ function EvoTreeCount(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :nrounds => 10,
+        :nrounds => 100,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
         :eta => 0.1, # learning rate
-        :max_depth => 5,
+        :max_depth => 6,
         :min_weight => 1.0, # minimal weight, different from xgboost (but same for linear)
         :rowsample => 1.0,
         :colsample => 1.0,
-        :nbins => 32,
+        :nbins => 64,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => "binary",
@@ -217,15 +217,15 @@ function EvoTreeClassifier(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :nrounds => 10,
+        :nrounds => 100,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
         :eta => 0.1, # learning rate
-        :max_depth => 5,
+        :max_depth => 6,
         :min_weight => 1.0, # minimal weight, different from xgboost (but same for linear)
         :rowsample => 1.0,
         :colsample => 1.0,
-        :nbins => 32,
+        :nbins => 64,
         :alpha => 0.5,
         :tree_type => "binary",
         :rng => 123,
@@ -283,15 +283,15 @@ function EvoTreeMLE(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :loss => :gaussian_mle,
-        :nrounds => 10,
+        :nrounds => 100,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
         :eta => 0.1, # learning rate
-        :max_depth => 5,
+        :max_depth => 6,
         :min_weight => 8.0, # minimal weight, different from xgboost (but same for linear)
         :rowsample => 1.0,
         :colsample => 1.0,
-        :nbins => 32,
+        :nbins => 64,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => "binary",
@@ -366,15 +366,15 @@ function EvoTreeGaussian(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
-        :nrounds => 10,
+        :nrounds => 100,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
         :eta => 0.1, # learning rate
-        :max_depth => 5,
+        :max_depth => 6,
         :min_weight => 8.0, # minimal weight, different from xgboost (but same for linear)
         :rowsample => 1.0,
         :colsample => 1.0,
-        :nbins => 32,
+        :nbins => 64,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => "binary",

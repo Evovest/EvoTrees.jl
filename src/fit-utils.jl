@@ -6,7 +6,7 @@ Get the braking points of the feature data.
 """
 function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG()) where {T}
     nobs = min(size(X, 1), 1000 * nbins)
-    idx = rand(rng, 1:size(X, 1), nobs)
+    idx = sample(rng, 1:size(X, 1), nobs, replace=false, ordered=true)
     nfeats = size(X, 2)
     edges = Vector{Vector{T}}(undef, nfeats)
     featbins = Vector{UInt8}(undef, nfeats)
@@ -25,7 +25,7 @@ end
 function get_edges(df; fnames, nbins, rng=Random.TaskLocalRNG())
     _nobs = length(Tables.getcolumn(df, 1))
     nobs = min(_nobs, 1000 * nbins)
-    idx = rand(rng, 1:_nobs, nobs)
+    idx = sample(rng, 1:_nobs, nobs, replace=false, ordered=true)
     edges = Vector{Any}([Vector{eltype(Tables.getcolumn(df, col))}() for col in fnames])
     nfeats = length(fnames)
     featbins = Vector{UInt8}(undef, nfeats)
