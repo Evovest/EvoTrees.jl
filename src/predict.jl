@@ -1,5 +1,5 @@
 function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:GradientRegression,K,T}
-    @inbounds @threads for i in axes(x_bin, 1)
+    @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
             feat = tree.feat[nid]
@@ -12,7 +12,7 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, featty
 end
 
 function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:LogLoss,K,T}
-    @inbounds @threads for i in axes(x_bin, 1)
+    @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
             feat = tree.feat[nid]
@@ -25,7 +25,7 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, featty
 end
 
 function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:MLE2P,K,T}
-    @inbounds @threads for i in axes(x_bin, 1)
+    @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
             feat = tree.feat[nid]
@@ -39,7 +39,7 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, featty
 end
 
 function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:MLogLoss,K,T}
-    @inbounds @threads for i in axes(x_bin, 1)
+    @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
             feat = tree.feat[nid]
@@ -60,7 +60,7 @@ end
 Generic fallback to add predictions of `tree` to existing `pred` matrix.
 """
 function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L,K,T}
-    @inbounds @threads for i in axes(x_bin, 1)
+    @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
             feat = tree.feat[nid]

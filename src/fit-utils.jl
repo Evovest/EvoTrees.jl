@@ -6,12 +6,12 @@ Get the braking points of the feature data.
 """
 function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG()) where {T}
     nobs = min(size(X, 1), 1000 * nbins)
-    idx = rand(rng, 1:size(X, 1), nobs)
+    idx = sample(rng, 1:size(X, 1), nobs, replace=false, ordered=true)
     nfeats = size(X, 2)
     edges = Vector{Vector{T}}(undef, nfeats)
     featbins = Vector{UInt8}(undef, nfeats)
     feattypes = Vector{Bool}(undef, nfeats)
-    @threads :static for j in 1:size(X, 2)
+    @threads for j in 1:size(X, 2)
         edges[j] = quantile(view(X, idx, j), (1:nbins-1) / nbins)
         if length(edges[j]) == 1
             edges[j] = [minimum(view(X, idx, j))]
@@ -25,12 +25,12 @@ end
 function get_edges(df; fnames, nbins, rng=Random.TaskLocalRNG())
     _nobs = length(Tables.getcolumn(df, 1))
     nobs = min(_nobs, 1000 * nbins)
-    idx = rand(rng, 1:_nobs, nobs)
+    idx = sample(rng, 1:_nobs, nobs, replace=false, ordered=true)
     edges = Vector{Any}([Vector{eltype(Tables.getcolumn(df, col))}() for col in fnames])
     nfeats = length(fnames)
     featbins = Vector{UInt8}(undef, nfeats)
     feattypes = Vector{Bool}(undef, nfeats)
-    @threads :static for j in eachindex(fnames)
+    @threads for j in eachindex(fnames)
         col = view(Tables.getcolumn(df, fnames[j]), idx)
         if eltype(col) <: Bool
             edges[j] = [false, true]
@@ -63,7 +63,7 @@ Transform feature data into a UInt8 binarized matrix.
 """
 function binarize(X::AbstractMatrix; fnames, edges)
     x_bin = zeros(UInt8, size(X))
-    @threads :static for j in axes(X, 2)
+    @threads for j in axes(X, 2)
         x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), view(X, :, j))
     end
     return x_bin
@@ -72,7 +72,7 @@ end
 function binarize(df; fnames, edges)
     nobs = length(Tables.getcolumn(df, 1))
     x_bin = zeros(UInt8, nobs, length(fnames))
-    @threads :static for j in eachindex(fnames)
+    @threads for j in eachindex(fnames)
         col = Tables.getcolumn(df, fnames[j])
         if eltype(col) <: Bool
             x_bin[:, j] .= col .+ 1
@@ -232,7 +232,7 @@ function update_hist!(
     is::AbstractVector,
     js::AbstractVector,
 ) where {L<:GradientRegression}
-    @threads :static for j in js
+    @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
             hist[j][1, bin] += ∇[1, i]
@@ -255,7 +255,7 @@ function update_hist!(
     is::AbstractVector,
     js::AbstractVector,
 ) where {L<:MLE2P}
-    @threads :static for j in js
+    @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
             hist[j][1, bin] += ∇[1, i]
@@ -280,7 +280,7 @@ function update_hist!(
     is::AbstractVector,
     js::AbstractVector,
 ) where {L}
-    @threads :static for j in js
+    @threads for j in js
         @inbounds for i in is
             bin = x_bin[i, j]
             @inbounds @simd for k in axes(∇, 1)

@@ -15,6 +15,10 @@ import CUDA
 ### perf depth
 # desktop | 1e6 | depth 11 | cpu: 28s gpu: 73 sec  | xgboost: 26s
 # desktop | 10e6 | depth 11 | cpu 205s gpu: 109 sec | xgboost 260s
+
+#threads
+# laptop depth 6: 12.717845 seconds (2.08 M allocations: 466.228 MiB)
+
 nobs = Int(1e6)
 num_feat = Int(100)
 nrounds = 200
