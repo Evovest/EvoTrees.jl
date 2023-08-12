@@ -20,11 +20,11 @@ aws_config = AWSConfig(; creds=aws_creds, region="ca-central-1")
 # )
 
 function read_libsvm(raw::Vector{UInt8}; has_query=false)
+
     io = IOBuffer(raw)
     lines = readlines(io)
     # lines = CSV.File(raw, header=false);
 
-    offset = 2 # offset for feature idx: y + query entries
     nobs = length(lines)
     nfeats = 0 # number of features
 
@@ -34,7 +34,7 @@ function read_libsvm(raw::Vector{UInt8}; has_query=false)
         offset = 2 # offset for feature idx: y + query entries
         q = zeros(Int, nobs)
     else
-        offset = 2 # offset for feature idx: y
+        offset = 1 # offset for feature idx: y
     end
 
     vals = [Float64[] for _ in 1:nobs]
@@ -109,7 +109,7 @@ y = [3, 2, 3, 0, 1, 2, 3, 2]
 ndcg(p, y, 6)
 
 @time dtrain = read_libsvm_aws("share/data/yahoo-ltrc/set1.train.txt"; has_query=true, aws_config)
-# @time deval = read_libsvm_aws("share/data/yahoo-ltrc/set1.valid.txt"; has_query=true, aws_config)
+@time deval = read_libsvm_aws("share/data/yahoo-ltrc/set1.valid.txt"; has_query=true, aws_config)
 @time dtest = read_libsvm_aws("share/data/yahoo-ltrc/set1.test.txt"; has_query=true, aws_config)
 
 colsums_train = map(sum, eachcol(dtrain[:x]))
@@ -138,68 +138,73 @@ y_eval = deval[:y]
 y_test = dtest[:y]
 
 config = EvoTreeRegressor(
-    nrounds=3200,
+    nrounds=5000,
     loss=:mse,
-    eta=0.03,
-    nbins=128,
+    eta=0.025,
+    nbins=64,
     max_depth=11,
-    lambda=0.01,
-    gamma=0,
-    rowsample=0.5,
-    colsample=1.0,
+    rowsample=0.9,
+    colsample=0.9,
+    seed=1,
 )
 
 # @time m = fit_evotree(config; x_train, y_train, print_every_n=25);
-@time m, logger = fit_evotree(
+@time m_mse, logger_mse = fit_evotree(
     config;
-    x_train = x_train,
-    y_train = y_train,
-    x_eval = x_eval,
-    y_eval = y_eval,
-    early_stopping_rounds=100,
+    x_train=x_train,
+    y_train=y_train,
+    x_eval=x_eval,
+    y_eval=y_eval,
+    early_stopping_rounds=200,
     print_every_n=25,
     metric=:mse,
     return_logger=true
 );
 
-# p_eval = m(x_eval);
-# eval_df = DataFrame(p = p_eval, y = y_eval, q = q_eval)
-# eval_df_agg = combine(groupby(eval_df, "q"), ["p", "y"] => ndcg => "ndcg")
-# ndcg_eval = mean(eval_df_agg.ndcg)
-
-p_test = m(x_test);
-test_df = DataFrame(p = p_test, y = y_test, q = q_test)
+p_test = m_mse(x_test);
+test_df = DataFrame(p=p_test, y=y_test, q=q_test)
 test_df_agg = combine(groupby(test_df, "q"), ["p", "y"] => ndcg => "ndcg")
 ndcg_test = mean(test_df_agg.ndcg)
 @info "ndcg_test MSE" ndcg_test
+
+# ndcg_test = 0.799265533619388
+# config = EvoTreeRegressor(
+#     nrounds=3200,
+#     loss=:mse,
+#     eta=0.03,
+#     nbins=64,
+#     max_depth=11,
+#     lambda=0.0,
+#     rowsample=0.8,
+#     colsample=0.8,
+# )
 
 #####################################
 # logistic regression
 #####################################
 
-y_train = dtrain[:y] ./ 4
-y_eval = deval[:y] ./ 4
-y_test = dtest[:y] ./ 4
+y_train = (dtrain[:y] .+ 1) ./ 6
+y_eval = (deval[:y] .+ 1) ./ 6
+y_test = (dtest[:y] .+ 1) ./ 6
 
 config = EvoTreeRegressor(
-    nrounds=3200,
+    nrounds=5000,
     loss=:logloss,
-    eta=0.03,
-    nbins=128,
+    eta=0.025,
+    nbins=64,
     max_depth=11,
-    lambda=0.01,
-    gamma=0,
-    rowsample=0.5,
-    colsample=1.0,
+    rowsample=0.9,
+    colsample=0.9,
+    seed=1,
 )
 
-@time m, logger = fit_evotree(
+@time m_logloss, logger_logloss = fit_evotree(
     config;
-    x_train = x_train,
-    y_train = y_train,
-    x_eval = x_eval,
-    y_eval = y_eval,
-    early_stopping_rounds=100,
+    x_train=x_train,
+    y_train=y_train,
+    x_eval=x_eval,
+    y_eval=y_eval,
+    early_stopping_rounds=200,
     print_every_n=25,
     metric=:logloss,
     return_logger=true
@@ -215,8 +220,8 @@ y_test = dtest[:y]
 # eval_df_agg = combine(groupby(eval_df, "q"), ["p", "y"] => ndcg => "ndcg")
 # ndcg_eval = mean(eval_df_agg.ndcg)
 
-p_test = m(x_test);
-test_df = DataFrame(p = p_test, y = y_test, q = q_test)
+p_test = m_logloss(x_test);
+test_df = DataFrame(p=p_test, y=y_test, q=q_test)
 test_df_agg = combine(groupby(test_df, "q"), ["p", "y"] => ndcg => "ndcg")
 ndcg_test = mean(test_df_agg.ndcg)
 @info "ndcg_test LogLoss" ndcg_test
