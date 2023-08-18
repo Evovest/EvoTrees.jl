@@ -24,10 +24,10 @@ config = EvoTreeRegressor(
     loss=:mse,
     nrounds=100, nbins = 100,
     lambda = 0.5, gamma=0.1, eta=0.1,
-    max_depth = 6, min_weight = 1.0,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n = 25)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25)
 pred_eval_linear = model(x_eval)
 
 # logistic / cross-entropy
@@ -35,10 +35,10 @@ config = EvoTreeRegressor(
     loss=:logistic,
     nrounds=100, nbins = 100,
     lambda = 0.5, gamma=0.1, eta=0.1,
-    max_depth = 6, min_weight = 1.0,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :logloss, print_every_n = 25)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:logloss, print_every_n=25)
 pred_eval_logistic = model(x_eval)
 
 # L1
@@ -46,25 +46,25 @@ config = EvoTreeRegressor(
     loss=:l1, alpha=0.5,
     nrounds=100, nbins=100,
     lambda = 0.5, gamma=0.0, eta=0.1,
-    max_depth = 6, min_weight = 1.0,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :mae, print_every_n = 25)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:mae, print_every_n=25)
 pred_eval_L1 = model(x_eval)</code></pre><h2 id="Poisson-Count"><a class="docs-heading-anchor" href="#Poisson-Count">Poisson Count</a><a id="Poisson-Count-1"></a><a class="docs-heading-anchor-permalink" href="#Poisson-Count" title="Permalink"></a></h2><pre><code class="language-julia hljs"># Poisson
 config = EvoTreeCount(
     loss=:poisson,
-    nrounds=100, nbins = 100,
-    lambda = 0.5, gamma=0.1, eta=0.1,
-    max_depth = 6, min_weight = 1.0,
+    nrounds=100, nbins=100,
+    lambda=0.5, gamma=0.1, eta=0.1,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
 model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :poisson, print_every_n = 25)
 pred_eval_poisson = model(x_eval)</code></pre><h2 id="Quantile-Regression"><a class="docs-heading-anchor" href="#Quantile-Regression">Quantile Regression</a><a id="Quantile-Regression-1"></a><a class="docs-heading-anchor-permalink" href="#Quantile-Regression" title="Permalink"></a></h2><p><img src="../../assets/quantiles-sinus-binary.png" alt/></p><pre><code class="language-julia hljs"># q50
 config = EvoTreeRegressor(
     loss=:quantile, alpha=0.5,
-    nrounds=200, nbins = 100,
-    lambda = 0.1, gamma=0.0, eta=0.05,
-    max_depth = 6, min_weight = 1.0,
+    nrounds=200, nbins=100,
+    lambda=0.1, gamma=0.0, eta=0.05,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
 model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :quantile, print_every_n = 25)
@@ -73,9 +73,9 @@ pred_train_q50 = model(x_train)
 # q20
 config = EvoTreeRegressor(
     loss=:quantile, alpha=0.2,
-    nrounds=200, nbins = 100,
-    lambda = 0.1, gamma=0.0, eta=0.05,
-    max_depth = 6, min_weight = 1.0,
+    nrounds=200, nbins=100,
+    lambda=0.1, gamma=0.0, eta=0.05,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
 model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :quantile, print_every_n = 25)
@@ -84,15 +84,14 @@ pred_train_q20 = model(x_train)
 # q80
 config = EvoTreeRegressor(
     loss=:quantile, alpha=0.8,
-    nrounds=200, nbins = 100,
-    lambda = 0.1, gamma=0.0, eta=0.05,
-    max_depth = 6, min_weight = 1.0,
+    nrounds=200, nbins=100,
+    lambda=0.1, gamma=0.0, eta=0.05,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
 model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :quantile, print_every_n = 25)
 pred_train_q80 = model(x_train)</code></pre><h2 id="Gaussian-Max-Likelihood"><a class="docs-heading-anchor" href="#Gaussian-Max-Likelihood">Gaussian Max Likelihood</a><a id="Gaussian-Max-Likelihood-1"></a><a class="docs-heading-anchor-permalink" href="#Gaussian-Max-Likelihood" title="Permalink"></a></h2><p><img src="../../assets/gaussian-sinus-binary.png" alt/></p><pre><code class="language-julia hljs">config = EvoTreeMLE(
     loss=:gaussian_mle,
     nrounds=100, nbins=100,
-    lambda = 0.0, gamma=0.0, eta=0.1,
-    max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed=123)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../classification-iris/">« Classification - IRIS</a><a class="docs-footer-nextpage" href="../examples-MLJ/">MLJ API »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.25 on <span class="colophon-date" title="Saturday 12 August 2023 18:57">Saturday 12 August 2023</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+    lambda=0.0, gamma=0.0, eta=0.1,
+    max_depth=6, rowsample=0.5)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../classification-iris/">« Classification - IRIS</a><a class="docs-footer-nextpage" href="../examples-MLJ/">MLJ API »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.25 on <span class="colophon-date" title="Friday 18 August 2023 22:40">Friday 18 August 2023</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
