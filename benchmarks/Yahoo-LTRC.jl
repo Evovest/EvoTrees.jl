@@ -9,7 +9,7 @@ using Random: seed!
 
 
 # data is C14 - Yahoo! Learning to Rank Challenge
-# data can be obtained following request to https://webscope.sandbox.yahoo.com/
+# data can be obtained though a request to https://webscope.sandbox.yahoo.com/
 
 using AWS: AWSCredentials, AWSConfig, @service
 @service S3

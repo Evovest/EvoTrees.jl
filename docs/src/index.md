@@ -30,7 +30,7 @@ A model configuration must first be defined, using one of the model constructor:
 - [`EvoTreeCount`](@ref)
 - [`EvoTreeMLE`](@ref)
 
-Then fitting can be performed using [`fit_evotree`](@ref). 2 broad methods are supported: Matrix and Tables based inputs. Optional kwargs can be used to provide eval data in order to track out of sample metrics and perform early stopping. Look at the docs for more details on available hyper-parameters for each of the above constructors and other options for training.
+Then fitting can be performed using [`fit_evotree`](@ref). 2 broad methods are supported: Matrix and Tables based inputs. Optional kwargs can be used to specify eval data on which to track eval metric and perform early stopping. Look at the docs for more details on available hyper-parameters for each of the above constructors and other options for training.
 
 Predictions are obtained by passing features data to the model. Model acts as a functor, ie. it's a struct containing the fitted model as well as a function generating the prediction of that model for the features argument. 
 
