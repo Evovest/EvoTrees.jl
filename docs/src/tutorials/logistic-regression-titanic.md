@@ -33,7 +33,7 @@ transform!(df, :Sex => categorical => :Sex)
 
 # treat string feature and missing values
 transform!(df, :Age => ByRow(ismissing) => :Age_ismissing)
-@time transform!(df, :Age => (x -> coalesce.(x, median(skipmissing(x)))) => :Age);
+transform!(df, :Age => (x -> coalesce.(x, median(skipmissing(x)))) => :Age);
 
 # remove unneeded variables
 df = df[:, Not([:PassengerId, :Name, :Embarked, :Cabin, :Ticket])]
@@ -62,7 +62,14 @@ Now we are ready to train our model. We will first define a model configuration 
 Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass optional `deval` arguments, which enables the tracking of an evaluation metric and early stopping. 
 
 ```julia
-config = EvoTreeRegressor(loss = :logistic, nrounds=200, eta=0.05, nbins=128, max_depth=5, rowsample=0.5, colsample=0.9)
+config = EvoTreeRegressor(
+  loss=:logistic, 
+  nrounds=200, 
+  eta=0.05, 
+  nbins=128, 
+  max_depth=5, 
+  rowsample=0.5, 
+  colsample=0.9)
 
 model = fit_evotree(
     config, dtrain; 
@@ -74,21 +81,10 @@ model = fit_evotree(
     print_every_n=10)
 ```
 
-Features importance can be returned using [`EvoTrees.importance`](@ref): 
 
-```julia-repl
-julia> EvoTrees.importance(model)
-7-element Vector{Pair{String, Float64}}:
-           "Sex" => 0.29612654189959403
-           "Age" => 0.25487324307720827
-          "Fare" => 0.2530947969323613
-        "Pclass" => 0.11354283043193575
-         "SibSp" => 0.05129209383816148
-         "Parch" => 0.017385183317069588
- "Age_ismissing" => 0.013685310503669728
- ```
+## Diagnosis
 
-Finally, we can get predictions by passing training and testing data to our model. We can then evaluate the accuracy of our model, which should be around 85%. 
+We can get predictions by passing training and testing data to our model. We can then evaluate the accuracy of our model, which should be around 85%. 
 
 ```julia
 pred_train = model(dtrain)
@@ -101,4 +97,18 @@ julia> mean((pred_train .> 0.5) .== dtrain[!, target_name])
 
 julia> mean((pred_eval .> 0.5) .== deval[!, target_name])
 0.8426966292134831
+```
+
+Finally, features importance can be inspected using [`EvoTrees.importance`](@ref).
+
+```julia-repl
+julia> EvoTrees.importance(model)
+7-element Vector{Pair{String, Float64}}:
+           "Sex" => 0.29612654189959403
+           "Age" => 0.25487324307720827
+          "Fare" => 0.2530947969323613
+        "Pclass" => 0.11354283043193575
+         "SibSp" => 0.05129209383816148
+         "Parch" => 0.017385183317069588
+ "Age_ismissing" => 0.013685310503669728
 ```
