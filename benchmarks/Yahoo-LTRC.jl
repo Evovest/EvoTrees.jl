@@ -7,18 +7,14 @@ using Statistics
 using Random: seed!
 # using GLMakie
 
+
+# data is C14 - Yahoo! Learning to Rank Challenge
+# data can be obtained following request to https://webscope.sandbox.yahoo.com/
+
 using AWS: AWSCredentials, AWSConfig, @service
 @service S3
 aws_creds = AWSCredentials(ENV["AWS_ACCESS_KEY_ID_JDB"], ENV["AWS_SECRET_ACCESS_KEY_JDB"])
 aws_config = AWSConfig(; creds=aws_creds, region="ca-central-1")
-
-# path = "share/data/yahoo-ltrc/set1.valid.txt"
-# raw = S3.get_object(
-#     "jeremiedb",
-#     path,
-#     Dict("response-content-type" => "application/octet-stream");
-#     aws_config
-# )
 
 function read_libsvm(raw::Vector{UInt8}; has_query=false)
 
@@ -165,18 +161,6 @@ test_df = DataFrame(p=p_test, y=y_test, q=q_test)
 test_df_agg = combine(groupby(test_df, "q"), ["p", "y"] => ndcg => "ndcg")
 ndcg_test = mean(test_df_agg.ndcg)
 @info "ndcg_test MSE" ndcg_test
-
-# ndcg_test = 0.799265533619388
-# config = EvoTreeRegressor(
-#     nrounds=3200,
-#     loss=:mse,
-#     eta=0.03,
-#     nbins=64,
-#     max_depth=11,
-#     lambda=0.0,
-#     rowsample=0.8,
-#     colsample=0.8,
-# )
 
 #####################################
 # logistic regression
