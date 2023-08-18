@@ -19,7 +19,29 @@ df = MLDatasets.Titanic().dataframe
 
 ## Preprocessing
 
-Before we can train our model, we need to preprocess the dataset. We will split our data according to train and eval indices, and separate features from the target variable.
+A first step in data processing is to prepare the input features in a model compatible format. 
+
+EvoTrees' Tables API supports input that are either `Real`, `Bool` or `Categorical`.
+A recommended approach for `String` features such as `Sex` is to convert them into an unordered `Categorical`. 
+
+For dealing with features withh missing values such as `Age`, a common approach is to first create an `Bool` indicator variable capturing the info on whether a value is missing.
+Then, the missing values can be inputed (replaced by some default values such as `mean` or `median`, or more sophisticated approach such as predictions from another model).
+
+```julia
+# convert string feature to Categorical
+transform!(df, :Sex => categorical => :Sex)
+
+# treat string feature and missing values
+transform!(df, :Age => ByRow(ismissing) => :Age_ismissing)
+transform!(df, :Age => (x -> coalesce.(x, median(skipmissing(x)))) => :Age);
+
+# remove unneeded variables
+df = df[:, Not([:PassengerId, :Name, :Embarked, :Cabin, :Ticket])]
+
+```
+
+The full data can now be split according to train and eval indices. 
+Target and feature names are also set.
 
 ```julia
 Random.seed!(123)
@@ -27,46 +49,66 @@ Random.seed!(123)
 train_ratio = 0.8
 train_indices = randperm(nrow(df))[1:Int(round(train_ratio * nrow(df)))]
 
-# remove unneeded variables
-df = df[:, Not([:PassengerId, :Name, :Embarked, :Cabin, :Ticket])]
+dtrain = df[train_indices, :]
+deval = df[setdiff(1:nrow(df), train_indices), :]
 
-# treat string feature and missing values
-transform!(df, :Sex => ByRow(x -> x == "male" ? 0 : 1) => :Sex)
-transform!(df, :Age => ByRow(x -> ismissing(x) ? mean(skipmissing(df.Age)) : x) => :Age)
-
-train_data = df[train_indices, :]
-eval_data = df[setdiff(1:nrow(df), train_indices), :]
-
-x_train, y_train = Matrix(train_data[:, Not(:Survived)]), train_data[:, :Survived]
-x_eval, y_eval = Matrix(eval_data[:, Not(:Survived)]), eval_data[:, :Survived]
+target_name = "Survived"
+fnames = setdiff(names(df), [target_name])
 ```
 
 ## Training
 
 Now we are ready to train our model. We will first define a model configuration using the [`EvoTreeRegressor`](@ref) model constructor. 
-Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass optional `x_eval` and `y_eval` arguments, which enable the usage of early stopping. 
+Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass optional `deval` arguments, which enables the tracking of an evaluation metric and early stopping. 
 
 ```julia
-config = EvoTreeRegressor(loss = :logistic, nrounds=200, eta=0.1, max_depth=5, rowsample = 0.6, colsample = 0.9)
-model = fit_evotree(config;
-    x_train, y_train,
-    x_eval, y_eval,
+config = EvoTreeRegressor(
+  loss=:logistic, 
+  nrounds=200, 
+  eta=0.05, 
+  nbins=128, 
+  max_depth=5, 
+  rowsample=0.5, 
+  colsample=0.9)
+
+model = fit_evotree(
+    config, dtrain; 
+    deval,
+    target_name,
+    fnames,
     metric = :logloss,
     early_stopping_rounds=10,
     print_every_n=10)
 ```
 
-Finally, we can get predictions by passing training and testing data to our model. We can then evaluate the accuracy of our model, which should be around 85%. 
+
+## Diagnosis
+
+We can get predictions by passing training and testing data to our model. We can then evaluate the accuracy of our model, which should be around 85%. 
 
 ```julia
-pred_train = model(x_train)
-pred_eval = model(x_eval)
+pred_train = model(dtrain)
+pred_eval = model(deval)
 ```
 
 ```julia-repl
-julia> mean((pred_train .> 0.5) .== y_train)
-0.8835904628330996
+julia> mean((pred_train .> 0.5) .== dtrain[!, target_name])
+0.8821879382889201
 
-julia> mean((pred_eval .> 0.5) .== y_eval)
-0.8370786516853933
+julia> mean((pred_eval .> 0.5) .== deval[!, target_name])
+0.8426966292134831
+```
+
+Finally, features importance can be inspected using [`EvoTrees.importance`](@ref).
+
+```julia-repl
+julia> EvoTrees.importance(model)
+7-element Vector{Pair{String, Float64}}:
+           "Sex" => 0.29612654189959403
+           "Age" => 0.25487324307720827
+          "Fare" => 0.2530947969323613
+        "Pclass" => 0.11354283043193575
+         "SibSp" => 0.05129209383816148
+         "Parch" => 0.017385183317069588
+ "Age_ismissing" => 0.013685310503669728
 ```

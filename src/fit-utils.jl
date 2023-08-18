@@ -4,7 +4,7 @@
 
 Get the braking points of the feature data.
 """
-function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG()) where {T}
+function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.MersenneTwister()) where {T}
     nobs = min(size(X, 1), 1000 * nbins)
     idx = sample(rng, 1:size(X, 1), nobs, replace=false, ordered=true)
     nfeats = size(X, 2)
@@ -22,7 +22,7 @@ function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG(
     return edges, featbins, feattypes
 end
 
-function get_edges(df; fnames, nbins, rng=Random.TaskLocalRNG())
+function get_edges(df; fnames, nbins, rng=Random.MersenneTwister())
     _nobs = length(Tables.getcolumn(df, 1))
     nobs = min(_nobs, 1000 * nbins)
     idx = sample(rng, 1:_nobs, nobs, replace=false, ordered=true)
