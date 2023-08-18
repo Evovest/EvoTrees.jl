@@ -1,4 +1,4 @@
-function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, offset, group) where {L}
+function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, offset) where {L}
 
     # binarize data into quantiles
     edges, featbins, feattypes = get_edges(data; fnames, nbins=params.nbins, rng=params.rng)
@@ -39,11 +39,6 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
         K = 2
         y = T.(y_train)
         μ = [mean(y), log(std(y) * sqrt(3) / π)]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
-    elseif L == LogisticRank
-        K = 1
-        y = T.(y_train)
-        μ = [T(0)]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     else
         K = 1
@@ -134,14 +129,12 @@ function init(
     target_name,
     fnames=nothing,
     w_name=nothing,
-    group_name=nothing,
     offset_name=nothing
 )
 
     # set fnames
     schema = Tables.schema(dtrain)
     _w_name = isnothing(w_name) ? Symbol("") : Symbol(w_name)
-    _group_name = isnothing(group_name) ? Symbol("") : Symbol(group_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
     _target_name = Symbol(target_name)
     if isnothing(fnames)
@@ -151,7 +144,7 @@ function init(
                 push!(fnames, schema.names[i])
             end
         end
-        fnames = setdiff(fnames, union([_target_name], [_w_name], [_group_name], [_offset_name]))
+        fnames = setdiff(fnames, union([_target_name], [_w_name], [_offset_name]))
     else
         isa(fnames, String) ? fnames = [fnames] : nothing
         fnames = Symbol.(fnames)
@@ -167,15 +160,13 @@ function init(
     y_train = Tables.getcolumn(dtrain, _target_name)
     if device <: GPU
         w = isnothing(w_name) ? CUDA.ones(T, nobs) : CuArray{T}(Tables.getcolumn(dtrain, _w_name))
-        group = !isnothing(group_name) ? CuArray{Int}(Tables.getcolumn(dtrain, _group_name)) : nothing
         offset = !isnothing(offset_name) ? CuArray{T}(Tables.getcolumn(dtrain, _offset_name)) : nothing
     else
         w = isnothing(w_name) ? ones(T, nobs) : Vector{T}(Tables.getcolumn(dtrain, _w_name))
-        group = !isnothing(group_name) ? Vector{Int}(Tables.getcolumn(dtrain, _group_name)) : nothing
         offset = !isnothing(offset_name) ? T.(Tables.getcolumn(dtrain, _offset_name)) : nothing
     end
 
-    m, cache = init_core(params, device, dtrain, fnames, y_train, w, offset, group)
+    m, cache = init_core(params, device, dtrain, fnames, y_train, w, offset)
 
     return m, cache
 end
@@ -193,7 +184,6 @@ function init(
     device::Type{<:Device}=CPU;
     fnames=nothing,
     w_train=nothing,
-    group_train=nothing,
     offset_train=nothing
 )
 
@@ -205,15 +195,13 @@ function init(
     nobs = size(x_train, 1)
     if device <: GPU
         w = isnothing(w_train) ? CUDA.ones(T, nobs) : CuArray{T}(w_train)
-        group = !isnothing(group_train) ? CuArray{Int}(group_train) : nothing
         offset = !isnothing(offset_train) ? CuArray{T}(offset_train) : nothing
     else
         w = isnothing(w_train) ? ones(T, nobs) : Vector{T}(w_train)
-        group = !isnothing(group_train) ? Vector{Int}(group_train) : nothing
         offset = !isnothing(offset_train) ? T.(offset_train) : nothing
     end
 
-    m, cache = init_core(params, device, x_train, fnames, y_train, w, offset, group)
+    m, cache = init_core(params, device, x_train, fnames, y_train, w, offset)
 
     return m, cache
 end

@@ -1,4 +1,4 @@
-function init_core(params::EvoTypes{L}, ::Type{GPU}, data, fnames, y_train, w, offset, group) where {L}
+function init_core(params::EvoTypes{L}, ::Type{GPU}, data, fnames, y_train, w, offset) where {L}
 
     # binarize data into quantiles
     edges, featbins, feattypes = get_edges(data; fnames, nbins=params.nbins, rng=params.rng)

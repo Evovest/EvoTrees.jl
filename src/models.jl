@@ -1,7 +1,6 @@
 abstract type ModelType end
 abstract type GradientRegression <: ModelType end
 abstract type MLE2P <: ModelType end # 2-parameters max-likelihood
-abstract type Ranking <: ModelType end # 2-parameters max-likelihood
 
 abstract type MSE <: GradientRegression end
 abstract type LogLoss <: GradientRegression end
@@ -13,7 +12,6 @@ abstract type GaussianMLE <: MLE2P end
 abstract type LogisticMLE <: MLE2P end
 abstract type Quantile <: ModelType end
 abstract type L1 <: ModelType end
-abstract type LogisticRank <: Ranking end
 
 # Converts MSE -> :mse
 const _type2loss_dict = Dict(
@@ -27,7 +25,6 @@ const _type2loss_dict = Dict(
     LogisticMLE => :logistic_mle,
     Quantile => :quantile,
     L1 => :l1,
-    LogisticRank => :logistic_rank
 )
 _type2loss(L::Type) = _type2loss_dict[L]
 
@@ -342,76 +339,6 @@ function EvoTreeMLE{L}(; kwargs...) where {L}
 end
 
 
-mutable struct EvoTreeRank{L<:ModelType} <: MMI.Probabilistic
-    nrounds::Int
-    lambda::Float64
-    gamma::Float64
-    eta::Float64
-    max_depth::Int
-    min_weight::Float64 # real minimum number of observations, different from xgboost (but same for linear)
-    rowsample::Float64 # subsample
-    colsample::Float64
-    nbins::Int
-    alpha::Float64
-    monotone_constraints::Any
-    tree_type::String
-    rng::Any
-end
-
-function EvoTreeRank(; kwargs...)
-
-    # defaults arguments
-    args = Dict{Symbol,Any}(
-        :loss => :logistic_rank,
-        :nrounds => 10,
-        :lambda => 0.0,
-        :gamma => 0.0, # min gain to split
-        :eta => 0.1, # learning rate
-        :max_depth => 5,
-        :min_weight => 8.0, # minimal weight, different from xgboost (but same for linear)
-        :rowsample => 1.0,
-        :colsample => 1.0,
-        :nbins => 32,
-        :alpha => 0.5,
-        :monotone_constraints => Dict{Int,Int}(),
-        :tree_type => "binary",
-        :rng => 123,
-    )
-
-    args_override = intersect(keys(args), keys(kwargs))
-    for arg in args_override
-        args[arg] = kwargs[arg]
-    end
-
-    args[:rng] = mk_rng(args[:rng])
-    args[:loss] = Symbol(args[:loss])
-    L = LogisticRank
-    check_args(args)
-
-    model = EvoTreeRank{L}(
-        args[:nrounds],
-        args[:lambda],
-        args[:gamma],
-        args[:eta],
-        args[:max_depth],
-        args[:min_weight],
-        args[:rowsample],
-        args[:colsample],
-        args[:nbins],
-        args[:alpha],
-        args[:monotone_constraints],
-        args[:tree_type],
-        args[:rng],
-    )
-
-    return model
-end
-
-function EvoTreeRank{L}(; kwargs...) where {L}
-    return EvoTreeRank(; kwargs...)
-end
-
-
 mutable struct EvoTreeGaussian{L<:ModelType} <: MMI.Probabilistic
     nrounds::Int
     lambda::Float64
@@ -484,7 +411,6 @@ const EvoTypes{L} = Union{
     EvoTreeClassifier{L},
     EvoTreeGaussian{L},
     EvoTreeMLE{L},
-    EvoTreeRank{L}
 }
 
 _get_struct_loss(::EvoTypes{L}) where {L} = L

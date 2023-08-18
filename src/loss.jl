@@ -123,15 +123,6 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeMLE{L}) where
     end
 end
 
-# LogisticRank - on linear predictor
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L}) where {L<:LogisticRank}
-    @threads :static for i in eachindex(y)
-        @inbounds pred = sigmoid(p[1, i])
-        @inbounds ∇[1, i] = (pred - y[i]) * ∇[3, i]
-        @inbounds ∇[2, i] = pred * (1 - pred) * ∇[3, i]
-    end
-end
-
 # utility functions
 function logit(x::AbstractArray{T}) where {T<:AbstractFloat}
     return logit.(x)
