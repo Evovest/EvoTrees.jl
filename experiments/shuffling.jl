@@ -22,19 +22,38 @@ target_name = "y"
 #################################
 # Tables API
 #################################
-config = EvoTreeRegressor(seed=123)
+config = EvoTreeRegressor(rng=123)
 m1 = fit_evotree(config,
     df;
     target_name="y",
     verbosity=0);
 EvoTrees.importance(m1)
 
-config = EvoTreeRegressor(seed=124)
+config = EvoTreeRegressor(rng=124)
 m2 = fit_evotree(config,
     df;
     target_name="y",
     verbosity=0);
 EvoTrees.importance(m2)
+
+#################################
+# Tables API - GPU
+#################################
+config = EvoTreeRegressor(rowsample=0.5, rng=123)
+m1 = fit_evotree(config,
+    df;
+    device="gpu",
+    target_name="y",
+    verbosity=0);
+EvoTrees.importance(m1)
+
+config = EvoTreeRegressor(rowsample=0.5, rng=124)
+m2 = fit_evotree(config,
+    df;
+    target_name="y",
+    verbosity=0);
+EvoTrees.importance(m2)
+
 
 # permuted tables doesn't return the same result - numerical rounding error?
 df2 = df[!, 10:-1:1]
@@ -79,7 +98,7 @@ EvoTrees.importance(m3)
 #################################
 # Tables API
 #################################
-config = EvoTreeRegressor(colsample=0.5)
+config = EvoTreeRegressor(colsample=0.5, rng=123)
 m1 = fit_evotree(config,
     df;
     target_name="y",

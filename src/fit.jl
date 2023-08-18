@@ -316,10 +316,10 @@ Main training function. Performs model fitting given configuration `params`, `dt
 # Arguments
 
 - `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` can be one of: 
-    - `EvoTreeRegressor`
-    - `EvoTreeClassifier`
-    - `EvoTreeCount`
-    - `EvoTreeMLE`
+    - [`EvoTreeRegressor`](@ref)
+    - [`EvoTreeClassifier`](@ref)
+    - [`EvoTreeCount`](@ref)
+    - [`EvoTreeMLE`](@ref)
 - `dtrain`: A Tables compatible training data (named tuples, DataFrame...) containing features and target variables. 
 
 # Keyword arguments
@@ -424,10 +424,10 @@ Main training function. Performs model fitting given configuration `params`, `x_
 # Arguments
 
 - `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` can be one of: 
-    - `EvoTreeRegressor`
-    - `EvoTreeClassifier`
-    - `EvoTreeCount`
-    - `EvoTreeMLE`
+    - [`EvoTreeRegressor`](@ref)
+    - [`EvoTreeClassifier`](@ref)
+    - [`EvoTreeCount`](@ref)
+    - [`EvoTreeMLE`](@ref)
 
 # Keyword arguments
 

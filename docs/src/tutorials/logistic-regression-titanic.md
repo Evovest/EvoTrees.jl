@@ -47,7 +47,8 @@ Now we are ready to train our model. We will first define a model configuration 
 Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass optional `x_eval` and `y_eval` arguments, which enable the usage of early stopping. 
 
 ```julia
-config = EvoTreeRegressor(loss = :logistic, nrounds=200, eta=0.1, max_depth=5, rowsample = 0.6, colsample = 0.9)
+config = EvoTreeRegressor(loss = :logistic, nrounds=200, eta=0.1, max_depth=5, rowsample=0.8, colsample=0.8)
+
 model = fit_evotree(config;
     x_train, y_train,
     x_eval, y_eval,

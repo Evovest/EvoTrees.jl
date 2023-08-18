@@ -34,10 +34,10 @@ config = EvoTreeRegressor(
     loss=:mse,
     nrounds=100, nbins = 100,
     lambda = 0.5, gamma=0.1, eta=0.1,
-    max_depth = 6, min_weight = 1.0,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n = 25)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25)
 pred_eval_linear = model(x_eval)
 
 # logistic / cross-entropy
@@ -45,10 +45,10 @@ config = EvoTreeRegressor(
     loss=:logistic,
     nrounds=100, nbins = 100,
     lambda = 0.5, gamma=0.1, eta=0.1,
-    max_depth = 6, min_weight = 1.0,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :logloss, print_every_n = 25)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:logloss, print_every_n=25)
 pred_eval_logistic = model(x_eval)
 
 # L1
@@ -56,10 +56,10 @@ config = EvoTreeRegressor(
     loss=:l1, alpha=0.5,
     nrounds=100, nbins=100,
     lambda = 0.5, gamma=0.0, eta=0.1,
-    max_depth = 6, min_weight = 1.0,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :mae, print_every_n = 25)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:mae, print_every_n=25)
 pred_eval_L1 = model(x_eval)
 ```
 
@@ -69,9 +69,9 @@ pred_eval_L1 = model(x_eval)
 # Poisson
 config = EvoTreeCount(
     loss=:poisson,
-    nrounds=100, nbins = 100,
-    lambda = 0.5, gamma=0.1, eta=0.1,
-    max_depth = 6, min_weight = 1.0,
+    nrounds=100, nbins=100,
+    lambda=0.5, gamma=0.1, eta=0.1,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
 model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :poisson, print_every_n = 25)
@@ -86,9 +86,9 @@ pred_eval_poisson = model(x_eval)
 # q50
 config = EvoTreeRegressor(
     loss=:quantile, alpha=0.5,
-    nrounds=200, nbins = 100,
-    lambda = 0.1, gamma=0.0, eta=0.05,
-    max_depth = 6, min_weight = 1.0,
+    nrounds=200, nbins=100,
+    lambda=0.1, gamma=0.0, eta=0.05,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
 model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :quantile, print_every_n = 25)
@@ -97,9 +97,9 @@ pred_train_q50 = model(x_train)
 # q20
 config = EvoTreeRegressor(
     loss=:quantile, alpha=0.2,
-    nrounds=200, nbins = 100,
-    lambda = 0.1, gamma=0.0, eta=0.05,
-    max_depth = 6, min_weight = 1.0,
+    nrounds=200, nbins=100,
+    lambda=0.1, gamma=0.0, eta=0.05,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
 model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :quantile, print_every_n = 25)
@@ -108,9 +108,9 @@ pred_train_q20 = model(x_train)
 # q80
 config = EvoTreeRegressor(
     loss=:quantile, alpha=0.8,
-    nrounds=200, nbins = 100,
-    lambda = 0.1, gamma=0.0, eta=0.05,
-    max_depth = 6, min_weight = 1.0,
+    nrounds=200, nbins=100,
+    lambda=0.1, gamma=0.0, eta=0.05,
+    max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
 model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :quantile, print_every_n = 25)
@@ -125,7 +125,6 @@ pred_train_q80 = model(x_train)
 config = EvoTreeMLE(
     loss=:gaussian_mle,
     nrounds=100, nbins=100,
-    lambda = 0.0, gamma=0.0, eta=0.1,
-    max_depth = 6, min_weight = 1.0,
-    rowsample=0.5, colsample=1.0, seed=123)
+    lambda=0.0, gamma=0.0, eta=0.1,
+    max_depth=6, rowsample=0.5)
 ```

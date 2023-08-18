@@ -4,7 +4,13 @@ EvoTrees.jl provides a first-class integration with the MLJ ecosystem.
 
 See [official project page](https://github.com/alan-turing-institute/MLJ.jl) for more info.
 
-To use with MLJ, an EvoTrees model must first be initialized using either `EvoTreeRegressor`, `EvoTreeClassifier`, `EvoTreeCount` or `EvoTreeGaussian`. The model is then passed to MLJ's `machine`, opening access to the rest of the MLJ modeling ecosystem. 
+To use with MLJ, an EvoTrees model configuration must first be initialized using either: 
+- [`EvoTreeRegressor`](@ref)
+- [`EvoTreeClassifier`](@ref)
+- [`EvoTreeCount`](@ref)
+- [`EvoTreeMLE`](@ref)
+
+The model is then passed to MLJ's `machine`, opening access to the rest of the MLJ modeling ecosystem. 
 
 ```julia
 using StatsBase: sample
