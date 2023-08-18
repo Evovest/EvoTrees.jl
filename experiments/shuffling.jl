@@ -131,14 +131,36 @@ m2, cache2 = EvoTrees.init(config, x_train, y_train);
 EvoTrees.grow_evotree!(m2, cache2, config, EvoTrees.CPU)
 EvoTrees.importance(m2)
 
-using MLJ
-using EvoTrees
-using MLJLinearModels
-X, y = make_regression()
-model = Stack(
-    metalearner=LinearRegressor(),
-    resampling=CV(nfolds=2),
-    tree=EvoTreeRegressor()
-)
-mach = machine(model, X, y)
-fit!(mach)
+
+using BenchmarkTools
+using Random: rand!
+using CUDA
+nobs = 1_000_000
+rng1 = Random.MersenneTwister(123)
+rng2 = Random.Xoshiro(123)
+rng3 = Random.TaskLocalRNG()
+
+is_in = zeros(UInt32, nobs);
+is_out = zeros(UInt32, nobs);
+mask = zeros(UInt8, nobs);
+
+@btime EvoTrees.subsample(is_in, is_out, mask, 0.5, rng1);
+@btime EvoTrees.get_rand!(rng1, mask);
+
+@btime EvoTrees.subsample(is_in, is_out, mask, 0.5, rng2);
+@btime EvoTrees.get_rand!(rng2, mask);
+
+@btime EvoTrees.subsample(is_in, is_out, mask, 0.5, rng3);
+@btime EvoTrees.get_rand!(rng3, mask);
+
+get_rand2!(rng, mask) = rand!(rng, mask)
+@btime get_rand2!(rng1, mask);
+@btime get_rand2!(rng2, mask);
+@btime get_rand2!(rng3, mask);
+
+mask = CUDA.zeros(UInt8, nobs);
+CUDA.@time EvoTrees.get_rand_gpu!(mask);
+CUDA.@time CUDA.rand(UInt8, nobs);
+# @btime EvoTrees.get_rand_gpu!(mask);
+# @btime CUDA.rand(UInt8, nobs);
+

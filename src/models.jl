@@ -33,15 +33,7 @@ _type2loss(L::Type) = _type2loss_dict[L]
 
 # make a Random Number Generator object
 mk_rng(rng::AbstractRNG) = rng
-function mk_rng(int::Integer)
-    if VERSION < v"1.7"
-        rng = Random.MersenneTwister()
-    else
-        rng = Random.TaskLocalRNG()
-    end
-    seed!(rng, int)
-    return rng
-end
+mk_rng(int::Integer) = Random.MersenneTwister(int)
 
 mutable struct EvoTreeRegressor{L<:ModelType} <: MMI.Deterministic
     nrounds::Int

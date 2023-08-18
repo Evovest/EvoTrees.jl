@@ -1,21 +1,10 @@
 """
-    get_rand!(mask)
-
-Assign new UInt8 random numbers to mask. Serves as a basis to rowsampling.
-"""
-function get_rand!(rng, mask)
-    for i in eachindex(mask)
-        @inbounds mask[i] = rand(rng, UInt8)
-    end
-end
-
-"""
     subsample(out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat)
 
 Returns a view of selected rows ids.
 """
 function subsample(is_in::AbstractVector, is_out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat, rng)
-    get_rand!(rng, mask)
+    Random.rand!(rng, mask)
 
     cond = round(UInt8, 255 * rowsample)
     chunk_size = cld(length(is_in), min(cld(length(is_in), 1024), Threads.nthreads()))

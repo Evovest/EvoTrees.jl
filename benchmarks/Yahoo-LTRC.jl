@@ -5,6 +5,7 @@ using EvoTrees
 using StatsBase: sample, tiedrank
 using Statistics
 using Random: seed!
+# using GLMakie
 
 using AWS: AWSCredentials, AWSConfig, @service
 @service S3
@@ -23,10 +24,9 @@ function read_libsvm(raw::Vector{UInt8}; has_query=false)
 
     io = IOBuffer(raw)
     lines = readlines(io)
-    # lines = CSV.File(raw, header=false);
 
     nobs = length(lines)
-    nfeats = 0 # number of features
+    nfeats = 0 # initialize number of features
 
     y = zeros(Float64, nobs)
 
@@ -138,14 +138,13 @@ y_eval = deval[:y]
 y_test = dtest[:y]
 
 config = EvoTreeRegressor(
-    nrounds=5000,
+    nrounds=6000,
     loss=:mse,
-    eta=0.025,
+    eta=0.02,
     nbins=64,
     max_depth=11,
     rowsample=0.9,
     colsample=0.9,
-    seed=1,
 )
 
 # @time m = fit_evotree(config; x_train, y_train, print_every_n=25);
@@ -156,7 +155,7 @@ config = EvoTreeRegressor(
     x_eval=x_eval,
     y_eval=y_eval,
     early_stopping_rounds=200,
-    print_every_n=25,
+    print_every_n=50,
     metric=:mse,
     return_logger=true
 );
@@ -188,14 +187,13 @@ y_eval = (deval[:y] .+ 1) ./ 6
 y_test = (dtest[:y] .+ 1) ./ 6
 
 config = EvoTreeRegressor(
-    nrounds=5000,
+    nrounds=6000,
     loss=:logloss,
-    eta=0.025,
+    eta=0.02,
     nbins=64,
     max_depth=11,
     rowsample=0.9,
     colsample=0.9,
-    seed=1,
 )
 
 @time m_logloss, logger_logloss = fit_evotree(
@@ -205,7 +203,7 @@ config = EvoTreeRegressor(
     x_eval=x_eval,
     y_eval=y_eval,
     early_stopping_rounds=200,
-    print_every_n=25,
+    print_every_n=50,
     metric=:logloss,
     return_logger=true
 );
@@ -225,3 +223,87 @@ test_df = DataFrame(p=p_test, y=y_test, q=q_test)
 test_df_agg = combine(groupby(test_df, "q"), ["p", "y"] => ndcg => "ndcg")
 ndcg_test = mean(test_df_agg.ndcg)
 @info "ndcg_test LogLoss" ndcg_test
+
+
+#####################################
+# logistic regression on DataFrame
+#####################################
+
+df_train = DataFrame(x_train, :auto)
+df_train.y = dtrain[:y]
+df_train.q = dtrain[:q]
+
+df_eval = DataFrame(x_eval, :auto)
+df_eval.y = deval[:y]
+df_eval.q = deval[:q]
+
+df_test = DataFrame(x_test, :auto)
+df_test.y = dtest[:y]
+df_test.q = dtest[:q]
+
+function rank_target_norm(y::AbstractVector)
+    out = similar(y)
+    if minimum(y) == maximum(y)
+        # out .= 0.75
+        out .= 0.75
+    else
+        # out .= (y .- minimum(y)) ./ (maximum(y) - minimum(y))
+        out .= 0.5 .* (y .- minimum(y)) ./ (maximum(y) - minimum(y)) .+ 0.5
+
+    end
+    return out
+end
+
+df_train = transform!(
+    groupby(df_train, "q"),
+    "y" => rank_target_norm => "y")
+
+df_eval = transform!(
+    groupby(df_eval, "q"),
+    "y" => rank_target_norm => "y")
+
+df_test = transform!(
+    groupby(df_test, "q"),
+    "y" => rank_target_norm => "y")
+
+minimum(df_eval.y)
+maximum(df_eval.y)
+
+config = EvoTreeRegressor(
+    nrounds=6000,
+    loss=:logloss,
+    eta=0.005,
+    nbins=64,
+    max_depth=11,
+    rowsample=0.9,
+    colsample=0.9,
+)
+
+@time m_logloss_df, logger_logloss_df = fit_evotree(
+    config,
+    df_train;
+    target_name="y",
+    fnames=setdiff(names(df_train), ["y", "q"]),
+    deval=df_eval,
+    early_stopping_rounds=200,
+    print_every_n=50,
+    metric=:logloss,
+    return_logger=true
+);
+
+# use the original y since NDCG is scale sensitive
+y_train = dtrain[:y]
+y_eval = deval[:y]
+y_test = dtest[:y]
+
+m_logloss_df.info
+p_test_df = m_logloss_df(df_test);
+p_test_mat = m_logloss_df(x_test);
+
+EvoTrees.importance(m_logloss_df)
+
+p_test = m_logloss_df(df_test);
+test_df = DataFrame(p=p_test, y=dtest[:y], q=dtest[:q])
+test_df_agg = combine(groupby(test_df, "q"), ["p", "y"] => ndcg => "ndcg")
+ndcg_test = mean(test_df_agg.ndcg)
+@info "ndcg_test LogLoss DF" ndcg_test
