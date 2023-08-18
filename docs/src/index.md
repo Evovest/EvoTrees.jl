@@ -68,7 +68,7 @@ m = fit_evotree(config, dtrain; target_name="y", fnames=["x1", "x3"]);
 
 ### GPU Training
 
-Is running on a CUDA enabled machine, training and inference on GPU is triggered through the `device` kwarg. 
+If running on a CUDA enabled machine, training and inference on GPU can be triggered through the `device` kwarg: 
 
 ```julia
 m = fit_evotree(config, dtrain; target_name="y", device="gpu");
