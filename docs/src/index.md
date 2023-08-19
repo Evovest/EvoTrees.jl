@@ -66,7 +66,7 @@ m = fit_evotree(config, dtrain; target_name="y", fnames=["x1", "x3"]);
 ```
 
 
-### GPU Training
+### GPU Acceleration
 
 If running on a CUDA enabled machine, training and inference on GPU can be triggered through the `device` kwarg: 
 
@@ -83,10 +83,10 @@ EvoTrees models trained on cpu can be fully reproducible.
 Models of the gradient boosting family typically involve some stochasticity. 
 In EvoTrees, this primarily concern the the 2 subsampling parameters `rowsample` and `colsample`. The other stochastic operation happens at model initialisation when the features are binarized to allow for fast histogram construction: a random subsample of `1_000 * nbins` is used to compute the breaking points. 
 
-These random parts of the algorithm can be deterministically reproduced on cpu by specifying an `rng` to the model constructor. `rng` can an `Int` (ex: `123`) or a random generator (ex: `Random.Xoshiro(123)`). 
-If no `rng` is specified, `123` is used by default. When an `Int `rng` is used, a `Random.MersenneTwister` generator will be created by the EvoTrees's constructor. Otherwise, the provided random generator will be used.  
+These random parts of the algorithm can be deterministically reproduced on cpu by specifying an `rng` to the model constructor. `rng` can be an integer (ex: `123`) or a random generator (ex: `Random.Xoshiro(123)`). 
+If no `rng` is specified, `123` is used by default. When an integer `rng` is used, a `Random.MersenneTwister` generator will be created by the EvoTrees's constructor. Otherwise, the provided random generator will be used.  
 
-As a consequence, the following `m1` and `m2` models will be identical:
+Consequently, the following `m1` and `m2` models will be identical:
 
 ```julia
 config = EvoTreeRegressor(rowsample=0.5, rng=123)
@@ -103,7 +103,7 @@ m1 = fit_evotree(config, df; target_name="y");
 m2 = fit_evotree(config, df; target_name="y");
 ```
 
-Note that in presence of multiple identical or very highly correlated features, model may not be reproducible if features are permutted since in situation where 2 features provide identical gains, the first one will be selected. Therefore, if the the identity relationship doesn't hold on out on new data, different predictions will results from models trained on different features order. 
+Note that in presence of multiple identical or very highly correlated features, model may not be reproducible if features are permuted since in situation where 2 features provide identical gains, the first one will be selected. Therefore, if the identity relationship doesn't hold on new data, different predictions will be returned from models trained on different features order. 
 
 At the moment, there's no reproducibility guarantee on GPU, although this may change in the future. 
 
