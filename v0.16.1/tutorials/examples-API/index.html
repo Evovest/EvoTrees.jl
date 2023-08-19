@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Internal API · EvoTrees.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/style.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="EvoTrees.jl logo"/></a><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Introduction</a></li><li><a class="tocitem" href="../../models/">Models</a></li><li><a class="tocitem" href="../../api/">API</a></li><li><span class="tocitem">Tutorials</span><ul><li><a class="tocitem" href="../regression-boston/">Regression - Boston</a></li><li><a class="tocitem" href="../logistic-regression-titanic/">Logistic Regression - Titanic</a></li><li><a class="tocitem" href="../classification-iris/">Classification - IRIS</a></li><li class="is-active"><a class="tocitem" href>Internal API</a><ul class="internal"><li><a class="tocitem" href="#Regression"><span>Regression</span></a></li><li><a class="tocitem" href="#Poisson-Count"><span>Poisson Count</span></a></li><li><a class="tocitem" href="#Quantile-Regression"><span>Quantile Regression</span></a></li><li><a class="tocitem" href="#Gaussian-Max-Likelihood"><span>Gaussian Max Likelihood</span></a></li></ul></li><li><a class="tocitem" href="../examples-MLJ/">MLJ API</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorials</a></li><li class="is-active"><a href>Internal API</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Internal API</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/Evovest/EvoTrees.jl/blob/main/docs/src/tutorials/examples-API.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Internal-API-examples"><a class="docs-heading-anchor" href="#Internal-API-examples">Internal API examples</a><a id="Internal-API-examples-1"></a><a class="docs-heading-anchor-permalink" href="#Internal-API-examples" title="Permalink"></a></h1><p>The following provides minimal examples of usage of the various loss functions available in EvoTrees using the internal API.</p><h2 id="Regression"><a class="docs-heading-anchor" href="#Regression">Regression</a><a id="Regression-1"></a><a class="docs-heading-anchor-permalink" href="#Regression" title="Permalink"></a></h2><p>Minimal example to fit a noisy sinus wave.</p><p><img src="../../assets/regression-sinus-binary.png" alt/></p><pre><code class="language-julia hljs">using EvoTrees
+using EvoTrees: sigmoid, logit
+using StatsBase: sample
+
+# prepare a dataset
+features = rand(10000) .* 20 .- 10
+X = reshape(features, (size(features)[1], 1))
+Y = sin.(features) .* 0.5 .+ 0.5
+Y = logit(Y) + randn(size(Y))
+Y = sigmoid(Y)
+𝑖 = collect(1:size(X, 1))
+
+# train-eval split
+𝑖_sample = sample(𝑖, size(𝑖, 1), replace = false)
+train_size = 0.8
+𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
+𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
+
+x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
+y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
+
+config = EvoTreeRegressor(
+    loss=:mse,
+    nrounds=100, nbins = 100,
+    lambda = 0.5, gamma=0.1, eta=0.1,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=1.0)
+
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25)
+pred_eval_linear = model(x_eval)
+
+# logistic / cross-entropy
+config = EvoTreeRegressor(
+    loss=:logistic,
+    nrounds=100, nbins = 100,
+    lambda = 0.5, gamma=0.1, eta=0.1,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=1.0)
+
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:logloss, print_every_n=25)
+pred_eval_logistic = model(x_eval)
+
+# L1
+config = EvoTreeRegressor(
+    loss=:l1, alpha=0.5,
+    nrounds=100, nbins=100,
+    lambda = 0.5, gamma=0.0, eta=0.1,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=1.0)
+
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:mae, print_every_n=25)
+pred_eval_L1 = model(x_eval)</code></pre><h2 id="Poisson-Count"><a class="docs-heading-anchor" href="#Poisson-Count">Poisson Count</a><a id="Poisson-Count-1"></a><a class="docs-heading-anchor-permalink" href="#Poisson-Count" title="Permalink"></a></h2><pre><code class="language-julia hljs"># Poisson
+config = EvoTreeCount(
+    loss=:poisson,
+    nrounds=100, nbins=100,
+    lambda=0.5, gamma=0.1, eta=0.1,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=1.0)
+
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :poisson, print_every_n = 25)
+pred_eval_poisson = model(x_eval)</code></pre><h2 id="Quantile-Regression"><a class="docs-heading-anchor" href="#Quantile-Regression">Quantile Regression</a><a id="Quantile-Regression-1"></a><a class="docs-heading-anchor-permalink" href="#Quantile-Regression" title="Permalink"></a></h2><p><img src="../../assets/quantiles-sinus-binary.png" alt/></p><pre><code class="language-julia hljs"># q50
+config = EvoTreeRegressor(
+    loss=:quantile, alpha=0.5,
+    nrounds=200, nbins=100,
+    lambda=0.1, gamma=0.0, eta=0.05,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=1.0)
+
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :quantile, print_every_n = 25)
+pred_train_q50 = model(x_train)
+
+# q20
+config = EvoTreeRegressor(
+    loss=:quantile, alpha=0.2,
+    nrounds=200, nbins=100,
+    lambda=0.1, gamma=0.0, eta=0.05,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=1.0)
+
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :quantile, print_every_n = 25)
+pred_train_q20 = model(x_train)
+
+# q80
+config = EvoTreeRegressor(
+    loss=:quantile, alpha=0.8,
+    nrounds=200, nbins=100,
+    lambda=0.1, gamma=0.0, eta=0.05,
+    max_depth=6, min_weight=1.0,
+    rowsample=0.5, colsample=1.0)
+
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :quantile, print_every_n = 25)
+pred_train_q80 = model(x_train)</code></pre><h2 id="Gaussian-Max-Likelihood"><a class="docs-heading-anchor" href="#Gaussian-Max-Likelihood">Gaussian Max Likelihood</a><a id="Gaussian-Max-Likelihood-1"></a><a class="docs-heading-anchor-permalink" href="#Gaussian-Max-Likelihood" title="Permalink"></a></h2><p><img src="../../assets/gaussian-sinus-binary.png" alt/></p><pre><code class="language-julia hljs">config = EvoTreeMLE(
+    loss=:gaussian_mle,
+    nrounds=100, nbins=100,
+    lambda=0.0, gamma=0.0, eta=0.1,
+    max_depth=6, rowsample=0.5)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../classification-iris/">« Classification - IRIS</a><a class="docs-footer-nextpage" href="../examples-MLJ/">MLJ API »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.25 on <span class="colophon-date" title="Saturday 19 August 2023 01:30">Saturday 19 August 2023</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
