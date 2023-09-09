@@ -1,7 +1,7 @@
 # Ranking with Yahoo! Learning to Rank Challenge. 
 
 In this ttutorial, we we walk through how a ranking task can be tackled using regular regression techniques without compromise on performance compared to specialised ranking learners. 
-The data used is `C14 - Yahoo! Learning to Rank Challenge`, which can be obtained following a request to https://webscope.sandbox.yahoo.com/.
+The data used is `C14 - Yahoo! Learning to Rank Challenge`, which can be obtained following a request to [https://webscope.sandbox.yahoo.com](https://webscope.sandbox.yahoo.com).
 
 ## Getting started
 
@@ -24,9 +24,6 @@ Some datastes come in so called `libsvm` format, which stores data using a spars
 ```
 
 There was no known Julia package supporting the parsing of such storage format as the time of this tutorial, so the following simple parser was built:  
-
-<!-- <details open>
-  <summary>Expand for code detail</summary> -->
 
 ```julia
 function read_libsvm(raw::Vector{UInt8}; has_query=false)
@@ -85,8 +82,6 @@ function read_libsvm(raw::Vector{UInt8}; has_query=false)
     end
 end
 ```
-
-<!-- </details> -->
 
 Data loading can then be performed: 
 
@@ -156,7 +151,7 @@ p_test = m_mse(x_test);
 
 ## Model evalulation
 
-For ranking problems, a commonly used metric is the [Normalized Discounted Cumulative Gain](https://en.wikipedia.org/wiki/Discounted_cumulative_gain). There are various flavors to its implementation, though the most commonly used one is the following:
+For ranking problems, a commonly used metric is the [Normalized Discounted Cumulative Gain](https://en.wikipedia.org/wiki/Discounted_cumulative_gain). It essentially considers whether the model is good at identifying the top K outcomes within a group. There are various flavors to its implementation, though the most commonly used one is the following:
 
 ```julia
 function ndcg(p, y, k=10)
@@ -176,6 +171,8 @@ function ndcg(p, y, k=10)
     return idcg == 0 ? 1.0 : ndcg / idcg
 end
 ```
+
+To compute the NDCG over a collection of groups, it is handy to leverage DataFrames' convenient `combine - groupby` functionalities: 
 
 ```julia
 test_df = DataFrame(p=p_test, y=y_test, q=q_test)
