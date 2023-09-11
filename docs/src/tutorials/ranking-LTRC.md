@@ -170,7 +170,7 @@ y_test = dtest[:y]
 p_test = m_logloss(x_test);
 test_df = DataFrame(p=p_test, y=y_test, q=q_test)
 test_df_agg = combine(groupby(test_df, "q"), ["p", "y"] => ndcg => "ndcg")
-ndcg_test = mean(test_df_agg.ndcg)
+ndcg_test = round(mean(test_df_agg.ndcg), sigdigits=5)
 @info "ndcg_test LogLoss" ndcg_test
 
 ┌ Info: ndcg_test LogLoss

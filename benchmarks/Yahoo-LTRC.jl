@@ -97,7 +97,7 @@ config = EvoTreeRegressor(
 p_test = m_mse(x_test);
 test_df = DataFrame(p=p_test, y=y_test, q=q_test)
 test_df_agg = combine(groupby(test_df, "q"), ["p", "y"] => ndcg => "ndcg")
-ndcg_test = round(mean(test_df_agg.ndcg), digits=5)
+ndcg_test = round(mean(test_df_agg.ndcg), sigdigits=5)
 @info "ndcg_test MSE" ndcg_test
 
 #####################################
