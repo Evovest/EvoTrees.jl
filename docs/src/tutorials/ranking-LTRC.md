@@ -1,11 +1,11 @@
 # Ranking with Yahoo! Learning to Rank Challenge. 
 
-In this ttutorial, we we walk through how a ranking task can be tackled using regular regression techniques without compromise on performance compared to specialised ranking learners. 
-The data used is `C14 - Yahoo! Learning to Rank Challenge`, which can be obtained following a request to [https://webscope.sandbox.yahoo.com](https://webscope.sandbox.yahoo.com).
+In this tutorial, we we walk through how a ranking task can be tackled using regular regression techniques without compromise on performance compared to specialized ranking learners. 
+The data used is from the `C14 - Yahoo! Learning to Rank Challenge`, which can be obtained following a request to [https://webscope.sandbox.yahoo.com](https://webscope.sandbox.yahoo.com).
 
 ## Getting started
 
-To begin, we will load the required packages:
+To begin, we load the required packages:
 
 ```julia
 using EvoTrees
@@ -15,89 +15,30 @@ using CategoricalArrays
 using Random
 ```
 
-## Load LibSVM format data
+## Load LIBSVM format data
 
-Some datastes come in so called `libsvm` format, which stores data using a sparse representation: 
+Some datasets come in the so called `LIBSVM` format, which stores data using a sparse representation: 
 
 ```
 <label> <query> <feature_id_1>:<feature_value_1> <feature_id_2>:<feature_value_2>
 ```
 
-There was no known Julia package supporting the parsing of such storage format as the time of this tutorial, so the following simple parser was built:  
+We use the [`ReadLIBSVM.jl`](https://github.com/jeremiedb/ReadLIBSVM.jl) package to perform parsing: 
 
 ```julia
-function read_libsvm(raw::Vector{UInt8}; has_query=false)
-
-    io = IOBuffer(raw)
-    lines = readlines(io)
-
-    nobs = length(lines)
-    nfeats = 0 # initialize number of features
-
-    y = zeros(Float64, nobs)
-
-    if has_query
-        offset = 2 # offset for feature idx: y + query entries
-        q = zeros(Int, nobs)
-    else
-        offset = 1 # offset for feature idx: y
-    end
-
-    vals = [Float64[] for _ in 1:nobs]
-    feats = [Int[] for _ in 1:nobs]
-
-    for i in eachindex(lines)
-        line = lines[i]
-        line_split = split(line, " ")
-
-        y[i] = parse(Int, line_split[1])
-        has_query ? q[i] = parse(Int, split(line_split[2], ":")[2]) : nothing
-
-        n = length(line_split) - offset
-        lfeats = zeros(Int, n)
-        lvals = zeros(Float64, n)
-        @inbounds for jdx in 1:n
-            ls = split(line_split[jdx+offset], ":")
-            lvals[jdx] = parse(Float64, ls[2])
-            lfeats[jdx] = parse(Int, ls[1])
-            lfeats[jdx] > nfeats ? nfeats = lfeats[jdx] : nothing
-        end
-        vals[i] = lvals
-        feats[i] = lfeats
-    end
-
-    x = zeros(Float64, nobs, nfeats)
-    @inbounds for i in 1:nobs
-        @inbounds for jdx in 1:length(feats[i])
-            j = feats[i][jdx]
-            val = vals[i][jdx]
-            x[i, j] = val
-        end
-    end
-
-    if has_query
-        return (x=x, y=y, q=q)
-    else
-        return (x=x, y=y)
-    end
-end
-```
-
-Data loading can then be performed: 
-
-```
-dtrain = read_libsvm_aws("share/data/yahoo-ltrc/set1.train.txt"; has_query=true, aws_config)
-deval = read_libsvm_aws("share/data/yahoo-ltrc/set1.valid.txt"; has_query=true, aws_config)
-dtest = read_libsvm_aws("share/data/yahoo-ltrc/set1.test.txt"; has_query=true, aws_config)
+using ReadLIBSVM
+dtrain = read_libsvm("set1.train.txt"; has_query=true)
+deval = read_libsvm("set1.valid.txt"; has_query=true)
+dtest = read_libsvm("set1.test.txt"; has_query=true)
 ```
 
 ## Preprocessing
 
-Preprocessing is minimal since all features are parsed as floats and specific files are provided for the train, eval and test split. 
+Preprocessing is minimal since all features are parsed as floats and specific files are provided for each of the train, eval and test splits. 
 
-Since several features are fully missing (contain only 0s) in the training dataset, they will be removed from all datasets.
+Several features are fully missing (contain only 0s) in the training dataset. They are removed from all datasets since they cannot bring value to the model.
 
-Then, the features, targets and query will be extracted from the parsed libsvm format. 
+Then, the features, targets and query ids are extracted from the parsed `LIBSVM` format. 
 
 ```julia
 colsums_train = map(sum, eachcol(dtrain[:x]))
@@ -120,8 +61,8 @@ y_test = dtest[:y]
 
 ## Training
 
-Now we are ready to train our model. We will first define a model configuration using the [`EvoTreeRegressor`](@ref) model constructor. 
-Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass optional `x_eval` and `y_eval` arguments, which enable the usage of early stopping. 
+Now we are ready to train our model. We first define a model configuration using the [`EvoTreeRegressor`](@ref) model constructor. 
+Then, we use [`fit_evotree`](@ref) to train a boosted tree model. The optional `x_eval` and `y_eval` arguments are provided to enable the usage of early stopping. 
 
 ```julia
 config = EvoTreeRegressor(
@@ -149,7 +90,7 @@ m_mse, logger_mse = fit_evotree(
 p_test = m_mse(x_test);
 ```
 
-## Model evalulation
+## Model evaluation
 
 For ranking problems, a commonly used metric is the [Normalized Discounted Cumulative Gain](https://en.wikipedia.org/wiki/Discounted_cumulative_gain). It essentially considers whether the model is good at identifying the top K outcomes within a group. There are various flavors to its implementation, though the most commonly used one is the following:
 
@@ -172,11 +113,89 @@ function ndcg(p, y, k=10)
 end
 ```
 
-To compute the NDCG over a collection of groups, it is handy to leverage DataFrames' convenient `combine - groupby` functionalities: 
+To compute the NDCG over a collection of groups, it is handy to leverage DataFrames' `combine` and `groupby` functionalities: 
 
 ```julia
 test_df = DataFrame(p=p_test, y=y_test, q=q_test)
 test_df_agg = combine(groupby(test_df, "q"), ["p", "y"] => ndcg => "ndcg")
-ndcg_test = mean(test_df_agg.ndcg)
+ndcg_test = round(mean(test_df_agg.ndcg), sigdigits=5)
 @info "ndcg_test MSE" ndcg_test
+
+┌ Info: ndcg_test MSE
+└   ndcg_test = 0.8008
 ```
+
+## Logistic regression alternative
+
+The above regression experiment shows a performance competitive with the results outlined in CatBoost's [ranking benchmarks](https://github.com/catboost/benchmarks/blob/master/ranking/Readme.md#4-results). 
+
+Another approach is to use a scaling of the the target ranking scores to perform a logistic regression.
+
+```julia
+max_rank = 4
+y_train = dtrain[:y] ./ max_rank
+y_eval = deval[:y] ./ max_rank
+y_test = dtest[:y] ./ max_rank
+
+config = EvoTreeRegressor(
+    nrounds=6000,
+    loss=:logloss,
+    eta=0.01,
+    nbins=64,
+    max_depth=11,
+    rowsample=0.9,
+    colsample=0.9,
+)
+
+m_logloss, logger_logloss = fit_evotree(
+    config;
+    x_train=x_train,
+    y_train=y_train,
+    x_eval=x_eval,
+    y_eval=y_eval,
+    early_stopping_rounds=200,
+    print_every_n=50,
+    metric=:logloss,
+    return_logger=true
+);
+```
+
+To measure the NDCG, the original targets must be used since NDCG is a scale sensitive measure.
+
+```julia
+y_train = dtrain[:y]
+y_eval = deval[:y]
+y_test = dtest[:y]
+
+p_test = m_logloss(x_test);
+test_df = DataFrame(p=p_test, y=y_test, q=q_test)
+test_df_agg = combine(groupby(test_df, "q"), ["p", "y"] => ndcg => "ndcg")
+ndcg_test = mean(test_df_agg.ndcg)
+@info "ndcg_test LogLoss" ndcg_test
+
+┌ Info: ndcg_test LogLoss
+└   ndcg_test = 0.80267
+```
+
+## Conclusion
+
+We've seen that a ranking problem can be efficiently handled with generic regression tasks, yet achieve comparable performance to specialized ranking loss functions. Below, we present the NDCG obtained from the above experiments along those presented by CatBoost's [benchmarks](https://github.com/catboost/benchmarks/blob/master/ranking/Readme.md#4-results).
+
+
+| **Model**               | **NDCG**  |
+|-------------------------|-----------| 
+| **EvoTrees - mse**      |**0.80080**|
+| **EvoTrees - logistic** |**0.80267**|
+| cat-rmse                |0.802115   | 
+| cat-query-rmse          |0.802229   | 
+| cat-pair-logit          |0.797318   | 
+| cat-pair-logit-pairwise |0.790396   | 
+| cat-yeti-rank           |0.802972   | 
+| xgb-rmse                |0.798892   | 
+| xgb-pairwise            |0.800048   | 
+| xgb-lambdamart-ndcg     |0.800048   | 
+| lgb-rmse                |0.8013675  | 
+| lgb-pairwise            |0.801347   |
+
+
+It should be noted that the later results were not reproduced in the scope of current tutorial, so one should be careful about any claim of model superiority. The results from CatBoost's benchmarks were however already indicative of strong performance of non-specialized ranking loss functions, to which this tutorial brings further support. 
