@@ -11,6 +11,7 @@ pages = [
         "Regression - Boston" => "tutorials/regression-boston.md",
         "Logistic Regression - Titanic" => "tutorials/logistic-regression-titanic.md",
         "Classification - IRIS" => "tutorials/classification-iris.md",
+        "Ranking - Yahoo! LTRC" => "tutorials/ranking-LTRC.md",
         "Internal API" => "tutorials/examples-API.md",
         "MLJ API" => "tutorials/examples-MLJ.md"]
 ]
@@ -20,8 +21,8 @@ makedocs(
     authors="Jeremie Desgagne-Bouchard and contributors.",
     format=Documenter.HTML(
         sidebar_sitename=false,
-        edit_link = "main",
-        assets = ["assets/style.css"]
+        edit_link="main",
+        assets=["assets/style.css"]
     ),
     pages=pages,
     modules=[EvoTrees]

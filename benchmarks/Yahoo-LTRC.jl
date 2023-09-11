@@ -5,80 +5,18 @@ using EvoTrees
 using StatsBase: sample, tiedrank
 using Statistics
 using Random: seed!
+using ReadLIBSVM
 # using GLMakie
-
 
 # data is C14 - Yahoo! Learning to Rank Challenge
 # data can be obtained though a request to https://webscope.sandbox.yahoo.com/
-
 using AWS: AWSCredentials, AWSConfig, @service
 @service S3
 aws_creds = AWSCredentials(ENV["AWS_ACCESS_KEY_ID_JDB"], ENV["AWS_SECRET_ACCESS_KEY_JDB"])
 aws_config = AWSConfig(; creds=aws_creds, region="ca-central-1")
 
-function read_libsvm(raw::Vector{UInt8}; has_query=false)
-
-    io = IOBuffer(raw)
-    lines = readlines(io)
-
-    nobs = length(lines)
-    nfeats = 0 # initialize number of features
-
-    y = zeros(Float64, nobs)
-
-    if has_query
-        offset = 2 # offset for feature idx: y + query entries
-        q = zeros(Int, nobs)
-    else
-        offset = 1 # offset for feature idx: y
-    end
-
-    vals = [Float64[] for _ in 1:nobs]
-    feats = [Int[] for _ in 1:nobs]
-
-    for i in eachindex(lines)
-        line = lines[i]
-        line_split = split(line, " ")
-
-        y[i] = parse(Int, line_split[1])
-        has_query ? q[i] = parse(Int, split(line_split[2], ":")[2]) : nothing
-
-        n = length(line_split) - offset
-        lfeats = zeros(Int, n)
-        lvals = zeros(Float64, n)
-        @inbounds for jdx in 1:n
-            ls = split(line_split[jdx+offset], ":")
-            lvals[jdx] = parse(Float64, ls[2])
-            lfeats[jdx] = parse(Int, ls[1])
-            lfeats[jdx] > nfeats ? nfeats = lfeats[jdx] : nothing
-        end
-        vals[i] = lvals
-        feats[i] = lfeats
-    end
-
-    x = zeros(Float64, nobs, nfeats)
-    @inbounds for i in 1:nobs
-        @inbounds for jdx in 1:length(feats[i])
-            j = feats[i][jdx]
-            val = vals[i][jdx]
-            x[i, j] = val
-        end
-    end
-
-    if has_query
-        return (x=x, y=y, q=q)
-    else
-        return (x=x, y=y)
-    end
-end
-
 function read_libsvm_aws(file::String; has_query=false, aws_config=AWSConfig())
-    raw = S3.get_object(
-        "jeremiedb",
-        file,
-        Dict("response-content-type" => "application/octet-stream");
-        aws_config
-    )
+    raw = S3.get_object("jeremiedb", file, Dict("response-content-type" => "application/octet-stream"); aws_config)
     return read_libsvm(raw; has_query)
 end
 
@@ -159,21 +97,22 @@ config = EvoTreeRegressor(
 p_test = m_mse(x_test);
 test_df = DataFrame(p=p_test, y=y_test, q=q_test)
 test_df_agg = combine(groupby(test_df, "q"), ["p", "y"] => ndcg => "ndcg")
-ndcg_test = mean(test_df_agg.ndcg)
+ndcg_test = round(mean(test_df_agg.ndcg), sigdigits=5)
 @info "ndcg_test MSE" ndcg_test
 
 #####################################
 # logistic regression
 #####################################
 
-y_train = (dtrain[:y] .+ 1) ./ 6
-y_eval = (deval[:y] .+ 1) ./ 6
-y_test = (dtest[:y] .+ 1) ./ 6
+max_rank = 4
+y_train = dtrain[:y] ./ max_rank
+y_eval = deval[:y] ./ max_rank
+y_test = dtest[:y] ./ max_rank
 
 config = EvoTreeRegressor(
     nrounds=6000,
     loss=:logloss,
-    eta=0.02,
+    eta=0.01,
     nbins=64,
     max_depth=11,
     rowsample=0.9,
@@ -205,7 +144,7 @@ y_test = dtest[:y]
 p_test = m_logloss(x_test);
 test_df = DataFrame(p=p_test, y=y_test, q=q_test)
 test_df_agg = combine(groupby(test_df, "q"), ["p", "y"] => ndcg => "ndcg")
-ndcg_test = mean(test_df_agg.ndcg)
+ndcg_test = round(mean(test_df_agg.ndcg), sigdigits=5)
 @info "ndcg_test LogLoss" ndcg_test
 
 
