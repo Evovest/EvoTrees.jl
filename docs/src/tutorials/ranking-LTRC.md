@@ -1,6 +1,6 @@
 # Ranking with Yahoo! Learning to Rank Challenge. 
 
-In this tutorial, we we walk through how a ranking task can be tackled using regular regression techniques without compromise on performance compared to specialized ranking learners. 
+In this tutorial, we present how a ranking task can be tackled using regular regression techniques without compromising performance compared to specialized ranking learners.
 The data used is from the `C14 - Yahoo! Learning to Rank Challenge`, which can be obtained following a request to [https://webscope.sandbox.yahoo.com](https://webscope.sandbox.yahoo.com).
 
 ## Getting started
@@ -179,7 +179,7 @@ ndcg_test = round(mean(test_df_agg.ndcg), sigdigits=5)
 
 ## Conclusion
 
-We've seen that a ranking problem can be efficiently handled with generic regression tasks, yet achieve comparable performance to specialized ranking loss functions. Below, we present the NDCG obtained from the above experiments along those presented by CatBoost's [benchmarks](https://github.com/catboost/benchmarks/blob/master/ranking/Readme.md#4-results).
+We've seen that a ranking problem can be efficiently handled with generic regression tasks, yet achieve comparable performance to specialized ranking loss functions. Below, we present the NDCG obtained from the above experiments along those published on CatBoost's [benchmarks](https://github.com/catboost/benchmarks/blob/master/ranking/Readme.md#4-results).
 
 
 | **Model**               | **NDCG**  |
