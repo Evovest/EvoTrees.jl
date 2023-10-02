@@ -25,7 +25,8 @@ makedocs(
         assets=["assets/style.css"]
     ),
     pages=pages,
-    modules=[EvoTrees]
+    modules=[EvoTrees],
+    warnonly=true
 )
 
 deploydocs(repo="github.com/Evovest/EvoTrees.jl.git",
