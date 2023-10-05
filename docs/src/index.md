@@ -136,7 +136,7 @@ transform!(df, :my_feat => ByRow(ismissing) => :my_feat_ismissing)
 Then, the missing values can be imputed (replaced by some default values such as `mean` or `median`, or using a more sophisticated approach such as predictions from another model):
 
 ```julia
-transform!(df, :my_feat => (x -> coalesce.(x, median(skipmissing(x)))) => :my_feat);
+transform!(df, :my_feat => (x -> coalesce.(x, median(skipmissing(x)))) => :my_feat)
 ```
 
 For unordered categorical variables, a recode of the missing into a non missing level is sufficient:
@@ -148,7 +148,7 @@ julia> x = categorical(["a", "b", missing])
  "b"
  missing
 
-julia> x = recode(x_cat_m1, missing => "missing value")
+julia> x = recode(x, missing => "missing value")
 3-element CategoricalArray{String,1,UInt32}:
  "a"
  "b"
