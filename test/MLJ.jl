@@ -121,12 +121,10 @@ fit!(mach, rows=train, verbosity=1)
 
 pred_train = predict(mach, selectrows(X, train))
 pred_train_mode = predict_mode(mach, selectrows(X, train))
-cross_entropy(pred_train, selectrows(y, train)) |> mean
 sum(pred_train_mode .== y[train]) / length(y[train])
 
 pred_test = predict(mach, selectrows(X, test))
 pred_test_mode = predict_mode(mach, selectrows(X, test))
-cross_entropy(pred_test, selectrows(y, test)) |> mean
 sum(pred_test_mode .== y[test]) / length(y[test])
 pred_test_mode = predict_mode(mach, selectrows(X, test))
 

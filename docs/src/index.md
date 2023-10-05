@@ -52,9 +52,9 @@ m = fit_evotree(config; x_train, y_train)
 preds = m(x_train)
 ```
 
-### DataFrames and Tables input
+### Tables and DataFrames input
 
-When using a Tables compatible input such as DataFrames, features with elements types `Real` (incl. `Bool`) and `Categorical` are automatically recognized as input features. Alternatively, `fnames` kwarg can be used. 
+When using a `Tables` compatible input such as `DataFrames`, features with element type `Real` (incl. `Bool`) and `Categorical` are automatically recognized as input features. Alternatively, `fnames` kwarg can be used. 
 
 `Categorical` features are treated accordingly by the algorithm. Ordered variables will be treated as numerical features, using `≤` split rule, while unordered variables are using `==`. Support is currently limited to a maximum of 255 levels. `Bool` variables are treated as unordered, 2-levels cat variables.
 
@@ -74,7 +74,6 @@ If running on a CUDA enabled machine, training and inference on GPU can be trigg
 m = fit_evotree(config, dtrain; target_name="y", device="gpu");
 p = m(dtrain; device="gpu")
 ```
-
 
 ## Reproducibility
 
@@ -106,6 +105,57 @@ m2 = fit_evotree(config, df; target_name="y");
 Note that in presence of multiple identical or very highly correlated features, model may not be reproducible if features are permuted since in situation where 2 features provide identical gains, the first one will be selected. Therefore, if the identity relationship doesn't hold on new data, different predictions will be returned from models trained on different features order. 
 
 At the moment, there's no reproducibility guarantee on GPU, although this may change in the future. 
+
+## Missing values
+
+### Features
+
+EvoTrees does not handle features having missing values. Proper preprocessing of the data is therefore needed (and a general good practice regardless of the ML model used).
+
+This includes situations where values may be all non-missing, but where the `eltype` is the form `Union{Missing,Float64}`. A conversion the types using `identity` is recommended: 
+
+```julia
+julia> x = Vector{Union{Missing, Float64}}([1, 2])
+2-element Vector{Union{Missing, Float64}}:
+ 1.0
+ 2.0
+
+julia> identity.(x)
+2-element Vector{Float64}:
+ 1.0
+ 2.0
+```
+
+For dealing with numerical or ordered categorical features containing missing values, a common approach is to first create an `Bool` indicator variable capturing the info on whether a value is missing:
+
+```julia
+transform!(df, :my_feat => ByRow(ismissing) => :my_feat_ismissing)
+```
+
+Then, the missing values can be imputed (replaced by some default values such as `mean` or `median`, or using a more sophisticated approach such as predictions from another model):
+
+```julia
+transform!(df, :my_feat => (x -> coalesce.(x, median(skipmissing(x)))) => :my_feat);
+```
+
+For unordered categorical variables, a recode of the missing into a non missing level is sufficient:
+```julia
+julia> x = categorical(["a", "b", missing])
+3-element CategoricalArray{Union{Missing, String},1,UInt32}:
+ "a"
+ "b"
+ missing
+
+julia> x = recode(x_cat_m1, missing => "missing value")
+3-element CategoricalArray{String,1,UInt32}:
+ "a"
+ "b"
+ "missing value"
+```
+
+### Target
+
+Target variable must have its element type `<:Real`. Only exception is for `EvoTreeClassifier` for which `CategoricalValue`, `Integer`, `String` and `Char` are supported.
 
 ## Save/Load
 

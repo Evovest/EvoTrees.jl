@@ -2,9 +2,10 @@
     get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG()) where {T}
     get_edges(df; fnames, nbins, rng=Random.TaskLocalRNG())
 
-Get the braking points of the feature data.
+Get the histogram breaking points of the feature data.
 """
 function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.MersenneTwister()) where {T}
+    @assert T <: Real
     nobs = min(size(X, 1), 1000 * nbins)
     idx = sample(rng, 1:size(X, 1), nobs, replace=false, ordered=true)
     nfeats = size(X, 2)
@@ -80,6 +81,8 @@ function binarize(df; fnames, edges)
             x_bin[:, j] .= levelcode.(col)
         elseif eltype(col) <: Real
             x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), col)
+        else
+            @error "Invalid feature eltype: $(fnames[j]) is $(eltype(col))"
         end
     end
     return x_bin

@@ -21,11 +21,11 @@ df = MLDatasets.Titanic().dataframe
 
 A first step in data processing is to prepare the input features in a model compatible format. 
 
-EvoTrees' Tables API supports input that are either `Real`, `Bool` or `Categorical`.
+EvoTrees' Tables API supports input that are either `Real` (incl. `Bool`) or `Categorical`. `Bool` variables are treated as unordered, 2-levels categorical variables.
 A recommended approach for `String` features such as `Sex` is to convert them into an unordered `Categorical`. 
 
-For dealing with features withh missing values such as `Age`, a common approach is to first create an `Bool` indicator variable capturing the info on whether a value is missing.
-Then, the missing values can be inputed (replaced by some default values such as `mean` or `median`, or more sophisticated approach such as predictions from another model).
+For dealing with features with missing values such as `Age`, a common approach is to first create an `Bool` indicator variable capturing the info on whether a value is missing.
+Then, the missing values can be imputed (replaced by some default values such as `mean` or `median`, or more sophisticated approach such as predictions from another model).
 
 ```julia
 # convert string feature to Categorical
