@@ -149,7 +149,7 @@ function split_chunk_kernel!(
     return nothing
 end
 
-function split_views_kernel!(
+function EvoTrees.split_views_kernel!(
     out::CuDeviceVector{S},
     left::CuDeviceVector{S},
     right::CuDeviceVector{S},
@@ -208,7 +208,7 @@ function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, fea
     sum_lefts = sum(lefts)
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
-    @cuda blocks = nblocks threads = 1 split_views_kernel!(
+    @cuda blocks = nblocks threads = 1 EvoTrees.split_views_kernel!(
         out,
         left,
         right,
