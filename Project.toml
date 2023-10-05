@@ -28,7 +28,11 @@ StatsBase = "0.32, 0.33, 0.34"
 Tables = "1.9"
 julia = "1.6"
 
+[extensions]
+EvoTreesCUDAExt = "CUDA"
+
 [extras]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 MLJBase = "a7f614a8-145f-11e9-1d2a-a57a1082229d"
@@ -37,4 +41,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 docs = ["Documenter"]
-test = ["DataFrames", "Test", "MLJBase", "MLJTestInterface"]
+test = ["CUDA", "DataFrames", "Test", "MLJBase", "MLJTestInterface"]
+
+[weakdeps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"

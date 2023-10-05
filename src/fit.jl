@@ -397,10 +397,7 @@ function fit_evotree(
             (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
         end
     end
-    if String(device) == "gpu"
-        GC.gc(true)
-        CUDA.reclaim()
-    end
+    post_fit_gc(_device)
 
     if return_logger
         return (m, logger)
@@ -410,6 +407,8 @@ function fit_evotree(
 
 end
 
+# A no-op on the CPU, but on the GPU we perform garbage collection
+post_fit_gc(::Type{<:CPU}) = nothing
 
 """
     fit_evotree(
@@ -517,10 +516,7 @@ function fit_evotree(
             (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
         end
     end
-    if _device <: GPU
-        GC.gc(true)
-        CUDA.reclaim()
-    end
+    post_fit_gc(_device)
 
     if return_logger
         return (m, logger)

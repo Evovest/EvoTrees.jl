@@ -44,7 +44,8 @@ function CallBack(
     else
         y = T.(y_eval)
     end
-    w = isnothing(w_name) ? ones(T, size(y)) : Vector{T}(Tables.getcolumn(deval, _w_name))
+    V = device_array_type(device)
+    w = isnothing(w_name) ? device_ones(device, T, length(y)) : V{T}(Tables.getcolumn(deval, _w_name))
 
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
     if !isnothing(offset)
@@ -56,11 +57,7 @@ function CallBack(
         p .+= offset'
     end
 
-    if device <: GPU
-        return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), CuArray(similar(w)), CuArray(m.info[:feattypes]))
-    else
-        return CallBack(feval, x_bin, p, y, w, similar(w), m.info[:feattypes])
-    end
+    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]))
 end
 
 function CallBack(
@@ -92,7 +89,8 @@ function CallBack(
     else
         y = T.(y_eval)
     end
-    w = isnothing(w_eval) ? ones(T, size(y)) : Vector{T}(w_eval)
+    V = device_array_type(device)
+    w = isnothing(w_eval) ? device_ones(device, T, length(y)) : V{T}(w_eval)
 
     offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
     if !isnothing(offset)
@@ -104,11 +102,7 @@ function CallBack(
         p .+= offset'
     end
 
-    if device <: GPU
-        return CallBack(feval, CuArray(x_bin), CuArray(p), CuArray(y), CuArray(w), CuArray(similar(w)), CuArray(m.info[:feattypes]))
-    else
-        return CallBack(feval, x_bin, p, y, w, similar(w), m.info[:feattypes])
-    end
+    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]))
 end
 
 function (cb::CallBack)(logger, iter, tree)

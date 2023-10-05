@@ -1,56 +1,56 @@
-function init_core(params::EvoTypes{L}, ::Type{GPU}, data, fnames, y_train, w, offset) where {L}
+function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{EvoTrees.GPU}, data, fnames, y_train, w, offset) where {L}
 
     # binarize data into quantiles
-    edges, featbins, feattypes = get_edges(data; fnames, nbins=params.nbins, rng=params.rng)
-    x_bin = CuArray(binarize(data; fnames, edges))
+    edges, featbins, feattypes = EvoTrees.get_edges(data; fnames, nbins=params.nbins, rng=params.rng)
+    x_bin = CuArray(EvoTrees.binarize(data; fnames, edges))
     nobs, nfeats = size(x_bin)
     T = Float32
 
     target_levels = nothing
-    if L == Logistic
+    if L == EvoTrees.Logistic
         @assert eltype(y_train) <: Real && minimum(y_train) >= 0 && maximum(y_train) <= 1
         K = 1
         y = T.(y_train)
-        μ = [logit(mean(y))]
-        !isnothing(offset) && (offset .= logit.(offset))
-    elseif L in [Poisson, Gamma, Tweedie]
+        μ = [EvoTrees.logit(EvoTrees.mean(y))]
+        !isnothing(offset) && (offset .= EvoTrees.logit.(offset))
+    elseif L in [EvoTrees.Poisson, EvoTrees.Gamma, EvoTrees.Tweedie]
         @assert eltype(y_train) <: Real
         K = 1
         y = T.(y_train)
-        μ = fill(log(mean(y)), 1)
+        μ = fill(log(EvoTrees.mean(y)), 1)
         !isnothing(offset) && (offset .= log.(offset))
-    elseif L == MLogLoss
-        if eltype(y_train) <: CategoricalValue
-            target_levels = CategoricalArrays.levels(y_train)
-            y = UInt32.(CategoricalArrays.levelcode.(y_train))
+    elseif L == EvoTrees.MLogLoss
+        if eltype(y_train) <: EvoTrees.CategoricalValue
+            target_levels = EvoTrees.CategoricalArrays.levels(y_train)
+            y = UInt32.(EvoTrees.CategoricalArrays.levelcode.(y_train))
         elseif eltype(y_train) <: Integer || eltype(y_train) <: Bool || eltype(y_train) <: String || eltype(y_train) <: Char
             target_levels = sort(unique(y_train))
-            yc = CategoricalVector(y_train, levels=target_levels)
-            y = UInt32.(CategoricalArrays.levelcode.(yc))
+            yc = EvoTrees.CategoricalVector(y_train, levels=target_levels)
+            y = UInt32.(EvoTrees.CategoricalArrays.levelcode.(yc))
         else
             @error "Invalid target eltype: $(eltype(y_train))"
         end
         K = length(target_levels)
-        μ = T.(log.(proportions(y, UInt32(1):UInt32(K))))
+        μ = T.(log.(EvoTrees.proportions(y, UInt32(1):UInt32(K))))
         μ .-= maximum(μ)
         !isnothing(offset) && (offset .= log.(offset))
-    elseif L == GaussianMLE
+    elseif L == EvoTrees.GaussianMLE
         @assert eltype(y_train) <: Real
         K = 2
         y = T.(y_train)
-        μ = [mean(y), log(std(y))]
+        μ = [EvoTrees.mean(y), log(EvoTrees.std(y))]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
-    elseif L == LogisticMLE
+    elseif L == EvoTrees.LogisticMLE
         @assert eltype(y_train) <: Real
         K = 2
         y = T.(y_train)
-        μ = [mean(y), log(std(y) * sqrt(3) / π)]
+        μ = [EvoTrees.mean(y), log(EvoTrees.std(y) * sqrt(3) / π)]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     else
         @assert eltype(y_train) <: Real
         K = 1
         y = T.(y_train)
-        μ = [mean(y)]
+        μ = [EvoTrees.mean(y)]
     end
     y = CuArray(y)
     μ = T.(μ)
@@ -94,8 +94,8 @@ function init_core(params::EvoTypes{L}, ::Type{GPU}, data, fnames, y_train, w, o
     )
 
     # initialize model
-    nodes = [TrainNode(featbins, K, view(is_in, 1:0)) for n = 1:2^params.max_depth-1]
-    bias = [Tree{L,K}(μ)]
+    nodes = [EvoTrees.TrainNode(featbins, K, view(is_in, 1:0)) for n = 1:2^params.max_depth-1]
+    bias = [EvoTrees.Tree{L,K}(μ)]
     m = EvoTree{L,K}(bias, info)
 
     # build cache

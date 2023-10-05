@@ -18,8 +18,6 @@ using Distributions
 using Tables
 using CategoricalArrays
 using Tables
-using CUDA
-using CUDA: @allowscalar, allowscalar
 using BSON
 
 using NetworkLayout
@@ -41,13 +39,9 @@ include("subsample.jl")
 include("fit-utils.jl")
 include("fit.jl")
 
-include("gpu/loss.jl")
-include("gpu/eval.jl")
-include("gpu/predict.jl")
-include("gpu/init.jl")
-include("gpu/subsample.jl")
-include("gpu/fit-utils.jl")
-include("gpu/fit.jl")
+if !isdefined(Base, :get_extension)
+    include("../ext/EvoTreesCUDAExt/EvoTreesCUDAExt.jl")
+end
 
 include("callback.jl")
 include("importance.jl")
