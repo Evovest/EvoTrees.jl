@@ -125,7 +125,15 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
 end
 
 """
-    init(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVector, W = nothing)
+    init(
+        params::EvoTypes,
+        dtrain,
+        device::Type{<:Device}=CPU;
+        target_name,
+        fnames=nothing,
+        w_name=nothing,
+        offset_name=nothing
+    )
 
 Initialise EvoTree
 """
@@ -180,7 +188,15 @@ end
 
 
 """
-    init_evotree(params::EvoTypes{T,U,S}, X::AbstractMatrix, Y::AbstractVector, W = nothing)
+    init(
+        params::EvoTypes,
+        x_train::AbstractMatrix,
+        y_train::AbstractVector,
+        device::Type{<:Device}=CPU;
+        fnames=nothing,
+        w_train=nothing,
+        offset_train=nothing
+    )
 
 Initialise EvoTree
 """

@@ -3,7 +3,9 @@ abstract type CPU <: Device end
 abstract type GPU <: Device end
 
 """
-    Carries training information for a given tree node
+    TrainNode{S,V,M}
+    
+Carries training information for a given tree node
 """
 mutable struct TrainNode{S,V,M}
     gain::Float64

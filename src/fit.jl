@@ -412,9 +412,16 @@ end
 
 
 """
-    fit_evotree(params::EvoTypes{L};
-        x_train::AbstractMatrix, y_train::AbstractVector, w_train=nothing, offset_train=nothing,
-        x_eval=nothing, y_eval=nothing, w_eval=nothing, offset_eval=nothing,
+    fit_evotree(
+        params::EvoTypes{L};
+        x_train::AbstractMatrix, 
+        y_train::AbstractVector, 
+        w_train=nothing, 
+        offset_train=nothing,
+        x_eval=nothing, 
+        y_eval=nothing, 
+        w_eval=nothing, 
+        offset_eval=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
         verbosity=1)
