@@ -54,7 +54,7 @@ preds = m(x_train)
 
 ### Tables and DataFrames input
 
-When using a Tables compatible input such as DataFrames, features with elements types `Real` (incl. `Bool`) and `Categorical` are automatically recognized as input features. Alternatively, `fnames` kwarg can be used. 
+When using a `Tables` compatible input such as `DataFrames`, features with element type `Real` (incl. `Bool`) and `Categorical` are automatically recognized as input features. Alternatively, `fnames` kwarg can be used. 
 
 `Categorical` features are treated accordingly by the algorithm. Ordered variables will be treated as numerical features, using `≤` split rule, while unordered variables are using `==`. Support is currently limited to a maximum of 255 levels. `Bool` variables are treated as unordered, 2-levels cat variables.
 
@@ -155,8 +155,7 @@ julia> x = recode(x_cat_m1, missing => "missing value")
 
 ### Target
 
-Target variable must have its elements type `<:Real`. Only exception is for `EvoTreeClassifier` for which `CategoricalValue` and `String` are also supported.
-
+Target variable must have its element type `<:Real`. Only exception is for `EvoTreeClassifier` for which `CategoricalValue`, `Integer`, `String` and `Char` are supported.
 
 ## Save/Load
 
