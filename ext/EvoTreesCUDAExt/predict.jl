@@ -1,6 +1,3 @@
-"""
-    predict_kernel!
-"""
 function predict_kernel!(
     ::Type{L},
     pred::CuDeviceMatrix{T},
@@ -28,10 +25,7 @@ function predict_kernel!(
     return nothing
 end
 
-"""
-    predict_kernel!
-        GradientRegression
-"""
+# GradientRegression
 function predict_kernel!(
     ::Type{<:EvoTrees.GradientRegression},
     pred::CuDeviceMatrix{T},
@@ -56,10 +50,7 @@ function predict_kernel!(
     return nothing
 end
 
-"""
-    predict_kernel!
-        Logistic
-"""
+# Logistic
 function predict_kernel!(
     ::Type{<:EvoTrees.LogLoss},
     pred::CuDeviceMatrix{T},
@@ -84,10 +75,7 @@ function predict_kernel!(
     return nothing
 end
 
-"""
-    predict_kernel!
-        MLE2P
-"""
+# MLE2P
 function predict_kernel!(
     ::Type{<:EvoTrees.MLE2P},
     pred::CuDeviceMatrix{T},
