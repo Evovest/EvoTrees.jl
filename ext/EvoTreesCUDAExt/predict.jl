@@ -33,7 +33,7 @@ end
         GradientRegression
 """
 function predict_kernel!(
-    ::Type{L},
+    ::Type{<:EvoTrees.GradientRegression},
     pred::CuDeviceMatrix{T},
     split,
     feats,
@@ -41,7 +41,7 @@ function predict_kernel!(
     leaf_pred,
     x_bin,
     feattypes,
-) where {L<:EvoTrees.GradientRegression,T}
+) where {T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if i <= size(pred, 2)
@@ -61,7 +61,7 @@ end
         Logistic
 """
 function predict_kernel!(
-    ::Type{L},
+    ::Type{<:EvoTrees.LogLoss},
     pred::CuDeviceMatrix{T},
     split,
     feats,
@@ -69,7 +69,7 @@ function predict_kernel!(
     leaf_pred,
     x_bin,
     feattypes,
-) where {L<:EvoTrees.LogLoss,T}
+) where {T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if i <= size(pred, 2)
@@ -89,7 +89,7 @@ end
         MLE2P
 """
 function predict_kernel!(
-    ::Type{L},
+    ::Type{<:EvoTrees.MLE2P},
     pred::CuDeviceMatrix{T},
     split,
     feats,
@@ -97,7 +97,7 @@ function predict_kernel!(
     leaf_pred,
     x_bin,
     feattypes,
-) where {L<:EvoTrees.MLE2P,T}
+) where {T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if i <= size(pred, 2)
@@ -165,13 +165,13 @@ end
 function predict(
     m::EvoTree{L,K},
     data,
-    ::Type{GPU};
+    ::Type{<:EvoTrees.GPU};
     ntree_limit=length(m.trees)) where {L,K}
 
     pred = CUDA.zeros(K, size(data, 1))
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
-    x_bin = CuArray(binarize(data; fnames=m.info[:fnames], edges=m.info[:edges]))
+    x_bin = CuArray(EvoTrees.binarize(data; fnames=m.info[:fnames], edges=m.info[:edges]))
     feattypes = CuArray(m.info[:feattypes])
     for i = 1:ntree_limit
         EvoTrees.predict!(pred, m.trees[i], x_bin, feattypes)

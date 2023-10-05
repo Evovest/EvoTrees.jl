@@ -1,4 +1,4 @@
-function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.EvoTypes{L}, ::Type{GPU}) where {L,K}
+function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}) where {L,K}
 
     # compute gradients
     EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, params)
@@ -90,7 +90,7 @@ function grow_tree!(
                     update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
                 end
             end
-            @threads for n ∈ sort(n_current)
+            Threads.@threads for n ∈ sort(n_current)
                 EvoTrees.update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
             end
         end
@@ -217,7 +217,7 @@ function grow_otree!(
                     update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
                 end
             end
-            @threads for n ∈ n_current
+            Threads.@threads for n ∈ n_current
                 EvoTrees.update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
             end
 

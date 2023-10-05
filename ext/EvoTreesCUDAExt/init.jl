@@ -1,4 +1,4 @@
-function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{EvoTrees.GPU}, data, fnames, y_train, w, offset) where {L}
+function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}, data, fnames, y_train, w, offset) where {L}
 
     # binarize data into quantiles
     edges, featbins, feattypes = EvoTrees.get_edges(data; fnames, nbins=params.nbins, rng=params.rng)
