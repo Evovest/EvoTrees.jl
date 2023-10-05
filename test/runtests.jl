@@ -12,6 +12,7 @@ using Test
         include("oblivious.jl")
         include("tables.jl")
         include("monotonic.jl")
+        include("missings.jl")
     end
 
     @testset "MLJ" begin

@@ -8,11 +8,13 @@ function init_core(params::EvoTypes{L}, ::Type{GPU}, data, fnames, y_train, w, o
 
     target_levels = nothing
     if L == Logistic
+        @assert eltype(y_train) <: Real && minimum(y_train) >= 0 && maximum(y_train) <= 1
         K = 1
         y = T.(y_train)
         μ = [logit(mean(y))]
         !isnothing(offset) && (offset .= logit.(offset))
     elseif L in [Poisson, Gamma, Tweedie]
+        @assert eltype(y_train) <: Real
         K = 1
         y = T.(y_train)
         μ = fill(log(mean(y)), 1)
@@ -21,26 +23,31 @@ function init_core(params::EvoTypes{L}, ::Type{GPU}, data, fnames, y_train, w, o
         if eltype(y_train) <: CategoricalValue
             target_levels = CategoricalArrays.levels(y_train)
             y = UInt32.(CategoricalArrays.levelcode.(y_train))
-        else
+        elseif eltype(y_train) <: Integer || eltype(y_train) <: Bool || eltype(y_train) <: String || eltype(y_train) <: Char
             target_levels = sort(unique(y_train))
             yc = CategoricalVector(y_train, levels=target_levels)
             y = UInt32.(CategoricalArrays.levelcode.(yc))
+        else
+            @error "Invalid target eltype: $(eltype(y_train))"
         end
         K = length(target_levels)
         μ = T.(log.(proportions(y, UInt32(1):UInt32(K))))
         μ .-= maximum(μ)
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
+        @assert eltype(y_train) <: Real
         K = 2
         y = T.(y_train)
         μ = [mean(y), log(std(y))]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     elseif L == LogisticMLE
+        @assert eltype(y_train) <: Real
         K = 2
         y = T.(y_train)
         μ = [mean(y), log(std(y) * sqrt(3) / π)]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
     else
+        @assert eltype(y_train) <: Real
         K = 1
         y = T.(y_train)
         μ = [mean(y)]
