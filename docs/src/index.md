@@ -112,7 +112,7 @@ At the moment, there's no reproducibility guarantee on GPU, although this may ch
 
 EvoTrees does not handle features having missing values. Proper preprocessing of the data is therefore needed (and a general good practice regardless of the ML model used).
 
-This includes situations where values may be all non-missing, but where the `eltype` is the form `Union{Missing,Float64}`. A conversion the types using `identity` is recommended: 
+This includes situations where values may be all non-missing, but where the `eltype` is `Union{Missing,Float64}` or `Any` for example. A conversion using `identity` is then recommended: 
 
 ```julia
 julia> x = Vector{Union{Missing, Float64}}([1, 2])
@@ -126,9 +126,10 @@ julia> identity.(x)
  2.0
 ```
 
-For dealing with numerical or ordered categorical features containing missing values, a common approach is to first create an `Bool` indicator variable capturing the info on whether a value is missing:
+For dealing with numerical or ordered categorical features containing missing values, a common approach is to first create an `Bool` variable capturing the info on whether a value is missing:
 
 ```julia
+using DataFrames
 transform!(df, :my_feat => ByRow(ismissing) => :my_feat_ismissing)
 ```
 
@@ -140,6 +141,7 @@ transform!(df, :my_feat => (x -> coalesce.(x, median(skipmissing(x)))) => :my_fe
 
 For unordered categorical variables, a recode of the missing into a non missing level is sufficient:
 ```julia
+using CategoricalArrays
 julia> x = categorical(["a", "b", missing])
 3-element CategoricalArray{Union{Missing, String},1,UInt32}:
  "a"
