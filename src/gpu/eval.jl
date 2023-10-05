@@ -1,6 +1,6 @@
-"""
-    MSE
-"""
+########################
+# MSE
+########################
 function eval_mse_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
@@ -16,15 +16,15 @@ function mse(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; 
     return sum(eval) / sum(w)
 end
 
-"""
-    RMSE
-"""
+########################
+# RMSE
+########################
 rmse(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat} =
     sqrt(rmse(p, y, w; MAX_THREADS, kwargs...))
 
-"""
-    MAE
-"""
+########################
+# MAE
+########################
 function eval_mae_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
@@ -40,9 +40,9 @@ function mae(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; 
     return sum(eval) / sum(w)
 end
 
-"""
-    Logloss
-"""
+########################
+# Logloss
+########################
 function eval_logloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
@@ -60,9 +60,9 @@ function logloss(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{
 end
 
 
-"""
-    Gaussian
-"""
+########################
+# Gaussian
+########################
 function eval_gaussian_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
@@ -78,9 +78,9 @@ function gaussian_mle(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVe
     return sum(eval) / sum(w)
 end
 
-"""
-    Poisson Deviance
-"""
+########################
+# Poisson Deviance
+########################
 function eval_poisson_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     ϵ = eps(T(1e-7))
@@ -99,9 +99,9 @@ function poisson(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{
     return sum(eval) / sum(w)
 end
 
-"""
-    Gamma Deviance
-"""
+########################
+# Gamma Deviance
+########################
 function eval_gamma_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
@@ -119,9 +119,9 @@ function gamma(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}
     return sum(eval) / sum(w)
 end
 
-"""
-    Tweedie Deviance
-"""
+########################
+# Tweedie Deviance
+########################
 function eval_tweedie_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     rho = T(1.5)
@@ -142,10 +142,10 @@ function tweedie(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{
 end
 
 
-"""
-    mlogloss
-"""
-function mlogloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector, w::CuDeviceVector{T}) where {T<:AbstractFloat}
+########################
+# mlogloss
+########################
+function eval_mlogloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     K = size(p, 1)
     if i <= length(y)
@@ -161,7 +161,7 @@ end
 function mlogloss(p::CuMatrix{T}, y::CuVector, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
-    @cuda blocks = blocks threads = threads mlogloss_kernel!(eval, p, y, w)
+    @cuda blocks = blocks threads = threads eval_mlogloss_kernel!(eval, p, y, w)
     CUDA.synchronize()
     return sum(eval) / sum(w)
 end

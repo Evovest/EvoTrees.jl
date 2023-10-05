@@ -6,7 +6,10 @@ using EvoTrees
 pages = [
     "Introduction" => "index.md",
     "Models" => "models.md",
-    "API" => "api.md",
+    "API" => [
+        "Public" => "api.md",
+        "Internals" => "internals.md"
+    ],
     "Tutorials" => [
         "Regression - Boston" => "tutorials/regression-boston.md",
         "Logistic Regression - Titanic" => "tutorials/logistic-regression-titanic.md",
@@ -26,7 +29,6 @@ makedocs(
     ),
     pages=pages,
     modules=[EvoTrees],
-    warnonly=true
 )
 
 deploydocs(repo="github.com/Evovest/EvoTrees.jl.git",

@@ -1,3 +1,4 @@
+# Public API
 
 ## fit_evotree
 
@@ -5,13 +6,13 @@
 fit_evotree
 ```
 
-## Predict
+## predict
 
 ```@docs
 EvoTrees.predict
 ```
 
-## Features Importance
+## importance
 
 ```@docs
 EvoTrees.importance
