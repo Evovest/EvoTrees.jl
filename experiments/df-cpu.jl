@@ -7,14 +7,6 @@ using Base.Threads: nthreads, @threads
 using BenchmarkTools
 using Random: seed!
 
-# using StatsBase
-# x1 = rand(Bool, 10)
-# nbins = 2
-# edges = sort(unique(quantile(skipmissing(x1), (1:nbins-1) / nbins)))
-# searchsortedfirst(edges, edges[1])
-# searchsortedfirst(edges, 1.0)
-# searchsortedfirst(edges, edges[9] + 0.01)
-
 seed!(123)
 nrounds = 20
 nobs = Int(1e6)

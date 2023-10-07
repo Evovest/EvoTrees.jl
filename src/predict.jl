@@ -117,7 +117,7 @@ function softmax!(p::AbstractMatrix)
     return nothing
 end
 
-function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}, ∇, is) where {L<:GradientRegression,T}
+function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}) where {L<:GradientRegression,T}
     ϵ = eps(T)
     p[1, n] = -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3]))
 end
@@ -127,7 +127,7 @@ function pred_scalar(∑::AbstractVector{T}, params::EvoTypes{L}) where {L<:Grad
 end
 
 # prediction in Leaf - MLE2P
-function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}, ∇, is) where {L<:MLE2P,T}
+function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}) where {L<:MLE2P,T}
     ϵ = eps(T)
     p[1, n] = -params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[5]))
     p[2, n] = -params.eta * ∑[2] / max(ϵ, (∑[4] + params.lambda * ∑[5]))
@@ -138,7 +138,7 @@ function pred_scalar(∑::AbstractVector{T}, params::EvoTypes{L}) where {L<:MLE2
 end
 
 # prediction in Leaf - MultiClassRegression
-function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}, ∇, is) where {L<:MLogLoss,T}
+function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}) where {L<:MLogLoss,T}
     ϵ = eps(T)
     K = size(p, 1)
     @inbounds for k = axes(p, 1)
@@ -147,12 +147,12 @@ function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L
 end
 
 # prediction in Leaf - Quantile
-function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}, ∇, is) where {L<:Quantile,T}
-    p[1, n] = params.eta * quantile(∇[2, is], params.alpha) / (1 + params.lambda)
-end
+# function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}, ∇, is) where {L<:Quantile,T}
+#     p[1, n] = params.eta * quantile(∇[2, is], params.alpha) / (1 + params.lambda)
+# end
 
 # prediction in Leaf - L1
-function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}, ∇, is) where {L<:L1,T}
+function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}) where {L<:L1,T}
     ϵ = eps(T)
     p[1, n] = params.eta * ∑[1] / max(ϵ, (∑[3] * (1 + params.lambda)))
 end
