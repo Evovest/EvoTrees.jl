@@ -27,7 +27,7 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.E
         cache.monotone_constraints,
     )
     push!(evotree.trees, tree)
-    predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
+    EvoTrees.predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
     cache[:info][:nrounds] += 1
     return nothing
 end
