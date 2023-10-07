@@ -102,7 +102,7 @@ function predict_kernel!(
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict!(
+function EvoTrees.predict!(
     pred::CuMatrix{T},
     tree::EvoTrees.Tree{L,K},
     x_bin::CuMatrix,
@@ -125,7 +125,7 @@ function predict!(
     CUDA.synchronize()
 end
 
-function predict!(
+function EvoTrees.predict!(
     pred::CuMatrix{T},
     tree::EvoTrees.Tree{L,K},
     x_bin::CuMatrix,
