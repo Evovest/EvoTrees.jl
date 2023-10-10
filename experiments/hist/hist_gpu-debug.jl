@@ -33,7 +33,7 @@ function hist_kernel!(h∇::CuDeviceArray{T,3}, ∇::CuDeviceMatrix{S}, x_bin, i
     return nothing
 end
 
-function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
+function update_hist_gpu!(h∇, ∇, x_bin, is, js)
     kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
     max_threads = config.threads ÷ 4
@@ -48,10 +48,6 @@ function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
     h∇ .= 0
     kernel(h∇, ∇, x_bin, is, js; threads, blocks)
     CUDA.synchronize()
-    CUDA.@sync for j in jsc
-        nbins = size(h[j], 2)
-        copyto!(h[j], view(h∇, :, 1:nbins, j))
-    end
     return nothing
 end
 
@@ -74,12 +70,12 @@ is_gpu = CuArray(is)
 js_gpu = CuArray(js)
 
 CUDA.allowscalar(false)
-CUDA.@time update_hist_gpu!(h∇, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
+CUDA.@time update_hist_gpu!(h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
 # ref without copy to cpu: ~same
 # ref 10K: 875.100 μs (168 allocations: 7.08 KiB)
 # ref 100K: 1.236 ms (215 allocations: 9.91 KiB)
 # ref 1M:  6.138 ms (227 allocations: 12.00 KiB)
 # ref 10M: 67.075 ms (235 allocations: 13.38 KiB)
 
-# CUDA v5 1M :  3.542 ms (848 allocations: 37.14 KiB)
-@btime update_hist_gpu!(h∇, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
+# ref 1M CUDA v4.4.1:  2.381 ms (74 allocations: 4.64 KiB)
+@btime update_hist_gpu!(h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu)
