@@ -9,13 +9,13 @@ function kernel_mse_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVect
     end
     return
 end
-function update_grads!(
+function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::EvoTreeRegressor{L};
+    ::EvoTreeRegressor{<:EvoTrees.MSE};
     MAX_THREADS=1024
-) where {L<:MSE}
+)
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
     @cuda blocks = blocks threads = threads kernel_mse_∇!(∇, p, y)
@@ -29,19 +29,19 @@ end
 function kernel_logloss_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
-        @inbounds pred = sigmoid(p[1, i])
+        @inbounds pred = EvoTrees.sigmoid(p[1, i])
         @inbounds ∇[1, i] = (pred - y[i]) * ∇[3, i]
         @inbounds ∇[2, i] = pred * (1 - pred) * ∇[3, i]
     end
     return
 end
-function update_grads!(
+function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::EvoTreeRegressor{L};
+    ::EvoTreeRegressor{<:EvoTrees.LogLoss};
     MAX_THREADS=1024
-) where {L<:LogLoss}
+)
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
     @cuda blocks = blocks threads = threads kernel_logloss_∇!(∇, p, y)
@@ -61,13 +61,13 @@ function kernel_poisson_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDevice
     end
     return
 end
-function update_grads!(
+function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::EvoTreeCount{L};
+    ::EvoTreeCount{<:EvoTrees.Poisson};
     MAX_THREADS=1024
-) where {L<:Poisson}
+)
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
     @cuda blocks = blocks threads = threads kernel_poisson_∇!(∇, p, y)
@@ -87,13 +87,13 @@ function kernel_gamma_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVe
     end
     return
 end
-function update_grads!(
+function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::EvoTreeRegressor{L};
+    ::EvoTreeRegressor{<:EvoTrees.Gamma};
     MAX_THREADS=1024
-) where {L<:Gamma}
+)
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
     @cuda blocks = blocks threads = threads kernel_gamma_∇!(∇, p, y)
@@ -115,13 +115,13 @@ function kernel_tweedie_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDevice
     end
     return
 end
-function update_grads!(
+function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::EvoTreeRegressor{L};
+    ::EvoTreeRegressor{<:EvoTrees.Tweedie};
     MAX_THREADS=1024
-) where {L<:Tweedie}
+)
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
     @cuda blocks = blocks threads = threads kernel_tweedie_∇!(∇, p, y)
@@ -154,13 +154,13 @@ function kernel_mlogloss_∇!(∇::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::C
     return
 end
 
-function update_grads!(
+function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::EvoTreeClassifier{L};
+    ::EvoTreeClassifier{<:EvoTrees.MLogLoss};
     MAX_THREADS=1024
-) where {L<:MLogLoss}
+)
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
     @cuda blocks = blocks threads = threads kernel_mlogloss_∇!(∇, p, y)
@@ -187,13 +187,13 @@ function kernel_gauss_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVe
     return
 end
 
-function update_grads!(
+function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::Union{EvoTreeGaussian{L},EvoTreeMLE{L}};
+    ::Union{EvoTreeGaussian{<:EvoTrees.GaussianMLE},EvoTreeMLE{<:EvoTrees.GaussianMLE}};
     MAX_THREADS=1024
-) where {L<:GaussianMLE}
+)
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
     @cuda blocks = blocks threads = threads kernel_gauss_∇!(∇, p, y)

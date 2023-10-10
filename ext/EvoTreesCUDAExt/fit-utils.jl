@@ -1,6 +1,3 @@
-"""
-    hist_kernel!
-"""
 function hist_kernel!(h∇::CuDeviceArray{T,3}, ∇::CuDeviceMatrix{S}, x_bin, is, js) where {T,S}
     tix, tiy, k = threadIdx().z, threadIdx().y, threadIdx().x
     bdx, bdy = blockDim().z, blockDim().y
@@ -48,9 +45,6 @@ function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
     return nothing
 end
 
-"""
-    hist_kernel_vec!
-"""
 function hist_kernel_vec!(h∇, ∇, x_bin, is)
     tix, k = threadIdx().x, threadIdx().y
     bdx = blockDim().x
@@ -103,10 +97,8 @@ function update_hist_gpu_vec!(h, h∇, ∇, x_bin, is, js::Vector)
     return nothing
 end
 
-"""
-    Multi-threads split_set!
-        Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
-"""
+# Multi-threads split_set!
+# Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
 function split_chunk_kernel!(
     left::CuDeviceVector{S},
     right::CuDeviceVector{S},
@@ -149,7 +141,7 @@ function split_chunk_kernel!(
     return nothing
 end
 
-function split_views_kernel!(
+function EvoTrees.split_views_kernel!(
     out::CuDeviceVector{S},
     left::CuDeviceVector{S},
     right::CuDeviceVector{S},
@@ -208,7 +200,7 @@ function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, fea
     sum_lefts = sum(lefts)
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
-    @cuda blocks = nblocks threads = 1 split_views_kernel!(
+    @cuda blocks = nblocks threads = 1 EvoTrees.split_views_kernel!(
         out,
         left,
         right,
