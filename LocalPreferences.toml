@@ -1,0 +1,4 @@
+[CUDA]
+# whether to use a nonblocking synchronization mechanism,
+# making it possible to do use cooperative multitasking.
+nonblocking_synchronization = false
