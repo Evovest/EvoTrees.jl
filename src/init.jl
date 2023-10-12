@@ -173,19 +173,18 @@ function init(
     T = Float32
     nobs = length(Tables.getcolumn(dtrain, 1))
     y_train = Tables.getcolumn(dtrain, _target_name)
-    if device <: GPU
-        w = isnothing(w_name) ? CUDA.ones(T, nobs) : CuArray{T}(Tables.getcolumn(dtrain, _w_name))
-        offset = !isnothing(offset_name) ? CuArray{T}(Tables.getcolumn(dtrain, _offset_name)) : nothing
-    else
-        w = isnothing(w_name) ? ones(T, nobs) : Vector{T}(Tables.getcolumn(dtrain, _w_name))
-        offset = !isnothing(offset_name) ? T.(Tables.getcolumn(dtrain, _offset_name)) : nothing
-    end
+    V = device_array_type(device)
+    w = isnothing(w_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(dtrain, _w_name))
+    offset = isnothing(offset_name) ? nothing : V{T}(Tables.getcolumn(dtrain, _offset_name))
 
     m, cache = init_core(params, device, dtrain, fnames, y_train, w, offset)
 
     return m, cache
 end
 
+# This should be different on CPUs and GPUs
+device_ones(::Type{<:CPU}, ::Type{T}, n::Int) where {T} = ones(T, n)
+device_array_type(::Type{<:CPU}) = Array
 
 """
     init(
@@ -216,13 +215,9 @@ function init(
 
     T = Float32
     nobs = size(x_train, 1)
-    if device <: GPU
-        w = isnothing(w_train) ? CUDA.ones(T, nobs) : CuArray{T}(w_train)
-        offset = !isnothing(offset_train) ? CuArray{T}(offset_train) : nothing
-    else
-        w = isnothing(w_train) ? ones(T, nobs) : Vector{T}(w_train)
-        offset = !isnothing(offset_train) ? T.(offset_train) : nothing
-    end
+    V = device_array_type(device)
+    w = isnothing(w_train) ? device_ones(device, T, nobs) : V{T}(w_train)
+    offset = isnothing(offset_train) ? nothing : V{T}(offset_train)
 
     m, cache = init_core(params, device, x_train, fnames, y_train, w, offset)
 

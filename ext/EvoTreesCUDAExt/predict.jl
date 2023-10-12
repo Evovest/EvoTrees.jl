@@ -1,6 +1,3 @@
-"""
-    predict_kernel!
-"""
 function predict_kernel!(
     ::Type{L},
     pred::CuDeviceMatrix{T},
@@ -28,12 +25,9 @@ function predict_kernel!(
     return nothing
 end
 
-"""
-    predict_kernel!
-        GradientRegression
-"""
+# GradientRegression
 function predict_kernel!(
-    ::Type{L},
+    ::Type{<:EvoTrees.GradientRegression},
     pred::CuDeviceMatrix{T},
     split,
     feats,
@@ -41,7 +35,7 @@ function predict_kernel!(
     leaf_pred,
     x_bin,
     feattypes,
-) where {L<:GradientRegression,T}
+) where {T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if i <= size(pred, 2)
@@ -56,12 +50,9 @@ function predict_kernel!(
     return nothing
 end
 
-"""
-    predict_kernel!
-        Logistic
-"""
+# Logistic
 function predict_kernel!(
-    ::Type{L},
+    ::Type{<:EvoTrees.LogLoss},
     pred::CuDeviceMatrix{T},
     split,
     feats,
@@ -69,7 +60,7 @@ function predict_kernel!(
     leaf_pred,
     x_bin,
     feattypes,
-) where {L<:LogLoss,T}
+) where {T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if i <= size(pred, 2)
@@ -84,12 +75,9 @@ function predict_kernel!(
     return nothing
 end
 
-"""
-    predict_kernel!
-        MLE2P
-"""
+# MLE2P
 function predict_kernel!(
-    ::Type{L},
+    ::Type{<:EvoTrees.MLE2P},
     pred::CuDeviceMatrix{T},
     split,
     feats,
@@ -97,7 +85,7 @@ function predict_kernel!(
     leaf_pred,
     x_bin,
     feattypes,
-) where {L<:MLE2P,T}
+) where {T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if i <= size(pred, 2)
@@ -114,9 +102,9 @@ function predict_kernel!(
 end
 
 # prediction from single tree - assign each observation to its final leaf
-function predict!(
+function EvoTrees.predict!(
     pred::CuMatrix{T},
-    tree::Tree{L,K},
+    tree::EvoTrees.Tree{L,K},
     x_bin::CuMatrix,
     feattypes::CuVector{Bool};
     MAX_THREADS=1024
@@ -137,13 +125,13 @@ function predict!(
     CUDA.synchronize()
 end
 
-function predict!(
+function EvoTrees.predict!(
     pred::CuMatrix{T},
-    tree::Tree{L,K},
+    tree::EvoTrees.Tree{L,K},
     x_bin::CuMatrix,
     feattypes::CuVector{Bool};
     MAX_THREADS=1024
-) where {L<:MLogLoss,K,T}
+) where {L<:EvoTrees.MLogLoss,K,T}
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
     blocks = cld(n, threads)
@@ -165,25 +153,25 @@ end
 function predict(
     m::EvoTree{L,K},
     data,
-    ::Type{GPU};
+    ::Type{<:EvoTrees.GPU};
     ntree_limit=length(m.trees)) where {L,K}
 
     pred = CUDA.zeros(K, size(data, 1))
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
-    x_bin = CuArray(binarize(data; fnames=m.info[:fnames], edges=m.info[:edges]))
+    x_bin = CuArray(EvoTrees.binarize(data; fnames=m.info[:fnames], edges=m.info[:edges]))
     feattypes = CuArray(m.info[:feattypes])
     for i = 1:ntree_limit
-        predict!(pred, m.trees[i], x_bin, feattypes)
+        EvoTrees.predict!(pred, m.trees[i], x_bin, feattypes)
     end
-    if L == LogLoss
-        pred .= sigmoid.(pred)
-    elseif L ∈ [Poisson, Gamma, Tweedie]
+    if L == EvoTrees.LogLoss
+        pred .= EvoTrees.sigmoid.(pred)
+    elseif L ∈ [EvoTrees.Poisson, EvoTrees.Gamma, EvoTrees.Tweedie]
         pred .= exp.(pred)
-    elseif L in [GaussianMLE, LogisticMLE]
+    elseif L in [EvoTrees.GaussianMLE, EvoTrees.LogisticMLE]
         pred[2, :] .= exp.(pred[2, :])
-    elseif L == MLogLoss
-        softmax!(pred)
+    elseif L == EvoTrees.MLogLoss
+        EvoTrees.softmax!(pred)
     end
     pred = K == 1 ? vec(Array(pred')) : Array(pred')
     return pred
@@ -205,7 +193,7 @@ function softmax_kernel!(p::CuDeviceMatrix{T}) where {T}
     return nothing
 end
 
-function softmax!(p::CuMatrix{T}; MAX_THREADS=1024) where {T}
+function EvoTrees.softmax!(p::CuMatrix{T}; MAX_THREADS=1024) where {T}
     K, nobs = size(p)
     threads = min(MAX_THREADS, nobs)
     blocks = cld(nobs, threads)

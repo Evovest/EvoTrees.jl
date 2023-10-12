@@ -68,6 +68,12 @@ m = fit_evotree(config, dtrain; target_name="y", fnames=["x1", "x3"]);
 
 ### GPU Acceleration
 
+EvoTrees supports training and inference on Nvidia GPU's with [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl).
+Note that on Julia ≥ 1.9 CUDA support is only enabled when CUDA.jl is installed and loaded, by another package or explicitly with e.g.
+```julia
+using CUDA
+```
+
 If running on a CUDA enabled machine, training and inference on GPU can be triggered through the `device` kwarg: 
 
 ```julia

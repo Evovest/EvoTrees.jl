@@ -19,7 +19,6 @@ EvoTrees.update_gains!
 EvoTrees.predict!
 EvoTrees.subsample
 EvoTrees.split_set_chunk!
-EvoTrees.split_chunk_kernel!
 ```
 
 ## Histogram
@@ -28,7 +27,4 @@ EvoTrees.split_chunk_kernel!
 EvoTrees.get_edges
 EvoTrees.binarize
 EvoTrees.update_hist!
-EvoTrees.hist_kernel!
-EvoTrees.hist_kernel_vec!
-EvoTrees.predict_kernel!
 ```
