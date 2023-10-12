@@ -23,7 +23,7 @@ function hist_kernel!(h∇::CuDeviceArray{T,3}, ∇::CuDeviceMatrix{S}, x_bin, i
     return nothing
 end
 
-function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
+function update_hist_gpu!(h, h∇_cpu, h∇, ∇, x_bin, is, js, jsc)
     kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
     max_threads = config.threads ÷ 4
@@ -37,10 +37,10 @@ function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
     blocks = (1, by, bx)
     h∇ .= 0
     kernel(h∇, ∇, x_bin, is, js; threads, blocks)
-    CUDA.synchronize()
-    CUDA.@sync for j in jsc
+    copyto!(h∇_cpu, h∇)
+    Threads.@threads for j in jsc
         nbins = size(h[j], 2)
-        copyto!(h[j], view(h∇, :, 1:nbins, j))
+        @views h[j] .= h∇_cpu[:, 1:nbins, j]
     end
     return nothing
 end

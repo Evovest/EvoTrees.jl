@@ -21,6 +21,7 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.E
         cache.out,
         cache.left,
         cache.right,
+        cache.h∇_cpu,
         cache.h∇,
         cache.x_bin,
         cache.feattypes,
@@ -43,6 +44,7 @@ function grow_tree!(
     out,
     left,
     right,
+    h∇_cpu::Array{Float64,3},
     h∇::CuArray{Float64,3},
     x_bin::CuMatrix,
     feattypes::Vector{Bool},
@@ -87,7 +89,7 @@ function grow_tree!(
                         end
                     end
                 else
-                    update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
+                    update_hist_gpu!(nodes[n].h, h∇_cpu, h∇, ∇, x_bin, nodes[n].is, jsg, js)
                 end
             end
             Threads.@threads for n ∈ sort(n_current)
@@ -214,7 +216,7 @@ function grow_otree!(
                         end
                     end
                 else
-                    update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
+                    update_hist_gpu!(nodes[n].h, h∇_cpu, h∇, ∇, x_bin, nodes[n].is, jsg, js)
                 end
             end
             Threads.@threads for n ∈ n_current

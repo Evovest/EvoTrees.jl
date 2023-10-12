@@ -19,7 +19,7 @@ import CUDA
 #threads
 # laptop depth 6: 12.717845 seconds (2.08 M allocations: 466.228 MiB)
 
-nobs = Int(1e6)
+nobs = Int(10e6)
 num_feat = Int(100)
 nrounds = 200
 max_depth = 6
@@ -55,7 +55,7 @@ params_xgb = Dict(
     :print_every_n => 5,
     :subsample => 0.5,
     :colsample_bytree => 0.5,
-    :tree_method => "hist", # hist/gpu_hist
+    :tree_method => "gpu_hist", # hist/gpu_hist
     :max_bin => 64,
 )
 
