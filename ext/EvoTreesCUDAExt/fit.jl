@@ -162,6 +162,7 @@ function grow_otree!(
     out,
     left,
     right,
+    h∇_cpu::Array{Float64,3},
     h∇::CuArray{Float64,3},
     x_bin::CuMatrix,
     feattypes::Vector{Bool},

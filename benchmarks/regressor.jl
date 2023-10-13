@@ -19,11 +19,11 @@ import CUDA
 #threads
 # laptop depth 6: 12.717845 seconds (2.08 M allocations: 466.228 MiB)
 
-nobs = Int(10e6)
+nobs = Int(1e6)
 num_feat = Int(100)
 nrounds = 200
 max_depth = 6
-tree_type = "binary"
+tree_type = "oblivious"
 T = Float64
 nthread = Base.Threads.nthreads()
 @info "testing with: $nobs observations | $num_feat features. nthread: $nthread | tree_type : $tree_type | max_depth : $max_depth"
@@ -55,7 +55,7 @@ params_xgb = Dict(
     :print_every_n => 5,
     :subsample => 0.5,
     :colsample_bytree => 0.5,
-    :tree_method => "gpu_hist", # hist/gpu_hist
+    :tree_method => "hist", # hist/gpu_hist
     :max_bin => 64,
 )
 
@@ -149,15 +149,3 @@ CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_e
 CUDA.@time pred_evo = m_evo(x_train; device);
 CUDA.@time pred_evo = m_evo(x_train; device);
 # @btime m_evo($x_train; device);
-
-# CUDA v4: 0.439869 seconds (29.93 k CPU allocations: 181.869 MiB, 2.28% gc time) (16 GPU allocations: 138.430 MiB, 0.06% memmgmt time)
-# CUDA v5: 0.365197 seconds (27.93 k CPU allocations: 181.763 MiB, 3.17% gc time) (16 GPU allocations: 138.430 MiB, 0.03% memmgmt time)
-CUDA.@time m, cache = EvoTrees.init(params_evo, x_train, y_train, EvoTrees.GPU);
-CUDA.@time EvoTrees.grow_evotree!(m, cache, params_evo, EvoTrees.GPU);
-# CUDA v4: 3.345438 seconds (3.57 M CPU allocations: 151.870 MiB, 0.60% gc time) (38.74 k GPU allocations: 1.227 GiB, 1.39% memmgmt time)
-# CUDA v5: 5.275562 seconds (6.92 M CPU allocations: 296.344 MiB, 1.04% gc time) (38.73 k GPU allocations: 1.227 GiB, 1.58% memmgmt time)
-CUDA.@time begin
-    for i in 1:200
-        EvoTrees.grow_evotree!(m, cache, params_evo, EvoTrees.GPU)
-    end
-end
