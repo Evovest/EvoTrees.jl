@@ -23,7 +23,7 @@ nobs = Int(1e6)
 num_feat = Int(100)
 nrounds = 200
 max_depth = 6
-tree_type = "oblivious"
+tree_type = "binary"
 T = Float64
 nthread = Base.Threads.nthreads()
 @info "testing with: $nobs observations | $num_feat features. nthread: $nthread | tree_type : $tree_type | max_depth : $max_depth"

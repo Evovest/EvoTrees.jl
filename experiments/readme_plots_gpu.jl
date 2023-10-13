@@ -11,7 +11,7 @@ using EvoTrees: predict, sigmoid, logit
 # using ProfileView
 
 # prepare a dataset
-tree_type = "oblivious" # binary/oblivious
+tree_type = "binary" # binary/oblivious
 device = "gpu"
 
 Random.seed!(123)
