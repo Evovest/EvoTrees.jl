@@ -21,6 +21,7 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.E
         cache.out,
         cache.left,
         cache.right,
+        cache.h∇_cpu,
         cache.h∇,
         cache.x_bin,
         cache.feattypes,
@@ -43,6 +44,7 @@ function grow_tree!(
     out,
     left,
     right,
+    h∇_cpu::Array{Float64,3},
     h∇::CuArray{Float64,3},
     x_bin::CuMatrix,
     feattypes::Vector{Bool},
@@ -74,6 +76,7 @@ function grow_tree!(
         n_next = Int[]
 
         if depth < params.max_depth
+<<<<<<< HEAD
 
             update_hist_gpu_single!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
             hist_gpu_to_cpu_copy!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
@@ -93,6 +96,24 @@ function grow_tree!(
             #         update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
             #     end
             # end
+=======
+            for n_id in eachindex(n_current)
+                n = n_current[n_id]
+                if n_id % 2 == 0
+                    if n % 2 == 0
+                        @inbounds for j in js
+                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j]
+                        end
+                    else
+                        @inbounds for j in js
+                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
+                        end
+                    end
+                else
+                    update_hist_gpu!(nodes[n].h, h∇_cpu, h∇, ∇, x_bin, nodes[n].is, jsg, js)
+                end
+            end
+>>>>>>> main
             Threads.@threads for n ∈ sort(n_current)
                 EvoTrees.update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
             end
@@ -163,6 +184,7 @@ function grow_otree!(
     out,
     left,
     right,
+    h∇_cpu::Array{Float64,3},
     h∇::CuArray{Float64,3},
     x_bin::CuMatrix,
     feattypes::Vector{Bool},
@@ -217,7 +239,7 @@ function grow_otree!(
                         end
                     end
                 else
-                    update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
+                    update_hist_gpu!(nodes[n].h, h∇_cpu, h∇, ∇, x_bin, nodes[n].is, jsg, js)
                 end
             end
             Threads.@threads for n ∈ n_current

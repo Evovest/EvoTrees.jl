@@ -5,12 +5,13 @@ using Distributions
 using Random
 using Plots
 using Revise
+using CUDA
 using EvoTrees
 using EvoTrees: predict, sigmoid, logit
 # using ProfileView
 
 # prepare a dataset
-tree_type = "binary"
+tree_type = "binary" # binary/oblivious
 device = "gpu"
 
 Random.seed!(123)
