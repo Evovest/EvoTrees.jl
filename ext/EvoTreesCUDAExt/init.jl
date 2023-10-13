@@ -63,7 +63,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
     !isnothing(offset) && (pred .+= CuArray(offset'))
 
     # initialize gradients
-    h∇ = CUDA.zeros(Float64, 2 * K + 1, maximum(featbins), length(featbins))
+    h∇_cpu = zeros(Float64, 2 * K + 1, maximum(featbins), length(featbins))
+    h∇ = CuArray(h∇_cpu)
     ∇ = CUDA.zeros(T, 2 * K + 1, nobs)
     @assert (length(y) == length(w) && minimum(w) > 0)
     ∇[end, :] .= w
@@ -117,6 +118,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
         right=right,
         ∇=∇,
         h∇=h∇,
+        h∇_cpu=h∇_cpu,
         fnames=fnames,
         edges=edges,
         featbins=featbins,

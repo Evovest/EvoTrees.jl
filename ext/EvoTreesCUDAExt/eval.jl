@@ -46,7 +46,7 @@ end
 function eval_logloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(y)
-        @inbounds pred = sigmoid(p[1, i])
+        @inbounds pred = EvoTrees.sigmoid(p[1, i])
         @inbounds eval[i] = w[i] * (-y[i] * log(pred) + (y[i] - 1) * log(1 - pred))
     end
     return nothing
