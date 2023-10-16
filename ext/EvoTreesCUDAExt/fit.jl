@@ -76,7 +76,6 @@ function grow_tree!(
         n_next = Int[]
 
         if depth < params.max_depth
-<<<<<<< HEAD
 
             update_hist_gpu_single!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
             hist_gpu_to_cpu_copy!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
@@ -96,24 +95,6 @@ function grow_tree!(
             #         update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg, js)
             #     end
             # end
-=======
-            for n_id in eachindex(n_current)
-                n = n_current[n_id]
-                if n_id % 2 == 0
-                    if n % 2 == 0
-                        @inbounds for j in js
-                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j]
-                        end
-                    else
-                        @inbounds for j in js
-                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
-                        end
-                    end
-                else
-                    update_hist_gpu!(nodes[n].h, h∇_cpu, h∇, ∇, x_bin, nodes[n].is, jsg, js)
-                end
-            end
->>>>>>> main
             Threads.@threads for n ∈ sort(n_current)
                 EvoTrees.update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
             end

@@ -33,7 +33,7 @@ function hist_kernel!(h∇::CuDeviceArray{T,3}, ∇::CuDeviceMatrix{S}, x_bin, i
     return nothing
 end
 
-function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
+function update_hist_gpu!(h, h∇_cpu, h∇, ∇, x_bin, is, js, jsc)
     kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
     max_threads = config.threads ÷ 4
@@ -47,16 +47,17 @@ function update_hist_gpu!(h, h∇, ∇, x_bin, is, js, jsc)
     blocks = (1, by, bx)
     h∇ .= 0
     kernel(h∇, ∇, x_bin, is, js; threads, blocks)
-    CUDA.synchronize()
-    CUDA.@sync for j in jsc
+    synchronize()
+    copyto!(h∇_cpu, h∇)
+    Threads.@threads for j in jsc
         nbins = size(h[j], 2)
-        copyto!(h[j], view(h∇, :, 1:nbins, j))
+        @views h[j] .= h∇_cpu[:, 1:nbins, j]
     end
     return nothing
 end
 
 seed!(123)
-nbins = 32
+nbins = 64
 nfeats = 100
 nobs = Int(1e6)
 x_bin = UInt8.(rand(1:nbins, nobs, nfeats));
@@ -69,17 +70,14 @@ js = sample(1:nfeats, Int(round(rowsample * nfeats)), replace=false, ordered=tru
 
 ∇_gpu = CuArray(∇)
 x_bin_gpu = CuArray(x_bin)
-h∇_gpu = CUDA.zeros(Float32, 3, nbins, nfeats)
+h∇_cpu = zeros(Float32, 3, nbins, nfeats)
+h∇_gpu = CuArray(h∇_cpu)
 is_gpu = CuArray(is)
 js_gpu = CuArray(js)
 
 CUDA.allowscalar(false)
-CUDA.@time update_hist_gpu!(h∇, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
-# ref without copy to cpu: ~same
-# ref 10K: 875.100 μs (168 allocations: 7.08 KiB)
-# ref 100K: 1.236 ms (215 allocations: 9.91 KiB)
-# ref 1M:  6.138 ms (227 allocations: 12.00 KiB)
-# ref 10M: 67.075 ms (235 allocations: 13.38 KiB)
+CUDA.@time update_hist_gpu!(h∇, h∇_cpu, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
 
-# CUDA v5 1M :  3.542 ms (848 allocations: 37.14 KiB)
-@btime update_hist_gpu!(h∇, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
+# laptop - 1M - without cpu copy: 5.426 ms (109 allocations: 6.64 KiB)
+# laptop - 1M - with cpu copy: 5.458 ms (207 allocations: 17.08 KiB)
+@btime update_hist_gpu!(h∇, h∇_cpu, h∇_gpu, ∇_gpu, x_bin_gpu, is_gpu, js_gpu, js)
