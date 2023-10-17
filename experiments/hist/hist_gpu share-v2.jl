@@ -1,6 +1,6 @@
 using Revise
 using CUDA
-using StaticArrays
+# using StaticArrays
 using StatsBase: sample
 using BenchmarkTools
 
@@ -10,10 +10,6 @@ using BenchmarkTools
 # - each block build histogram for many features -> (k, j)
 # - 
 ################################################
-
-function agg_share()
-end
-
 # base kernel
 function kernel_share_1!(h::CuDeviceArray{T,3}, ∇, x_bin, is) where {T}
     
@@ -71,14 +67,14 @@ end
 
 nbins = 64
 nfeats = 100
-nobs = Int32(1e6)
+nobs = Int(1e6)
 hist = zeros(Float32, 3, nbins, ncol)
-∇ = rand(Float32, items, 3)
+∇ = rand(Float32, nobs, 3)
 # idx = Int64.(rand(1:nbins, items, ncol))
-idx = UInt8.(rand(1:nbins, items, ncol))
+is = UInt8.(rand(1:nbins, nobs, ncol))
 
 hist_gpu = CuArray(hist)
-∇_gpu = CuArray(δ)
+∇_gpu = CuArray(∇)
 idx_gpu = CuArray(idx)
 
 @time hist_share_1!(hist, ∇, idx)

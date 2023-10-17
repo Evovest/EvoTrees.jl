@@ -45,58 +45,6 @@ function update_hist_gpu!(h, h∇_cpu, h∇, ∇, x_bin, is, js, jsc)
     return nothing
 end
 
-function hist_kernel_vec!(h∇, ∇, x_bin, is)
-    tix, k = threadIdx().x, threadIdx().y
-    bdx = blockDim().x
-    bix = blockIdx().x
-    gdx = gridDim().x
-
-    i_max = length(is)
-    niter = cld(i_max, bdx * gdx)
-    @inbounds for iter in 1:niter
-        i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
-        if i <= i_max
-            idx = is[i]
-            bin = x_bin[idx]
-            hid = Base._to_linear_index(h∇, k, bin)
-            CUDA.atomic_add!(pointer(h∇, hid), ∇[k, idx])
-        end
-    end
-    # CUDA.sync_threads()
-    return nothing
-end
-function update_hist_gpu_vec!(h, h∇, ∇, x_bin, is, js::Vector)
-    kernel = @cuda launch = false hist_kernel_vec!(h∇[js[1]], ∇, view(x_bin, :, js[1]), is)
-    config = launch_configuration(kernel.fun)
-    max_threads = config.threads
-    max_blocks = config.blocks
-    @assert size(h∇[js[1]], 1) <= max_threads "number of classes cannot be larger than 31 on GPU"
-    ty = min(64, size(h∇[js[1]], 1))
-    tx = max(1, min(length(is), fld(max_threads, ty)))
-    threads = (tx, ty, 1)
-    bx = min(max_blocks, cld(length(is), tx))
-    blocks = (bx, 1, 1)
-    # @sync for j in js
-    #     @async h∇[j] .= 0
-    # end
-    for j in js
-        h∇[j] .= 0
-        h[j] .= 0
-    end
-    CUDA.synchronize()
-    # @info "hist" max_blocks length(is) threads blocks
-    @sync for j in js
-        @async kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
-        # kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
-    end
-    CUDA.synchronize()
-    for j in js
-        copyto!(h[j], h∇[j])
-    end
-    CUDA.synchronize()
-    return nothing
-end
-
 # Multi-threads split_set!
 # Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
 function split_chunk_kernel!(
