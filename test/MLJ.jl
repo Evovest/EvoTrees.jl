@@ -162,7 +162,6 @@ tree_model = EvoTreeCount(
 )
 
 X = MLJBase.table(X)
-X = MLJBase.matrix(X)
 
 # typeof(X)
 mach = machine(tree_model, X, Y)
@@ -366,6 +365,8 @@ tree_model = EvoTreeRegressor(
     colsample=0.5,
     nbins=32,
 )
+
+X = MLJBase.table(X)
 
 # typeof(X)
 mach = machine(tree_model, X, Y, W)

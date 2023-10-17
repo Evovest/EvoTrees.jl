@@ -4,41 +4,6 @@ using StaticArrays
 using StatsBase: sample
 using BenchmarkTools
 
-function hist_cpu_1!(hist, δ, idx)
-    Threads.@threads for j in 1:size(idx, 2)
-        for i in 1:size(idx, 1)
-            @inbounds hist[idx[i,j], j] += δ[i,1]
-        end
-    end
-    return
-end
-
-function hist_cpu_2!(h1::Matrix{T}, h2::Matrix{T}, hw::Matrix{T}, 
-        δ1::Vector{T}, δ2::Vector{T}, w::Vector{T}, idx::Matrix{UInt8}) where {T}
-    Threads.@threads for j in 1:size(idx, 2)
-        @inbounds for i in 1:size(idx, 1)
-            @inbounds h1[idx[i,j], j] += δ1[i]
-            @inbounds h2[idx[i,j], j] += δ2[i]
-            @inbounds hw[idx[i,j], j] += w[i]
-        end
-    end
-    return
-end
-
-
-function hist_cpu_3!(h1::Matrix{T}, h2::Matrix{T}, hw::Matrix{T}, 
-    δ1::Vector{T}, δ2::Vector{T}, 𝑤::Vector{T}, idx::Matrix{UInt8}, 𝑖, 𝑗) where {T}
-    
-    @inbounds Threads.@threads for j in 𝑗
-        @inbounds for i in 𝑖
-            h1[idx[i,j], j] += δ1[i]
-            h2[idx[i,j], j] += δ2[i]
-            hw[idx[i,j], j] += 𝑤[i]
-        end
-    end
-    return
-end
-
 # base kernel
 function kernel_s4!(h::CuDeviceArray{T,3}, x::CuDeviceMatrix{T}, xid::CuDeviceMatrix{S}) where {T,S}
     

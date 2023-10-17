@@ -69,19 +69,19 @@ function hist_share_1!(h::AbstractArray{T,3}, x::AbstractMatrix{T}, id::Abstract
     return
 end
 
-nbins = 32
+nbins = 64
 nfeats = 100
 nobs = Int32(1e6)
 hist = zeros(Float32, 3, nbins, ncol)
-δ = rand(Float32, items, 3)
+∇ = rand(Float32, items, 3)
 # idx = Int64.(rand(1:nbins, items, ncol))
 idx = UInt8.(rand(1:nbins, items, ncol))
 
 hist_gpu = CuArray(hist)
-δ_gpu = CuArray(δ)
+∇_gpu = CuArray(δ)
 idx_gpu = CuArray(idx)
 
-@time hist_share_1!(hist, δ, idx)
-@btime hist_share_1!(hist, δ, idx)
-@CUDA.time hist_share_1!(hist_gpu, δ_gpu, idx_gpu, MAX_THREADS=128)
-@btime CUDA.@sync hist_share_1!($hist_gpu, $δ_gpu, $idx_gpu, MAX_THREADS=128)
+@time hist_share_1!(hist, ∇, idx)
+@btime hist_share_1!(hist, ∇, idx)
+@CUDA.time hist_share_1!(hist_gpu, ∇_gpu, idx_gpu, MAX_THREADS=128)
+@btime CUDA.@sync hist_share_1!($hist_gpu, $∇_gpu, $idx_gpu, MAX_THREADS=128)
