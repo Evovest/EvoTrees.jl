@@ -1,7 +1,8 @@
 function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
 
-  nobs = length(Tables.getcolumn(A, 1))
-  fnames = Tables.columnnames(A)
+  A = Tables.columntable(A);
+  nobs = Tables.DataAPI.nrow(A)
+  fnames = Tables.schema(A).names
   w = isnothing(w) ? device_ones(CPU, Float32, nobs) : Vector{Float32}(w)
   fitresult, cache = init_core(model, CPU, A, fnames, y, w, nothing)
 
@@ -33,7 +34,7 @@ function MMI.update(
     while cache[:info][:nrounds] < model.nrounds
       grow_evotree!(fitresult, cache, model)
     end
-    report = (features=Tables.columnnames(A),)
+    report = (features=Tables.schema(A).names,)
   else
     fitresult, cache, report = fit(model, verbosity, A, y, w)
   end

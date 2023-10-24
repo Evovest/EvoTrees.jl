@@ -24,7 +24,7 @@ function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.MersenneTwist
 end
 
 function get_edges(df; fnames, nbins, rng=Random.MersenneTwister())
-    _nobs = length(Tables.getcolumn(df, 1))
+    _nobs = Tables.DataAPI.nrow(df)
     nobs = min(_nobs, 1000 * nbins)
     idx = sample(rng, 1:_nobs, nobs, replace=false, ordered=true)
     edges = Vector{Any}([Vector{eltype(Tables.getcolumn(df, col))}() for col in fnames])
