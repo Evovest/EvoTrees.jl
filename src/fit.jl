@@ -365,6 +365,7 @@ function fit_evotree(
 ) where {L}
 
     @assert Tables.istable(dtrain) "fit_evotree(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
+    dtrain = Tables.columntable(dtrain)
     verbosity == 1 && @info params
     @assert string(device) ∈ ["cpu", "gpu"]
     _device = string(device) == "cpu" ? CPU : GPU
@@ -379,6 +380,7 @@ function fit_evotree(
         @warn "To track eval metric in logger, both `metric` and `deval` must be provided."
     end
     if logging_flag
+        deval = Tables.columntable(deval)
         cb = CallBack(params, m, deval, _device; target_name, w_name, offset_name, metric)
         logger = init_logger(; metric, maximise=is_maximise(cb.feval), early_stopping_rounds)
         cb(logger, 0, m.trees[end])

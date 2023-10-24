@@ -105,8 +105,11 @@ X, y = make_regression(1000, 5)
 mach = machine(booster, X, y) |> fit!
 
 # this doesn't
-X, y = make_regression(1000, 5)
+X, y = make_regression(1_000_000, 100);
+@time X = DataFrame(X);
 @time X = Tables.rowtable(X);
+@time X = Tables.columntable(X);
+
 mach = machine(booster, X, y) |> fit!
 
 schema = Tables.schema(dtrain)

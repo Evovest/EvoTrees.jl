@@ -1,6 +1,6 @@
 function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
 
-  A = Tables.columntable(A);
+  A = Tables.columntable(A)
   nobs = Tables.DataAPI.nrow(A)
   fnames = Tables.schema(A).names
   w = isnothing(w) ? device_ones(CPU, Float32, nobs) : Vector{Float32}(w)
