@@ -8,7 +8,7 @@ using BenchmarkTools
 using Random: seed!
 # import CUDA
 
-nobs = Int(1e7)
+nobs = Int(1e6)
 num_feat = Int(100)
 nrounds = 200
 T = Float64
@@ -45,13 +45,13 @@ params_xgb = Dict(
     :max_bin => 64,
 )
 
-# dtrain = DMatrix(x_train, y_train)
-# watchlist = Dict("train" => DMatrix(x_train, y_train))
-# @time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric=metric_xgb, params_xgb...);
-# # @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric=metric_xgb, params_xgb...);
-# @info "xgboost predict:"
-# @time pred_xgb = XGBoost.predict(m_xgb, x_train);
-# # @btime XGBoost.predict($m_xgb, $x_train);
+dtrain = DMatrix(x_train, y_train)
+watchlist = Dict("train" => DMatrix(x_train, y_train))
+@time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric=metric_xgb, params_xgb...);
+# @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric=metric_xgb, params_xgb...);
+@info "xgboost predict:"
+@time pred_xgb = XGBoost.predict(m_xgb, x_train);
+# @btime XGBoost.predict($m_xgb, $x_train);
 
 @info "EvoTrees"
 dtrain = DataFrame(x_train, :auto)
@@ -94,13 +94,13 @@ device = "cpu"
 @time pred_evo = m_evo(dtrain);
 @btime m_evo($dtrain);
 
-# @info "EvoTrees GPU"
-# device = "gpu"
-# @info "train"
-# @time m_evo = fit_evotree(params_evo, dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
-# @time m_evo = fit_evotree(params_evo, dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
-# # @btime m_evo = fit_evotree($params_evo, $dtrain; target_name, device);
-# # @btime fit_evotree($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
-# @info "predict"
-# @time pred_evo = m_evo(dtrain; device);
-# @btime m_evo($dtrain; device);
+@info "EvoTrees GPU"
+device = "gpu"
+@info "train"
+@time m_evo = fit_evotree(params_evo, dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
+@time m_evo = fit_evotree(params_evo, dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
+# @btime m_evo = fit_evotree($params_evo, $dtrain; target_name, device);
+# @btime fit_evotree($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
+@info "predict"
+@time pred_evo = m_evo(dtrain; device);
+@btime m_evo($dtrain; device);

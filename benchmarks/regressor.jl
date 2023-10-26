@@ -45,27 +45,27 @@ elseif loss == "logloss"
     metric_evo = :logloss
 end
 
-# @info "XGBoost"
-# @info "train"
-# params_xgb = Dict(
-#     :num_round => nrounds,
-#     :max_depth => max_depth - 1,
-#     :eta => 0.05,
-#     :objective => loss_xgb,
-#     :print_every_n => 5,
-#     :subsample => 0.5,
-#     :colsample_bytree => 0.5,
-#     :tree_method => "hist", # hist/gpu_hist
-#     :max_bin => 64,
-# )
+@info "XGBoost"
+@info "train"
+params_xgb = Dict(
+    :num_round => nrounds,
+    :max_depth => max_depth - 1,
+    :eta => 0.05,
+    :objective => loss_xgb,
+    :print_every_n => 5,
+    :subsample => 0.5,
+    :colsample_bytree => 0.5,
+    :tree_method => "hist", # hist/gpu_hist
+    :max_bin => 64,
+)
 
-# dtrain = DMatrix(x_train, y_train)
-# watchlist = Dict("train" => DMatrix(x_train, y_train));
-# @time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric=metric_xgb, params_xgb...);
-# # @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
-# @info "predict"
-# @time pred_xgb = XGBoost.predict(m_xgb, x_train);
-# # @btime XGBoost.predict($m_xgb, $x_train);
+dtrain = DMatrix(x_train, y_train)
+watchlist = Dict("train" => DMatrix(x_train, y_train));
+@time m_xgb = xgboost(dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric=metric_xgb, params_xgb...);
+# @btime m_xgb = xgboost($dtrain; watchlist, nthread=nthread, verbosity=0, eval_metric = metric_xgb, params_xgb...);
+@info "predict"
+@time pred_xgb = XGBoost.predict(m_xgb, x_train);
+# @btime XGBoost.predict($m_xgb, $x_train);
 
 # @info "lightgbm train:"
 # m_gbm = LGBMRegression(
@@ -135,17 +135,17 @@ device = "cpu"
 @time pred_evo = m_evo(x_train);
 # @btime m_evo($x_train);
 
-# @info "EvoTrees GPU"
-# device = "gpu"
-# # @info "train - no eval"
-# # CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
-# # CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
-# @info "train - eval"
-# CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
-# CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
-# # @time m_evo = fit_evotree(params_evo; x_train, y_train);
-# # @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo, device, verbosity);
-# @info "predict"
-# CUDA.@time pred_evo = m_evo(x_train; device);
-# CUDA.@time pred_evo = m_evo(x_train; device);
-# # @btime m_evo($x_train; device);
+@info "EvoTrees GPU"
+device = "gpu"
+# @info "train - no eval"
+# CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
+# CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, device, verbosity, print_every_n=100);
+@info "train - eval"
+CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
+CUDA.@time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100);
+# @time m_evo = fit_evotree(params_evo; x_train, y_train);
+# @btime fit_evotree($params_evo; x_train=$x_train, y_train=$y_train, x_eval=$x_train, y_eval=$y_train, metric=metric_evo, device, verbosity);
+@info "predict"
+CUDA.@time pred_evo = m_evo(x_train; device);
+CUDA.@time pred_evo = m_evo(x_train; device);
+# @btime m_evo($x_train; device);
