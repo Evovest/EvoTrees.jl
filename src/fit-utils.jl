@@ -175,45 +175,40 @@ function split_set_threads!(
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
-    @sync begin
-        for bid = 1:nblocks
-            @spawn begin
-                lefts[bid], rights[bid] = split_set_chunk!(
-                    left,
-                    right,
-                    is,
-                    bid,
-                    nblocks,
-                    x_bin,
-                    feat,
-                    cond_bin,
-                    feattype,
-                    offset,
-                    chunk_size,
-                )
-            end
-        end
+    @threads for bid = 1:nblocks
+        lefts[bid], rights[bid] = split_set_chunk!(
+            left,
+            right,
+            is,
+            bid,
+            nblocks,
+            x_bin,
+            feat,
+            cond_bin,
+            feattype,
+            offset,
+            chunk_size,
+        )
     end
 
     sum_lefts = sum(lefts)
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
-    @sync begin
-        for bid = 1:nblocks
-            @spawn split_views_kernel!(
-                out,
-                left,
-                right,
-                bid,
-                offset,
-                chunk_size,
-                lefts,
-                rights,
-                sum_lefts,
-                cumsum_lefts,
-                cumsum_rights,
-            )
-        end
+
+    @threads for bid = 1:nblocks
+        split_views_kernel!(
+            out,
+            left,
+            right,
+            bid,
+            offset,
+            chunk_size,
+            lefts,
+            rights,
+            sum_lefts,
+            cumsum_lefts,
+            cumsum_rights,
+        )
     end
 
     return (
