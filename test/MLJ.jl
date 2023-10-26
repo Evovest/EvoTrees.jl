@@ -377,3 +377,13 @@ mach.model.nrounds += 10
 fit!(mach, rows=train, verbosity=1)
 
 report(mach)
+
+@testset "MLJ - rowtables - EvoTreeRegressor" begin
+    X, y = make_regression(1000, 5)
+    X = Tables.rowtable(X)
+    booster = EvoTreeRegressor()
+    # smoke tests:
+    mach = machine(booster, X, y) |> fit!
+    fit!(mach)
+    predict(mach, X)
+end

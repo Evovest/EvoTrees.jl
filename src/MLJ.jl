@@ -42,7 +42,7 @@ function MMI.update(
 end
 
 function predict(::EvoTreeRegressor, fitresult, A)
-  pred = vec(predict(fitresult, A))
+  pred = predict(fitresult, A)
   return pred
 end
 
@@ -52,7 +52,7 @@ function predict(::EvoTreeClassifier, fitresult, A)
 end
 
 function predict(::EvoTreeCount, fitresult, A)
-  λs = vec(predict(fitresult, A))
+  λs = predict(fitresult, A)
   return [Distributions.Poisson(λ) for λ ∈ λs]
 end
 

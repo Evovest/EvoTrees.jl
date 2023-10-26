@@ -2,6 +2,7 @@ using Statistics
 using EvoTrees
 using EvoTrees: predict
 using CategoricalArrays
+using Tables
 using Random
 using Test
 

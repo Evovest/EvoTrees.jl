@@ -86,10 +86,11 @@ function predict(
     ::Type{<:Device}=CPU;
     ntree_limit=length(m.trees)) where {L,K}
 
+    Tables.istable(data) ? data = Tables.columntable(data) : nothing
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
     x_bin = binarize(data; fnames=m.info[:fnames], edges=m.info[:edges])
-    nobs = Tables.istable(data) ? length(Tables.getcolumn(data, 1)) : size(data, 1)
+    nobs = size(x_bin, 1)
     pred = zeros(Float32, K, nobs)
     for i = 1:ntree_limit
         predict!(pred, m.trees[i], x_bin, m.info[:feattypes])

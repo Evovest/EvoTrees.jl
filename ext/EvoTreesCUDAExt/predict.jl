@@ -149,17 +149,19 @@ function EvoTrees.predict!(
     pred .= max.(T(-15), pred .- maximum(pred, dims=1))
 end
 
-# prediction from single tree - assign each observation to its final leaf
+# prediction for EvoTree model
 function predict(
     m::EvoTree{L,K},
     data,
     ::Type{<:EvoTrees.GPU};
     ntree_limit=length(m.trees)) where {L,K}
 
-    pred = CUDA.zeros(K, size(data, 1))
+    Tables.istable(data) ? data = Tables.columntable(data) : nothing
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
     x_bin = CuArray(EvoTrees.binarize(data; fnames=m.info[:fnames], edges=m.info[:edges]))
+    nobs = size(x_bin, 1)
+    pred = CUDA.zeros(K, nobs)
     feattypes = CuArray(m.info[:feattypes])
     for i = 1:ntree_limit
         EvoTrees.predict!(pred, m.trees[i], x_bin, feattypes)
