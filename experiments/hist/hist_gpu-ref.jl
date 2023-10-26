@@ -36,23 +36,24 @@ end
 function update_hist_gpu!(h, h∇_cpu, h∇, ∇, x_bin, is, js, jsc)
     kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
-    max_threads = config.threads ÷ 4
-    max_blocks = config.blocks * 4
+    max_threads = config.threads
+    max_blocks = config.blocks
     k = size(h∇, 1)
     ty = max(1, min(length(js), fld(max_threads, k)))
     tx = min(64, max(1, min(length(is), fld(max_threads, k * ty))))
     threads = (k, ty, tx)
+    max_blocks = min(65535, max_blocks * fld(max_threads, prod(threads)))
     by = cld(length(js), ty)
     bx = min(cld(max_blocks, by), cld(length(is), tx))
     blocks = (1, by, bx)
     h∇ .= 0
     kernel(h∇, ∇, x_bin, is, js; threads, blocks)
     synchronize()
-    copyto!(h∇_cpu, h∇)
-    Threads.@threads for j in jsc
-        nbins = size(h[j], 2)
-        @views h[j] .= h∇_cpu[:, 1:nbins, j]
-    end
+    # copyto!(h∇_cpu, h∇)
+    # Threads.@threads for j in jsc
+    #     nbins = size(h[j], 2)
+    #     @views h[j] .= h∇_cpu[:, 1:nbins, j]
+    # end
     return nothing
 end
 
@@ -70,7 +71,7 @@ js = sample(1:nfeats, Int(round(rowsample * nfeats)), replace=false, ordered=tru
 
 ∇_gpu = CuArray(∇)
 x_bin_gpu = CuArray(x_bin)
-h∇_cpu = zeros(Float32, 3, nbins, nfeats)
+h∇_cpu = zeros(Float64, 3, nbins, nfeats)
 h∇_gpu = CuArray(h∇_cpu)
 is_gpu = CuArray(is)
 js_gpu = CuArray(js)
