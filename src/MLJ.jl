@@ -1,6 +1,6 @@
 function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
 
-  A = Tables.columntable(A)
+  A = isa(A, AbstractMatrix) ? Tables.columntable(Tables.table(A)) : Tables.columntable(A)
   nobs = Tables.DataAPI.nrow(A)
   fnames = Tables.schema(A).names
   w = isnothing(w) ? device_ones(CPU, Float32, nobs) : Vector{Float32}(w)
@@ -9,7 +9,7 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
   while cache[:info][:nrounds] < model.nrounds
     grow_evotree!(fitresult, cache, model)
   end
-  report = (features=fnames,)
+  report = (features=cache[:fnames],)
   return fitresult, cache, report
 end
 
@@ -34,7 +34,7 @@ function MMI.update(
     while cache[:info][:nrounds] < model.nrounds
       grow_evotree!(fitresult, cache, model)
     end
-    report = (features=Tables.schema(A).names,)
+    report = (features=cache[:fnames],)
   else
     fitresult, cache, report = fit(model, verbosity, A, y, w)
   end
@@ -95,7 +95,10 @@ MMI.metadata_pkg.(
 
 MMI.metadata_model(
   EvoTreeRegressor,
-  input_scitype=MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
+  input_scitype=Union{
+    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
+    AbstractMatrix{MMI.Continuous},
+  },
   target_scitype=AbstractVector{<:MMI.Continuous},
   weights=true,
   path="EvoTrees.EvoTreeRegressor",
@@ -103,7 +106,10 @@ MMI.metadata_model(
 
 MMI.metadata_model(
   EvoTreeClassifier,
-  input_scitype=MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
+  input_scitype=Union{
+    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
+    AbstractMatrix{MMI.Continuous},
+  },
   target_scitype=AbstractVector{<:MMI.Finite},
   weights=true,
   path="EvoTrees.EvoTreeClassifier",
@@ -111,7 +117,10 @@ MMI.metadata_model(
 
 MMI.metadata_model(
   EvoTreeCount,
-  input_scitype=MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
+  input_scitype=Union{
+    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
+    AbstractMatrix{MMI.Continuous},
+  },
   target_scitype=AbstractVector{<:MMI.Count},
   weights=true,
   path="EvoTrees.EvoTreeCount",
@@ -119,7 +128,10 @@ MMI.metadata_model(
 
 MMI.metadata_model(
   EvoTreeGaussian,
-  input_scitype=MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
+  input_scitype=Union{
+    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
+    AbstractMatrix{MMI.Continuous},
+  },
   target_scitype=AbstractVector{<:MMI.Continuous},
   weights=true,
   path="EvoTrees.EvoTreeGaussian",
@@ -127,7 +139,10 @@ MMI.metadata_model(
 
 MMI.metadata_model(
   EvoTreeMLE,
-  input_scitype=MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
+  input_scitype=Union{
+    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
+    AbstractMatrix{MMI.Continuous},
+  },
   target_scitype=AbstractVector{<:MMI.Continuous},
   weights=true,
   path="EvoTrees.EvoTreeMLE",

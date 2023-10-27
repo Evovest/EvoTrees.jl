@@ -387,3 +387,13 @@ report(mach)
     fit!(mach)
     predict(mach, X)
 end
+
+@testset "MLJ - matrix - EvoTreeRegressor" begin
+    X, y = make_regression(1000, 5)
+    X = Tables.matrix(X)
+    booster = EvoTreeRegressor()
+    # smoke tests:
+    mach = machine(booster, X, y) |> fit!
+    fit!(mach)
+    predict(mach, X)
+end
