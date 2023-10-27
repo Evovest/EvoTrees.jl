@@ -6,15 +6,15 @@ using XGBoost
 using EvoTrees
 using BenchmarkTools
 using Random: seed!
-import CUDA
+# import CUDA
 
 ### v.0.15.1
 # desktop | 1e6 | depth 11 | cpu: 37.2s
 # desktop | 10e6 | depth 11 | cpu
 
-### perf depth
-# desktop | 1e6 | depth 11 | cpu: 28s gpu: 73 sec  | xgboost: 26s
-# desktop | 10e6 | depth 11 | cpu 205s gpu: 109 sec | xgboost 260s
+### v0.16.5
+# desktop | 1e6 | depth 11 | cpu: 31s gpu: 50 sec  | xgboost cpu: 26s
+# desktop | 10e6 | depth 11 | cpu 200s gpu: 80 sec | xgboost cpu: 267s
 
 #threads
 # laptop depth 6: 12.717845 seconds (2.08 M allocations: 466.228 MiB)

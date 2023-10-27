@@ -68,7 +68,6 @@ config = EvoTreeClassifier(
     gamma = 0.0,
     nbins = 32,
     nrounds = 200,
-    device = "cpu"
 )
 model = fit_evotree(config; x_train, y_train);
 model = fit_evotree(config; x_train, y_train, x_eval = x_train, y_eval = y_train, metric=:mlogloss, print_every_n=10, early_stopping_rounds=25);

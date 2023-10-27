@@ -162,7 +162,6 @@ tree_model = EvoTreeCount(
 )
 
 X = MLJBase.table(X)
-X = MLJBase.matrix(X)
 
 # typeof(X)
 mach = machine(tree_model, X, Y)
@@ -367,6 +366,8 @@ tree_model = EvoTreeRegressor(
     nbins=32,
 )
 
+X = MLJBase.table(X)
+
 # typeof(X)
 mach = machine(tree_model, X, Y, W)
 train, test = partition(eachindex(Y), 0.8, shuffle=true); # 70:30 split
@@ -376,3 +377,23 @@ mach.model.nrounds += 10
 fit!(mach, rows=train, verbosity=1)
 
 report(mach)
+
+@testset "MLJ - rowtables - EvoTreeRegressor" begin
+    X, y = make_regression(1000, 5)
+    X = Tables.rowtable(X)
+    booster = EvoTreeRegressor()
+    # smoke tests:
+    mach = machine(booster, X, y) |> fit!
+    fit!(mach)
+    predict(mach, X)
+end
+
+@testset "MLJ - matrix - EvoTreeRegressor" begin
+    X, y = make_regression(1000, 5)
+    X = Tables.matrix(X)
+    booster = EvoTreeRegressor()
+    # smoke tests:
+    mach = machine(booster, X, y) |> fit!
+    fit!(mach)
+    predict(mach, X)
+end

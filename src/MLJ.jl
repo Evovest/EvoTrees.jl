@@ -1,9 +1,15 @@
 function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
-  fitresult, cache = init(model, A.matrix, y; w_train=w)
+
+  A = isa(A, AbstractMatrix) ? Tables.columntable(Tables.table(A)) : Tables.columntable(A)
+  nobs = Tables.DataAPI.nrow(A)
+  fnames = Tables.schema(A).names
+  w = isnothing(w) ? device_ones(CPU, Float32, nobs) : Vector{Float32}(w)
+  fitresult, cache = init_core(model, CPU, A, fnames, y, w, nothing)
+
   while cache[:info][:nrounds] < model.nrounds
     grow_evotree!(fitresult, cache, model)
   end
-  report = (features=A.names,)
+  report = (features=cache[:fnames],)
   return fitresult, cache, report
 end
 
@@ -11,25 +17,6 @@ function okay_to_continue(model, fitresult, cache)
   return model.nrounds - cache[:info][:nrounds] >= 0 &&
          all(_get_struct_loss(model) .== _get_struct_loss(fitresult))
 end
-
-# Generate names to be used by feature_importances in the report
-MMI.reformat(::EvoTypes, X, y, w) =
-  ((matrix=MMI.matrix(X), names=[name for name ∈ schema(X).names]), y, w)
-MMI.reformat(::EvoTypes, X, y) =
-  ((matrix=MMI.matrix(X), names=[name for name ∈ schema(X).names]), y)
-MMI.reformat(::EvoTypes, X) =
-  ((matrix=MMI.matrix(X), names=[name for name ∈ schema(X).names]),)
-MMI.reformat(::EvoTypes, X::AbstractMatrix, y, w) =
-  ((matrix=X, names=["feat_$i" for i = 1:size(X, 2)]), y, w)
-MMI.reformat(::EvoTypes, X::AbstractMatrix, y) =
-  ((matrix=X, names=["feat_$i" for i = 1:size(X, 2)]), y)
-MMI.reformat(::EvoTypes, X::AbstractMatrix) =
-  ((matrix=X, names=["feat_$i" for i = 1:size(X, 2)]),)
-MMI.selectrows(::EvoTypes, I, A, y, w) =
-  ((matrix=view(A.matrix, I, :), names=A.names), view(y, I), view(w, I))
-MMI.selectrows(::EvoTypes, I, A, y) =
-  ((matrix=view(A.matrix, I, :), names=A.names), view(y, I))
-MMI.selectrows(::EvoTypes, I, A) = ((matrix=view(A.matrix, I, :), names=A.names),)
 
 # For EarlyStopping.jl support
 MMI.iteration_parameter(::Type{<:EvoTypes}) = :nrounds
@@ -47,7 +34,7 @@ function MMI.update(
     while cache[:info][:nrounds] < model.nrounds
       grow_evotree!(fitresult, cache, model)
     end
-    report = (features=A.names,)
+    report = (features=cache[:fnames],)
   else
     fitresult, cache, report = fit(model, verbosity, A, y, w)
   end
@@ -55,32 +42,32 @@ function MMI.update(
 end
 
 function predict(::EvoTreeRegressor, fitresult, A)
-  pred = vec(predict(fitresult, A.matrix))
+  pred = predict(fitresult, A)
   return pred
 end
 
 function predict(::EvoTreeClassifier, fitresult, A)
-  pred = predict(fitresult, A.matrix)
+  pred = predict(fitresult, A)
   return MMI.UnivariateFinite(fitresult.info[:target_levels], pred, pool=missing)
 end
 
 function predict(::EvoTreeCount, fitresult, A)
-  λs = vec(predict(fitresult, A.matrix))
+  λs = predict(fitresult, A)
   return [Distributions.Poisson(λ) for λ ∈ λs]
 end
 
 function predict(::EvoTreeGaussian, fitresult, A)
-  pred = predict(fitresult, A.matrix)
+  pred = predict(fitresult, A)
   return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
 function predict(::EvoTreeMLE{L}, fitresult, A) where {L<:GaussianMLE}
-  pred = predict(fitresult, A.matrix)
+  pred = predict(fitresult, A)
   return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
 function predict(::EvoTreeMLE{L}, fitresult, A) where {L<:LogisticMLE}
-  pred = predict(fitresult, A.matrix)
+  pred = predict(fitresult, A)
   return [Distributions.Logistic(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
@@ -109,7 +96,7 @@ MMI.metadata_pkg.(
 MMI.metadata_model(
   EvoTreeRegressor,
   input_scitype=Union{
-    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor),
+    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
     AbstractMatrix{MMI.Continuous},
   },
   target_scitype=AbstractVector{<:MMI.Continuous},
@@ -120,7 +107,7 @@ MMI.metadata_model(
 MMI.metadata_model(
   EvoTreeClassifier,
   input_scitype=Union{
-    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor),
+    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
     AbstractMatrix{MMI.Continuous},
   },
   target_scitype=AbstractVector{<:MMI.Finite},
@@ -131,7 +118,7 @@ MMI.metadata_model(
 MMI.metadata_model(
   EvoTreeCount,
   input_scitype=Union{
-    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor),
+    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
     AbstractMatrix{MMI.Continuous},
   },
   target_scitype=AbstractVector{<:MMI.Count},
@@ -142,7 +129,7 @@ MMI.metadata_model(
 MMI.metadata_model(
   EvoTreeGaussian,
   input_scitype=Union{
-    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor),
+    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
     AbstractMatrix{MMI.Continuous},
   },
   target_scitype=AbstractVector{<:MMI.Continuous},
@@ -153,7 +140,7 @@ MMI.metadata_model(
 MMI.metadata_model(
   EvoTreeMLE,
   input_scitype=Union{
-    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor),
+    MMI.Table(MMI.Continuous, MMI.Count, MMI.OrderedFactor, MMI.Multiclass),
     AbstractMatrix{MMI.Continuous},
   },
   target_scitype=AbstractVector{<:MMI.Continuous},
@@ -214,7 +201,7 @@ model = fit_evotree(config; x_train, y_train, kwargs...)
 
 ## Inference
 
-Predictions are obtained using [`predict`](@ref) which returns a `Matrix` of size `[nobs, 1]`:
+Predictions are obtained using [`predict`](@ref) which returns a `Vector` of length `nobs`:
 
 ```julia
 EvoTrees.predict(model, X)
@@ -456,7 +443,7 @@ model = fit_evotree(config; x_train, y_train, kwargs...)
 
 ## Inference
 
-Predictions are obtained using [`predict`](@ref) which returns a `Matrix` of size `[nobs, 1]`:
+Predictions are obtained using [`predict`](@ref) which returns a `Vector` of length `nobs`:
 
 ```julia
 EvoTrees.predict(model, X)
