@@ -1,4 +1,10 @@
-function hist_kernel!(h∇::CuDeviceArray{T,3}, ∇::CuDeviceMatrix{S}, x_bin, is, js) where {T,S}
+"""
+    hist_kernel!
+
+Perform a single GPU hist per depth.
+Use a vector of node indices. 
+"""
+function hist_kernel_single_v1!(h∇::CuDeviceArray{T,4}, ∇::CuDeviceMatrix{S}, x_bin, is, js, ns) where {T,S}
     tix, tiy, k = threadIdx().z, threadIdx().y, threadIdx().x
     bdx, bdy = blockDim().z, blockDim().y
     bix, biy = blockIdx().z, blockIdx().y
@@ -9,12 +15,13 @@ function hist_kernel!(h∇::CuDeviceArray{T,3}, ∇::CuDeviceMatrix{S}, x_bin, i
         jdx = js[j]
         i_max = length(is)
         niter = cld(i_max, bdx * gdx)
-        @inbounds for iter = 1:niter
+        @inbounds for iter in 1:niter
             i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
             if i <= i_max
+                @inbounds ndx = ns[i]
                 @inbounds idx = is[i]
                 @inbounds bin = x_bin[idx, jdx]
-                hid = Base._to_linear_index(h∇, k, bin, jdx)
+                hid = Base._to_linear_index(h∇, k, bin, jdx, ndx)
                 CUDA.atomic_add!(pointer(h∇, hid), T(∇[k, idx]))
             end
         end
@@ -23,199 +30,82 @@ function hist_kernel!(h∇::CuDeviceArray{T,3}, ∇::CuDeviceMatrix{S}, x_bin, i
     return nothing
 end
 
-function update_hist_gpu!(h, h∇_cpu, h∇, ∇, x_bin, is, js, jsc)
-    kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
+function update_hist_gpu_single!(h∇, ∇, x_bin, is, js, ns)
+    kernel = @cuda launch = false hist_kernel_single_v1!(h∇, ∇, x_bin, is, js, ns)
     config = launch_configuration(kernel.fun)
-    max_threads = config.threads ÷ 4
-    max_blocks = config.blocks * 4
+    max_threads = config.threads
+    max_blocks = config.blocks
     k = size(h∇, 1)
     ty = max(1, min(length(js), fld(max_threads, k)))
     tx = min(64, max(1, min(length(is), fld(max_threads, k * ty))))
     threads = (k, ty, tx)
+    max_blocks = min(65535, max_blocks * fld(max_threads, prod(threads)))
     by = cld(length(js), ty)
     bx = min(cld(max_blocks, by), cld(length(is), tx))
     blocks = (1, by, bx)
     h∇ .= 0
-    kernel(h∇, ∇, x_bin, is, js; threads, blocks)
-    copyto!(h∇_cpu, h∇)
-    Threads.@threads for j in jsc
-        nbins = size(h[j], 2)
-        @views h[j] .= h∇_cpu[:, 1:nbins, j]
-    end
+    kernel(h∇, ∇, x_bin, is, js, ns; threads, blocks)
+    CUDA.synchronize()
     return nothing
 end
 
-function hist_kernel_vec!(h∇, ∇, x_bin, is)
-    tix, k = threadIdx().x, threadIdx().y
+
+"""
+    update_gains_gpu!(gains, h∇L_gpu, h∇R_gpu, h∇_gpu, lambda)
+"""
+function update_gains_gpu!(gains, h∇L_gpu, h∇R_gpu, h∇_gpu, lambda)
+    cumsum!(h∇L_gpu, h∇_gpu; dims=2)
+    h∇R_gpu .= h∇L_gpu
+    reverse!(h∇R_gpu; dims=2)
+    h∇R_gpu .= view(h∇R_gpu, :, 1:1, :, :) .- h∇L_gpu
+    gains .= get_gain.(view(h∇L_gpu, 1, :, :, :), view(h∇L_gpu, 2, :, :, :), view(h∇L_gpu, 3, :, :, :), lambda) .+
+             get_gain.(view(h∇R_gpu, 1, :, :, :), view(h∇R_gpu, 2, :, :, :), view(h∇R_gpu, 3, :, :, :), lambda)
+
+    gains .*= view(h∇_gpu, 3, :, :, :) .!= 0
+    return nothing
+end
+
+const ϵ::Float32 = eps(eltype(Float32))
+get_gain(∇1, ∇2, w, lambda) = ∇1^2 / max(ϵ, (∇2 + lambda * w)) / 2
+
+
+"""
+    update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
+"""
+function update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
+    tix = threadIdx().x
     bdx = blockDim().x
     bix = blockIdx().x
     gdx = gridDim().x
 
     i_max = length(is)
     niter = cld(i_max, bdx * gdx)
+    i_ini = niter * (tix - 1) + niter * bdx * (bix - 1)
+
     @inbounds for iter in 1:niter
-        i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
+        i = i_ini + iter
         if i <= i_max
             idx = is[i]
-            bin = x_bin[idx]
-            hid = Base._to_linear_index(h∇, k, bin)
-            CUDA.atomic_add!(pointer(h∇, hid), ∇[k, idx])
+            n = nidx[idx]
+            feat = cond_feats[n]
+            bin = cond_bins[n]
+            feattype = feattypes[feat]
+            is_left = feattype ? x_bin[idx, feat] <= bin : x_bin[idx, feat] == bin
+            nidx[idx] = n << 1 + is_left
         end
     end
-    # CUDA.sync_threads()
+    sync_threads()
     return nothing
 end
-function update_hist_gpu_vec!(h, h∇, ∇, x_bin, is, js::Vector)
-    kernel = @cuda launch = false hist_kernel_vec!(h∇[js[1]], ∇, view(x_bin, :, js[1]), is)
+
+function update_nodes_idx_gpu!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
+    kernel = @cuda launch = false update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
     config = launch_configuration(kernel.fun)
     max_threads = config.threads
     max_blocks = config.blocks
-    @assert size(h∇[js[1]], 1) <= max_threads "number of classes cannot be larger than 31 on GPU"
-    ty = min(64, size(h∇[js[1]], 1))
-    tx = max(1, min(length(is), fld(max_threads, ty)))
-    threads = (tx, ty, 1)
-    bx = min(max_blocks, cld(length(is), tx))
-    blocks = (bx, 1, 1)
-    # @sync for j in js
-    #     @async h∇[j] .= 0
-    # end
-    for j in js
-        h∇[j] .= 0
-        h[j] .= 0
-    end
-    CUDA.synchronize()
-    # @info "hist" max_blocks length(is) threads blocks
-    @sync for j in js
-        @async kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
-        # kernel(h∇[j], ∇, view(x_bin, :, j), is; threads, blocks)
-    end
-    CUDA.synchronize()
-    for j in js
-        copyto!(h[j], h∇[j])
-    end
+    threads = min(max_threads, length(is))
+    blocks = min(max_blocks, cld(length(is), threads))
+    kernel(nidx, is, x_bin, cond_feats, cond_bins, feattypes; threads, blocks)
     CUDA.synchronize()
     return nothing
-end
-
-# Multi-threads split_set!
-# Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
-function split_chunk_kernel!(
-    left::CuDeviceVector{S},
-    right::CuDeviceVector{S},
-    is::CuDeviceVector{S},
-    x_bin,
-    feat,
-    cond_bin,
-    feattype,
-    offset,
-    chunk_size,
-    lefts,
-    rights,
-) where {S}
-
-    it = threadIdx().x
-    bid = blockIdx().x
-    gdim = gridDim().x
-
-    left_count = 0
-    right_count = 0
-
-    i = chunk_size * (bid - 1) + 1
-    bid == gdim ? bsize = length(is) - chunk_size * (bid - 1) : bsize = chunk_size
-    i_max = i + bsize - 1
-
-    @inbounds while i <= i_max
-        cond = feattype ? x_bin[is[i], feat] <= cond_bin : x_bin[is[i], feat] == cond_bin
-        if cond
-            left_count += 1
-            left[offset+chunk_size*(bid-1)+left_count] = is[i]
-        else
-            right_count += 1
-            right[offset+chunk_size*(bid-1)+right_count] = is[i]
-        end
-        i += 1
-    end
-    lefts[bid] = left_count
-    rights[bid] = right_count
-    sync_threads()
-    return nothing
-end
-
-function EvoTrees.split_views_kernel!(
-    out::CuDeviceVector{S},
-    left::CuDeviceVector{S},
-    right::CuDeviceVector{S},
-    offset,
-    chunk_size,
-    lefts,
-    rights,
-    sum_lefts,
-    cumsum_lefts,
-    cumsum_rights,
-) where {S}
-
-    bid = blockIdx().x
-    bid == 1 ? cumsum_left = 0 : cumsum_left = cumsum_lefts[bid-1]
-    bid == 1 ? cumsum_right = 0 : cumsum_right = cumsum_rights[bid-1]
-
-    iter = 1
-    i_max = lefts[bid]
-    @inbounds while iter <= i_max
-        out[offset+cumsum_left+iter] = left[offset+chunk_size*(bid-1)+iter]
-        iter += 1
-    end
-
-    iter = 1
-    i_max = rights[bid]
-    @inbounds while iter <= i_max
-        out[offset+sum_lefts+cumsum_right+iter] = right[offset+chunk_size*(bid-1)+iter]
-        iter += 1
-    end
-    sync_threads()
-    return nothing
-end
-
-function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, feattype, offset)
-    chunk_size = cld(length(is), min(cld(length(is), 128), 2048))
-    nblocks = cld(length(is), chunk_size)
-    lefts = CUDA.zeros(Int, nblocks)
-    rights = CUDA.zeros(Int, nblocks)
-
-    # threads = 1
-    @cuda blocks = nblocks threads = 1 split_chunk_kernel!(
-        left,
-        right,
-        is,
-        x_bin,
-        feat,
-        cond_bin,
-        feattype,
-        offset,
-        chunk_size,
-        lefts,
-        rights,
-    )
-    CUDA.synchronize()
-
-    sum_lefts = sum(lefts)
-    cumsum_lefts = cumsum(lefts)
-    cumsum_rights = cumsum(rights)
-    @cuda blocks = nblocks threads = 1 EvoTrees.split_views_kernel!(
-        out,
-        left,
-        right,
-        offset,
-        chunk_size,
-        lefts,
-        rights,
-        sum_lefts,
-        cumsum_lefts,
-        cumsum_rights,
-    )
-
-    CUDA.synchronize()
-    return (
-        view(out, offset+1:offset+sum_lefts),
-        view(out, offset+sum_lefts+1:offset+length(is)),
-    )
 end

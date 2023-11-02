@@ -63,21 +63,21 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
     !isnothing(offset) && (pred .+= CuArray(offset'))
 
     # initialize gradients
-    h∇_cpu = zeros(Float64, 2 * K + 1, maximum(featbins), length(featbins))
-    h∇ = CuArray(h∇_cpu)
     ∇ = CUDA.zeros(T, 2 * K + 1, nobs)
+    h∇ = CUDA.zeros(Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^(params.max_depth - 1) - 1)
+    h∇L = CUDA.zero(h∇)
+    h∇R = CUDA.zero(h∇)
+    gains = CUDA.zeros(maximum(featbins), nfeats, 2^(params.max_depth - 1) - 1)
     @assert (length(y) == length(w) && minimum(w) > 0)
     ∇[end, :] .= w
 
     # initialize indexes
+    nidx = CUDA.ones(UInt32, nobs)
     is_in = CUDA.zeros(UInt32, nobs)
     is_out = CUDA.zeros(UInt32, nobs)
     mask = CUDA.zeros(UInt8, nobs)
     js_ = UInt32.(collect(1:nfeats))
     js = zeros(eltype(js_), ceil(Int, params.colsample * nfeats))
-    out = CUDA.zeros(UInt32, nobs)
-    left = CUDA.zeros(UInt32, nobs)
-    right = CUDA.zeros(UInt32, nobs)
 
     # assign monotone contraints in constraints vector
     monotone_constraints = zeros(Int32, nfeats)
@@ -95,9 +95,16 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
     )
 
     # initialize model
-    nodes = [EvoTrees.TrainNode(featbins, K, view(is_in, 1:0)) for n = 1:2^params.max_depth-1]
+    nodes = [EvoTrees.TrainNode(featbins, K, view(is_in, 1:0)) for _ in 1:2^params.max_depth-1]
     bias = [EvoTrees.Tree{L,K}(μ)]
     m = EvoTree{L,K}(bias, info)
+
+    cond_feats = zeros(Int, 2^(params.max_depth - 1) - 1)
+    cond_bins = zeros(UInt8, 2^(params.max_depth - 1) - 1)
+    cond_feats_gpu = CuArray(cond_feats)
+    cond_bins_gpu = CuArray(cond_bins)
+    feattypes_gpu = CuArray(feattypes)
+    monotone_constraints_gpu = CuArray(monotone_constraints)
 
     # build cache
     cache = (
@@ -108,23 +115,26 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
         K=K,
         nodes=nodes,
         pred=pred,
+        nidx=nidx,
         is_in=is_in,
         is_out=is_out,
         mask=mask,
         js_=js_,
         js=js,
-        out=out,
-        left=left,
-        right=right,
         ∇=∇,
         h∇=h∇,
-        h∇_cpu=h∇_cpu,
+        h∇L=h∇L,
+        h∇R=h∇R,
+        gains=gains,
         fnames=fnames,
         edges=edges,
         featbins=featbins,
-        feattypes=feattypes,
-        feattypes_gpu=CuArray(feattypes),
-        monotone_constraints=monotone_constraints,
+        cond_feats=cond_feats,
+        cond_bins=cond_bins,
+        cond_feats_gpu=cond_feats_gpu,
+        cond_bins_gpu=cond_bins_gpu,
+        feattypes_gpu=feattypes_gpu,
+        monotone_constraints_gpu=monotone_constraints_gpu,
     )
     return m, cache
 end

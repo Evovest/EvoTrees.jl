@@ -3,8 +3,7 @@ using Statistics
 using StatsBase: sample, quantile
 using Distributions
 using Random
-using Plots
-using Revise
+# using Plots
 using CUDA
 using EvoTrees
 using EvoTrees: predict, sigmoid, logit
@@ -34,12 +33,12 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 # linear
 params1 = EvoTreeRegressor(;
     loss=:linear,
-    nrounds=500,
+    nrounds=10,
     nbins=64,
-    lambda=0.1,
-    gamma=0.1,
+    lambda=0.0,
+    gamma=0.0,
     eta=0.1,
-    max_depth=6,
+    max_depth=3,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
