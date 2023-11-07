@@ -179,24 +179,27 @@ end
 h∇ = [zeros(Float32, 3, 32) for n in 1:100];
 h∇_gpu = CUDA.zeros(Float32, 3, 32, 100);
 js = 1:100
-
 # CUDA v4: 534.480 μs (100 allocations: 4.69 KiB)
 # CUDA v5: 1.203 ms (1600 allocations: 68.75 KiB)
+# laptop v4: 1.123 ms (200 allocations: 6.25 KiB)
+# laptop v5.0: 9.399 ms (6724 allocations: 416.94 KiB)
+# laptop main: 1.161 ms (300 allocations: 9.38 KiB)
+CUDA.@time gpu_copy!(h∇, h∇_gpu, js)
 @btime gpu_copy!(h∇, h∇_gpu, js)
 
 
-function gpu_copy2!(h, h∇, jsc)
-    for j in jsc
-        nbins = size(h[j], 2)
-        @async copyto!(h[j], view(h∇, :, 1:nbins, j))
-    end
-    return nothing
-end
+# function gpu_copy2!(h, h∇, jsc)
+#     for j in jsc
+#         nbins = size(h[j], 2)
+#         @async copyto!(h[j], view(h∇, :, 1:nbins, j))
+#     end
+#     return nothing
+# end
 
-h∇ = [zeros(Float32, 3, 32) for n in 1:100];
-h∇_gpu = CUDA.zeros(Float32, 3, 32, 100);
-js = 1:100
+# h∇ = [zeros(Float32, 3, 32) for n in 1:100];
+# h∇_gpu = CUDA.zeros(Float32, 3, 32, 100);
+# js = 1:100
 
-# CUDA v4: 534.480 μs (100 allocations: 4.69 KiB)
-# CUDA v5: 1.203 ms (1600 allocations: 68.75 KiB)
-@btime gpu_copy2!(h∇, h∇_gpu, js)
+# # CUDA v4: 534.480 μs (100 allocations: 4.69 KiB)
+# # CUDA v5: 1.203 ms (1600 allocations: 68.75 KiB)
+# @btime gpu_copy2!(h∇, h∇_gpu, js)
