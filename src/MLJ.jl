@@ -165,7 +165,8 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 - `nrounds=10`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.   
-- `lambda::T=0.0`:        L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
+  - `L2::T=0.0`:          L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
+  - `lambda::T=0.0`:      L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma::T=0.0`:         Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `alpha::T=0.5`:         Loss specific parameter in the [0, 1] range:
                             - `:quantile`: target quantile for the regression.
@@ -289,7 +290,8 @@ EvoTreeClassifier is used to perform multi-class classification, using cross-ent
 - `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
-- `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
+- `L2::T=0.0`:          L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
+- `lambda::T=0.0`:      L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma::T=0.0`:               Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `max_depth=5`:                Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
@@ -413,7 +415,8 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
 - `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
-- `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model. Must be >= 0.
+- `L2::T=0.0`:          L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
+- `lambda::T=0.0`:      L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
 - `max_depth=5`:                Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
@@ -542,7 +545,8 @@ EvoTreeGaussian is used to perform Gaussian probabilistic regression, fitting μ
 - `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
-- `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
+- `L2::T=0.0`:          L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
+- `lambda::T=0.0`:      L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `max_depth=5`:                Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
@@ -679,7 +683,8 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
 - `nrounds=10`:                 Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
-- `lambda::T=0.0`:              L2 regularization term on weights. Must be >= 0. Higher lambda can result in a more robust model.
+- `L2::T=0.0`:          L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
+- `lambda::T=0.0`:      L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma::T=0.0`:               Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `max_depth=5`:                Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.

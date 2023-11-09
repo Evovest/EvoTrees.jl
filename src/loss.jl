@@ -144,13 +144,13 @@ end
 # GradientRegression
 function get_gain(params::EvoTypes{L}, ∑::AbstractVector) where {L<:GradientRegression}
     ϵ = eps(eltype(∑))
-    ∑[1]^2 / max(ϵ, (∑[2] + params.lambda * ∑[3])) / 2
+    ∑[1]^2 / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2)) / 2
 end
 
 # GaussianRegression
 function get_gain(params::EvoTypes{L}, ∑::AbstractVector) where {L<:MLE2P}
     ϵ = eps(eltype(∑))
-    (∑[1]^2 / max(ϵ, (∑[3] + params.lambda * ∑[5])) + ∑[2]^2 / max(ϵ, (∑[4] + params.lambda * ∑[5]))) / 2
+    (∑[1]^2 / max(ϵ, (∑[3] + params.lambda * ∑[5] + params.L2)) + ∑[2]^2 / max(ϵ, (∑[4] + params.lambda * ∑[5] + params.L2))) / 2
 end
 
 # MultiClassRegression
@@ -159,7 +159,7 @@ function get_gain(params::EvoTypes{L}, ∑::AbstractVector{T}) where {L<:MLogLos
     gain = zero(T)
     K = (length(∑) - 1) ÷ 2
     @inbounds for k = 1:K
-        gain += ∑[k]^2 / max(ϵ, (∑[k+K] + params.lambda * ∑[end])) / 2
+        gain += ∑[k]^2 / max(ϵ, (∑[k+K] + params.lambda * ∑[end] + params.L2)) / 2
     end
     return gain
 end

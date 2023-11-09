@@ -4,6 +4,7 @@ using CSV
 using DataFrames
 using StatsBase
 using Statistics: mean, std
+using CUDA
 using EvoTrees
 using Solage: Connectors
 using AWS: AWSCredentials, AWSConfig, @service
@@ -33,10 +34,11 @@ dtest = df_tot[end-500_000+1:end, :];
 config = EvoTreeRegressor(
     loss=:logloss,
     nrounds=5000,
-    eta=0.15,
-    nbins=128,
-    max_depth=9,
-    lambda=1.0,
+    eta=0.2,
+    nbins=224,
+    max_depth=11,
+    L2=1,
+    lambda=0.0,
     gamma=0.0,
     rowsample=0.8,
     colsample=0.8,
@@ -44,12 +46,11 @@ config = EvoTreeRegressor(
     rng=123,
 )
 
-device = "gpu"
+device = "cpu"
 metric = "logloss"
 @time m_evo = fit_evotree(config, dtrain; target_name, fnames=feature_names, deval, metric, device, early_stopping_rounds=200, print_every_n=100);
 
 p_test = m_evo(dtest);
-@info extrema(p_test)
 logloss_test = mean(-dtest.y .* log.(p_test) .+ (dtest.y .- 1) .* log.(1 .- p_test))
 @info "LogLoss - dtest" logloss_test
 error_test = 1 - mean(round.(Int, p_test) .== dtest.y)
@@ -63,8 +64,8 @@ error_test = 1 - mean(round.(Int, p_test) .== dtest.y)
 @info "train"
 using XGBoost
 params_xgb = Dict(
-    :num_round => 4000,
-    :max_depth => 8,
+    :num_round => 2000,
+    :max_depth => 10,
     :eta => 0.15,
     :objective => "reg:logistic",
     :print_every_n => 5,
@@ -81,8 +82,6 @@ watchlist = Dict("eval" => DMatrix(select(deval, feature_names), deval.y));
 @time m_xgb = xgboost(dtrain_xgb; watchlist, nthread=Threads.nthreads(), verbosity=0, eval_metric="logloss", params_xgb...);
 
 pred_xgb = XGBoost.predict(m_xgb, DMatrix(select(deval, feature_names)));
-@info extrema(pred_xgb)
-# (1.9394008f-6, 0.9999975f0)
 logloss_test = mean(-dtest.y .* log.(pred_xgb) .+ (dtest.y .- 1) .* log.(1 .- pred_xgb))
 @info "LogLoss - dtest" logloss_test
 error_test = 1 - mean(round.(Int, pred_xgb) .== dtest.y)

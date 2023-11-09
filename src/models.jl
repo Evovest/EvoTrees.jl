@@ -34,6 +34,7 @@ mk_rng(int::Integer) = Random.MersenneTwister(int)
 
 mutable struct EvoTreeRegressor{L<:ModelType} <: MMI.Deterministic
     nrounds::Int
+    L2::Float64
     lambda::Float64
     gamma::Float64
     eta::Float64
@@ -54,6 +55,7 @@ function EvoTreeRegressor(; kwargs...)
     args = Dict{Symbol,Any}(
         :loss => :mse,
         :nrounds => 100,
+        :L2 => 0.0,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
         :eta => 0.1, # learning rate
@@ -102,6 +104,7 @@ function EvoTreeRegressor(; kwargs...)
 
     model = EvoTreeRegressor{L}(
         args[:nrounds],
+        args[:L2],
         args[:lambda],
         args[:gamma],
         args[:eta],
@@ -125,6 +128,7 @@ end
 
 mutable struct EvoTreeCount{L<:ModelType} <: MMI.Probabilistic
     nrounds::Int
+    L2::Float64
     lambda::Float64
     gamma::Float64
     eta::Float64
@@ -144,6 +148,7 @@ function EvoTreeCount(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :nrounds => 100,
+        :L2 => 0.0,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
         :eta => 0.1, # learning rate
@@ -169,6 +174,7 @@ function EvoTreeCount(; kwargs...)
 
     model = EvoTreeCount{L}(
         args[:nrounds],
+        args[:L2],
         args[:lambda],
         args[:gamma],
         args[:eta],
@@ -192,6 +198,7 @@ end
 
 mutable struct EvoTreeClassifier{L<:ModelType} <: MMI.Probabilistic
     nrounds::Int
+    L2::Float64
     lambda::Float64
     gamma::Float64
     eta::Float64
@@ -210,6 +217,7 @@ function EvoTreeClassifier(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :nrounds => 100,
+        :L2 => 0.0,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
         :eta => 0.1, # learning rate
@@ -234,6 +242,7 @@ function EvoTreeClassifier(; kwargs...)
 
     model = EvoTreeClassifier{L}(
         args[:nrounds],
+        args[:L2],
         args[:lambda],
         args[:gamma],
         args[:eta],
@@ -256,6 +265,7 @@ end
 
 mutable struct EvoTreeMLE{L<:ModelType} <: MMI.Probabilistic
     nrounds::Int
+    L2::Float64
     lambda::Float64
     gamma::Float64
     eta::Float64
@@ -276,6 +286,7 @@ function EvoTreeMLE(; kwargs...)
     args = Dict{Symbol,Any}(
         :loss => :gaussian_mle,
         :nrounds => 100,
+        :L2 => 0.0,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
         :eta => 0.1, # learning rate
@@ -312,6 +323,7 @@ function EvoTreeMLE(; kwargs...)
 
     model = EvoTreeMLE{L}(
         args[:nrounds],
+        args[:L2],
         args[:lambda],
         args[:gamma],
         args[:eta],
@@ -341,6 +353,7 @@ end
 
 mutable struct EvoTreeGaussian{L<:ModelType} <: MMI.Probabilistic
     nrounds::Int
+    L2::Float64
     lambda::Float64
     gamma::Float64
     eta::Float64
@@ -359,6 +372,7 @@ function EvoTreeGaussian(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :nrounds => 100,
+        :L2 => 0.0,
         :lambda => 0.0,
         :gamma => 0.0, # min gain to split
         :eta => 0.1, # learning rate
@@ -384,6 +398,7 @@ function EvoTreeGaussian(; kwargs...)
 
     model = EvoTreeGaussian{L}(
         args[:nrounds],
+        args[:L2],
         args[:lambda],
         args[:gamma],
         args[:eta],
