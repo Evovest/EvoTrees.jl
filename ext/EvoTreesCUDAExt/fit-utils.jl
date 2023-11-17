@@ -18,11 +18,13 @@ function hist_kernel_single_v1!(h∇::CuDeviceArray{T,4}, ∇::CuDeviceMatrix{S}
         @inbounds for iter in 1:niter
             i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
             if i <= i_max
-                @inbounds ndx = ns[i]
                 @inbounds idx = is[i]
-                @inbounds bin = x_bin[idx, jdx]
-                hid = Base._to_linear_index(h∇, k, bin, jdx, ndx)
-                CUDA.atomic_add!(pointer(h∇, hid), T(∇[k, idx]))
+                @inbounds ndx = ns[idx]
+                if ndx != 0
+                    @inbounds bin = x_bin[idx, jdx]
+                    hid = Base._to_linear_index(h∇, k, bin, jdx, ndx)
+                    CUDA.atomic_add!(pointer(h∇, hid), T(∇[k, idx]))
+                end
             end
         end
     end
@@ -61,7 +63,10 @@ function update_gains_gpu!(gains, h∇L_gpu, h∇R_gpu, h∇_gpu, lambda)
     gains .= get_gain.(view(h∇L_gpu, 1, :, :, :), view(h∇L_gpu, 2, :, :, :), view(h∇L_gpu, 3, :, :, :), lambda) .+
              get_gain.(view(h∇R_gpu, 1, :, :, :), view(h∇R_gpu, 2, :, :, :), view(h∇R_gpu, 3, :, :, :), lambda)
 
-    gains .*= view(h∇_gpu, 3, :, :, :) .!= 0
+    gains .*= view(h∇_gpu, 3, :, :, :) .> 1
+    gains .*= view(h∇L_gpu, 3, :, :, :) .> 1
+    gains .*= view(h∇R_gpu, 3, :, :, :) .> 1
+
     return nothing
 end
 
@@ -89,9 +94,13 @@ function update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, featty
             n = nidx[idx]
             feat = cond_feats[n]
             bin = cond_bins[n]
-            feattype = feattypes[feat]
-            is_left = feattype ? x_bin[idx, feat] <= bin : x_bin[idx, feat] == bin
-            nidx[idx] = n << 1 + !is_left
+            if bin == 0
+                nidx[idx] = 0
+            else
+                feattype = feattypes[feat]
+                is_left = feattype ? x_bin[idx, feat] <= bin : x_bin[idx, feat] == bin
+                nidx[idx] = n << 1 + !is_left
+            end
         end
     end
     sync_threads()

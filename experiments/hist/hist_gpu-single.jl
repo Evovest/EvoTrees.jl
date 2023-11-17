@@ -58,8 +58,8 @@ function hist_kernel_single_v1!(h∇::CuDeviceArray{T,4}, ∇::CuDeviceMatrix{S}
         @inbounds for iter in 1:niter
             i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
             if i <= i_max
-                @inbounds ndx = ns[i]
                 @inbounds idx = is[i]
+                @inbounds ndx = ns[idx]
                 @inbounds bin = x_bin[idx, jdx]
                 hid = Base._to_linear_index(h∇, k, bin, jdx, ndx)
                 CUDA.atomic_add!(pointer(h∇, hid), T(∇[k, idx]))

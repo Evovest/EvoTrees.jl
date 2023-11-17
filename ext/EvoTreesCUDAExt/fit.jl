@@ -98,6 +98,10 @@ function grow_tree!(
             best_gains = Vector(reshape(best[1], :))
             best_idx = Vector(reshape(best[2], :))
 
+            # @info "h∇" h∇
+            # @info "h∇L" h∇L
+            # @info "h∇R" h∇R
+            
             for n in dnodes
                 best_gain = best_gains[n-offset]
                 best_bin = best_idx[n-offset][1]
@@ -112,8 +116,6 @@ function grow_tree!(
 
                     copyto!(nodes[n<<1].∑, view(h∇L, :, best_bin, best_feat, n))
                     copyto!(nodes[n<<1+1].∑, view(h∇R, :, best_bin, best_feat, n))
-                    # nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
-                    # nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
                     nodes[n<<1].gain = EvoTrees.get_gain(params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = EvoTrees.get_gain(params, nodes[n<<1+1].∑)
 
@@ -124,6 +126,9 @@ function grow_tree!(
             copyto!(view(cond_feats_gpu, dnodes), tree.feat[dnodes])
             copyto!(view(cond_bins_gpu, dnodes), tree.cond_bin[dnodes])
             update_nodes_idx_gpu!(nidx, is, x_bin, cond_feats_gpu, cond_bins_gpu, feattypes_gpu)
+            # @info sum(nidx .== 1)
+            # @info sum(nidx .== 2)
+            # @info sum(nidx .== 3)
         else
             for n in dnodes
                 EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params)
