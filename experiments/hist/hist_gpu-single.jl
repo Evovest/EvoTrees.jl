@@ -70,7 +70,7 @@ function hist_kernel_single_v1!(h∇::CuDeviceArray{T,4}, ∇::CuDeviceMatrix{S}
     return nothing
 end
 
-# change iteration for threads to loop of adjacent is
+# change iteration for threads to loop of adjacent is - not conclusive
 function hist_kernel_single_v2!(h∇::CuDeviceArray{T,4}, ∇::CuDeviceMatrix{S}, x_bin, is, js, ns) where {T,S}
     tix, tiy, k = threadIdx().z, threadIdx().y, threadIdx().x
     bdx, bdy = blockDim().z, blockDim().y
@@ -199,7 +199,7 @@ function update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, featty
             bin = cond_bins[n]
             feattype = feattypes[feat]
             is_left = feattype ? x_bin[idx, feat] <= bin : x_bin[idx, feat] == bin
-            nidx[idx] = n << 1 + is_left
+            nidx[idx] = n << 1 + !is_left
         end
     end
     sync_threads()

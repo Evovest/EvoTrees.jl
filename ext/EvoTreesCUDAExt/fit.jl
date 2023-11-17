@@ -58,13 +58,15 @@ function grow_tree!(
 
     js_gpu = CuVector(js)
     # reset nodes
+    gains .= 0
+    nidx .= 1
     for n in nodes
         n.∑ .= 0
         n.gain = 0.0
-        @inbounds for i in eachindex(n.h)
-            # n.h[i] .= 0
-            n.gains[i] .= 0
-        end
+        # @inbounds for i in eachindex(n.h)
+        #     # n.h[i] .= 0
+        #     # n.gains[i] .= 0
+        # end
     end
 
     # initialize
@@ -77,10 +79,9 @@ function grow_tree!(
 
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
-        offset = 2^(depth - 1) - 1 # identifies breakpoint for each node set within a depth
-        @info "offset" offset
         n_next = Int[]
         dnodes = 2^(depth-1):2^depth-1
+        offset = 2^(depth - 1) - 1 # identifies breakpoint for each node set within a depth
 
         if depth < params.max_depth
             update_hist_gpu_single!(h∇, ∇, x_bin, is, js_gpu, nidx)
@@ -101,6 +102,7 @@ function grow_tree!(
                 best_gain = best_gains[n-offset]
                 best_bin = best_idx[n-offset][1]
                 best_feat = best_idx[n-offset][2]
+                # @info "node: $n | best_gain: $best_gain | best_bin: $best_bin | nodegain: $(nodes[n].gain)"
                 if best_gain > nodes[n].gain + params.gamma
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
@@ -108,8 +110,10 @@ function grow_tree!(
                     tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
                     tree.split[n] = best_bin != 0
 
-                    nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
+                    copyto!(nodes[n<<1].∑, view(h∇L, :, best_bin, best_feat, n))
+                    copyto!(nodes[n<<1+1].∑, view(h∇R, :, best_bin, best_feat, n))
+                    # nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
+                    # nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
                     nodes[n<<1].gain = EvoTrees.get_gain(params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = EvoTrees.get_gain(params, nodes[n<<1+1].∑)
 

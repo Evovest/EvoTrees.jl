@@ -22,7 +22,7 @@ import CUDA
 nobs = Int(1e6)
 num_feat = Int(100)
 nrounds = 200
-max_depth = 6
+max_depth = 11
 tree_type = "binary"
 T = Float64
 nthread = Base.Threads.nthreads()

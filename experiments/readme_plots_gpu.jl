@@ -3,7 +3,7 @@ using Statistics
 using StatsBase: sample, quantile
 using Distributions
 using Random
-# using Plots
+using Plots
 using CUDA
 using EvoTrees
 using EvoTrees: predict, sigmoid, logit
@@ -33,12 +33,12 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 # linear
 params1 = EvoTreeRegressor(;
     loss=:linear,
-    nrounds=10,
+    nrounds=500,
     nbins=64,
     lambda=0.0,
     gamma=0.0,
     eta=0.1,
-    max_depth=3,
+    max_depth=6,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -57,15 +57,18 @@ params1 = EvoTreeRegressor(;
     early_stopping_rounds=50,
     device
 );
+
+model.trees[2]
+
 # model, logger = fit_evotree(params1; x_train, y_train, metric=:mse, x_eval, y_eval, early_stopping_rounds=20, print_every_n=10, return_logger=true);
+@time pred_train_linear = predict(model, x_train)
+# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
+mean(abs.(pred_train_linear .- y_train))
+sqrt(mean((pred_train_linear .- y_train) .^ 2))
+
 @time pred_train_linear_cpu = model(x_train)
 @time pred_train_linear_gpu = model(x_train; device)
 sum(pred_train_linear_gpu .- pred_train_linear_cpu)
-
-# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
-@time pred_train_linear = predict(model, x_train)
-mean(abs.(pred_train_linear .- y_train))
-sqrt(mean((pred_train_linear .- y_train) .^ 2))
 
 # logistic / cross-entropy
 params1 = EvoTreeRegressor(;

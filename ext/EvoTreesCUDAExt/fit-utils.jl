@@ -91,13 +91,27 @@ function update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, featty
             bin = cond_bins[n]
             feattype = feattypes[feat]
             is_left = feattype ? x_bin[idx, feat] <= bin : x_bin[idx, feat] == bin
-            nidx[idx] = n << 1 + is_left
+            nidx[idx] = n << 1 + !is_left
         end
     end
     sync_threads()
     return nothing
 end
 
+"""
+    update_nodes_idx_gpu!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
+
+# Arguments
+
+- nidx: vector of Int of length == nobs indicating the active node of each observation
+- is: vector or observations id
+- x_bin: binarized feature matrix
+- cond_feats: vector of Int indicating the feature on which to perform the condition. Length == #nodes
+- cond_bins: vector of Float indicating the value for splitting a feature. Length == #nodes
+- feattypes: vector of Bool indicating whether the feature is ordinal
+
+
+"""
 function update_nodes_idx_gpu!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
     kernel = @cuda launch = false update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
     config = launch_configuration(kernel.fun)
