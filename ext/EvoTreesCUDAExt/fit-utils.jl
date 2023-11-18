@@ -45,7 +45,7 @@ function update_hist_gpu_single!(h∇, ∇, x_bin, is, js, ns)
     by = cld(length(js), ty)
     bx = min(cld(max_blocks, by), cld(length(is), tx))
     blocks = (1, by, bx)
-    h∇ .= 0
+    # h∇ .= 0
     kernel(h∇, ∇, x_bin, is, js, ns; threads, blocks)
     CUDA.synchronize()
     return nothing
