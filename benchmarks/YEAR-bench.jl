@@ -64,8 +64,8 @@ config = EvoTreeRegressor(
     max_depth=7,
     lambda=0,
     gamma=0,
-    rowsample=0.8,
-    colsample=0.8,
+    rowsample=1.0,
+    colsample=1.0,
 )
 
 # @time m = fit_evotree(config; x_train, y_train, print_every_n=25);

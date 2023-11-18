@@ -68,6 +68,9 @@ function grow_tree!(
         #     # n.gains[i] .= 0
         # end
     end
+    h∇ .= 0
+    h∇L .= 0
+    h∇R .= 0
 
     # initialize
     n_current = [1]
