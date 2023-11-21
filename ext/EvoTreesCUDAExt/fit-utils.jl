@@ -45,7 +45,6 @@ function update_hist_gpu_single!(h∇, ∇, x_bin, is, js, ns)
     by = cld(length(js), ty)
     bx = min(cld(max_blocks, by), cld(length(is), tx))
     blocks = (1, by, bx)
-    # h∇ .= 0
     kernel(h∇, ∇, x_bin, is, js, ns; threads, blocks)
     CUDA.synchronize()
     return nothing
@@ -92,14 +91,18 @@ function update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, featty
         if i <= i_max
             idx = is[i]
             n = nidx[idx]
-            feat = cond_feats[n]
-            bin = cond_bins[n]
-            if bin == 0
+            if n == 0
                 nidx[idx] = 0
             else
-                feattype = feattypes[feat]
-                is_left = feattype ? x_bin[idx, feat] <= bin : x_bin[idx, feat] == bin
-                nidx[idx] = n << 1 + !is_left
+                feat = cond_feats[n]
+                bin = cond_bins[n]
+                if bin == 0
+                    nidx[idx] = 0
+                else
+                    feattype = feattypes[feat]
+                    is_left = feattype ? x_bin[idx, feat] <= bin : x_bin[idx, feat] == bin
+                    nidx[idx] = n << 1 + !is_left
+                end
             end
         end
     end
@@ -128,7 +131,10 @@ function update_nodes_idx_gpu!(nidx, is, x_bin, cond_feats, cond_bins, feattypes
     max_blocks = config.blocks
     threads = min(max_threads, length(is))
     blocks = min(max_blocks, cld(length(is), threads))
+    # @info "threads blocks" threads blocks
+    # @info "min/max nidx[is]" Int(minimum(nidx[is])) Int(maximum(nidx[is]))
     kernel(nidx, is, x_bin, cond_feats, cond_bins, feattypes; threads, blocks)
     CUDA.synchronize()
+    # @info "update idx complete"
     return nothing
 end
