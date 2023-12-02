@@ -63,17 +63,13 @@ function grow_tree!(
     for n in nodes
         n.∑ .= 0
         n.gain = 0.0
-        # @inbounds for i in eachindex(n.h)
-        #     # n.h[i] .= 0
-        #     # n.gains[i] .= 0
-        # end
     end
     h∇ .= 0
     h∇L .= 0
     h∇R .= 0
 
     # initialize
-    n_current = [1]
+    anodes = [1]
     depth = 1
 
     # initialize summary stats
@@ -81,7 +77,7 @@ function grow_tree!(
     nodes[1].gain = EvoTrees.get_gain(params, nodes[1].∑)
 
     # grow while there are remaining active nodes
-    while length(n_current) > 0 && depth <= params.max_depth
+    while length(anodes) > 0 && depth <= params.max_depth
         n_next = Int[]
         dnodes = 2^(depth-1):2^depth-1
         offset = 2^(depth - 1) - 1 # identifies breakpoint for each node set within a depth
@@ -101,11 +97,7 @@ function grow_tree!(
             best_gains = Vector(reshape(best[1], :))
             best_idx = Vector(reshape(best[2], :))
 
-            # @info "h∇" h∇
-            # @info "h∇L" h∇L
-            # @info "h∇R" h∇R
-            
-            for n in dnodes
+            for n in anodes
                 best_gain = best_gains[n-offset]
                 best_bin = best_idx[n-offset][1]
                 best_feat = best_idx[n-offset][2]
@@ -121,22 +113,22 @@ function grow_tree!(
                     copyto!(nodes[n<<1+1].∑, view(h∇R, :, best_bin, best_feat, n))
                     nodes[n<<1].gain = EvoTrees.get_gain(params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = EvoTrees.get_gain(params, nodes[n<<1+1].∑)
-
+                    push!(n_next, n<<1)
+                    push!(n_next, n<<1+1)
                 else
                     EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params)
                 end
             end
             copyto!(view(cond_feats_gpu, dnodes), tree.feat[dnodes])
             copyto!(view(cond_bins_gpu, dnodes), tree.cond_bin[dnodes])
+            # @info "cond_bins_gpu[dnodes]" Int(minimum(cond_bins_gpu[dnodes]))
             update_nodes_idx_gpu!(nidx, is, x_bin, cond_feats_gpu, cond_bins_gpu, feattypes_gpu)
-            # @info sum(nidx .== 1)
-            # @info sum(nidx .== 2)
-            # @info sum(nidx .== 3)
         else
-            for n in dnodes
+            for n in anodes
                 EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params)
             end
         end
+        anodes = copy(n_next)
         depth += 1
     end # end of loop over active ids for a given depth
 
