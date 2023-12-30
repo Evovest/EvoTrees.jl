@@ -23,7 +23,7 @@ function hist_cpu!(
     return nothing
 end
 
-nbins = 32
+nbins = 64
 nobs = Int(1e6)
 nfeats = 100
 rowsample = 0.5
@@ -35,7 +35,7 @@ h∇ = [zeros(Float64, 3, nbins) for n in 1:nfeats]
 is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
 js = sample(1:nfeats, Int(round(rowsample * nfeats)), replace=false, ordered=true)
 
-# 6.886 ms (97 allocations: 10.67 KiB)
-# 9.624 ms (97 allocations: 10.67 KiB)
+# laptop: 7.455 ms (81 allocations: 10.17 KiB)
+# desktop: 
 @time hist_cpu!(h∇, ∇, x_bin, is, js)
 @btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)
