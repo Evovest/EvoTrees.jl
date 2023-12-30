@@ -107,35 +107,9 @@ dnodes = 16:31
 #####################################
 # update node index
 #####################################
-function update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
-    tix = threadIdx().x
-    bdx = blockDim().x
-    bix = blockIdx().x
-    gdx = gridDim().x
-
-    i_max = length(is)
-    niter = cld(i_max, bdx * gdx)
-    i_ini = niter * (tix - 1) + niter * bdx * (bix - 1)
-
-    @inbounds for iter in 1:niter
-        i = i_ini + iter
-        if i <= i_max
-            idx = is[i]
-            n = nidx[idx]
-            feat = cond_feats[n]
-            bin = cond_bins[n]
-            feattype = feattypes[feat]
-            is_left = feattype ? x_bin[idx, feat] <= bin : x_bin[idx, feat] == bin
-            nidx[idx] = n << 1 + !is_left
-        end
-    end
-    sync_threads()
-    return nothing
-end
-
 function update_nodes_idx_cpu!(ns_src, ns, is, x_bin, cond_feats, cond_bins, feattypes)
-    @inbounds for i in is
-        n = ns_src[idx]
+    @threads for i in is
+        n = ns_src[i]
         feat = cond_feats[n]
         bin = cond_bins[n]
         feattype = feattypes[feat]
@@ -145,7 +119,6 @@ function update_nodes_idx_cpu!(ns_src, ns, is, x_bin, cond_feats, cond_bins, fea
     return nothing
 end
 
-CUDA.@time update_nodes_idx_gpu!(nidx_src, nidx_gpu, is_gpu, x_bin_gpu, cond_feats_gpu, cond_bins_gpu, feattypes_gpu)
-
-# laptop - 1M: 1.056 ms (114 allocations: 6.81 KiB)
-@btime update_nodes_idx_gpu!(nidx_src, nidx_gpu, is_gpu, x_bin_gpu, cond_feats_gpu, cond_bins_gpu, feattypes_gpu)
+@time update_nodes_idx_cpu!(ns_src, ns, is, x_bin, cond_feats, cond_bins, feattypes)
+# laptop - 941.000 μs (81 allocations: 10.42 KiB)
+@btime update_nodes_idx_cpu!($ns_src, $ns, $is, $x_bin, $cond_feats, $cond_bins, $feattypes)
