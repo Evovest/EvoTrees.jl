@@ -65,17 +65,20 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
 
     # initialize gradients
     ∇ = zeros(T, 2 * K + 1, nobs)
+    h∇ = zeros(Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^(params.max_depth - 1) - 1)
+    h∇L = zero(h∇)
+    h∇R = zero(h∇)
+    gains = zeros(maximum(featbins), nfeats, 2^(params.max_depth - 1) - 1)
+    @assert (length(y) == length(w) && minimum(w) > 0)
     ∇[end, :] .= w
 
     # initialize indexes
+    ns = ones(UInt32, nobs)
     is_in = zeros(UInt32, nobs)
     is_out = zeros(UInt32, nobs)
     mask = zeros(UInt8, nobs)
     js_ = UInt32.(collect(1:nfeats))
     js = zeros(UInt32, ceil(Int, params.colsample * nfeats))
-    out = zeros(UInt32, nobs)
-    left = zeros(UInt32, nobs)
-    right = zeros(UInt32, nobs)
 
     # assign monotone contraints in constraints vector
     monotone_constraints = zeros(Int32, nfeats)
@@ -93,7 +96,9 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
     )
 
     # initialize model
-    nodes = [TrainNode(featbins, K, view(is_in, 1:0)) for n = 1:2^params.max_depth-1]
+    cond_feats = zeros(Int, 2^(params.max_depth - 1) - 1)
+    cond_bins = zeros(UInt8, 2^(params.max_depth - 1) - 1)
+    nodes = [TrainNode(featbins, K) for n = 1:2^params.max_depth-1]
     bias = [Tree{L,K}(μ)]
     m = EvoTree{L,K}(bias, info)
 
@@ -106,19 +111,23 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
         pred=pred,
         K=K,
         nodes=nodes,
+        ns=ns,
         is_in=is_in,
         is_out=is_out,
         mask=mask,
         js_=js_,
         js=js,
-        out=out,
-        left=left,
-        right=right,
         ∇=∇,
+        h∇=h∇,
+        h∇L=h∇L,
+        h∇R=h∇R,
+        gains=gains,
         edges=edges,
         fnames=fnames,
         featbins=featbins,
         feattypes=feattypes,
+        cond_feats=cond_feats,
+        cond_bins=cond_bins,
         monotone_constraints=monotone_constraints,
     )
     return m, cache

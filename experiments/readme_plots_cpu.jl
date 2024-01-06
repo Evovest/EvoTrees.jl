@@ -32,12 +32,11 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 # linear
 params1 = EvoTreeRegressor(;
     loss=:mse,
-    alpha=1,
     nrounds=200,
     nbins=64,
     lambda=0.01,
-    gamma=0.1,
-    eta=0.05,
+    gamma=0.0,
+    eta=0.1,
     max_depth=6,
     min_weight=1.0,
     rowsample=0.5,

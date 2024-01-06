@@ -92,202 +92,113 @@ end
     Multi-threaded split_set!
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
 """
-function split_set_chunk!(
-    left,
-    right,
-    is,
-    bid,
-    nblocks,
-    x_bin,
-    feat,
-    cond_bin,
-    feattype,
-    offset,
-    chunk_size,
-)
-
-    left_count = 0
-    right_count = 0
-    i = chunk_size * (bid - 1) + 1
-    bid == nblocks ? bsize = length(is) - chunk_size * (bid - 1) : bsize = chunk_size
-    i_max = i + bsize - 1
-
-    @inbounds while i <= i_max
-        cond = feattype ? x_bin[is[i], feat] <= cond_bin : x_bin[is[i], feat] == cond_bin
-        if cond
-            left_count += 1
-            left[offset+chunk_size*(bid-1)+left_count] = is[i]
+function update_nodes_idx_cpu!(ns, is, x_bin, cond_feats, cond_bins, feattypes)
+    @threads for i in is
+        n = ns[i]
+        if n == 0
+            ns[i] = 0
         else
-            right_count += 1
-            right[offset+chunk_size*(bid-1)+right_count] = is[i]
-        end
-        i += 1
-    end
-    return left_count, right_count
-end
-
-function split_views_kernel!(
-    out::Vector{S},
-    left::Vector{S},
-    right::Vector{S},
-    bid,
-    offset,
-    chunk_size,
-    lefts,
-    rights,
-    sum_lefts,
-    cumsum_lefts,
-    cumsum_rights,
-) where {S}
-    iter = 1
-    i_max = lefts[bid]
-    bid == 1 ? cumsum_left = 0 : cumsum_left = cumsum_lefts[bid-1]
-    @inbounds while iter <= i_max
-        out[offset+cumsum_left+iter] = left[offset+chunk_size*(bid-1)+iter]
-        iter += 1
-    end
-
-    iter = 1
-    i_max = rights[bid]
-    bid == 1 ? cumsum_right = 0 : cumsum_right = cumsum_rights[bid-1]
-    @inbounds while iter <= i_max
-        out[offset+sum_lefts+cumsum_right+iter] = right[offset+chunk_size*(bid-1)+iter]
-        iter += 1
-    end
-    return nothing
-end
-
-function split_set_threads!(
-    out,
-    left,
-    right,
-    is,
-    x_bin::Matrix{S},
-    feat,
-    cond_bin,
-    feattype,
-    offset,
-) where {S}
-
-    chunk_size = cld(length(is), min(cld(length(is), 16_000), Threads.nthreads()))
-    nblocks = cld(length(is), chunk_size)
-
-    lefts = zeros(Int, nblocks)
-    rights = zeros(Int, nblocks)
-
-    @sync begin
-        for bid = 1:nblocks
-            @spawn begin
-                lefts[bid], rights[bid] = split_set_chunk!(
-                    left,
-                    right,
-                    is,
-                    bid,
-                    nblocks,
-                    x_bin,
-                    feat,
-                    cond_bin,
-                    feattype,
-                    offset,
-                    chunk_size,
-                )
+            feat = cond_feats[n]
+            cbin = cond_bins[n]
+            if cbin == 0
+                ns[i] = 0
+            else
+                feattype = feattypes[feat]
+                is_left = feattype ? x_bin[i, feat] <= cbin : x_bin[i, feat] == cbin
+                ns[i] = n << 1 + !is_left
             end
         end
     end
-
-    sum_lefts = sum(lefts)
-    cumsum_lefts = cumsum(lefts)
-    cumsum_rights = cumsum(rights)
-    @sync begin
-        for bid = 1:nblocks
-            @spawn split_views_kernel!(
-                out,
-                left,
-                right,
-                bid,
-                offset,
-                chunk_size,
-                lefts,
-                rights,
-                sum_lefts,
-                cumsum_lefts,
-                cumsum_rights,
-            )
-        end
-    end
-
-    return (
-        view(out, offset+1:offset+sum_lefts),
-        view(out, offset+sum_lefts+1:offset+length(is)),
-    )
-end
-
-
-"""
-    update_hist!
-        GradientRegression
-"""
-function update_hist!(
-    ::Type{L},
-    hist::Vector{Matrix{Float64}},
-    ∇::Matrix{Float32},
-    x_bin::Matrix,
-    is::AbstractVector,
-    js::AbstractVector,
-) where {L<:GradientRegression}
-    @threads for j in js
-        @inbounds @simd for i in is
-            bin = x_bin[i, j]
-            hist[j][1, bin] += ∇[1, i]
-            hist[j][2, bin] += ∇[2, i]
-            hist[j][3, bin] += ∇[3, i]
-        end
-    end
     return nothing
 end
 
-"""
-    update_hist!
-        MLE2P
-"""
-function update_hist!(
-    ::Type{L},
-    hist::Vector{Matrix{Float64}},
-    ∇::Matrix{Float32},
-    x_bin::Matrix,
-    is::AbstractVector,
-    js::AbstractVector,
-) where {L<:MLE2P}
-    @threads for j in js
-        @inbounds @simd for i in is
-            bin = x_bin[i, j]
-            hist[j][1, bin] += ∇[1, i]
-            hist[j][2, bin] += ∇[2, i]
-            hist[j][3, bin] += ∇[3, i]
-            hist[j][4, bin] += ∇[4, i]
-            hist[j][5, bin] += ∇[5, i]
-        end
-    end
-    return nothing
-end
+# """
+#     update_hist!
+#         GradientRegression
+# """
+# function update_hist!(
+#     ::Type{L},
+#     hist::Vector{Matrix{Float64}},
+#     ∇::Matrix{Float32},
+#     x_bin::Matrix,
+#     is::AbstractVector,
+#     js::AbstractVector,
+# ) where {L<:GradientRegression}
+#     @threads for j in js
+#         @inbounds @simd for i in is
+#             bin = x_bin[i, j]
+#             hist[j][1, bin] += ∇[1, i]
+#             hist[j][2, bin] += ∇[2, i]
+#             hist[j][3, bin] += ∇[3, i]
+#         end
+#     end
+#     return nothing
+# end
+
+# """
+#     update_hist!
+#         MLE2P
+# """
+# function update_hist!(
+#     ::Type{L},
+#     hist::Vector{Matrix{Float64}},
+#     ∇::Matrix{Float32},
+#     x_bin::Matrix,
+#     is::AbstractVector,
+#     js::AbstractVector,
+# ) where {L<:MLE2P}
+#     @threads for j in js
+#         @inbounds @simd for i in is
+#             bin = x_bin[i, j]
+#             hist[j][1, bin] += ∇[1, i]
+#             hist[j][2, bin] += ∇[2, i]
+#             hist[j][3, bin] += ∇[3, i]
+#             hist[j][4, bin] += ∇[4, i]
+#             hist[j][5, bin] += ∇[5, i]
+#         end
+#     end
+#     return nothing
+# end
 
 """
     update_hist!
         Generic fallback - Softmax
 """
+# function update_hist!(
+#     ::Type{L},
+#     hist::Vector{Matrix{Float64}},
+#     ∇::Matrix{Float32},
+#     x_bin::Matrix,
+#     is::AbstractVector,
+#     js::AbstractVector,
+# ) where {L}
+#     @threads for j in js
+#         @inbounds for i in is
+#             bin = x_bin[i, j]
+#             @inbounds @simd for k in axes(∇, 1)
+#                 hist[j][k, bin] += ∇[k, i]
+#             end
+#         end
+#     end
+#     return nothing
+# end
+
 function update_hist!(
-    ::Type{L},
-    hist::Vector{Matrix{Float64}},
-    ∇::Matrix{Float32},
-    x_bin::Matrix,
+    h∇::Array{T,4},
+    ∇::Matrix{S},
+    x_bin::Matrix{UInt8},
     is::AbstractVector,
     js::AbstractVector,
-) where {L}
+    ns::AbstractVector,
+) where {T,S}
     @threads for j in js
         @inbounds for i in is
-            bin = x_bin[i, j]
-            @inbounds @simd for k in axes(∇, 1)
-                hist[j][k, bin] += ∇[k, i]
+            n = ns[i]
+            if n != 0
+                bin = x_bin[i, j]
+                h∇[1, bin, j, n] += ∇[1, i]
+                h∇[2, bin, j, n] += ∇[2, i]
+                h∇[3, bin, j, n] += ∇[3, i]
             end
         end
     end
@@ -304,45 +215,22 @@ end
 
 Generic fallback
 """
-function update_gains!(
-    node::TrainNode,
-    js,
-    params::EvoTypes{L},
-    feattypes::Vector{Bool},
-    monotone_constraints,
-) where {L}
+function update_gains!(gains, h∇L, h∇R, h∇, js, dnodes, lambda)
+    @threads for j in js
+        for n in dnodes
+            _gains, _h∇L, _h∇R, _h∇ = view(gains, :, j, n), view(h∇L, :, :, j, n), view(h∇R, :, :, j, n), view(h∇, :, :, j, n)
+            cumsum!(_h∇L, _h∇; dims=2)
+            _h∇R .= _h∇L
+            reverse!(_h∇R; dims=2)
+            _h∇R .= view(_h∇R, :, 1:1) .- _h∇L
+            _gains .= get_gain.(view(_h∇L, 1, :), view(_h∇L, 2, :), view(_h∇L, 3, :), lambda) .+
+                      get_gain.(view(_h∇R, 1, :), view(_h∇R, 2, :), view(_h∇R, 3, :), lambda)
 
-    h = node.h
-    hL = node.hL
-    hR = node.hR
-    gains = node.gains
-    ∑ = node.∑
-
-    @inbounds for j in js
-        if feattypes[j]
-            cumsum!(hL[j], h[j], dims=2)
-            hR[j] .= ∑ .- hL[j]
-        else
-            hR[j] .= ∑ .- h[j]
-            hL[j] .= h[j]
-        end
-        monotone_constraint = monotone_constraints[j]
-        @inbounds for bin in eachindex(gains[j])
-            if hL[j][end, bin] > params.min_weight && hR[j][end, bin] > params.min_weight
-                if monotone_constraint != 0
-                    predL = pred_scalar(view(hL[j], :, bin), params)
-                    predR = pred_scalar(view(hR[j], :, bin), params)
-                end
-                if (monotone_constraint == 0) ||
-                   (monotone_constraint == -1 && predL > predR) ||
-                   (monotone_constraint == 1 && predL < predR)
-
-                    gains[j][bin] =
-                        get_gain(params, view(hL[j], :, bin)) +
-                        get_gain(params, view(hR[j], :, bin))
-                end
-            end
+            _gains .*= view(_h∇, 3, :) .!= 0
         end
     end
     return nothing
 end
+
+const ϵ::Float64 = eps(eltype(Float64))
+get_gain(∇1, ∇2, w, lambda) = ∇1^2 / max(ϵ, (∇2 + lambda * w)) / 2

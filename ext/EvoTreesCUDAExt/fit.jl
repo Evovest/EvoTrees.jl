@@ -58,8 +58,8 @@ function grow_tree!(
 
     js_gpu = CuVector(js)
     # reset nodes
-    gains .= 0
     nidx .= 1
+    gains .= 0
     for n in nodes
         n.∑ .= 0
         n.gain = 0.0
@@ -73,7 +73,7 @@ function grow_tree!(
     depth = 1
 
     # initialize summary stats
-    nodes[1].∑ .= Vector(vec(sum(∇[:, nodes[1].is], dims=2)))
+    nodes[1].∑ .= Vector(vec(sum(∇[:, is], dims=2)))
     nodes[1].gain = EvoTrees.get_gain(params, nodes[1].∑)
 
     # grow while there are remaining active nodes
@@ -113,8 +113,8 @@ function grow_tree!(
                     copyto!(nodes[n<<1+1].∑, view(h∇R, :, best_bin, best_feat, n))
                     nodes[n<<1].gain = EvoTrees.get_gain(params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = EvoTrees.get_gain(params, nodes[n<<1+1].∑)
-                    push!(n_next, n<<1)
-                    push!(n_next, n<<1+1)
+                    push!(n_next, n << 1)
+                    push!(n_next, n << 1 + 1)
                 else
                     EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params)
                 end

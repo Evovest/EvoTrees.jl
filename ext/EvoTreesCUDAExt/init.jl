@@ -95,7 +95,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
     )
 
     # initialize model
-    nodes = [EvoTrees.TrainNode(featbins, K, view(is_in, 1:0)) for _ in 1:2^params.max_depth-1]
+    nodes = [EvoTrees.TrainNode(featbins, K) for _ in 1:2^params.max_depth-1]
     bias = [EvoTrees.Tree{L,K}(μ)]
     m = EvoTree{L,K}(bias, info)
 
@@ -129,11 +129,11 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
         fnames=fnames,
         edges=edges,
         featbins=featbins,
-        cond_feats=cond_feats,
-        cond_bins=cond_bins,
-        cond_feats_gpu=cond_feats_gpu,
-        cond_bins_gpu=cond_bins_gpu,
         feattypes_gpu=feattypes_gpu,
+        cond_feats=cond_feats,
+        cond_feats_gpu=cond_feats_gpu,
+        cond_bins=cond_bins,
+        cond_bins_gpu=cond_bins_gpu,
         monotone_constraints_gpu=monotone_constraints_gpu,
     )
     return m, cache

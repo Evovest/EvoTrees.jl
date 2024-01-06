@@ -1,28 +1,30 @@
 using Revise
+using StaticArrays
 using StatsBase: sample
 using BenchmarkTools
 using Base.Threads: @threads
 using Random: seed!
 
-T = Float64
 seed!(123)
+
+T∇ = Float32
+Th = Float64
 nbins = 64
 nfeats = 100
 nobs = Int(1e6)
 max_depth = 6
 K = 3
-
-x_bin = UInt8.(rand(1:nbins, nobs, nfeats));
-∇ = rand(Float32, K, nobs);
 rowsample = 0.5
 colsample = 0.5
+
+x_bin = UInt8.(rand(1:nbins, nobs, nfeats));
+∇ = rand(SVector{3,T∇}, nobs);
 is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
 js = sample(1:nfeats, Int(round(rowsample * nfeats)), replace=false, ordered=true)
 dnodes = 16:31
 ns = Vector{UInt32}(rand(dnodes, nobs))
 ns_src = copy(ns)
-h∇ = zeros(T, K, nbins, nfeats, 2^(max_depth - 1) - 1);
-
+h∇ = zeros(SVector{3,Th}, nbins, nfeats, 2^(max_depth - 1) - 1);
 h∇L = zero(h∇);
 h∇R = zero(h∇);
 gains = zeros(nbins, nfeats, 2^(max_depth - 1) - 1);
@@ -32,9 +34,21 @@ cond_feats = rand(js, 2^(max_depth - 1) - 1)
 cond_bins = rand(1:nbins, 2^(max_depth - 1) - 1)
 feattypes = ones(Bool, nfeats)
 
+function mutate!(d)
+    for i in eachindex(d)
+        d1, d2, d3 = rand(), rand(), rand()
+        d1, d2, d3 = rand(), rand(), rand()
+        d[i] = SVector{3, Float32}(d1, d2, d3)
+    end
+    return nothing
+end
+∇ = rand(SVector{3,T∇}, nobs);
+@time mutate!(∇)
+@btime mutate!(∇)
+
 function hist_single_cpu!(
-    h∇::Array{T,4},
-    ∇::Matrix{S},
+    h∇::Array{T,3},
+    ∇::Vector{S},
     x_bin::Matrix{UInt8},
     is::AbstractVector,
     js::AbstractVector,
@@ -45,10 +59,7 @@ function hist_single_cpu!(
             n = ns[i]
             if n != 0
                 bin = x_bin[i, j]
-                h∇[1, bin, j, n] += ∇[1, i]
-                h∇[2, bin, j, n] += ∇[2, i]
-                h∇[3, bin, j, n] += ∇[3, i]
-                h∇[4, bin, j, n] += ∇[4, i]
+                h∇[bin, j, n] += ∇[i]
             end
         end
     end

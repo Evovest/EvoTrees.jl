@@ -8,7 +8,8 @@ function grow_evotree!(m::EvoTree{L,K}, cache, params::EvoTypes{L}, ::Type{<:Dev
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, params)
     # subsample rows
-    cache.nodes[1].is = subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
+    is = subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
+
     # subsample cols
     sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
 
@@ -21,12 +22,17 @@ function grow_evotree!(m::EvoTree{L,K}, cache, params::EvoTypes{L}, ::Type{<:Dev
         params,
         cache.∇,
         cache.edges,
+        cache.ns,
+        is,
         cache.js,
-        cache.out,
-        cache.left,
-        cache.right,
+        cache.h∇,
+        cache.h∇L,
+        cache.h∇R,
+        cache.gains,
         cache.x_bin,
         cache.feattypes,
+        cache.cond_feats,
+        cache.cond_bins,
         cache.monotone_constraints
     )
     push!(m.trees, tree)
@@ -42,109 +48,89 @@ function grow_tree!(
     params::EvoTypes{L},
     ∇::Matrix,
     edges,
+    ns,
+    is,
     js,
-    out,
-    left,
-    right,
-    x_bin,
+    h∇,
+    h∇L,
+    h∇R,
+    gains,
+    x_bin::Matrix{UInt8},
     feattypes::Vector{Bool},
+    cond_feats,
+    cond_bins,
     monotone_constraints
 ) where {L,K,N}
 
     # reset nodes
+    ns .= 1
+    gains .= 0
     for n in nodes
         n.∑ .= 0
         n.gain = 0.0
-        @inbounds for i in eachindex(n.h)
-            n.h[i] .= 0
-            n.gains[i] .= 0
-        end
     end
+    h∇ .= 0
+    h∇L .= 0
+    h∇R .= 0
 
     # initialize
-    n_current = [1]
+    anodes = [1]
     depth = 1
 
     # initialize summary stats
-    nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
+    nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, is), dims=2), dims=2)
     nodes[1].gain = get_gain(params, nodes[1].∑)
 
-    # grow while there are remaining active nodes
-    while length(n_current) > 0 && depth <= params.max_depth
-        offset = 0 # identifies breakpoint for each node set within a depth
+    while length(anodes) > 0 && depth <= params.max_depth
         n_next = Int[]
+        dnodes = 2^(depth-1):2^depth-1
+        offset = 2^(depth - 1) - 1 # identifies breakpoint for each node set within a depth
 
         if depth < params.max_depth
-            for n_id in eachindex(n_current)
-                n = n_current[n_id]
-                if n_id % 2 == 0
-                    if n % 2 == 0
-                        @inbounds for j in js
-                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j]
-                        end
-                    else
-                        @inbounds for j in js
-                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
-                        end
-                    end
-                else
-                    update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
-                end
-            end
-            @threads for n ∈ sort(n_current)
-                update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
-            end
-        end
+            update_hist!(h∇, ∇, x_bin, is, js, ns)
+            # TODO: integrate monotone constraints
+            update_gains!(gains, h∇L, h∇R, h∇, js, dnodes, params.lambda)
 
-        for n ∈ sort(n_current)
-            if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
-                pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
-            else
-                best = findmax(findmax.(nodes[n].gains))
-                best_gain = best[1][1]
-                best_bin = best[1][2]
-                best_feat = best[2]
+            best = findmax(view(gains, :, :, dnodes); dims=(1, 2))
+            best_gains = Vector(reshape(best[1], :))
+            best_idx = Vector(reshape(best[2], :))
+
+            for n in anodes
+                best_gain = best_gains[n-offset]
+                best_bin = best_idx[n-offset][1]
+                best_feat = best_idx[n-offset][2]
+                # @info "node: $n | best_gain: $best_gain | best_bin: $best_bin | nodegain: $(nodes[n].gain)"
+                # @info "extra" nodes[n].∑ view(h∇L, :, best_bin, best_feat, n) view(h∇R, :, best_bin, best_feat, n)
                 if best_gain > nodes[n].gain + params.gamma
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
+                    # @info "best" n tree.feat[n] tree.cond_bin[n]
                     tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
                     tree.split[n] = best_bin != 0
 
-                    _left, _right = split_set_threads!(
-                        out,
-                        left,
-                        right,
-                        nodes[n].is,
-                        x_bin,
-                        tree.feat[n],
-                        tree.cond_bin[n],
-                        feattypes[best_feat],
-                        offset,
-                    )
-
-                    offset += length(nodes[n].is)
-                    nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
-                    nodes[n<<1].gain = get_gain(params, nodes[n<<1].∑)
-                    nodes[n<<1+1].gain = get_gain(params, nodes[n<<1+1].∑)
-
-                    if length(_right) >= length(_left)
-                        push!(n_next, n << 1)
-                        push!(n_next, n << 1 + 1)
-                    else
-                        push!(n_next, n << 1 + 1)
-                        push!(n_next, n << 1)
-                    end
+                    copyto!(nodes[n<<1].∑, view(h∇L, :, best_bin, best_feat, n))
+                    copyto!(nodes[n<<1+1].∑, view(h∇R, :, best_bin, best_feat, n))
+                    nodes[n<<1].gain = EvoTrees.get_gain(params, nodes[n<<1].∑)
+                    nodes[n<<1+1].gain = EvoTrees.get_gain(params, nodes[n<<1+1].∑)
+                    push!(n_next, n << 1)
+                    push!(n_next, n << 1 + 1)
                 else
-                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
+                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params)
                 end
             end
+            copyto!(view(cond_feats, dnodes), tree.feat[dnodes])
+            copyto!(view(cond_bins, dnodes), tree.cond_bin[dnodes])
+            update_nodes_idx_cpu!(ns, is, x_bin, cond_feats, cond_bins, feattypes)
+        else
+            for n in anodes
+                EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params)
+            end
         end
-        n_current = copy(n_next)
+        anodes = copy(n_next)
         depth += 1
     end # end of loop over active ids for a given depth
+
     return nothing
 end
 
