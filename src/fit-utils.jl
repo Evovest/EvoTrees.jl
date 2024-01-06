@@ -217,7 +217,7 @@ Generic fallback
 """
 function update_gains!(gains, h∇L, h∇R, h∇, js, dnodes, lambda)
     @threads for j in js
-        for n in dnodes
+        @inbounds for n in dnodes
             _gains, _h∇L, _h∇R, _h∇ = view(gains, :, j, n), view(h∇L, :, :, j, n), view(h∇R, :, :, j, n), view(h∇, :, :, j, n)
             cumsum!(_h∇L, _h∇; dims=2)
             _h∇R .= _h∇L

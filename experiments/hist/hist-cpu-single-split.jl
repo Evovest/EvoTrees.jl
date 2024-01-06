@@ -1,6 +1,4 @@
 using Revise
-# using CUDA
-# using StaticArrays
 using StatsBase: sample
 using BenchmarkTools
 using Base.Threads: @threads
@@ -40,19 +38,21 @@ function hist_single_cpu!(
     @threads for j in js
         _h∇ = h∇[j]
         @inbounds for i in is
-            nid = ns[i]
-            bin = x_bin[i, j]
-            __h∇ = _h∇[nid]
-            __h∇[1, bin] += ∇[1, i]
-            __h∇[2, bin] += ∇[2, i]
-            __h∇[3, bin] += ∇[3, i]
+            n = ns[i]
+            if n != 0
+                bin = x_bin[i, j]
+                __h∇ = _h∇[n]
+                __h∇[1, bin] += ∇[1, i]
+                __h∇[2, bin] += ∇[2, i]
+                __h∇[3, bin] += ∇[3, i]
+            end
         end
     end
     return nothing
 end
 
 # laptop: 10.383 ms (81 allocations: 10.17 KiB)
-# desktop:
+# desktop: 8.801 ms (61 allocations: 6.52 KiB)
 @time hist_single_cpu!(h∇, ∇, x_bin, is, js, ns)
 @btime hist_single_cpu!($h∇, $∇, $x_bin, $is, $js, $ns)
 

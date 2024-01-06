@@ -1,6 +1,4 @@
 using Revise
-using CUDA
-# using StaticArrays
 using StatsBase: sample
 using BenchmarkTools
 using Base.Threads: @threads
@@ -36,6 +34,6 @@ is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
 js = sample(1:nfeats, Int(round(rowsample * nfeats)), replace=false, ordered=true)
 
 # laptop: 7.455 ms (81 allocations: 10.17 KiB)
-# desktop: 
+# desktop: 3.381 ms (61 allocations: 6.52 KiB)
 @time hist_cpu!(h∇, ∇, x_bin, is, js)
 @btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)

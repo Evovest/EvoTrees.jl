@@ -8,7 +8,7 @@ using Random: seed!
 seed!(123)
 
 T∇ = Float32
-Th = Float64
+Th = Float32
 nbins = 64
 nfeats = 100
 nobs = Int(1e6)
@@ -38,7 +38,7 @@ function mutate!(d)
     for i in eachindex(d)
         d1, d2, d3 = rand(), rand(), rand()
         d1, d2, d3 = rand(), rand(), rand()
-        d[i] = SVector{3, Float32}(d1, d2, d3)
+        d[i] = SVector{3,Float32}(d1, d2, d3)
     end
     return nothing
 end
@@ -67,7 +67,7 @@ function hist_single_cpu!(
 end
 
 # laptop: 10.383 ms (81 allocations: 10.17 KiB)
-# desktop:
+# desktop: 7.052 ms (61 allocations: 6.52 KiB)
 @time hist_single_cpu!(h∇, ∇, x_bin, is, js, ns)
 @btime hist_single_cpu!($h∇, $∇, $x_bin, $is, $js, $ns)
 
