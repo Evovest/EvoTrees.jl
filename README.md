@@ -2,7 +2,7 @@
 # EvoTrees <a href="https://evovest.github.io/EvoTrees.jl/dev/"><img src="figures/hex-evotrees-2.png" align="right" height="160"/></a>
 
 
-| Documentation | CI Status |
+| Documentation | CI Status | CI Status |
 |:------------------------:|:----------------:|
 | [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][ci-img]][ci-url] |
 
