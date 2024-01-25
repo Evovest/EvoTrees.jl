@@ -2,9 +2,9 @@
 # EvoTrees <a href="https://evovest.github.io/EvoTrees.jl/dev/"><img src="figures/hex-evotrees-2.png" align="right" height="160"/></a>
 
 
-| Documentation | CI Status | CI Status |
-|:------------------------:|:----------------:|
-| [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][ci-img]][ci-url] |
+| Documentation | CI Status | DOI |
+|:------------------------:|:----------------:|:----------------:|
+| [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][ci-img]][ci-url] | [![][DOI-img]][DOI-url] |
 
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-latest-url]: https://evovest.github.io/EvoTrees.jl/dev
@@ -14,6 +14,9 @@
 
 [ci-img]: https://github.com/Evovest/EvoTrees.jl/workflows/CI/badge.svg
 [ci-url]: https://github.com/Evovest/EvoTrees.jl/actions?query=workflow%3ACI+branch%3Amain
+
+[DOI-img]: https://zenodo.org/badge/164559537.svg
+[DOI-url]: https://zenodo.org/doi/10.5281/zenodo.10569604
 
 A Julia implementation of boosted trees with CPU and GPU support.
 Efficient histogram based algorithms with support for multiple loss functions (notably multi-target objectives such as max likelihood methods).
