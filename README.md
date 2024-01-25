@@ -2,9 +2,9 @@
 # EvoTrees <a href="https://evovest.github.io/EvoTrees.jl/dev/"><img src="figures/hex-evotrees-2.png" align="right" height="160"/></a>
 
 
-| Documentation | CI Status | CI Status |
-|:------------------------:|:----------------:|
-| [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][ci-img]][ci-url] |
+| Documentation | CI Status | DOI |
+|:------------------------:|:----------------:|:----------------:|
+| [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][ci-img]][ci-url] | |
 
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-latest-url]: https://evovest.github.io/EvoTrees.jl/dev
