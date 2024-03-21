@@ -34,7 +34,7 @@ nobs_list = Int.([1e6])
 nfeats_list = [100]
 
 # max_depth_list in [6, 11]
-max_depth_list = [6, 11]
+max_depth_list = [6]
 
 
 df = DataFrame()
@@ -138,7 +138,7 @@ for device in device_list
             end
         end
     end
+    # @info "device" device df
+    path = joinpath(@__DIR__, "regressor-$device.csv")
+    CSV.write(path, df)
 end
-
-path = joinpath(@__DIR__, "regressor-$device.csv")
-CSV.write(path, df)
