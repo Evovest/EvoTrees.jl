@@ -7,6 +7,7 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
     T = Float32
 
     target_levels = nothing
+    target_isordered = false
     if L == Logistic
         @assert eltype(y_train) <: Real && minimum(y_train) >= 0 && maximum(y_train) <= 1
         K = 1
@@ -22,6 +23,7 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
     elseif L == MLogLoss
         if eltype(y_train) <: CategoricalValue
             target_levels = CategoricalArrays.levels(y_train)
+            target_isordered = isordered(y_train)
             y = UInt32.(CategoricalArrays.levelcode.(y_train))
         elseif eltype(y_train) <: Integer || eltype(y_train) <: Bool || eltype(y_train) <: String || eltype(y_train) <: Char
             target_levels = sort(unique(y_train))
@@ -87,6 +89,7 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
     info = Dict(
         :fnames => fnames,
         :target_levels => target_levels,
+        :target_isordered => target_isordered,
         :edges => edges,
         :featbins => featbins,
         :feattypes => feattypes,

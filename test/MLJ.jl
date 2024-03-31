@@ -397,3 +397,21 @@ end
     fit!(mach)
     predict(mach, X)
 end
+
+##################################################
+### issue #267: ordered target
+##################################################
+using CategoricalArrays
+y = categorical(collect("cbbba"), levels=['b', 'a', 'c'], ordered=true)
+lvls = levels(y)
+eltype(y) <: CategoricalValue
+isordered(y)
+
+using MLJBase, EvoTrees
+# using StatisticalMeasures
+X = (; x=rand(10))
+y = coerce(rand("ab", 10), OrderedFactor)
+model = EvoTreeClassifier()
+mach = machine(model, X, y) |> fit!
+yhat = predict(mach, X)
+@assert isordered(yhat)
