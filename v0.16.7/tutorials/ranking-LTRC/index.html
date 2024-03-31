@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Ranking - Yahoo! LTRC · EvoTrees.jl</title><meta name="title" content="Ranking - Yahoo! LTRC · EvoTrees.jl"/><meta property="og:title" content="Ranking - Yahoo! LTRC · EvoTrees.jl"/><meta property="twitter:title" content="Ranking - Yahoo! LTRC · EvoTrees.jl"/><meta name="description" content="Documentation for EvoTrees.jl."/><meta property="og:description" content="Documentation for EvoTrees.jl."/><meta property="twitter:description" content="Documentation for EvoTrees.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/style.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="EvoTrees.jl logo"/></a><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Introduction</a></li><li><a class="tocitem" href="../../models/">Models</a></li><li><span class="tocitem">API</span><ul><li><a class="tocitem" href="../../api/">Public</a></li><li><a class="tocitem" href="../../internals/">Internals</a></li></ul></li><li><span class="tocitem">Tutorials</span><ul><li><a class="tocitem" href="../regression-boston/">Regression - Boston</a></li><li><a class="tocitem" href="../logistic-regression-titanic/">Logistic Regression - Titanic</a></li><li><a class="tocitem" href="../classification-iris/">Classification - IRIS</a></li><li class="is-active"><a class="tocitem" href>Ranking - Yahoo! LTRC</a><ul class="internal"><li><a class="tocitem" href="#Getting-started"><span>Getting started</span></a></li><li><a class="tocitem" href="#Load-LIBSVM-format-data"><span>Load LIBSVM format data</span></a></li><li><a class="tocitem" href="#Preprocessing"><span>Preprocessing</span></a></li><li><a class="tocitem" href="#Training"><span>Training</span></a></li><li><a class="tocitem" href="#Model-evaluation"><span>Model evaluation</span></a></li><li><a class="tocitem" href="#Logistic-regression-alternative"><span>Logistic regression alternative</span></a></li><li><a class="tocitem" href="#Conclusion"><span>Conclusion</span></a></li></ul></li><li><a class="tocitem" href="../examples-API/">Internal API</a></li><li><a class="tocitem" href="../examples-MLJ/">MLJ API</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorials</a></li><li class="is-active"><a href>Ranking - Yahoo! LTRC</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Ranking - Yahoo! LTRC</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/Evovest/EvoTrees.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/Evovest/EvoTrees.jl/blob/main/docs/src/tutorials/ranking-LTRC.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Ranking-with-Yahoo!-Learning-to-Rank-Challenge."><a class="docs-heading-anchor" href="#Ranking-with-Yahoo!-Learning-to-Rank-Challenge.">Ranking with Yahoo! Learning to Rank Challenge.</a><a id="Ranking-with-Yahoo!-Learning-to-Rank-Challenge.-1"></a><a class="docs-heading-anchor-permalink" href="#Ranking-with-Yahoo!-Learning-to-Rank-Challenge." title="Permalink"></a></h1><p>In this tutorial, we present how a ranking task can be tackled using regular regression techniques without compromising performance compared to specialized ranking learners. The data used is from the <code>C14 - Yahoo! Learning to Rank Challenge</code>, which can be obtained following a request to <a href="https://webscope.sandbox.yahoo.com">https://webscope.sandbox.yahoo.com</a>.</p><h2 id="Getting-started"><a class="docs-heading-anchor" href="#Getting-started">Getting started</a><a id="Getting-started-1"></a><a class="docs-heading-anchor-permalink" href="#Getting-started" title="Permalink"></a></h2><p>To begin, we load the required packages:</p><pre><code class="language-julia hljs">using EvoTrees
+using DataFrames
+using Statistics: mean
+using CategoricalArrays
+using Random</code></pre><h2 id="Load-LIBSVM-format-data"><a class="docs-heading-anchor" href="#Load-LIBSVM-format-data">Load LIBSVM format data</a><a id="Load-LIBSVM-format-data-1"></a><a class="docs-heading-anchor-permalink" href="#Load-LIBSVM-format-data" title="Permalink"></a></h2><p>Some datasets come in the so called <code>LIBSVM</code> format, which stores data using a sparse representation: </p><pre><code class="nohighlight hljs">&lt;label&gt; &lt;query&gt; &lt;feature_id_1&gt;:&lt;feature_value_1&gt; &lt;feature_id_2&gt;:&lt;feature_value_2&gt;</code></pre><p>We use the <a href="https://github.com/jeremiedb/ReadLIBSVM.jl"><code>ReadLIBSVM.jl</code></a> package to perform parsing: </p><pre><code class="language-julia hljs">using ReadLIBSVM
+dtrain = read_libsvm(&quot;set1.train.txt&quot;; has_query=true)
+deval = read_libsvm(&quot;set1.valid.txt&quot;; has_query=true)
+dtest = read_libsvm(&quot;set1.test.txt&quot;; has_query=true)</code></pre><h2 id="Preprocessing"><a class="docs-heading-anchor" href="#Preprocessing">Preprocessing</a><a id="Preprocessing-1"></a><a class="docs-heading-anchor-permalink" href="#Preprocessing" title="Permalink"></a></h2><p>Preprocessing is minimal since all features are parsed as floats and specific files are provided for each of the train, eval and test splits. </p><p>Several features are fully missing (contain only 0s) in the training dataset. They are removed from all datasets since they cannot bring value to the model.</p><p>Then, the features, targets and query ids are extracted from the parsed <code>LIBSVM</code> format. </p><pre><code class="language-julia hljs">colsums_train = map(sum, eachcol(dtrain[:x]))
+drop_cols = colsums_train .== 0
+
+x_train = dtrain[:x][:, .!drop_cols]
+x_eval = deval[:x][:, .!drop_cols]
+x_test = dtest[:x][:, .!drop_cols]
+
+# assign queries
+q_train = dtrain[:q]
+q_eval = deval[:q]
+q_test = dtest[:q]
+
+# assign targets
+y_train = dtrain[:y]
+y_eval = deval[:y]
+y_test = dtest[:y]</code></pre><h2 id="Training"><a class="docs-heading-anchor" href="#Training">Training</a><a id="Training-1"></a><a class="docs-heading-anchor-permalink" href="#Training" title="Permalink"></a></h2><p>Now we are ready to train our model. We first define a model configuration using the <a href="../../models/#EvoTreeRegressor"><code>EvoTreeRegressor</code></a> model constructor.  Then, we use <a href="../../api/#fit_evotree"><code>fit_evotree</code></a> to train a boosted tree model. The optional <code>x_eval</code> and <code>y_eval</code> arguments are provided to enable the usage of early stopping. </p><pre><code class="language-julia hljs">config = EvoTreeRegressor(
+    nrounds=6000,
+    loss=:mse,
+    eta=0.02,
+    nbins=64,
+    max_depth=11,
+    rowsample=0.9,
+    colsample=0.9,
+)
+
+m_mse, logger_mse = fit_evotree(
+    config;
+    x_train=x_train,
+    y_train=y_train,
+    x_eval=x_eval,
+    y_eval=y_eval,
+    early_stopping_rounds=200,
+    print_every_n=50,
+    metric=:mse,
+    return_logger=true
+);
+
+p_test = m_mse(x_test);</code></pre><h2 id="Model-evaluation"><a class="docs-heading-anchor" href="#Model-evaluation">Model evaluation</a><a id="Model-evaluation-1"></a><a class="docs-heading-anchor-permalink" href="#Model-evaluation" title="Permalink"></a></h2><p>For ranking problems, a commonly used metric is the <a href="https://en.wikipedia.org/wiki/Discounted_cumulative_gain">Normalized Discounted Cumulative Gain</a>. It essentially considers whether the model is good at identifying the top K outcomes within a group. There are various flavors to its implementation, though the most commonly used one is the following:</p><pre><code class="language-julia hljs">function ndcg(p, y, k=10)
+    k = min(k, length(p))
+    p_order = partialsortperm(p, 1:k, rev=true)
+    y_order = partialsortperm(y, 1:k, rev=true)
+    _y = y[p_order]
+    gains = 2 .^ _y .- 1
+    discounts = log2.((1:k) .+ 1)
+    ndcg = sum(gains ./ discounts)
+
+    y_order = partialsortperm(y, 1:k, rev=true)
+    _y = y[y_order]
+    gains = 2 .^ _y .- 1
+    discounts = log2.((1:k) .+ 1)
+    idcg = sum(gains ./ discounts)
+    return idcg == 0 ? 1.0 : ndcg / idcg
+end</code></pre><p>To compute the NDCG over a collection of groups, it is handy to leverage DataFrames&#39; <code>combine</code> and <code>groupby</code> functionalities: </p><pre><code class="language-julia hljs">test_df = DataFrame(p=p_test, y=y_test, q=q_test)
+test_df_agg = combine(groupby(test_df, &quot;q&quot;), [&quot;p&quot;, &quot;y&quot;] =&gt; ndcg =&gt; &quot;ndcg&quot;)
+ndcg_test = round(mean(test_df_agg.ndcg), sigdigits=5)
+@info &quot;ndcg_test MSE&quot; ndcg_test
+
+┌ Info: ndcg_test MSE
+└   ndcg_test = 0.8008</code></pre><h2 id="Logistic-regression-alternative"><a class="docs-heading-anchor" href="#Logistic-regression-alternative">Logistic regression alternative</a><a id="Logistic-regression-alternative-1"></a><a class="docs-heading-anchor-permalink" href="#Logistic-regression-alternative" title="Permalink"></a></h2><p>The above regression experiment shows a performance competitive with the results outlined in CatBoost&#39;s <a href="https://github.com/catboost/benchmarks/blob/master/ranking/Readme.md#4-results">ranking benchmarks</a>. </p><p>Another approach is to use a scaling of the the target ranking scores to perform a logistic regression.</p><pre><code class="language-julia hljs">max_rank = 4
+y_train = dtrain[:y] ./ max_rank
+y_eval = deval[:y] ./ max_rank
+y_test = dtest[:y] ./ max_rank
+
+config = EvoTreeRegressor(
+    nrounds=6000,
+    loss=:logloss,
+    eta=0.01,
+    nbins=64,
+    max_depth=11,
+    rowsample=0.9,
+    colsample=0.9,
+)
+
+m_logloss, logger_logloss = fit_evotree(
+    config;
+    x_train=x_train,
+    y_train=y_train,
+    x_eval=x_eval,
+    y_eval=y_eval,
+    early_stopping_rounds=200,
+    print_every_n=50,
+    metric=:logloss,
+    return_logger=true
+);</code></pre><p>To measure the NDCG, the original targets must be used since NDCG is a scale sensitive measure.</p><pre><code class="language-julia hljs">y_train = dtrain[:y]
+y_eval = deval[:y]
+y_test = dtest[:y]
+
+p_test = m_logloss(x_test);
+test_df = DataFrame(p=p_test, y=y_test, q=q_test)
+test_df_agg = combine(groupby(test_df, &quot;q&quot;), [&quot;p&quot;, &quot;y&quot;] =&gt; ndcg =&gt; &quot;ndcg&quot;)
+ndcg_test = round(mean(test_df_agg.ndcg), sigdigits=5)
+@info &quot;ndcg_test LogLoss&quot; ndcg_test
+
+┌ Info: ndcg_test LogLoss
+└   ndcg_test = 0.80267</code></pre><h2 id="Conclusion"><a class="docs-heading-anchor" href="#Conclusion">Conclusion</a><a id="Conclusion-1"></a><a class="docs-heading-anchor-permalink" href="#Conclusion" title="Permalink"></a></h2><p>We&#39;ve seen that a ranking problem can be efficiently handled with generic regression tasks, yet achieve comparable performance to specialized ranking loss functions. Below, we present the NDCG obtained from the above experiments along those published on CatBoost&#39;s <a href="https://github.com/catboost/benchmarks/blob/master/ranking/Readme.md#4-results">benchmarks</a>.</p><table><tr><th style="text-align: right"><strong>Model</strong></th><th style="text-align: right"><strong>NDCG</strong></th></tr><tr><td style="text-align: right"><strong>EvoTrees - mse</strong></td><td style="text-align: right"><strong>0.80080</strong></td></tr><tr><td style="text-align: right"><strong>EvoTrees - logistic</strong></td><td style="text-align: right"><strong>0.80267</strong></td></tr><tr><td style="text-align: right">cat-rmse</td><td style="text-align: right">0.802115</td></tr><tr><td style="text-align: right">cat-query-rmse</td><td style="text-align: right">0.802229</td></tr><tr><td style="text-align: right">cat-pair-logit</td><td style="text-align: right">0.797318</td></tr><tr><td style="text-align: right">cat-pair-logit-pairwise</td><td style="text-align: right">0.790396</td></tr><tr><td style="text-align: right">cat-yeti-rank</td><td style="text-align: right">0.802972</td></tr><tr><td style="text-align: right">xgb-rmse</td><td style="text-align: right">0.798892</td></tr><tr><td style="text-align: right">xgb-pairwise</td><td style="text-align: right">0.800048</td></tr><tr><td style="text-align: right">xgb-lambdamart-ndcg</td><td style="text-align: right">0.800048</td></tr><tr><td style="text-align: right">lgb-rmse</td><td style="text-align: right">0.8013675</td></tr><tr><td style="text-align: right">lgb-pairwise</td><td style="text-align: right">0.801347</td></tr></table><p>It should be noted that the later results were not reproduced in the scope of current tutorial, so one should be careful about any claim of model superiority. The results from CatBoost&#39;s benchmarks were however already indicative of strong performance of non-specialized ranking loss functions, to which this tutorial brings further support. </p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../classification-iris/">« Classification - IRIS</a><a class="docs-footer-nextpage" href="../examples-API/">Internal API »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.3.0 on <span class="colophon-date" title="Sunday 31 March 2024 20:35">Sunday 31 March 2024</span>. Using Julia version 1.10.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
