@@ -397,3 +397,15 @@ end
     fit!(mach)
     predict(mach, X)
 end
+
+##################################################
+### issue #267: ordered target
+##################################################
+@testset "MLJ - supported ordered factor predictions" begin
+    X = (; x=rand(10))
+    y = coerce(rand("ab", 10), OrderedFactor)
+    model = EvoTreeClassifier()
+    mach = machine(model, X, y) |> fit!
+    yhat = predict(mach, X)
+    @assert isordered(yhat)
+end

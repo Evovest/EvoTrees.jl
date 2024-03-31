@@ -7,6 +7,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
     T = Float32
 
     target_levels = nothing
+    target_isordered = false
     if L == EvoTrees.Logistic
         @assert eltype(y_train) <: Real && minimum(y_train) >= 0 && maximum(y_train) <= 1
         K = 1
@@ -22,6 +23,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
     elseif L == EvoTrees.MLogLoss
         if eltype(y_train) <: EvoTrees.CategoricalValue
             target_levels = EvoTrees.CategoricalArrays.levels(y_train)
+            target_isordered = isordered(y_train)
             y = UInt32.(EvoTrees.CategoricalArrays.levelcode.(y_train))
         elseif eltype(y_train) <: Integer || eltype(y_train) <: Bool || eltype(y_train) <: String || eltype(y_train) <: Char
             target_levels = sort(unique(y_train))
@@ -89,6 +91,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
     info = Dict(
         :fnames => fnames,
         :target_levels => target_levels,
+        :target_isordered => target_isordered,
         :edges => edges,
         :featbins => featbins,
         :feattypes => feattypes,
