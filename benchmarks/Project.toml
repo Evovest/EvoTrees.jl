@@ -1,0 +1,4 @@
+[deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+EvoTrees = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
+XGBoost = "009559a3-9522-5dbb-924b-0b6ed2b22bb9"
