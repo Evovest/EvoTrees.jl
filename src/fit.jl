@@ -8,7 +8,11 @@ function grow_evotree!(m::EvoTree{L,K}, cache, params::EvoTypes{L}, ::Type{<:Dev
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, params)
     # subsample rows
-    cache.nodes[1].is = subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
+    # cache.nodes[1].is = subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
+    cache.nodes[1].is, cache.nodes[1].isp = subsample(cache.is_in, cache.is_out, cache.mask,
+        cache.is_in_p, cache.is_out_p, cache.mask_p,
+        params.rowsample, params.rng)
+
     # subsample cols
     sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
 
@@ -25,6 +29,9 @@ function grow_evotree!(m::EvoTree{L,K}, cache, params::EvoTypes{L}, ::Type{<:Dev
         cache.out,
         cache.left,
         cache.right,
+        cache.out_p,
+        cache.left_p,
+        cache.right_p,
         cache.x_bin,
         cache.feattypes,
         cache.monotone_constraints
@@ -46,6 +53,9 @@ function grow_tree!(
     out,
     left,
     right,
+    out_p,
+    left_p,
+    right_p,
     x_bin,
     feattypes::Vector{Bool},
     monotone_constraints
@@ -54,9 +64,11 @@ function grow_tree!(
     # reset nodes
     for n in nodes
         n.∑ .= 0
+        n.∑p .= 0
         n.gain = 0.0
         @inbounds for i in eachindex(n.h)
             n.h[i] .= 0
+            n.hp[i] .= 0
             n.gains[i] .= 0
         end
     end
@@ -67,11 +79,13 @@ function grow_tree!(
 
     # initialize summary stats
     nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
+    nodes[1].∑p .= dropdims(sum(Float64, view(∇, :, nodes[1].isp), dims=2), dims=2)
     nodes[1].gain = get_gain(params, nodes[1].∑)
 
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
+        offset_p = 0 # identifies breakpoint for each node set within a depth
         n_next = Int[]
 
         if depth < params.max_depth
@@ -81,14 +95,17 @@ function grow_tree!(
                     if n % 2 == 0
                         @inbounds for j in js
                             nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j]
+                            nodes[n].hp[j] .= nodes[n>>1].hp[j] .- nodes[n+1].hp[j]
                         end
                     else
                         @inbounds for j in js
                             nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
+                            nodes[n].hp[j] .= nodes[n>>1].hp[j] .- nodes[n-1].hp[j]
                         end
                     end
                 else
                     update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
+                    update_hist!(L, nodes[n].hp, ∇, x_bin, nodes[n].isp, js)
                 end
             end
             @threads for n ∈ sort(n_current)
@@ -97,8 +114,8 @@ function grow_tree!(
         end
 
         for n ∈ sort(n_current)
-            if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
-                pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
+            if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight || nodes[n].∑p[end] <= params.min_weight
+                pred_leaf_cpu!(tree.pred, n, nodes[n].∑p, params, ∇, nodes[n].isp)
             else
                 best = findmax(findmax.(nodes[n].gains))
                 best_gain = best[1][1]
@@ -123,12 +140,29 @@ function grow_tree!(
                         offset,
                     )
 
+                    _left_p, _right_p = split_set_threads!(
+                        out_p,
+                        left_p,
+                        right_p,
+                        nodes[n].isp,
+                        x_bin,
+                        tree.feat[n],
+                        tree.cond_bin[n],
+                        feattypes[best_feat],
+                        offset_p,
+                    )
+
                     offset += length(nodes[n].is)
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
                     nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
                     nodes[n<<1].gain = get_gain(params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = get_gain(params, nodes[n<<1+1].∑)
+
+                    offset_p += length(nodes[n].isp)
+                    nodes[n<<1].isp, nodes[n<<1+1].isp = _left_p, _right_p
+                    nodes[n<<1].∑p .= nodes[n].hLp[best_feat][:, best_bin]
+                    nodes[n<<1+1].∑p .= nodes[n].hRp[best_feat][:, best_bin]
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
@@ -138,7 +172,7 @@ function grow_tree!(
                         push!(n_next, n << 1)
                     end
                 else
-                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
+                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑p, params, ∇, nodes[n].isp)
                 end
             end
         end
@@ -194,7 +228,6 @@ function grow_otree!(
         end
         if depth == params.max_depth || min_weight_flag
             for n in n_current
-                # @info "length(nodes[n].is)" length(nodes[n].is) depth n
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
             end
         else

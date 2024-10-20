@@ -10,18 +10,28 @@ Carries training information for a given tree node
 mutable struct TrainNode{S,V,M}
     gain::Float64
     is::S
+    isp::S
     ∑::V
+    ∑p::V
     h::Vector{M}
     hL::Vector{M}
     hR::Vector{M}
+    hp::Vector{M}
+    hLp::Vector{M}
+    hRp::Vector{M}
     gains::Vector{V}
 end
 
-function TrainNode(featbins, K, is)
+function TrainNode(featbins, K, is, isp)
     node = TrainNode(
         zero(Float64),
         is,
+        isp,
         zeros(2 * K + 1),
+        zeros(2 * K + 1),
+        [zeros(2 * K + 1, nbins) for nbins in featbins],
+        [zeros(2 * K + 1, nbins) for nbins in featbins],
+        [zeros(2 * K + 1, nbins) for nbins in featbins],
         [zeros(2 * K + 1, nbins) for nbins in featbins],
         [zeros(2 * K + 1, nbins) for nbins in featbins],
         [zeros(2 * K + 1, nbins) for nbins in featbins],

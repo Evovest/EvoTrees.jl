@@ -79,6 +79,14 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
     left = zeros(UInt32, nobs)
     right = zeros(UInt32, nobs)
 
+    # initialize indexes - pred histogram
+    is_in_p = zeros(UInt32, nobs)
+    is_out_p = zeros(UInt32, nobs)
+    mask_p = zeros(Bool, nobs)
+    out_p = zeros(UInt32, nobs)
+    left_p = zeros(UInt32, nobs)
+    right_p = zeros(UInt32, nobs)
+
     # assign monotone contraints in constraints vector
     monotone_constraints = zeros(Int32, nfeats)
     hasproperty(params, :monotone_constraints) && for (k, v) in params.monotone_constraints
@@ -96,7 +104,8 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
     )
 
     # initialize model
-    nodes = [TrainNode(featbins, K, view(is_in, 1:0)) for n = 1:2^params.max_depth-1]
+    # nodes = [TrainNode(featbins, K, view(is_in, 1:0)) for n = 1:2^params.max_depth-1]
+    nodes = [TrainNode(featbins, K, view(is_in, 1:0), view(is_in_p, 1:0)) for n = 1:2^params.max_depth-1]
     bias = [Tree{L,K}(μ)]
     m = EvoTree{L,K}(bias, info)
 
@@ -123,6 +132,12 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
         featbins=featbins,
         feattypes=feattypes,
         monotone_constraints=monotone_constraints,
+        is_in_p=is_in_p,
+        is_out_p=is_out_p,
+        mask_p=mask_p,
+        out_p=out_p,
+        left_p=left_p,
+        right_p=right_p,
     )
     return m, cache
 end

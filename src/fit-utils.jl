@@ -313,20 +313,29 @@ function update_gains!(
     gains = node.gains
     ∑ = node.∑
 
+    hp = node.hp
+    hLp = node.hLp
+    hRp = node.hRp
+    ∑p = node.∑p
+
     @inbounds for j in js
         if feattypes[j]
             cumsum!(hL[j], h[j], dims=2)
             hR[j] .= ∑ .- hL[j]
+            cumsum!(hLp[j], hp[j], dims=2)
+            hRp[j] .= ∑p .- hLp[j]
         else
             hR[j] .= ∑ .- h[j]
             hL[j] .= h[j]
+            hRp[j] .= ∑p .- hp[j]
+            hLp[j] .= hp[j]
         end
         monotone_constraint = monotone_constraints[j]
         @inbounds for bin in eachindex(gains[j])
             if hL[j][end, bin] > params.min_weight && hR[j][end, bin] > params.min_weight
                 if monotone_constraint != 0
-                    predL = pred_scalar(view(hL[j], :, bin), params)
-                    predR = pred_scalar(view(hR[j], :, bin), params)
+                    predL = pred_scalar(view(hLp[j], :, bin), params)
+                    predR = pred_scalar(view(hRp[j], :, bin), params)
                 end
                 if (monotone_constraint == 0) ||
                    (monotone_constraint == -1 && predL > predR) ||
