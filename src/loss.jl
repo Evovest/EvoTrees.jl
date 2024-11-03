@@ -6,6 +6,15 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L})
     end
 end
 
+# Cred
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L}) where {L<:Cred}
+    @threads for i in eachindex(y)
+        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
+        # @inbounds ∇[2, i] = (y[i] - p[i])^2 * ∇[3, i] #var
+        @inbounds ∇[2, i] = abs(y[i] - p[i]) * ∇[3, i] #std
+    end
+end
+
 # LogLoss - on linear predictor
 function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L}) where {L<:LogLoss}
     @threads for i in eachindex(y)
@@ -141,6 +150,14 @@ end
 ##############################
 # get the gain metric
 ##############################
+# Cred
+function get_gain(params::EvoTypes{L}, ∑::AbstractVector) where {L<:Cred}
+    ϵ = eps(eltype(∑))
+    # Z = abs(∑[1]) / max(ϵ, abs(∑[1]) + ∑[2]) # std
+    Z = abs(∑[1]) / max(ϵ, abs(∑[1]) + ∑[2] / sqrt(∑[3])) # std
+    Z * abs(∑[1])
+end
+
 # GradientRegression
 function get_gain(params::EvoTypes{L}, ∑::AbstractVector) where {L<:GradientRegression}
     ϵ = eps(eltype(∑))

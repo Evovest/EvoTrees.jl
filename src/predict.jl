@@ -127,6 +127,19 @@ function pred_scalar(∑::AbstractVector{T}, params::EvoTypes{L}) where {L<:Grad
     -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
 end
 
+function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}, ∇, is) where {L<:Cred,T}
+    ϵ = eps(T)
+    # Z = abs(∑[1]) / max(ϵ, abs(∑[1]) + ∑[2]) # std
+    Z = abs(∑[1]) / max(ϵ, abs(∑[1]) + ∑[2] / sqrt(∑[3])) # std
+    p[1, n] = params.eta * Z * ∑[1] / ∑[3]
+end
+function pred_scalar(∑::AbstractVector{T}, params::EvoTypes{L}) where {L<:Cred,T}
+    ϵ = eps(T)
+    # Z = abs(∑[1]) / max(ϵ, abs(∑[1]) + ∑[2]) # std
+    Z = abs(∑[1]) / max(ϵ, abs(∑[1]) + ∑[2] / sqrt(∑[3])) # std
+    params.eta * Z * ∑[1] / ∑[3]
+end
+
 # prediction in Leaf - MLE2P
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}, ∇, is) where {L<:MLE2P,T}
     ϵ = eps(T)

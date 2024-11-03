@@ -12,6 +12,7 @@ abstract type GaussianMLE <: MLE2P end
 abstract type LogisticMLE <: MLE2P end
 abstract type Quantile <: ModelType end
 abstract type L1 <: ModelType end
+abstract type Cred <: ModelType end
 
 # Converts MSE -> :mse
 const _type2loss_dict = Dict(
@@ -25,6 +26,7 @@ const _type2loss_dict = Dict(
     LogisticMLE => :logistic_mle,
     Quantile => :quantile,
     L1 => :l1,
+    Cred => :cred
 )
 _type2loss(L::Type) = _type2loss_dict[L]
 
@@ -94,6 +96,8 @@ function EvoTreeRegressor(; kwargs...)
         L = L1
     elseif args[:loss] == :quantile
         L = Quantile
+    elseif args[:loss] == :cred
+        L = Cred
     else
         error(
             "Invalid loss: $(args[:loss]). Only [`:mse`, `:logloss`, `:gamma`, `:tweedie`, `:l1`, `:quantile`] are supported by EvoTreeRegressor.",
