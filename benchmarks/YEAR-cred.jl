@@ -57,14 +57,14 @@ y_train, y_eval = y_tot[train_idx], y_tot[eval_idx]
 
 config = EvoTreeRegressor(
     T=Float32,
-    nrounds=1200,
-    loss=:cred,
-    eta=0.25,
+    nrounds=3200,
+    loss=:credV1,
+    eta=0.1,
     nbins=128,
     min_weight=1,
-    max_depth=5,
+    max_depth=7,
     lambda=0,
-    gamma=0,
+    gamma=0.1,
     rowsample=0.8,
     colsample=0.8,
 )
@@ -77,7 +77,7 @@ config = EvoTreeRegressor(
     x_eval,
     y_eval,
     early_stopping_rounds=100,
-    print_every_n=10,
+    print_every_n=100,
     metric=:mse,
     return_logger=true,
 );

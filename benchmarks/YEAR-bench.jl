@@ -9,7 +9,7 @@ using Random: seed!
 using AWS: AWSCredentials, AWSConfig, @service
 @service S3
 aws_creds = AWSCredentials(ENV["AWS_ACCESS_KEY_ID_JDB"], ENV["AWS_SECRET_ACCESS_KEY_JDB"])
-aws_config = AWSConfig(; creds = aws_creds, region = "ca-central-1")
+aws_config = AWSConfig(; creds=aws_creds, region="ca-central-1")
 
 path = "share/data/year/year.csv"
 raw = S3.get_object(
@@ -18,7 +18,7 @@ raw = S3.get_object(
     Dict("response-content-type" => "application/octet-stream");
     aws_config,
 )
-df = DataFrame(CSV.File(raw, header = false))
+df = DataFrame(CSV.File(raw, header=false))
 
 path = "share/data/year/year-train-idx.txt"
 raw = S3.get_object(
@@ -27,7 +27,7 @@ raw = S3.get_object(
     Dict("response-content-type" => "application/octet-stream");
     aws_config,
 )
-train_idx = DataFrame(CSV.File(raw, header = false))[:, 1] .+ 1
+train_idx = DataFrame(CSV.File(raw, header=false))[:, 1] .+ 1
 
 path = "share/data/year/year-eval-idx.txt"
 raw = S3.get_object(
@@ -36,7 +36,7 @@ raw = S3.get_object(
     Dict("response-content-type" => "application/octet-stream");
     aws_config,
 )
-eval_idx = DataFrame(CSV.File(raw, header = false))[:, 1] .+ 1
+eval_idx = DataFrame(CSV.File(raw, header=false))[:, 1] .+ 1
 
 X = df[:, 2:end]
 Y_raw = Float64.(df[:, 1])
@@ -56,16 +56,17 @@ x_train, x_eval = x_tot[train_idx, :], x_tot[eval_idx, :]
 y_train, y_eval = y_tot[train_idx], y_tot[eval_idx]
 
 config = EvoTreeRegressor(
-    T = Float32,
-    nrounds = 1200,
-    loss = :linear,
-    eta = 0.1,
-    nbins = 128,
-    min_weight = 4,
-    max_depth = 7,
-    lambda = 0,
-    gamma = 0,
-    rowsample = 0.8,
+    T=Float32,
+    nrounds=2400,
+    loss=:linear,
+    eta=0.1,
+    nbins=128,
+    min_weight=4,
+    max_depth=7,
+    lambda=0,
+    gamma=0,
+    L2=0,
+    rowsample=0.8,
     colsample=0.8,
 )
 
@@ -76,10 +77,10 @@ config = EvoTreeRegressor(
     y_train,
     x_eval,
     y_eval,
-    early_stopping_rounds = 100,
-    print_every_n = 10,
-    metric = :mse,
-    return_logger = true,
+    early_stopping_rounds=100,
+    print_every_n=10,
+    metric=:mse,
+    return_logger=true,
 );
 p_evo = m(x_test);
 mean((p_evo .- y_test) .^ 2) * std(Y_raw)^2
