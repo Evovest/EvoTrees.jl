@@ -12,8 +12,11 @@ abstract type GaussianMLE <: MLE2P end
 abstract type LogisticMLE <: MLE2P end
 abstract type Quantile <: ModelType end
 abstract type L1 <: ModelType end
-abstract type CredV1 <: ModelType end
-abstract type CredS1 <: ModelType end
+abstract type Cred <: ModelType end
+abstract type CredV1A <: Cred end
+abstract type CredV2A <: Cred end
+abstract type CredV1B <: Cred end
+abstract type CredV2B <: Cred end
 
 # Converts MSE -> :mse
 const _type2loss_dict = Dict(
@@ -27,8 +30,10 @@ const _type2loss_dict = Dict(
     LogisticMLE => :logistic_mle,
     Quantile => :quantile,
     L1 => :l1,
-    CredV1 => :credV1,
-    CredS1 => :credS1
+    CredV1A => :credV1A,
+    CredV2A => :credV2A,
+    CredV1B => :credV1B,
+    CredV2B => :credV2B,
 )
 _type2loss(L::Type) = _type2loss_dict[L]
 
@@ -98,10 +103,18 @@ function EvoTreeRegressor(; kwargs...)
         L = L1
     elseif args[:loss] == :quantile
         L = Quantile
-    elseif args[:loss] == :credV1
-        L = CredV1
-    elseif args[:loss] == :credS1
-        L = CredS1
+    elseif args[:loss] == :credS1A
+        L = CredS1A
+    elseif args[:loss] == :credS1B
+        L = CredS1B
+    elseif args[:loss] == :credV1A
+        L = CredV1A
+    elseif args[:loss] == :credV2A
+        L = CredV2A
+    elseif args[:loss] == :credV1B
+        L = CredV1B
+    elseif args[:loss] == :credV2B
+        L = CredV2B
     else
         error(
             "Invalid loss: $(args[:loss]). Only [`:mse`, `:logloss`, `:gamma`, `:tweedie`, `:l1`, `:quantile`] are supported by EvoTreeRegressor.",

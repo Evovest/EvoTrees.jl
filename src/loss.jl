@@ -6,18 +6,10 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L})
     end
 end
 
-# Cred var
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L}) where {L<:CredV1}
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L}) where {L<:Cred}
     @threads for i in eachindex(y)
         @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
-        @inbounds ∇[2, i] = (y[i] - p[i])^2 * ∇[3, i] #var
-    end
-end
-# Cred std
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::EvoTreeRegressor{L}) where {L<:CredS1}
-    @threads for i in eachindex(y)
-        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
-        @inbounds ∇[2, i] = abs(y[i] - p[i]) * ∇[3, i] #std
+        @inbounds ∇[2, i] = (y[i] - p[1, i])^2 * ∇[3, i] #var
     end
 end
 
@@ -156,18 +148,49 @@ end
 ##############################
 # get the gain metric
 ##############################
-# Cred var
-function get_gain(params::EvoTypes{L}, ∑::AbstractVector) where {L<:CredV1}
+# CredV1A: ratio of variance
+# VHM = (∑1 / ∑3)^2
+# EVPV = ∑2 / ∑3
+@inline function _get_cred(::EvoTypes{L}, ∑::AbstractVector) where {L<:CredV1A}
     ϵ = eps(eltype(∑))
-    Z = ∑[1]^2 / max(ϵ, ∑[1]^2 + ∑[2]) # var
-    # Z = ∑[1]^2 / max(ϵ, ∑[1]^2 + ∑[2] * ∑[3]) # var
-    Z * abs(∑[1])
+    VHM = max(ϵ, (∑[1] / ∑[3])^2)
+    EVPV = max(ϵ, ∑[2] / ∑[3] - VHM)
+    return VHM / (VHM + EVPV)
 end
-# Cred std
-function get_gain(params::EvoTypes{L}, ∑::AbstractVector) where {L<:CredS1}
+
+# CredV1B: ratio of variance
+# VHM = (∑1 / ∑3)^2
+# EVPV = ∑2 / ∑3
+@inline function _get_cred(::EvoTypes{L}, ∑::AbstractVector) where {L<:CredV1B}
     ϵ = eps(eltype(∑))
-    Z = abs(∑[1]) / max(ϵ, abs(∑[1]) + ∑[2] / sqrt(∑[3])) # std
-    Z * abs(∑[1])
+    VHM = max(ϵ, (∑[1] / ∑[3])^2)
+    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM) / ∑[3])
+    return VHM / (VHM + EVPV)
+end
+
+# CredV2A: ratio of variance derived from abs measures
+# VHM = (∑1 / ∑3)^2
+# EVPV = (∑2 / ∑3)^2
+@inline function _get_cred(::EvoTypes{L}, ∑::AbstractVector) where {L<:CredV2A}
+    ϵ = eps(eltype(∑))
+    VHM = max(ϵ, (∑[1] / ∑[3])^2)
+    EVPV = max(ϵ, ∑[2] / ∑[3] - VHM)
+    return sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV)) # var corrected
+end
+# CredV2B: ratio of variance derived from abs measures
+# VHM = (∑1 / ∑3)^2
+# EVPV = (∑2 / ∑3)^2 / ∑3
+@inline function _get_cred(::EvoTypes{L}, ∑::AbstractVector) where {L<:CredV2B}
+    ϵ = eps(eltype(∑))
+    VHM = max(ϵ, (∑[1] / ∑[3])^2)
+    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM) / ∑[3])
+    return sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV)) # var corrected
+end
+
+# gain for Cred
+function get_gain(params::EvoTypes{L}, ∑::AbstractVector) where {L<:Cred}
+    Z = _get_cred(params, ∑)
+    return Z * abs(∑[1])
 end
 
 # GradientRegression

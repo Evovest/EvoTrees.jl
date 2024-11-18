@@ -57,14 +57,14 @@ y_train, y_eval = y_tot[train_idx], y_tot[eval_idx]
 
 config = EvoTreeRegressor(
     T=Float32,
-    nrounds=3200,
-    loss=:credV1,
+    nrounds=5000,
+    loss=:credV1B,
     eta=0.1,
     nbins=128,
     min_weight=1,
     max_depth=7,
     lambda=0,
-    gamma=0.1,
+    gamma=0,
     rowsample=0.8,
     colsample=0.8,
 )
@@ -82,5 +82,4 @@ config = EvoTreeRegressor(
     return_logger=true,
 );
 p_evo = m(x_test);
-sort(p_evo)
 mean((p_evo .- y_test) .^ 2) * std(Y_raw)^2

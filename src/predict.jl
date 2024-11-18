@@ -127,29 +127,17 @@ function pred_scalar(∑::AbstractVector{T}, params::EvoTypes{L}) where {L<:Grad
     -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
 end
 
-# cred variacen based
-function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}, ∇, is) where {L<:CredV1,T}
-    ϵ = eps(T)
-    Z = ∑[1]^2 / max(ϵ, ∑[1]^2 + ∑[2]) # var
-    # Z = ∑[1]^2 / max(ϵ, ∑[1]^2 + ∑[2] * ∑[3]) # var
+# Cred predictions
+function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}, ∇, is) where {L<:Cred,T}
+    Z = _get_cred(params, ∑)
     p[1, n] = params.eta * ∑[1] / ∑[3] * Z
+    # p[1, n] = params.eta * ∑[1] / ∑[3]
+    return nothing
 end
-function pred_scalar(∑::AbstractVector{T}, params::EvoTypes{L}) where {L<:CredV1,T}
-    ϵ = eps(T)
-    Z = ∑[1]^2 / max(ϵ, ∑[1]^2 + ∑[2]) # var
-    # Z = ∑[1]^2 / max(ϵ, ∑[1]^2 + ∑[2] * ∑[3]) # var
-    params.eta * ∑[1] / ∑[3] * Z
-end
-# cred std based
-function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}, ∇, is) where {L<:CredS1,T}
-    ϵ = eps(T)
-    Z = abs(∑[1]) / max(ϵ, abs(∑[1]) + ∑[2] / sqrt(∑[3])) # std
-    p[1, n] = params.eta * ∑[1] / ∑[3] * Z
-end
-function pred_scalar(∑::AbstractVector{T}, params::EvoTypes{L}) where {L<:CredS1,T}
-    ϵ = eps(T)
-    Z = abs(∑[1]) / max(ϵ, abs(∑[1]) + ∑[2] / sqrt(∑[3])) # std
-    params.eta * ∑[1] / ∑[3] * Z
+function pred_scalar(∑::AbstractVector{T}, params::EvoTypes{L}) where {L<:Cred,T}
+    Z = _get_cred(params, ∑)
+    return params.eta * ∑[1] / ∑[3] * Z
+    # return params.eta * ∑[1] / ∑[3]
 end
 
 # prediction in Leaf - MLE2P
