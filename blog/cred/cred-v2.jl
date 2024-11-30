@@ -14,13 +14,13 @@ function get_∑(p::Matrix{T}, y::Vector{T}, params) where {T}
 end
 
 function simul_Z(; nobs, loss, spread=1.0, sd=1.0)
-    credV1A = EvoTreeRegressor(; loss)
+    config = EvoTreeRegressor(; loss)
     p = zeros(1, nobs)
     y = randn(nobs)
     _std = length(y) == 1 ? abs(first(y)) : std(y; corrected=false)
     y .= (y .- mean(y)) ./ _std .* sd .- spread
-    ∑ = get_∑(p, y, credV1A)
-    Z = EvoTrees._get_cred(credV1A, ∑)
+    ∑ = get_∑(p, y, config)
+    Z = EvoTrees._get_cred(config, ∑)
     return Z
 end
 
@@ -89,3 +89,17 @@ get_figure(; loss=:credV2A, sd, nobs_list, spread_list)
 
 get_figure(; loss=:credV1B, sd, nobs_list, spread_list)
 get_figure(; loss=:credV2B, sd, nobs_list, spread_list)
+
+f1 = get_figure(; loss=:credV1A, sd, nobs_list, spread_list)
+f2 = get_figure(; loss=:credV2A, sd, nobs_list, spread_list)
+
+f1 = get_figure(; loss=:credV1A, sd, nobs_list, spread_list)
+f2 = get_figure(; loss=:credV2A, sd, nobs_list, spread_list)
+
+f = Figure()
+g = GridLayout()
+f[1,1] = Axis(f1[1,1])
+g[1,1] = Axis(f1[1,1])
+
+f.layout[1,1] = f1
+g[1,1] = f1[1,1]

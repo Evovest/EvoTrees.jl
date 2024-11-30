@@ -93,7 +93,6 @@ f
 ∑cR = sum_creds(pR, yR)
 @info cR = gain_cred(∑cR, 0)
 
-
 function get_data(; nobs, spread=1.0, sd=1.0, lambda=0.0)
     yL, yR = randn(nobs), randn(nobs)
     yL .= (yL .- mean(yL)) ./ std(yL) .* sd .- spread / 2
@@ -173,6 +172,5 @@ d1 = get_data(; nobs=100, spread=0.1, sd=0.1, lambda=0.0)
 f1 = get_figure(d1)
 d1 = get_data(; nobs=10000, spread=0.1, sd=0.1, lambda=0.0)
 f1 = get_figure(d1)
-
 
 f = Figure()
