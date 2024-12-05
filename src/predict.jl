@@ -130,14 +130,14 @@ end
 # Cred predictions
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, params::EvoTypes{L}, ∇, is) where {L<:Cred,T}
     Z = _get_cred(params, ∑)
-    p[1, n] = params.eta * ∑[1] / ∑[3] * Z
-    # p[1, n] = params.eta * ∑[1] / ∑[3]
+    # p[1, n] = params.eta * ∑[1] / ∑[3] * Z
+    p[1, n] = params.eta * ∑[1] / ∑[3]
     return nothing
 end
 function pred_scalar(∑::AbstractVector{T}, params::EvoTypes{L}) where {L<:Cred,T}
     Z = _get_cred(params, ∑)
-    return params.eta * ∑[1] / ∑[3] * Z
-    # return params.eta * ∑[1] / ∑[3]
+    # return params.eta * ∑[1] / ∑[3] * Z
+    return params.eta * ∑[1] / ∑[3]
 end
 
 # prediction in Leaf - MLE2P
