@@ -30,7 +30,7 @@ y_train, y_eval = Y[i_train], Y[i_eval]
         nbins=16,
         lambda=0.5,
         gamma=0.1,
-        eta=0.05,
+        eta=0.1,
         max_depth=6,
         min_weight=1.0,
         rowsample=0.5,
@@ -63,7 +63,7 @@ end
         nrounds=100,
         lambda=0.5,
         gamma=0.1,
-        eta=0.05,
+        eta=0.1,
         max_depth=6,
         min_weight=1.0,
         rowsample=0.5,
@@ -96,7 +96,7 @@ end
         nrounds=100,
         lambda=0.5,
         gamma=0.1,
-        eta=0.05,
+        eta=0.1,
         max_depth=6,
         min_weight=1.0,
         rowsample=0.5,
@@ -129,7 +129,7 @@ end
         nrounds=100,
         lambda=0.5,
         gamma=0.1,
-        eta=0.05,
+        eta=0.1,
         max_depth=6,
         min_weight=1.0,
         rowsample=0.5,
@@ -164,7 +164,7 @@ end
         nbins=16,
         lambda=0.5,
         gamma=0.0,
-        eta=0.05,
+        eta=0.1,
         max_depth=6,
         min_weight=1.0,
         rowsample=0.5,
@@ -199,7 +199,7 @@ end
         nbins=16,
         lambda=0.5,
         gamma=0.0,
-        eta=0.05,
+        eta=0.1,
         max_depth=6,
         min_weight=1.0,
         rowsample=0.5,
@@ -232,7 +232,7 @@ end
         nrounds=100,
         lambda=0.5,
         gamma=0.1,
-        eta=0.05,
+        eta=0.1,
         max_depth=6,
         min_weight=1.0,
         rowsample=0.5,
@@ -266,7 +266,7 @@ end
         nbins=16,
         lambda=0.0,
         gamma=0.0,
-        eta=0.05,
+        eta=0.1,
         max_depth=6,
         min_weight=10.0,
         rowsample=0.5,
@@ -300,7 +300,7 @@ end
         nbins=16,
         lambda=0.0,
         gamma=0.0,
-        eta=0.05,
+        eta=0.1,
         max_depth=6,
         min_weight=10.0,
         rowsample=0.5,
@@ -333,7 +333,7 @@ end
         nbins=16,
         lambda=0.0,
         gamma=0.0,
-        eta=0.05,
+        eta=0.1,
         max_depth=6,
         min_weight=10.0,
         rowsample=0.5,
@@ -367,7 +367,7 @@ end
         nbins=16,
         lambda=0.5,
         gamma=0.1,
-        eta=0.05,
+        eta=0.1,
         max_depth=6,
         min_weight=1.0,
         rowsample=0.5,
@@ -446,10 +446,10 @@ end
     # check_args should throw an exception if the parameters are invalid
     @testset "check_parameter" begin
         # Valid case tests
-        @test check_parameter(Float64, 1.5, 0.0, typemax(Float64), :lambda) == nothing
-        @test check_parameter(Int, 5, 1, typemax(Int), :nrounds) == nothing
-        @test check_parameter(Int, 1, 1, typemax(Int), :nrounds) == nothing
-        @test check_parameter(Int, 1, 1, 1, :nrounds) == nothing
+        @test check_parameter(Float64, 1.5, 0.0, typemax(Float64), :lambda) === nothing
+        @test check_parameter(Int, 5, 1, typemax(Int), :nrounds) === nothing
+        @test check_parameter(Int, 1, 1, typemax(Int), :nrounds) === nothing
+        @test check_parameter(Int, 1, 1, 1, :nrounds) === nothing
 
         # Invalid type tests
         @test_throws ErrorException check_parameter(Int, 1.5, 0, typemax(Int), :nrounds)
@@ -479,7 +479,7 @@ end
         for EvoTreeType in [EvoTreeMLE, EvoTreeGaussian, EvoTreeCount, EvoTreeClassifier, EvoTreeRegressor]
             config = EvoTreeType(nbins=32)
             # should not throw an exception
-            @test check_args(config) == nothing
+            @test check_args(config) === nothing
             # invalid nbins
             config.nbins = 256
             @test_throws Exception check_args(config)
