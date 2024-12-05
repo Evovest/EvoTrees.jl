@@ -20,7 +20,7 @@ function importance(model::EvoTree; fnames=model.info[:fnames])
     end
 
     gain .= gain ./ sum(gain)
-    pairs = collect(Dict(zip(string.(fnames), gain)))
+    pairs = collect(Dict(zip(Symbol.(fnames), gain)))
     sort!(pairs, by=x -> -x[2])
 
     return pairs
