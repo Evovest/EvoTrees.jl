@@ -150,13 +150,13 @@ function EvoTrees.predict!(
 end
 
 # prediction for EvoTree model
-function predict(
-    m::EvoTree{L,K},
+function EvoTrees._predict(
+    m::EvoTrees.EvoTree{L,K},
     data,
     ::Type{<:EvoTrees.GPU};
     ntree_limit=length(m.trees)) where {L,K}
 
-    Tables.istable(data) ? data = Tables.columntable(data) : nothing
+    EvoTrees.Tables.istable(data) ? data = EvoTrees.Tables.columntable(data) : nothing
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
     x_bin = CuArray(EvoTrees.binarize(data; fnames=m.info[:fnames], edges=m.info[:edges]))

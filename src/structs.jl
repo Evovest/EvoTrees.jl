@@ -87,12 +87,10 @@ struct EvoTree{L,K}
     trees::Vector{Tree{L,K}}
     info::Dict
 end
-# (m::EvoTree)(data, device::Type{D}=CPU; ntree_limit=length(m.trees)) where {D<:Device} =
-#     predict(m, data, device; ntree_limit)
-function (m::EvoTree)(data; ntree_limit=length(m.trees), device="cpu")
-    @assert string(device) ∈ ["cpu", "gpu"]
-    _device = string(device) == "cpu" ? CPU : GPU
-    return predict(m, data, _device; ntree_limit)
+function (m::EvoTree)(data; ntree_limit=length(m.trees), device=:cpu)
+    @assert Symbol(device) ∈ [:cpu, :gpu]
+    _device = string(device) == :cpu ? CPU : GPU
+    return _predict(m, data, _device; ntree_limit)
 end
 
 _get_struct_loss(::EvoTree{L,K}) where {L,K} = L
