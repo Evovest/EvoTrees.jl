@@ -89,7 +89,7 @@ struct EvoTree{L,K}
 end
 function (m::EvoTree)(data; ntree_limit=length(m.trees), device=:cpu)
     @assert Symbol(device) ∈ [:cpu, :gpu]
-    _device = string(device) == :cpu ? CPU : GPU
+    _device = Symbol(device) == :cpu ? CPU : GPU
     return _predict(m, data, _device; ntree_limit)
 end
 
