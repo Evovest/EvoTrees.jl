@@ -23,7 +23,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
     elseif L == EvoTrees.MLogLoss
         if eltype(y_train) <: EvoTrees.CategoricalValue
             target_levels = EvoTrees.CategoricalArrays.levels(y_train)
-            target_isordered = isordered(y_train)
+            target_isordered = EvoTrees.isordered(y_train)
             y = UInt32.(EvoTrees.CategoricalArrays.levelcode.(y_train))
         elseif eltype(y_train) <: Integer || eltype(y_train) <: Bool || eltype(y_train) <: String || eltype(y_train) <: Char
             target_levels = sort(unique(y_train))

@@ -70,6 +70,10 @@ function EvoTreeRegressor(; kwargs...)
         :rng => 123,
     )
 
+    args_ignored = setdiff(keys(kwargs), keys(args))
+    length(args_ignored) > 0 &&
+        @info "The following kwargs are not supported and will be ignored: $(args_ignored)."
+
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
         args[arg] = kwargs[arg]
@@ -163,6 +167,10 @@ function EvoTreeCount(; kwargs...)
         :rng => 123,
     )
 
+    args_ignored = setdiff(keys(kwargs), keys(args))
+    length(args_ignored) > 0 &&
+        @info "The following kwargs are not supported and will be ignored: $(args_ignored)."
+
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
         args[arg] = kwargs[arg]
@@ -230,6 +238,10 @@ function EvoTreeClassifier(; kwargs...)
         :tree_type => "binary",
         :rng => 123,
     )
+
+    args_ignored = setdiff(keys(kwargs), keys(args))
+    length(args_ignored) > 0 &&
+        @info "The following kwargs are not supported and will be ignored: $(args_ignored)."
 
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
@@ -300,6 +312,10 @@ function EvoTreeMLE(; kwargs...)
         :tree_type => "binary",
         :rng => 123,
     )
+
+    args_ignored = setdiff(keys(kwargs), keys(args))
+    length(args_ignored) > 0 &&
+        @info "The following kwargs are not supported and will be ignored: $(args_ignored)."
 
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
@@ -386,6 +402,10 @@ function EvoTreeGaussian(; kwargs...)
         :tree_type => "binary",
         :rng => 123,
     )
+
+    args_ignored = setdiff(keys(kwargs), keys(args))
+    length(args_ignored) > 0 &&
+        @info "The following kwargs are not supported and will be ignored: $(args_ignored)."
 
     args_override = intersect(keys(args), keys(kwargs))
     for arg in args_override
