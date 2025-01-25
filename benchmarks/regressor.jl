@@ -14,7 +14,7 @@ nrounds = 200
 
 loss = :mse
 tree_type = :binary
-T = Float64
+T = Float32
 nthreads = Base.Threads.nthreads()
 
 device_list = [:cpu, :gpu]
