@@ -1,9 +1,9 @@
 """
-    grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTypes, ::Type{<:Device}=CPU) where {L,K}
+    grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTypes) where {L,K}
 
 Given a instantiate
 """
-function grow_evotree!(m::EvoTree{L,K}, cache, params::EvoTypes, ::Type{<:Device}=CPU) where {L,K}
+function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where {L,K}
 
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, L)
@@ -31,7 +31,7 @@ function grow_evotree!(m::EvoTree{L,K}, cache, params::EvoTypes, ::Type{<:Device
     )
     push!(m.trees, tree)
     predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
-    cache[:info][:nrounds] += 1
+    cache.nrounds += 1
     return nothing
 end
 
@@ -343,7 +343,6 @@ function fit_evotree(
 
     @assert Tables.istable(dtrain) "fit_evotree(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
     dtrain = Tables.columntable(dtrain)
-    verbosity == 1 && @info params
     _device = params.device == :gpu ? GPU : CPU
 
     m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name)
@@ -366,7 +365,7 @@ function fit_evotree(
     end
 
     for i = 1:params.nrounds
-        grow_evotree!(m, cache, params, _device)
+        grow_evotree!(m, cache, params)
         if !isnothing(logger)
             cb(logger, i, m.trees[end])
             if i % print_every_n == 0 && verbosity > 0
@@ -471,7 +470,7 @@ function fit_evotree(
     end
 
     for i = 1:params.nrounds
-        grow_evotree!(m, cache, params, _device)
+        grow_evotree!(m, cache, params)
         if !isnothing(logger)
             cb(logger, i, m.trees[end])
             if i % print_every_n == 0 && verbosity > 0

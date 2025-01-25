@@ -11,7 +11,7 @@ using EvoTrees: predict, sigmoid, logit
 
 # prepare a dataset
 tree_type = :binary # binary/oblivious
-device = :gpu
+_device = :gpu
 
 Random.seed!(123)
 features = rand(10_000) .* 5
@@ -44,7 +44,7 @@ config = EvoTreeRegressor(;
     rowsample=0.5,
     colsample=1.0,
     tree_type,
-    device
+    device=_device
 )
 
 # @time model = fit_evotree(config; x_train, y_train);
@@ -81,7 +81,7 @@ config = EvoTreeRegressor(;
     rowsample=0.5,
     colsample=1.0,
     tree_type,
-    device
+    device=_device
 )
 
 @time model = fit_evotree(
@@ -110,7 +110,7 @@ config = EvoTreeCount(;
     rowsample=0.5,
     colsample=1.0,
     tree_type,
-    device
+    device=_device
 )
 
 @time model = fit_evotree(
@@ -139,7 +139,7 @@ config = EvoTreeRegressor(;
     rowsample=0.5,
     colsample=1.0,
     tree_type,
-    device
+    device=_device
 )
 
 @time model = fit_evotree(
@@ -167,7 +167,7 @@ config = EvoTreeRegressor(;
     rowsample=0.5,
     colsample=1.0,
     tree_type,
-    device
+    device=_device
 )
 
 @time model = fit_evotree(
@@ -246,7 +246,7 @@ config = EvoTreeGaussian(;
     colsample=1.0,
     rng=123,
     tree_type,
-    device
+    device=_device
 )
 
 @time model = fit_evotree(config; x_train, y_train);
@@ -331,6 +331,7 @@ params1 = EvoTreeRegressor(;
     colsample=1.0,
     tree_type,
     early_stopping_rounds=50,
+    device=_device
 )
 @time model = fit_evotree(
     params1;
@@ -360,6 +361,7 @@ params1 = EvoTreeRegressor(;
     colsample=1.0,
     tree_type,
     early_stopping_rounds=50,
+    device=_device
 )
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
 @time pred_train_q20 = model(x_train)
@@ -380,6 +382,7 @@ params1 = EvoTreeRegressor(;
     colsample=1.0,
     tree_type,
     early_stopping_rounds=50,
+    device=_device
 )
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 @time pred_train_q80 = model(x_train)

@@ -101,32 +101,34 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     nodes = [TrainNode(featbins, K, view(is_in, 1:0)) for n = 1:2^params.max_depth-1]
     bias = [Tree{L,K}(μ)]
     m = EvoTree{L,K}(L, K, bias, info)
-    @info "typeof(m)" typeof(m)
-    @info "typeof(m.K)" typeof(m.K)
 
     # build cache
-    cache = (
-        info=Dict(:nrounds => 0),
-        x_bin=x_bin,
-        y=y,
-        w=w,
-        pred=pred,
-        K=K,
-        nodes=nodes,
-        is_in=is_in,
-        is_out=is_out,
-        mask=mask,
-        js_=js_,
-        js=js,
-        out=out,
-        left=left,
-        right=right,
-        ∇=∇,
-        edges=edges,
-        feature_names=feature_names,
-        featbins=featbins,
-        feattypes=feattypes,
-        monotone_constraints=monotone_constraints,
+    nrounds = 0
+    Y = typeof(y)
+    N = typeof(nodes)
+    E = typeof(edges)
+    cache = CacheBaseCPU{Y,N,E}(
+        nrounds,
+        K,
+        x_bin,
+        y,
+        w,
+        pred,
+        nodes,
+        is_in,
+        is_out,
+        mask,
+        js_,
+        js,
+        out,
+        left,
+        right,
+        ∇,
+        edges,
+        feature_names,
+        featbins,
+        feattypes,
+        monotone_constraints,
     )
     return m, cache
 end

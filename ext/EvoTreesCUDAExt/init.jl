@@ -105,31 +105,37 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     m = EvoTree{L,K}(L, K, bias, info)
 
     # build cache
-    cache = (
-        info=Dict(:nrounds => 0),
-        x_bin=x_bin,
-        y=y,
-        w=w,
-        K=K,
-        nodes=nodes,
-        pred=pred,
-        is_in=is_in,
-        is_out=is_out,
-        mask=mask,
-        js_=js_,
-        js=js,
-        out=out,
-        left=left,
-        right=right,
-        ∇=∇,
-        h∇=h∇,
-        h∇_cpu=h∇_cpu,
-        feature_names=feature_names,
-        edges=edges,
-        featbins=featbins,
-        feattypes=feattypes,
-        feattypes_gpu=CuArray(feattypes),
-        monotone_constraints=monotone_constraints,
+    nrounds = 0
+    Y = typeof(y)
+    N = typeof(nodes)
+    E = typeof(edges)
+    feattypes_gpu = CuArray(feattypes)
+    cache = CacheBaseGPU{Y,N,E}(
+        nrounds,
+        K,
+        x_bin,
+        y,
+        w,
+        pred,
+        nodes,
+        is_in,
+        is_out,
+        mask,
+        js_,
+        js,
+        out,
+        left,
+        right,
+        ∇,
+        h∇,
+        h∇_cpu,
+        edges,
+        feature_names,
+        featbins,
+        feattypes,
+        feattypes_gpu,
+        monotone_constraints,
     )
+    @info "typeof(cache)" typeof(cache)
     return m, cache
 end

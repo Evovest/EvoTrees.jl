@@ -3,18 +3,23 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
   A = isa(A, AbstractMatrix) ? Tables.columntable(Tables.table(A)) : Tables.columntable(A)
   nobs = Tables.DataAPI.nrow(A)
   feature_names = Tables.schema(A).names
-  w = isnothing(w) ? device_ones(CPU, Float32, nobs) : Vector{Float32}(w)
-  fitresult, cache = init_core(model, CPU, A, feature_names, y, w, nothing)
+
+  T = Float32
+  device = model.device == :gpu ? GPU : CPU
+  V = device_array_type(device)
+  w = isnothing(w) ? device_ones(device, T, nobs) : V{T}(w)
+  fitresult, cache = init_core(model, device, A, feature_names, y, w, nothing)
 
   while cache[:info][:nrounds] < model.nrounds
-    grow_evotree!(fitresult, cache, model)
+    grow_evotree!(fitresult, cache, model, device)
   end
   report = (features=cache[:feature_names],)
   return fitresult, cache, report
 end
 
 function okay_to_continue(model, fitresult, cache)
-  return model.nrounds - cache[:info][:nrounds] >= 0
+  check = model.nrounds - cache[:info][:nrounds] >= 0
+  return check
 end
 
 # For EarlyStopping.jl support

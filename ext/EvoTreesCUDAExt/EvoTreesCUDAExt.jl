@@ -14,6 +14,7 @@ end
 include("loss.jl")
 include("metrics.jl")
 include("predict.jl")
+include("structs.jl")
 include("init.jl")
 include("subsample.jl")
 include("fit-utils.jl")
