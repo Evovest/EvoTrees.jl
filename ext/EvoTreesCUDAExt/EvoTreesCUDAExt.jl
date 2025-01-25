@@ -12,7 +12,7 @@ function EvoTrees.post_fit_gc(::Type{<:EvoTrees.GPU})
 end
 
 include("loss.jl")
-include("eval.jl")
+include("metrics.jl")
 include("predict.jl")
 include("init.jl")
 include("subsample.jl")

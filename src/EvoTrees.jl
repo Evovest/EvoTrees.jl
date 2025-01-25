@@ -28,11 +28,10 @@ import MLJModelInterface as MMI
 import MLJModelInterface: fit, update, predict, schema, feature_importances
 import Base: convert
 
-include("models.jl")
-
-include("structs.jl")
+include("learners.jl")
 include("loss.jl")
-include("eval.jl")
+include("metrics.jl")
+include("structs.jl")
 include("predict.jl")
 include("init.jl")
 include("subsample.jl")

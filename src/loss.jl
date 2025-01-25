@@ -1,3 +1,44 @@
+abstract type LossType end
+abstract type GradientRegression <: LossType end
+abstract type MLE2P <: LossType end # 2-parameters max-likelihood
+
+abstract type MSE <: GradientRegression end
+abstract type LogLoss <: GradientRegression end
+abstract type Poisson <: GradientRegression end
+abstract type Gamma <: GradientRegression end
+abstract type Tweedie <: GradientRegression end
+abstract type MLogLoss <: LossType end
+abstract type GaussianMLE <: MLE2P end
+abstract type LogisticMLE <: MLE2P end
+abstract type Quantile <: LossType end
+abstract type MAE <: LossType end
+
+# Converts MSE -> :mse
+const _type2loss_dict = Dict(
+    MSE => :mse,
+    LogLoss => :logloss,
+    Poisson => :poisson,
+    Gamma => :gamma,
+    Tweedie => :tweedie,
+    MLogLoss => :mlogloss,
+    GaussianMLE => :gaussian_mle,
+    LogisticMLE => :logistic_mle,
+    Quantile => :quantile,
+)
+_type2loss(L::Type) = _type2loss_dict[L]
+
+const _loss2type_dict = Dict(
+    :mse => MSE,
+    :logloss => LogLoss,
+    :poisson => Poisson,
+    :gamma => Gamma,
+    :tweedie => Tweedie,
+    :mlogloss => MLogLoss,
+    :gaussian_mle => GaussianMLE,
+    :logistic_mle => LogisticMLE,
+    :quantile => Quantile,
+)
+
 # MSE
 function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{MSE})
     @threads for i in eachindex(y)
@@ -64,22 +105,22 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{MLogLoss})
     end
 end
 
-# L1
-# function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{L1})
-#     @threads for i in eachindex(y)
-#         @inbounds ∇[1, i] =
-#             (params.alpha * max(y[i] - p[1, i], 0) - (1 - params.alpha) * max(p[1, i] - y[i], 0)) *
-#             ∇[3, i]
-#     end
-# end
+# mae
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{MAE})
+    @threads for i in eachindex(y)
+        @inbounds ∇[1, i] =
+            (params.alpha * max(y[i] - p[1, i], 0) - (1 - params.alpha) * max(p[1, i] - y[i], 0)) *
+            ∇[3, i]
+    end
+end
 
-# # Quantile
-# function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{Quantile})
-#     @threads for i in eachindex(y)
-#         @inbounds ∇[1, i] = y[i] > p[1, i] ? params.alpha * ∇[3, i] : (params.alpha - 1) * ∇[3, i]
-#         @inbounds ∇[2, i] = y[i] - p[1, i] # δ² serves to calculate the quantile value - hence no weighting on δ²
-#     end
-# end
+# Quantile
+function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{Quantile})
+    @threads for i in eachindex(y)
+        @inbounds ∇[1, i] = y[i] > p[1, i] ? params.alpha * ∇[3, i] : (params.alpha - 1) * ∇[3, i]
+        @inbounds ∇[2, i] = y[i] - p[1, i] # δ² serves to calculate the quantile value - hence no weighting on δ²
+    end
+end
 
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
