@@ -25,7 +25,7 @@ using RecipesBase
 
 using MLJModelInterface
 import MLJModelInterface as MMI
-import MLJModelInterface: fit, update, predict, schema
+import MLJModelInterface: fit, update, predict, schema, feature_importances
 import Base: convert
 
 include("models.jl")
@@ -39,9 +39,9 @@ include("subsample.jl")
 include("fit-utils.jl")
 include("fit.jl")
 
-if !isdefined(Base, :get_extension)
-    include("../ext/EvoTreesCUDAExt/EvoTreesCUDAExt.jl")
-end
+# if !isdefined(Base, :get_extension)
+#     include("../ext/EvoTreesCUDAExt/EvoTreesCUDAExt.jl")
+# end
 
 include("callback.jl")
 include("importance.jl")

@@ -13,7 +13,7 @@ function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::EvoTreeRegressor{<:EvoTrees.MSE};
+    ::Type{EvoTrees.MSE};
     MAX_THREADS=1024
 )
     threads = min(MAX_THREADS, length(y))
@@ -39,7 +39,7 @@ function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::EvoTreeRegressor{<:EvoTrees.LogLoss};
+    ::Type{EvoTrees.LogLoss};
     MAX_THREADS=1024
 )
     threads = min(MAX_THREADS, length(y))
@@ -65,7 +65,7 @@ function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::EvoTreeCount{<:EvoTrees.Poisson};
+    ::Type{EvoTrees.Poisson};
     MAX_THREADS=1024
 )
     threads = min(MAX_THREADS, length(y))
@@ -91,7 +91,7 @@ function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::EvoTreeRegressor{<:EvoTrees.Gamma};
+    ::Type{EvoTrees.Gamma};
     MAX_THREADS=1024
 )
     threads = min(MAX_THREADS, length(y))
@@ -119,7 +119,7 @@ function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::EvoTreeRegressor{<:EvoTrees.Tweedie};
+    ::Type{EvoTrees.Tweedie};
     MAX_THREADS=1024
 )
     threads = min(MAX_THREADS, length(y))
@@ -158,7 +158,7 @@ function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::EvoTreeClassifier{<:EvoTrees.MLogLoss};
+    ::Type{EvoTrees.MLogLoss};
     MAX_THREADS=1024
 )
     threads = min(MAX_THREADS, length(y))
@@ -191,7 +191,7 @@ function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::Union{EvoTreeGaussian{<:EvoTrees.GaussianMLE},EvoTreeMLE{<:EvoTrees.GaussianMLE}};
+    ::Type{EvoTrees.GaussianMLE};
     MAX_THREADS=1024
 )
     threads = min(MAX_THREADS, length(y))

@@ -2,20 +2,19 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
 
   A = isa(A, AbstractMatrix) ? Tables.columntable(Tables.table(A)) : Tables.columntable(A)
   nobs = Tables.DataAPI.nrow(A)
-  fnames = Tables.schema(A).names
+  feature_names = Tables.schema(A).names
   w = isnothing(w) ? device_ones(CPU, Float32, nobs) : Vector{Float32}(w)
-  fitresult, cache = init_core(model, CPU, A, fnames, y, w, nothing)
+  fitresult, cache = init_core(model, CPU, A, feature_names, y, w, nothing)
 
   while cache[:info][:nrounds] < model.nrounds
     grow_evotree!(fitresult, cache, model)
   end
-  report = (features=cache[:fnames],)
+  report = (features=cache[:feature_names],)
   return fitresult, cache, report
 end
 
 function okay_to_continue(model, fitresult, cache)
-  return model.nrounds - cache[:info][:nrounds] >= 0 &&
-         all(_get_struct_loss(model) .== _get_struct_loss(fitresult))
+  return model.nrounds - cache[:info][:nrounds] >= 0
 end
 
 # For EarlyStopping.jl support
@@ -34,49 +33,45 @@ function MMI.update(
     while cache[:info][:nrounds] < model.nrounds
       grow_evotree!(fitresult, cache, model)
     end
-    report = (features=cache[:fnames],)
+    report = (features=cache[:feature_names],)
   else
     fitresult, cache, report = fit(model, verbosity, A, y, w)
   end
   return fitresult, cache, report
 end
 
-function predict(::EvoTreeRegressor, fitresult, A)
+function predict(::EvoTreeRegressor, fitresult::EvoTree, A)
   pred = predict(fitresult, A)
   return pred
 end
 
-function predict(::EvoTreeClassifier, fitresult, A)
+function predict(::EvoTreeClassifier, fitresult::EvoTree, A)
   pred = predict(fitresult, A)
   return MMI.UnivariateFinite(fitresult.info[:target_levels], pred, pool=missing, ordered=fitresult.info[:target_isordered])
 end
 
-function predict(::EvoTreeCount, fitresult, A)
+function predict(::EvoTreeCount, fitresult::EvoTree, A)
   λs = predict(fitresult, A)
   return [Distributions.Poisson(λ) for λ ∈ λs]
 end
 
-function predict(::EvoTreeGaussian, fitresult, A)
+function predict(::EvoTreeGaussian, fitresult::EvoTree, A)
   pred = predict(fitresult, A)
   return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
-function predict(::EvoTreeMLE{L}, fitresult, A) where {L<:GaussianMLE}
+function predict(::EvoTreeMLE, fitresult::EvoTree{L,K}, A) where {L<:GaussianMLE,K}
   pred = predict(fitresult, A)
   return [Distributions.Normal(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
-function predict(::EvoTreeMLE{L}, fitresult, A) where {L<:LogisticMLE}
+function predict(::EvoTreeMLE, fitresult::EvoTree{L,K}, A) where {L<:LogisticMLE,K}
   pred = predict(fitresult, A)
   return [Distributions.Logistic(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
-# Feature Importances
-MMI.reports_feature_importances(::Type{<:EvoTypes}) = true
-MMI.supports_weights(::Type{<:EvoTypes}) = true
-
-function MMI.feature_importances(m::EvoTypes, fitresult, report)
-  fi_pairs = importance(fitresult, fnames=report[:features])
+function feature_importances(m::EvoTypes, fitresult, report)
+  fi_pairs = importance(fitresult, feature_names=report[:features])
   return fi_pairs
 end
 
@@ -100,7 +95,8 @@ MMI.metadata_model(
     AbstractMatrix{MMI.Continuous},
   },
   target_scitype=AbstractVector{<:MMI.Continuous},
-  weights=true,
+  supports_weights=true,
+  reports_feature_importances=true,
   path="EvoTrees.EvoTreeRegressor",
 )
 
@@ -111,7 +107,8 @@ MMI.metadata_model(
     AbstractMatrix{MMI.Continuous},
   },
   target_scitype=AbstractVector{<:MMI.Finite},
-  weights=true,
+  supports_weights=true,
+  reports_feature_importances=true,
   path="EvoTrees.EvoTreeClassifier",
 )
 
@@ -122,7 +119,8 @@ MMI.metadata_model(
     AbstractMatrix{MMI.Continuous},
   },
   target_scitype=AbstractVector{<:MMI.Count},
-  weights=true,
+  supports_weights=true,
+  reports_feature_importances=true,
   path="EvoTrees.EvoTreeCount",
 )
 
@@ -133,7 +131,8 @@ MMI.metadata_model(
     AbstractMatrix{MMI.Continuous},
   },
   target_scitype=AbstractVector{<:MMI.Continuous},
-  weights=true,
+  supports_weights=true,
+  reports_feature_importances=true,
   path="EvoTrees.EvoTreeGaussian",
 )
 
@@ -144,7 +143,8 @@ MMI.metadata_model(
     AbstractMatrix{MMI.Continuous},
   },
   target_scitype=AbstractVector{<:MMI.Continuous},
-  weights=true,
+  supports_weights=true,
+  reports_feature_importances=true,
   path="EvoTrees.EvoTreeMLE",
 )
 
@@ -162,6 +162,15 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:tweedie`
   - `:quantile`
   - `:l1`
+- `metric`:     The evaluation metric used to track evaluation data and serves as a basis for early stopping. Supported metrics are: 
+  - `:mse`:     Mean-squared error. Adapted for general regression models.
+  - `:rmse`:    Root-mean-squared error. Adapted for general regression models.
+  - `:mae`:     Mean absolute error. Adapted for general regression models.
+  - `:logloss`: Adapted for `:logistic` regression models.
+  - `:poisson`: Poisson deviance. Adapted to `EvoTreeCount` count models.
+  - `:gamma`:   Gamma deviance. Adapted to regression problem on Gamma like, positively distributed targets.
+  - `:tweedie`: Tweedie deviance. Adapted to regression problem on Tweedie like, positively distributed targets with probability mass at `y == 0`.
+- `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.   
@@ -186,6 +195,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
   - `oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
 - `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
+- `device=:cpu`: Hardware device to use for computations. Can be either `:cpu` or `gpu`. Following losses are not GPU supported at the moment: `:l1`, `:quantile`.
 
 # Internal API
 
@@ -287,6 +297,7 @@ EvoTreeClassifier is used to perform multi-class classification, using cross-ent
 
 # Hyper-parameters
 
+- `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
@@ -304,6 +315,7 @@ EvoTreeClassifier is used to perform multi-class classification, using cross-ent
   - `binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
   - `oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
 - `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
+- `device=:cpu`: Hardware device to use for computations. Can be either `:cpu` or `:gpu`.
 
 # Internal API
 
@@ -412,6 +424,7 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
 
 # Hyper-parameters
 
+- `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
@@ -430,6 +443,7 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
   - `binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
   - `oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
 - `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
+- `device=:cpu`: Hardware device to use for computations. Can be either `:cpu` or `:gpu`.
 
 # Internal API
 
@@ -542,6 +556,7 @@ EvoTreeGaussian is used to perform Gaussian probabilistic regression, fitting μ
 
 # Hyper-parameters
 
+- `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
@@ -561,6 +576,7 @@ EvoTreeGaussian is used to perform Gaussian probabilistic regression, fitting μ
   - `binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
   - `oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
 - `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
+- `device=:cpu`: Hardware device to use for computations. Can be either `:cpu` or `gpu`.
 
 # Internal API
 
@@ -677,9 +693,10 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
 
 # Hyper-parameters
 
+- `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 `loss=:gaussian`:         Loss to be be minimized during training. One of:
-  - `:gaussian` / `:gaussian_mle`
-  - `:logistic` / `:logistic_mle`
+  - `:gaussian_mle`
+  - `:logistic_mle`
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
@@ -699,6 +716,7 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
   - `binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
   - `oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
 - `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
+- `device=:cpu`: Hardware device to use for computations. Can be either `:cpu` or `gpu`. Following losses are not GPU supported at the moment: `:logistic_mle`.
 
 # Internal API
 

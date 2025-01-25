@@ -6,7 +6,7 @@ The following provides minimal examples of usage of the various loss functions a
 
 Minimal example to fit a noisy sinus wave.
 
-![](../assets/regression-sinus-binary.png)
+![](../assets/regression-sinus-binary-cpu.png)
 
 ```julia
 using EvoTrees
@@ -37,7 +37,7 @@ config = EvoTreeRegressor(
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, print_every_n=25)
 pred_eval_linear = model(x_eval)
 
 # logistic / cross-entropy
@@ -48,7 +48,7 @@ config = EvoTreeRegressor(
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:logloss, print_every_n=25)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, print_every_n=25)
 pred_eval_logistic = model(x_eval)
 
 # L1
@@ -59,7 +59,7 @@ config = EvoTreeRegressor(
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric=:mae, print_every_n=25)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, print_every_n=25)
 pred_eval_L1 = model(x_eval)
 ```
 
@@ -74,7 +74,7 @@ config = EvoTreeCount(
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, metric = :poisson, print_every_n = 25)
+model = fit_evotree(config; x_train, y_train, x_eval, y_eval, print_every_n = 25)
 pred_eval_poisson = model(x_eval)
 ```
 
@@ -119,7 +119,7 @@ pred_train_q80 = model(x_train)
 
 ## Gaussian Max Likelihood
 
-![](../assets/gaussian-sinus-binary.png)
+![](../assets/gaussian-sinus-binary-cpu.png)
 
 ```julia
 config = EvoTreeMLE(

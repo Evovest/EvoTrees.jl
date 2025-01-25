@@ -159,7 +159,7 @@ function EvoTrees._predict(
     EvoTrees.Tables.istable(data) ? data = EvoTrees.Tables.columntable(data) : nothing
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
-    x_bin = CuArray(EvoTrees.binarize(data; fnames=m.info[:fnames], edges=m.info[:edges]))
+    x_bin = CuArray(EvoTrees.binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges]))
     nobs = size(x_bin, 1)
     pred = CUDA.zeros(K, nobs)
     feattypes = CuArray(m.info[:feattypes])

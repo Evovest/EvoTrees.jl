@@ -1,10 +1,12 @@
-function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, offset) where {L}
+function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset)
 
     # binarize data into quantiles
-    edges, featbins, feattypes = get_edges(data; fnames, nbins=params.nbins, rng=params.rng)
-    x_bin = binarize(data; fnames, edges)
+    edges, featbins, feattypes = get_edges(data; feature_names, nbins=params.nbins, rng=params.rng)
+    x_bin = binarize(data; feature_names, edges)
     nobs, nfeats = size(x_bin)
+
     T = Float32
+    L = _loss2type_dict[params.loss]
 
     target_levels = nothing
     target_isordered = false
@@ -87,7 +89,7 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
 
     # model info
     info = Dict(
-        :fnames => fnames,
+        :feature_names => feature_names,
         :target_levels => target_levels,
         :target_isordered => target_isordered,
         :edges => edges,
@@ -98,7 +100,9 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
     # initialize model
     nodes = [TrainNode(featbins, K, view(is_in, 1:0)) for n = 1:2^params.max_depth-1]
     bias = [Tree{L,K}(μ)]
-    m = EvoTree{L,K}(bias, info)
+    m = EvoTree{L,K}(L, K, bias, info)
+    @info "typeof(m)" typeof(m)
+    @info "typeof(m.K)" typeof(m.K)
 
     # build cache
     cache = (
@@ -119,7 +123,7 @@ function init_core(params::EvoTypes{L}, ::Type{CPU}, data, fnames, y_train, w, o
         right=right,
         ∇=∇,
         edges=edges,
-        fnames=fnames,
+        feature_names=feature_names,
         featbins=featbins,
         feattypes=feattypes,
         monotone_constraints=monotone_constraints,
@@ -133,8 +137,8 @@ end
         dtrain,
         device::Type{<:Device}=CPU;
         target_name,
-        fnames=nothing,
-        w_name=nothing,
+        feature_names=nothing,
+        weight_name=nothing,
         offset_name=nothing
     )
 
@@ -145,30 +149,30 @@ function init(
     dtrain,
     device::Type{<:Device}=CPU;
     target_name,
-    fnames=nothing,
-    w_name=nothing,
+    feature_names=nothing,
+    weight_name=nothing,
     offset_name=nothing
 )
 
-    # set fnames
+    # set feature_names
     schema = Tables.schema(dtrain)
-    _w_name = isnothing(w_name) ? Symbol("") : Symbol(w_name)
+    _weight_name = isnothing(weight_name) ? Symbol("") : Symbol(weight_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
     _target_name = Symbol(target_name)
-    if isnothing(fnames)
-        fnames = Symbol[]
+    if isnothing(feature_names)
+        feature_names = Symbol[]
         for i in eachindex(schema.names)
             if schema.types[i] <: Union{Real,CategoricalValue}
-                push!(fnames, schema.names[i])
+                push!(feature_names, schema.names[i])
             end
         end
-        fnames = setdiff(fnames, union([_target_name], [_w_name], [_offset_name]))
+        feature_names = setdiff(feature_names, union([_target_name], [_weight_name], [_offset_name]))
     else
-        isa(fnames, String) ? fnames = [fnames] : nothing
-        fnames = Symbol.(fnames)
-        @assert isa(fnames, Vector{Symbol})
-        @assert all(fnames .∈ Ref(schema.names))
-        for name in fnames
+        isa(feature_names, String) ? feature_names = [feature_names] : nothing
+        feature_names = Symbol.(feature_names)
+        @assert isa(feature_names, Vector{Symbol})
+        @assert all(feature_names .∈ Ref(schema.names))
+        for name in feature_names
             @assert schema.types[findfirst(name .== schema.names)] <: Union{Real,CategoricalValue}
         end
     end
@@ -177,10 +181,10 @@ function init(
     nobs = length(Tables.getcolumn(dtrain, 1))
     y_train = Tables.getcolumn(dtrain, _target_name)
     V = device_array_type(device)
-    w = isnothing(w_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(dtrain, _w_name))
+    w = isnothing(weight_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(dtrain, _weight_name))
     offset = isnothing(offset_name) ? nothing : V{T}(Tables.getcolumn(dtrain, _offset_name))
 
-    m, cache = init_core(params, device, dtrain, fnames, y_train, w, offset)
+    m, cache = init_core(params, device, dtrain, feature_names, y_train, w, offset)
 
     return m, cache
 end
@@ -195,7 +199,7 @@ device_array_type(::Type{<:CPU}) = Array
         x_train::AbstractMatrix,
         y_train::AbstractVector,
         device::Type{<:Device}=CPU;
-        fnames=nothing,
+        feature_names=nothing,
         w_train=nothing,
         offset_train=nothing
     )
@@ -207,14 +211,14 @@ function init(
     x_train::AbstractMatrix,
     y_train::AbstractVector,
     device::Type{<:Device}=CPU;
-    fnames=nothing,
+    feature_names=nothing,
     w_train=nothing,
     offset_train=nothing
 )
 
     # initialize model and cache
-    fnames = isnothing(fnames) ? [Symbol("feat_$i") for i in axes(x_train, 2)] : Symbol.(fnames)
-    @assert length(fnames) == size(x_train, 2)
+    feature_names = isnothing(feature_names) ? [Symbol("feat_$i") for i in axes(x_train, 2)] : Symbol.(feature_names)
+    @assert length(feature_names) == size(x_train, 2)
 
     T = Float32
     nobs = size(x_train, 1)
@@ -222,7 +226,7 @@ function init(
     w = isnothing(w_train) ? device_ones(device, T, nobs) : V{T}(w_train)
     offset = isnothing(offset_train) ? nothing : V{T}(offset_train)
 
-    m, cache = init_core(params, device, x_train, fnames, y_train, w, offset)
+    m, cache = init_core(params, device, x_train, feature_names, y_train, w, offset)
 
     return m, cache
 end

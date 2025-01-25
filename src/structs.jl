@@ -84,8 +84,10 @@ pred = (m::EvoTree; ntree_limit=length(m.trees))(x)
 ```
 """
 struct EvoTree{L,K}
+    loss_type::Type{L}
+    K::UInt8
     trees::Vector{Tree{L,K}}
-    info::Dict
+    info::Dict{Symbol,Any}
 end
 function (m::EvoTree)(data; ntree_limit=length(m.trees), device=:cpu)
     @assert Symbol(device) ∈ [:cpu, :gpu]
@@ -93,11 +95,11 @@ function (m::EvoTree)(data; ntree_limit=length(m.trees), device=:cpu)
     return _predict(m, data, _device; ntree_limit)
 end
 
-_get_struct_loss(::EvoTree{L,K}) where {L,K} = L
+# _get_struct_loss(::EvoTree{L,K}) where {L,K} = L
 
 function Base.show(io::IO, evotree::EvoTree)
     println(io, "$(typeof(evotree))")
     println(io, " - Contains $(length(evotree.trees)) trees in field `trees` (incl. 1 bias tree).")
-    println(io, " - Data input has $(length(evotree.info[:fnames])) features.")
+    println(io, " - Data input has $(length(evotree.info[:feature_names])) features.")
     println(io, " - $(keys(evotree.info)) info accessible in field `info`")
 end
