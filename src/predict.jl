@@ -131,7 +131,7 @@ function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params:
 end
 function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:GradientRegression,T}
     ϵ = eps(T)
-    -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
+    return -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
 end
 
 # prediction in Leaf - MLE2P
@@ -142,7 +142,7 @@ function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params:
 end
 function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MLE2P,T}
     ϵ = eps(T)
-    -params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[5] + params.L2))
+    return -params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[5] + params.L2))
 end
 
 # prediction in Leaf - MultiClassRegression
@@ -152,4 +152,24 @@ function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params:
     @inbounds for k = axes(p, 1)
         p[k, n] = -params.eta * ∑[k] / max(ϵ, (∑[k+K] + params.lambda * ∑[end] + params.L2))
     end
+end
+
+# MAE
+function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MAE,T}
+    ϵ = eps(T)
+    p[1, n] = params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
+end
+function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MAE,T}
+    ϵ = eps(T)
+    return params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
+end
+
+# Quantile
+function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:Quantile,T}
+    ϵ = eps(T)
+    p[1, n] = params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
+end
+function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MAE,T}
+    ϵ = eps(T)
+    return params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
 end

@@ -105,20 +105,22 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{MLogLoss})
     end
 end
 
-# mae
+# MAE
 function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{MAE})
     @threads for i in eachindex(y)
-        @inbounds ∇[1, i] =
-            (params.alpha * max(y[i] - p[1, i], 0) - (1 - params.alpha) * max(p[1, i] - y[i], 0)) *
-            ∇[3, i]
+        diff = (y[i] - p[1, i]) * ∇[3, i]
+        @inbounds ∇[1, i] = diff
+        @inbounds ∇[2, i] = abs(diff)
     end
 end
 
 # Quantile
 function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{Quantile})
     @threads for i in eachindex(y)
-        @inbounds ∇[1, i] = y[i] > p[1, i] ? params.alpha * ∇[3, i] : (params.alpha - 1) * ∇[3, i]
-        @inbounds ∇[2, i] = y[i] - p[1, i] # δ² serves to calculate the quantile value - hence no weighting on δ²
+        diff = (y[i] - p[1, i]) * ∇[3, i]
+        w_diff = w_diff > 0 ? params.alpha * diff : (1 - params.alpha) * diff
+        @inbounds ∇[1, i] = w_diff
+        @inbounds ∇[2, i] = abs(w_diff)
     end
 end
 
@@ -211,7 +213,12 @@ function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<
     return gain
 end
 
+# MAE
+function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:MAE,T}
+    abs(∑[2])
+end
+
 # Quantile
 function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Quantile,T}
-    abs(∑[1])
+    abs(∑[2])
 end
