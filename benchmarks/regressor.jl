@@ -65,13 +65,15 @@ for device in device_list
                         device
                     )
 
-                    @info "train - eval"
-                    @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, print_every_n=100)
+                    if nobs == first(nobs_list) && nfeats == first(nfeats_list) && max_depth == first(max_depth_list)
+                        @info "warmup"
+                        _m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, print_every_n=100)
+                        _m_evo(x_train; device)
+                    end
                     t_train_evo = @elapsed m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, print_every_n=100)
-
-                    @info "predict"
-                    @time pred_evo = m_evo(x_train; device)
+                    @info "train" t_train_evo
                     t_infer_evo = @elapsed pred_evo = m_evo(x_train; device)
+                    @info "predict" t_infer_evo
 
                     _df = hcat(_df, DataFrame(
                         :train_evo => t_train_evo,
@@ -81,7 +83,6 @@ for device in device_list
 
                 if run_xgb
                     @info "XGBoost"
-
                     if loss == :mse
                         loss_xgb = "reg:squarederror"
                         metric_xgb = "mae"
@@ -103,14 +104,18 @@ for device in device_list
                         :max_bin => 64,
                     )
 
-                    @info "train"
                     dtrain = DMatrix(x_train, y_train)
                     watchlist = Dict("train" => DMatrix(x_train, y_train))
-                    m_xgb = xgboost(dtrain; watchlist, nthread=nthreads, verbosity=0, eval_metric=metric_xgb, params_xgb...)
+
+                    @info "warmup"
+                    if nobs == first(nobs_list) && nfeats == first(nfeats_list) && max_depth == first(max_depth_list)
+                        _m_xgb = xgboost(dtrain; watchlist, nthread=nthreads, verbosity=0, eval_metric=metric_xgb, params_xgb...)
+                        XGBoost.predict(_m_xgb, x_train)
+                    end
                     t_train_xgb = @elapsed m_xgb = xgboost(dtrain; watchlist, nthread=nthreads, verbosity=0, eval_metric=metric_xgb, params_xgb...)
-                    @info "predict"
-                    pred_xgb = XGBoost.predict(m_xgb, x_train)
+                    @info "train" t_train_xgb
                     t_infer_xgb = @elapsed pred_xgb = XGBoost.predict(m_xgb, x_train)
+                    @info "predict" t_infer_xgb
 
                     _df = hcat(_df, DataFrame(
                         :train_xgb => t_train_xgb,
