@@ -194,7 +194,6 @@ function grow_otree!(
         end
         if depth == params.max_depth || min_weight_flag
             for n in n_current
-                # @info "length(nodes[n].is)" length(nodes[n].is) depth n
                 pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
             end
         else
@@ -344,7 +343,6 @@ function fit_evotree(
     @assert Tables.istable(dtrain) "fit_evotree(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
     dtrain = Tables.columntable(dtrain)
     _device = params.device == :gpu ? GPU : CPU
-
     m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name)
 
     # initialize callback and logger if tracking eval data
@@ -448,9 +446,7 @@ function fit_evotree(
     feature_names=nothing
 )
 
-    verbosity == 1 && @info params
     _device = params.device == :gpu ? GPU : CPU
-
     m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train)
 
     # initialize callback and logger if tracking eval data
