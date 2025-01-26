@@ -35,6 +35,31 @@ Then fitting can be performed using [`fit_evotree`](@ref). 2 broad methods are s
 Predictions are obtained by passing features data to the model. Model acts as a functor, ie. it's a struct containing the fitted model as well as a function generating the prediction of that model for the features argument. 
 
 
+### Tables and DataFrames input
+
+When using a `Tables` compatible input such as `DataFrames`, features with element type `Real` (incl. `Bool`) and `Categorical` are automatically recognized as input features. Alternatively, `feature_names` kwarg can be used. 
+
+`Categorical` features are treated accordingly by the algorithm. Ordered variables will be treated as numerical features, using `≤` split rule, while unordered variables are using `==`. Support is currently limited to a maximum of 255 levels. `Bool` variables are treated as unordered, 2-levels cat variables.
+
+```julia
+using EvoTrees
+using DataFrames
+
+config = EvoTreeRegressor(
+    loss=:mse, 
+    nrounds=100, 
+    max_depth=6,
+    nbins=32,
+    eta=0.1)
+
+x_train, y_train = rand(1_000, 10), rand(1_000)
+dtrain = DataFrame(x_train, :auto)
+dtrain.y .= y_train
+m = fit_evotree(config, dtrain; target_name="y");
+m = fit_evotree(config, dtrain; target_name="y", feature_names=["x1", "x3"]); # to only use specified features
+preds = m(dtrain)
+```
+
 ### Matrix features input
 
 ```julia
@@ -52,20 +77,6 @@ m = fit_evotree(config; x_train, y_train)
 preds = m(x_train)
 ```
 
-### Tables and DataFrames input
-
-When using a `Tables` compatible input such as `DataFrames`, features with element type `Real` (incl. `Bool`) and `Categorical` are automatically recognized as input features. Alternatively, `fnames` kwarg can be used. 
-
-`Categorical` features are treated accordingly by the algorithm. Ordered variables will be treated as numerical features, using `≤` split rule, while unordered variables are using `==`. Support is currently limited to a maximum of 255 levels. `Bool` variables are treated as unordered, 2-levels cat variables.
-
-```julia
-dtrain = DataFrame(x_train, :auto)
-dtrain.y .= y_train
-m = fit_evotree(config, dtrain; target_name="y");
-m = fit_evotree(config, dtrain; target_name="y", fnames=["x1", "x3"]);
-```
-
-
 ### GPU Acceleration
 
 EvoTrees supports training and inference on Nvidia GPU's with [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl).
@@ -74,11 +85,16 @@ Note that on Julia ≥ 1.9 CUDA support is only enabled when CUDA.jl is installe
 using CUDA
 ```
 
-If running on a CUDA enabled machine, training and inference on GPU can be triggered through the `device` kwarg: 
+If running on a CUDA enabled machine, training and inference on GPU can be triggered through the `device` kwarg passed to the learner's constructor: 
 
 ```julia
-m = fit_evotree(config, dtrain; target_name="y", device="gpu");
-p = m(dtrain; device="gpu")
+config = EvoTreeRegressor(
+    loss=:mse, 
+    device=:gpu
+)
+
+m = fit_evotree(config, dtrain; target_name="y");
+p = m(dtrain; device=:gpu)
 ```
 
 ## Reproducibility
@@ -95,17 +111,17 @@ Consequently, the following `m1` and `m2` models will be identical:
 
 ```julia
 config = EvoTreeRegressor(rowsample=0.5, rng=123)
-m1 = fit_evotree(config, df; target_name="y");
+m1 = fit_evotree(config, dtrain; target_name="y");
 config = EvoTreeRegressor(rowsample=0.5, rng=123)
-m2 = fit_evotree(config, df; target_name="y");
+m2 = fit_evotree(config, dtrain; target_name="y");
 ```
 
 However, the following `m1` and `m2` models won't be because the there's stochasticity involved in the model from `rowsample` and the random generator in the `config` isn't reset between the fits:
 
 ```julia
 config = EvoTreeRegressor(rowsample=0.5, rng=123)
-m1 = fit_evotree(config, df; target_name="y");
-m2 = fit_evotree(config, df; target_name="y");
+m1 = fit_evotree(config, dtrain; target_name="y");
+m2 = fit_evotree(config, dtrain; target_name="y");
 ```
 
 Note that in presence of multiple identical or very highly correlated features, model may not be reproducible if features are permuted since in situation where 2 features provide identical gains, the first one will be selected. Therefore, if the identity relationship doesn't hold on new data, different predictions will be returned from models trained on different features order. 

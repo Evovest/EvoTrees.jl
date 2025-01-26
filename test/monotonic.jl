@@ -42,7 +42,7 @@
         rng=seed,
     )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     preds_ref = EvoTrees.predict(model, x_train);
 
     # monotonic constraint
@@ -62,7 +62,7 @@
         rng=seed,
     )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     preds_mono = EvoTrees.predict(model, x_train);
 
     # using Plots
@@ -126,7 +126,7 @@
         rng=seed,
     )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:logloss, print_every_n=25)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     preds_ref = predict(model, x_train)
 
     # monotonic constraint
@@ -146,7 +146,7 @@
         rng=seed,
     )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:logloss, print_every_n=25)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     preds_mono = predict(model, x_train)
 
     # x_perm = sortperm(x_train[:, 1])
@@ -210,13 +210,12 @@
         rng=seed,
     )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:gaussian_mle, print_every_n=25)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     preds_ref = predict(model, x_train)
 
     # monotonic constraint
     params1 = EvoTreeGaussian(
         device="cpu",
-        metric=:gaussian,
         nrounds=200,
         nbins=32,
         lambda=1.0,
@@ -230,7 +229,7 @@
         rng=seed,
     )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:gaussian_mle, print_every_n=25)
+    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     preds_mono = EvoTrees.predict(model, x_train)
 
     # x_perm = sortperm(x_train[:, 1])

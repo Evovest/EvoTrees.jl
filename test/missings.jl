@@ -37,7 +37,7 @@ y_tot_m1 = allowmissing(y_tot)
 y_tot_m1[1] = missing
 
 config = EvoTreeRegressor(
-    loss=:linear,
+    loss=:mse,
     nrounds=100,
     nbins=16,
     lambda=0.5,
@@ -60,9 +60,9 @@ config = EvoTreeRegressor(
         dtrain;
         target_name)
 
-    @test model.info[:fnames] == [:x_num, :x_bool, :x_cat]
+    @test model.info[:feature_names] == [:x_num, :x_bool, :x_cat]
 
-    # keep only fnames <= Real or Categorical
+    # keep only feature_names <= Real or Categorical
     df_tot = DataFrame(x_num=x_num, x_num_m1=x_num_m1, x_num_m2=x_num_m2,
         x_cat_m1=x_cat_m1, x_bool_m1=x_bool_m1, y=y_tot)
     dtrain, deval = df_tot[i_train, :], df_tot[i_eval, :]
@@ -73,22 +73,22 @@ config = EvoTreeRegressor(
         target_name,
         deval)
 
-    @test model.info[:fnames] == [:x_num]
+    @test model.info[:feature_names] == [:x_num]
 
     model = fit_evotree(
         config,
         dtrain;
         target_name,
-        fnames=[:x_num])
+        feature_names=[:x_num])
 
-    @test model.info[:fnames] == [:x_num]
+    @test model.info[:feature_names] == [:x_num]
 
     # specifyin features with missings should error
     @test_throws AssertionError fit_evotree(
         config,
         dtrain;
         deval,
-        fnames=[:x_num, :x_num_m1, :x_num_m2, :x_cat_m1, :x_bool_m1],
+        feature_names=[:x_num, :x_num_m1, :x_num_m2, :x_cat_m1, :x_bool_m1],
         target_name)
 
 end

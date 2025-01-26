@@ -52,15 +52,15 @@ CUDA.allowscalar(false)
 
 # define hyperparameters
 config = EvoTreeClassifier(
-    max_depth=4,
-    eta=0.05,
-    lambda=0.0,
+    max_depth=5,
+    eta=0.1,
     gamma=0.0,
-    nbins=32,
-    nrounds=200,
+    nbins=64,
+    nrounds=500,
+    early_stopping_rounds=25
 )
 model = fit_evotree(config; x_train, y_train);
-model = fit_evotree(config; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=:mlogloss, print_every_n=10, early_stopping_rounds=25);
+model = fit_evotree(config; x_train, y_train, x_eval=x_train, y_eval=y_train, print_every_n=10);
 
 pred = model(x_train)
 pred_cat = pred .> 0.5
@@ -80,12 +80,10 @@ MLJBase.feature_importances(config, mach.fitresult, rpt)
 
 pred_train = EvoTrees.predict(mach, selectrows(X, train))
 pred_train_mode = predict_mode(mach, selectrows(X, train))
-println(cross_entropy(pred_train, selectrows(y_train, train)) |> mean)
 println(sum(pred_train_mode .== y_train[train]) / length(train))
 
 pred_test = EvoTrees.predict(mach, selectrows(X, test))
 pred_test_mode = predict_mode(mach, selectrows(X, test))
-println(cross_entropy(pred_test, selectrows(y_train, test)) |> mean)
 println(sum(pred_test_mode .== y_train[test]) / length(test))
 pred_test_mode = predict_mode(mach, selectrows(X, test))
 
@@ -116,7 +114,7 @@ Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
 
 # @load EvoTreeRegressor
 tree_model = EvoTreeRegressor(
-    loss=:linear,
+    loss=:mse,
     metric=:mae,
     nrounds=10,
     λ=0.0,
@@ -284,7 +282,7 @@ Y = rand(size(X, 1))
 
 # @load EvoTreeRegressor
 tree_model = EvoTreeRegressor(
-    loss=:linear,
+    loss=:mse,
     metric=:mae,
     nrounds=10,
     λ=0.0,

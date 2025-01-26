@@ -111,8 +111,8 @@ mutable struct EvoTreeCount <: MMI.Probabilistic
     gamma::Float64
     eta::Float64
     max_depth::Int
-    min_weight::Float64 # real minimum number of observations, different from xgboost (but same for linear)
-    rowsample::Float64 # subsample
+    min_weight::Float64
+    rowsample::Float64
     colsample::Float64
     nbins::Int
     alpha::Float64
@@ -194,7 +194,7 @@ mutable struct EvoTreeClassifier <: MMI.Probabilistic
     lambda::Float64
     gamma::Float64
     eta::Float64
-    max_depth::UInt8
+    max_depth::Int
     min_weight::Float64
     rowsample::Float64
     colsample::Float64
