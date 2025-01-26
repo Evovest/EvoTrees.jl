@@ -165,11 +165,7 @@ function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where 
 end
 
 # Quantile
-function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:Quantile,T}
+function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes, ∇, is) where {L<:Quantile,T}
     ϵ = eps(T)
-    p[1, n] = params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
-end
-function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MAE,T}
-    ϵ = eps(T)
-    return params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
+    p[1, n] = params.eta * quantile(view(∇, 2, is), params.alpha) / (1 + params.lambda + params.L2 / ∑[3])
 end

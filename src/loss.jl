@@ -24,6 +24,7 @@ const _type2loss_dict = Dict(
     GaussianMLE => :gaussian_mle,
     LogisticMLE => :logistic_mle,
     Quantile => :quantile,
+    MAE => :mae,
 )
 _type2loss(L::Type) = _type2loss_dict[L]
 
@@ -37,10 +38,11 @@ const _loss2type_dict = Dict(
     :gaussian_mle => GaussianMLE,
     :logistic_mle => LogisticMLE,
     :quantile => Quantile,
+    :mae => MAE,
 )
 
 # MSE
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{MSE})
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MSE}, params::EvoTypes) where {T}
     @threads for i in eachindex(y)
         @inbounds ∇[1, i] = 2 * (p[1, i] - y[i]) * ∇[3, i]
         @inbounds ∇[2, i] = 2 * ∇[3, i]
@@ -48,7 +50,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{MSE})
 end
 
 # LogLoss - on linear predictor
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{LogLoss})
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{LogLoss}, params::EvoTypes) where {T}
     @threads for i in eachindex(y)
         @inbounds pred = sigmoid(p[1, i])
         @inbounds ∇[1, i] = (pred - y[i]) * ∇[3, i]
@@ -57,7 +59,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{LogLoss})
 end
 
 # Poisson
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{Poisson})
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{Poisson}, params::EvoTypes) where {T}
     @threads for i in eachindex(y)
         @inbounds pred = exp(p[1, i])
         @inbounds ∇[1, i] = (pred - y[i]) * ∇[3, i]
@@ -66,7 +68,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{Poisson})
 end
 
 # Gamma
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{Gamma})
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{Gamma}, params::EvoTypes) where {T}
     @threads for i in eachindex(y)
         @inbounds pred = exp(p[1, i])
         @inbounds ∇[1, i] = 2 * (1 - y[i] / pred) * ∇[3, i]
@@ -75,7 +77,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{Gamma})
 end
 
 # Tweedie
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{Tweedie})
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{Tweedie}, params::EvoTypes) where {T}
     rho = eltype(p)(1.5)
     @threads for i in eachindex(y)
         @inbounds pred = exp(p[1, i])
@@ -86,7 +88,7 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{Tweedie})
 end
 
 # MLogLoss
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{MLogLoss})
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector, ::Type{MLogLoss}, params::EvoTypes) where {T}
     K = size(p, 1)
     @threads for i in eachindex(y)
         isum = zero(T)
@@ -106,28 +108,25 @@ function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{MLogLoss})
 end
 
 # MAE
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{MAE})
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MAE}, params::EvoTypes) where {T}
     @threads for i in eachindex(y)
-        diff = (y[i] - p[1, i]) * ∇[3, i]
-        @inbounds ∇[1, i] = diff
-        @inbounds ∇[2, i] = abs(diff)
+        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
     end
 end
 
 # Quantile
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{Quantile})
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{Quantile}, params::EvoTypes) where {T}
     @threads for i in eachindex(y)
-        diff = (y[i] - p[1, i]) * ∇[3, i]
-        w_diff = w_diff > 0 ? params.alpha * diff : (1 - params.alpha) * diff
-        @inbounds ∇[1, i] = w_diff
-        @inbounds ∇[2, i] = abs(w_diff)
+        diff = (y[i] - p[1, i])
+        @inbounds ∇[1, i] = diff > 0 ? params.alpha * ∇[3, i] : (params.alpha - 1) * ∇[3, i]
+        @inbounds ∇[2, i] = diff
     end
 end
 
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{GaussianMLE})
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{GaussianMLE}, params::EvoTypes) where {T}
     @threads for i in eachindex(y)
         # first order
         @inbounds ∇[1, i] = (p[1, i] - y[i]) / exp(2 * p[2, i]) * ∇[5, i]
@@ -142,7 +141,7 @@ end
 # pdf = 
 # pred[i][1] = μ
 # pred[i][2] = log(s)
-function update_grads!(∇::Matrix, p::Matrix, y::Vector, ::Type{LogisticMLE})
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{LogisticMLE}, params::EvoTypes) where {T}
     @threads for i in eachindex(y)
         # first order
         @inbounds ∇[1, i] =
@@ -215,10 +214,10 @@ end
 
 # MAE
 function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:MAE,T}
-    abs(∑[2])
+    abs(∑[1])
 end
 
 # Quantile
 function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Quantile,T}
-    abs(∑[2])
+    abs(∑[1])
 end

@@ -1,7 +1,7 @@
 function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache::EvoTrees.CacheGPU, params::EvoTrees.EvoTypes) where {L,K}
 
     # compute gradients
-    EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, L)
+    EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, L, params)
     # subsample rows
     cache.nodes[1].is =
         EvoTrees.subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
@@ -99,7 +99,11 @@ function grow_tree!(
 
         for n ∈ sort(n_current)
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
-                EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                if L <: EvoTrees.Quantile
+                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
+                else
+                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                end
             else
                 best = findmax(findmax.(nodes[n].gains))
                 best_gain = best[1][1]
@@ -139,7 +143,11 @@ function grow_tree!(
                         push!(n_next, n << 1)
                     end
                 else
-                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                    if L <: EvoTrees.Quantile
+                        EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
+                    else
+                        EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                    end
                 end
             end
         end
@@ -199,8 +207,11 @@ function grow_otree!(
         end
         if depth == params.max_depth || min_weight_flag
             for n in n_current
-                # @info "length(nodes[n].is)" length(nodes[n].is) depth n
-                EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                if L <: EvoTrees.Quantile
+                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
+                else
+                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                end
             end
         else
             # update histograms
@@ -289,7 +300,11 @@ function grow_otree!(
                 end
             else
                 for n in n_current
-                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                    if L <: EvoTrees.Quantile
+                        EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
+                    else
+                        EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                    end
                 end
             end
         end

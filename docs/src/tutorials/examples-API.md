@@ -80,7 +80,7 @@ pred_eval_poisson = model(x_eval)
 
 ## Quantile Regression
 
-![](../assets/quantiles-sinus-binary.png)
+![](../assets/quantiles-sinus-binary-cpu.png)
 
 ```julia
 # q50

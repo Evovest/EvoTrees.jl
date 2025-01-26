@@ -2,7 +2,7 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
 
   A = isa(A, AbstractMatrix) ? Tables.columntable(Tables.table(A)) : Tables.columntable(A)
   nobs = Tables.DataAPI.nrow(A)
-  feature_names = Tables.schema(A).names
+  feature_names = collect(Tables.schema(A).names)
 
   T = Float32
   device = model.device == :gpu ? GPU : CPU
@@ -10,15 +10,15 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
   w = isnothing(w) ? device_ones(device, T, nobs) : V{T}(w)
   fitresult, cache = init_core(model, device, A, feature_names, y, w, nothing)
 
-  while cache[:info][:nrounds] < model.nrounds
-    grow_evotree!(fitresult, cache, model, device)
+  while cache.nrounds < model.nrounds
+    grow_evotree!(fitresult, cache, model)
   end
-  report = (features=cache[:feature_names],)
+  report = (features=cache.feature_names,)
   return fitresult, cache, report
 end
 
 function okay_to_continue(model, fitresult, cache)
-  check = model.nrounds - cache[:info][:nrounds] >= 0
+  check = model.nrounds - cache.nrounds >= 0
   return check
 end
 
@@ -35,10 +35,10 @@ function MMI.update(
   w=nothing,
 )
   if okay_to_continue(model, fitresult, cache)
-    while cache[:info][:nrounds] < model.nrounds
+    while cache.nrounds < model.nrounds
       grow_evotree!(fitresult, cache, model)
     end
-    report = (features=cache[:feature_names],)
+    report = (features=cache.feature_names,)
   else
     fitresult, cache, report = fit(model, verbosity, A, y, w)
   end
@@ -162,11 +162,11 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 
 - `loss=:mse`:         Loss to be be minimized during training. One of:
   - `:mse`
+  - `:mae`
   - `:logloss`
   - `:gamma`
   - `:tweedie`
   - `:quantile`
-  - `:l1`
 - `metric`:     The evaluation metric used to track evaluation data and serves as a basis for early stopping. Supported metrics are: 
   - `:mse`:     Mean-squared error. Adapted for general regression models.
   - `:rmse`:    Root-mean-squared error. Adapted for general regression models.
@@ -184,9 +184,6 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 - `gamma::T=0.0`:         Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `alpha::T=0.5`:         Loss specific parameter in the [0, 1] range:
                             - `:quantile`: target quantile for the regression.
-                            - `:l1`: weighting parameters to positive vs negative residuals.
-                                  - Positive residual weights = `alpha`
-                                  - Negative residual weights = `(1 - alpha)`
 - `max_depth=6`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
   Compute cost is proportional to `2^max_depth`. Typical optimal values are in the 3 to 9 range.
@@ -200,7 +197,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
   - `oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
 - `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `device=:cpu`: Hardware device to use for computations. Can be either `:cpu` or `gpu`. Following losses are not GPU supported at the moment: `:l1`, `:quantile`.
+- `device=:cpu`: Hardware device to use for computations. Can be either `:cpu` or `gpu`.
 
 # Internal API
 

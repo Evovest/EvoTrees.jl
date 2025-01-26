@@ -203,3 +203,15 @@ function EvoTrees.softmax!(p::CuMatrix{T}; MAX_THREADS=1024) where {T}
     CUDA.synchronize()
     return nothing
 end
+
+# Quantile - special case where ∇ is passed as argument
+function quantile_gpu(x::AnyCuVector, alpha)
+    x_sort = sort(x)
+    idx = ceil(Int, alpha * length(x_sort))
+    return CUDA.@allowscalar x_sort[idx]
+end
+
+function EvoTrees.pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTrees.EvoTypes, ∇::CuMatrix, is) where {L<:EvoTrees.Quantile,T}
+    ϵ = eps(T)
+    p[1, n] = params.eta * quantile_gpu(view(∇, 2, is), params.alpha) / (1 + params.lambda + params.L2 / ∑[3])
+end

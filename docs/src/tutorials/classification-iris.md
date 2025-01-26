@@ -43,6 +43,7 @@ Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass 
 ```julia
 config = EvoTreeClassifier(
     nrounds=200, 
+    early_stopping_rounds=10,
     eta=0.05, 
     max_depth=5, 
     lambda=0.1, 
@@ -53,8 +54,6 @@ model = fit_evotree(config, dtrain;
     target_name,
     fnames,
     deval,
-    metric = :mlogloss,
-    early_stopping_rounds=10,
     print_every_n=10)
 ```
 

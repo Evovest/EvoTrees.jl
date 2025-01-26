@@ -6,7 +6,7 @@ Given a instantiate
 function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where {L,K}
 
     # compute gradients
-    update_grads!(cache.∇, cache.pred, cache.y, L)
+    update_grads!(cache.∇, cache.pred, cache.y, L, params)
     # subsample rows
     cache.nodes[1].is = subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
     # subsample cols
@@ -98,7 +98,11 @@ function grow_tree!(
 
         for n ∈ sort(n_current)
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
-                pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                if L <: Quantile
+                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
+                else
+                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                end
             else
                 best = findmax(findmax.(nodes[n].gains))
                 best_gain = best[1][1]
@@ -138,7 +142,11 @@ function grow_tree!(
                         push!(n_next, n << 1)
                     end
                 else
-                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                    if L <: Quantile
+                        pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
+                    else
+                        pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                    end
                 end
             end
         end
@@ -194,7 +202,11 @@ function grow_otree!(
         end
         if depth == params.max_depth || min_weight_flag
             for n in n_current
-                pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                if L <: Quantile
+                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
+                else
+                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                end
             end
         else
             # update histograms
@@ -283,7 +295,11 @@ function grow_otree!(
                 end
             else
                 for n in n_current
-                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                    if L <: Quantile
+                        pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
+                    else
+                        pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                    end
                 end
             end
         end
@@ -373,6 +389,7 @@ function fit_evotree(
         end
     end
     post_fit_gc(_device)
+    m.info[:logger] = logger
 
     return m
 
@@ -476,6 +493,7 @@ function fit_evotree(
         end
     end
     post_fit_gc(_device)
+    m.info[:logger] = logger
 
     return m
 

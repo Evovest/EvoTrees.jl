@@ -136,6 +136,5 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         feattypes_gpu,
         monotone_constraints,
     )
-    @info "typeof(cache)" typeof(cache)
     return m, cache
 end

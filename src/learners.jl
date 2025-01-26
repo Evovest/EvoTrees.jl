@@ -56,7 +56,7 @@ function EvoTreeRegressor(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :quantile]
+    _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile]
     loss = Symbol(args[:loss])
     if loss ∉ _loss_list
         error("Invalid loss. Must be one of: $_loss_list")

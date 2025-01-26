@@ -41,6 +41,27 @@ function EvoTrees.mae(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVe
 end
 
 ########################
+# WMAE
+########################
+function eval_wmae_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}, alpha::T) where {T<:AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= length(y)
+        @inbounds eval[i] = w[i] * (
+            alpha * max(y[i] - p[1, i], zero(T)) +
+            (1 - alpha) * max(p[1, i] - y[i], zero(T))
+        )
+    end
+    return nothing
+end
+function EvoTrees.wmae(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, alpha=0.5, kwargs...) where {T<:AbstractFloat}
+    threads = min(MAX_THREADS, length(y))
+    blocks = cld(length(y), threads)
+    @cuda blocks = blocks threads = threads eval_wmae_kernel!(eval, p, y, w, T(alpha))
+    CUDA.synchronize()
+    return sum(eval) / sum(w)
+end
+
+########################
 # Logloss
 ########################
 function eval_logloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}

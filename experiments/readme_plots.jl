@@ -11,7 +11,7 @@ using EvoTrees: predict, sigmoid, logit
 
 # prepare a dataset
 tree_type = :binary # binary/oblivious
-_device = :gpu
+_device = :cpu
 
 Random.seed!(123)
 features = rand(10_000) .* 5
@@ -58,7 +58,7 @@ config = EvoTreeRegressor(;
 );
 # model, logger = fit_evotree(config; x_train, y_train, metric=:mse, x_eval, y_eval, early_stopping_rounds=20, print_every_n=10, return_logger=true);
 @time pred_train_linear_cpu = model(x_train)
-@time pred_train_linear_gpu = model(x_train; device)
+@time pred_train_linear_gpu = model(x_train; device=_device)
 sum(pred_train_linear_gpu .- pred_train_linear_cpu)
 
 # @btime model = grow_gbtree($X_train, $Y_train, $config, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
@@ -92,7 +92,7 @@ config = EvoTreeRegressor(;
     y_eval,
     print_every_n=25,
 );
-@time pred_train_logistic = model(x_train; device)
+@time pred_train_logistic = model(x_train; device=_device)
 sqrt(mean((pred_train_logistic .- y_train) .^ 2))
 
 # poisson
@@ -121,7 +121,7 @@ config = EvoTreeCount(;
     y_eval,
     print_every_n=25,
 );
-@time pred_train_poisson = model(x_train; device)
+@time pred_train_poisson = model(x_train; device=_device)
 sqrt(mean((pred_train_poisson .- y_train) .^ 2))
 
 # gamma
@@ -150,7 +150,7 @@ config = EvoTreeRegressor(;
     y_eval,
     print_every_n=25,
 );
-@time pred_train_gamma = model(x_train; device)
+@time pred_train_gamma = model(x_train; device=_device)
 sqrt(mean((pred_train_gamma .- y_train) .^ 2))
 
 # tweedie
@@ -178,8 +178,36 @@ config = EvoTreeRegressor(;
     y_eval,
     print_every_n=25,
 );
-@time pred_train_tweedie = model(x_train; device)
+@time pred_train_tweedie = model(x_train; device=_device)
 sqrt(mean((pred_train_tweedie .- y_train) .^ 2))
+
+# MAE
+config = EvoTreeRegressor(;
+    loss=:mae,
+    nrounds=500,
+    early_stopping_rounds=50,
+    nbins=64,
+    lambda=0.1,
+    gamma=0.1,
+    eta=0.1,
+    max_depth=6,
+    min_weight=1.0,
+    rowsample=0.5,
+    colsample=1.0,
+    tree_type,
+    device=_device
+)
+
+@time model = fit_evotree(
+    config;
+    x_train,
+    y_train,
+    x_eval,
+    y_eval,
+    print_every_n=25,
+);
+@time pred_train_mae = model(x_train; device=_device)
+sqrt(mean((pred_train_mae .- y_train) .^ 2))
 
 ###########################################
 # plot
@@ -227,18 +255,25 @@ lines!(ax,
     linewidth=1,
     label="tweedie",
 )
+lines!(ax,
+    x_train[x_perm, 1],
+    pred_train_mae[x_perm],
+    color="lightblue",
+    linewidth=1,
+    label="mae",
+)
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
-save("figures/regression-sinus-$tree_type-$device.png", f)
+save("figures/regression-sinus-$tree_type-$_device.png", f)
 
 ###############################
 ## gaussian
 ###############################
 config = EvoTreeGaussian(;
-    nrounds=1000,
+    nrounds=500,
     early_stopping_rounds=50,
     nbins=64,
     lambda=0.1,
-    # gamma=0.1,
+    gamma=0.1,
     eta=0.1,
     max_depth=6,
     min_weight=8,
@@ -249,7 +284,6 @@ config = EvoTreeGaussian(;
     device=_device
 )
 
-@time model = fit_evotree(config; x_train, y_train);
 @time model = fit_evotree(
     config;
     x_train,
@@ -259,7 +293,7 @@ config = EvoTreeGaussian(;
     print_every_n=25,
 );
 # @time model = fit_evotree(config, X_train, Y_train, print_every_n = 10);
-@time pred_train_gaussian = model(x_train; device)
+@time pred_train_gaussian = model(x_train; device=_device)
 
 pred_gauss = [
     Distributions.Normal(pred_train_gaussian[i, 1], pred_train_gaussian[i, 2]) for
@@ -311,10 +345,10 @@ lines!(ax,
     label="q80",
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
-save("figures/gaussian-sinus-$tree_type-$device.png", f)
+save("figures/gaussian-sinus-$tree_type-$_device.png", f)
 
 ###############################
-## Quantiles
+## Quantiles - cpu only
 ###############################
 # q50
 params1 = EvoTreeRegressor(;
@@ -322,8 +356,6 @@ params1 = EvoTreeRegressor(;
     alpha=0.5,
     nrounds=500,
     nbins=64,
-    lambda=0.1,
-    gamma=0.0,
     eta=0.1,
     max_depth=6,
     min_weight=1.0,
@@ -350,10 +382,8 @@ sum(pred_train_q50 .< y_train) / length(y_train)
 params1 = EvoTreeRegressor(;
     loss=:quantile,
     alpha=0.2,
-    nrounds=300,
+    nrounds=500,
     nbins=64,
-    lambda=0.1,
-    gamma=0.0,
     eta=0.1,
     max_depth=6,
     min_weight=1.0,
@@ -365,17 +395,15 @@ params1 = EvoTreeRegressor(;
 )
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
 @time pred_train_q20 = model(x_train)
-sum(pred_train_q20 .< y_train) / length(y_train)
+sum(pred_train_q20 .> y_train) / length(y_train)
 
 # q80
 params1 = EvoTreeRegressor(;
     loss=:quantile,
     alpha=0.8,
-    nrounds=300,
+    nrounds=500,
     nbins=64,
-    lambda=0.1,
-    gamma=0.0,
-    eta=0.1,
+    eta=0.2,
     max_depth=6,
     min_weight=1.0,
     rowsample=0.5,
@@ -386,7 +414,7 @@ params1 = EvoTreeRegressor(;
 )
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 @time pred_train_q80 = model(x_train)
-sum(pred_train_q80 .< y_train) / length(y_train)
+sum(pred_train_q80 .> y_train) / length(y_train)
 
 x_perm = sortperm(x_train[:, 1])
 f = Figure()
@@ -400,21 +428,22 @@ lines!(ax,
     x_train[x_perm, 1],
     pred_train_q50[x_perm],
     color="navy",
-    linewidth=1.5,
+    linewidth=1,
     label="Median",
 )
 lines!(ax,
     x_train[x_perm, 1],
     pred_train_q20[x_perm],
     color="darkred",
-    linewidth=1.5,
+    linewidth=1,
     label="Q20",
 )
 lines!(ax,
     x_train[x_perm, 1],
     pred_train_q80[x_perm],
     color="darkgreen",
-    linewidth=1.5,
+    linewidth=1,
     label="Q80",
 )
-savefig("figures/quantiles-sinus-$tree_type-$device.png")
+Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
+save("figures/quantiles-sinus-$tree_type-$_device.png", f)
