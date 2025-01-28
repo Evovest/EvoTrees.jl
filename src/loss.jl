@@ -214,10 +214,10 @@ end
 
 # MAE
 function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:MAE,T}
-    abs(∑[1])
+    abs(∑[1]) / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
 end
 
 # Quantile
 function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Quantile,T}
-    abs(∑[1])
+    abs(∑[1]) / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
 end
