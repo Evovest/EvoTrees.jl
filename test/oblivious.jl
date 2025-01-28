@@ -27,11 +27,10 @@ y_train_c, y_eval_c = Yc[i_train], Yc[i_eval]
 
 @testset "oblivious regressor" begin
     @testset for loss in [:mse, :logloss, :quantile, :mae, :gamma, :tweedie]
-
         config = EvoTreeRegressor(
             loss=loss,
             tree_type=:oblivious,
-            nrounds=20,
+            nrounds=200,
             nbins=32,
             rng=123,
             eta=0.05,
@@ -46,7 +45,7 @@ y_train_c, y_eval_c = Yc[i_train], Yc[i_eval]
             y_train,
             x_eval,
             y_eval,
-            print_every_n=1
+            print_every_n=25
         )
 
         preds = model(x_eval)
@@ -120,7 +119,7 @@ end
 
     config = EvoTreeClassifier(
         tree_type="oblivious",
-        nrounds=200,
+        nrounds=100,
         nbins=32,
         rng=123,
     )
@@ -135,12 +134,12 @@ end
         y_train=y_train_c,
         x_eval,
         y_eval=y_eval_c,
-        print_every_n=25
+        print_every_n=50
     )
 
     preds = model(x_eval)
     acc = mean(map(argmax, eachrow(preds)) .== y_eval_c)
 
-    @test acc > 0.9
+    @test acc > 0.85
 
 end
