@@ -1,6 +1,5 @@
 using Random
 using Plots
-using Revise
 using EvoTrees
 
 # @load "blog/model_linear.bson" model

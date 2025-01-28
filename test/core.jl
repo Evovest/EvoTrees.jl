@@ -47,7 +47,6 @@ y_train, y_eval = Y[i_train], Y[i_eval]
         y_train,
         x_eval,
         y_eval,
-        metric=:mse,
         print_every_n=25
     )
 
@@ -80,7 +79,6 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric=:logloss,
         print_every_n=25
     )
 
@@ -95,7 +93,7 @@ end
         loss=:gamma,
         nrounds=100,
         lambda=0.5,
-        gamma=0.1,
+        # gamma=0.1,
         eta=0.1,
         max_depth=6,
         min_weight=1.0,
@@ -113,7 +111,6 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric=:gamma,
         print_every_n=25
     )
 
@@ -146,7 +143,6 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric=:tweedie,
         print_every_n=25
     )
 
@@ -158,7 +154,7 @@ end
 
 @testset "EvoTreeRegressor - L1" begin
     params1 = EvoTreeRegressor(
-        loss=:l1,
+        loss=:mae,
         alpha=0.5,
         nrounds=100,
         nbins=16,
@@ -181,7 +177,6 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric=:mae,
         print_every_n=25
     )
 
@@ -216,7 +211,6 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric=:wmae,
         print_every_n=25
     )
 
@@ -249,7 +243,6 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric=:poisson_deviance,
         print_every_n=25
     )
 
@@ -261,7 +254,7 @@ end
 
 @testset "EvoTreeMLE - Gaussian" begin
     params1 = EvoTreeMLE(
-        loss=:gaussian,
+        loss=:gaussian_mle,
         nrounds=100,
         nbins=16,
         lambda=0.0,
@@ -283,7 +276,6 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric=:gaussian,
         print_every_n=25
     )
 
@@ -295,7 +287,7 @@ end
 
 @testset "EvoTreeMLE - Logistic" begin
     params1 = EvoTreeMLE(
-        loss=:logistic,
+        loss=:logistic_mle,
         nrounds=100,
         nbins=16,
         lambda=0.0,
@@ -317,7 +309,6 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric=:logistic_mle,
         print_every_n=25
     )
 
@@ -350,7 +341,6 @@ end
         y_train,
         x_eval,
         y_eval,
-        metric="gaussian_mle",
         print_every_n=25
     )
 
@@ -414,30 +404,14 @@ end
 end
 
 @testset "Parametric kwarg constructor" begin
-
     @testset "_type2loss" begin
         # utility that converts types into loss symbols for EvoTreeRegressor
         @test EvoTrees._type2loss(EvoTrees.MSE) == :mse
-        @test EvoTrees._type2loss(EvoTrees.L1) == :l1
+        @test EvoTrees._type2loss(EvoTrees.MAE) == :mae
         @test EvoTrees._type2loss(EvoTrees.LogLoss) == :logloss
         @test EvoTrees._type2loss(EvoTrees.Gamma) == :gamma
         @test EvoTrees._type2loss(EvoTrees.Tweedie) == :tweedie
         @test EvoTrees._type2loss(EvoTrees.Quantile) == :quantile
-    end
-
-    # check if we retain the parametric information properly
-    for EvoParamType in [
-        EvoTreeRegressor{EvoTrees.MSE},
-        EvoTreeRegressor{EvoTrees.L1},
-        EvoTreeCount{EvoTrees.Poisson},
-        EvoTreeClassifier{EvoTrees.MLogLoss},
-        EvoTreeMLE{EvoTrees.LogisticMLE},
-        EvoTreeGaussian{EvoTrees.GaussianMLE}
-    ]
-
-        config = EvoParamType(; max_depth=2)
-        @test config isa EvoParamType
-        @test config.max_depth == 2
     end
 end
 

@@ -7,20 +7,20 @@ function importance!(gain::AbstractVector, tree::Tree)
 end
 
 """
-    importance(model::EvoTree; fnames=model.info[:fnames])
+    importance(model::EvoTree; feature_names=model.info[:feature_names])
 
 Sorted normalized feature importance based on loss function gain.
-Feature names associated to the model are stored in `model.info[:fnames]` as a string `Vector` and can be updated at any time. Eg: `model.info[:fnames] = new_fnames_vec`.
+Feature names associated to the model are stored in `model.info[:feature_names]` as a string `Vector` and can be updated at any time. Eg: `model.info[:feature_names] = new_feature_names_vec`.
 """
-function importance(model::EvoTree; fnames=model.info[:fnames])
-    gain = zeros(length(fnames))
+function importance(model::EvoTree; feature_names=model.info[:feature_names])
+    gain = zeros(length(feature_names))
 
     for tree in model.trees
         importance!(gain, tree)
     end
 
     gain .= gain ./ sum(gain)
-    pairs = collect(Dict(zip(Symbol.(fnames), gain)))
+    pairs = collect(Dict(zip(Symbol.(feature_names), gain)))
     sort!(pairs, by=x -> -x[2])
 
     return pairs

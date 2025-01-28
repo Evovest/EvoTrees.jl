@@ -4,20 +4,23 @@ using Statistics
 using StatsBase: sample, quantile
 using Distributions
 using Random
-using Plots
-using CUDA
+using CairoMakie
 using EvoTrees
 using DataFrames
 using CategoricalArrays
 using EvoTrees: predict, sigmoid, logit
 # using ProfileView
 
-device = "gpu"
+device = :cpu
+
 # prepare a dataset
 nobs = 10_000
 Random.seed!(123)
 x_num = rand(nobs) .* 5
-x_cat = categorical(rand(["A", "B", "C"], nobs))
+lvls = ["A", "B", "C"]
+x_cat = categorical(rand(lvls, nobs), levels=lvls, ordered=false)
+levels(x_cat)
+isordered(x_cat)
 
 y = sin.(x_num) .* 0.5 .+ 0.5
 y = logit(y) .+ 1.0 .* (x_cat .== "B") .- 1.0 .* (x_cat .== "C") + randn(nobs)
@@ -35,9 +38,8 @@ dtrain = dtot[i_train, :]
 deval = dtot[i_eval, :]
 
 # linear
-params1 = EvoTreeRegressor(
-    T=Float32,
-    loss=:linear,
+config = EvoTreeRegressor(;
+    loss=:mse,
     nrounds=200,
     nbins=64,
     lambda=0.1,
@@ -48,31 +50,25 @@ params1 = EvoTreeRegressor(
     rowsample=0.5,
     colsample=1.0,
     rng=123,
+    device,
 )
 
-@time model = EvoTrees.fit_evotree(
-    params1,
+@time model = fit_evotree(
+    config,
     dtrain;
-    fnames=["x_num", "x_cat"],
+    feature_names=["x_cat", "x_num"],
     target_name="y",
     deval,
-    device,
-    metric=:mse,
     print_every_n=25,
-    early_stopping_rounds=20,
     verbosity=0
 );
+pred = model(dtrain);
 
-@time pred = model(dtrain);
-@time pred = model(dtrain; device);
-
-# @btime model = EvoTrees.fit_evotree_df(
-#     params1;
-#     dtrain,
-#     fnames_num="x_num",
+# @btime model = fit_evotree(
+#     params1,
+#     dtrain;
+#     fnames="x_num",
 #     target_name="y",
-#     # print_every_n = 25,
-#     # early_stopping_rounds = 20,
 #     verbosity=0
 # );
 # laptop: 51.651 ms (237548 allocations: 23.94 MiB)
@@ -81,47 +77,41 @@ params1 = EvoTreeRegressor(
 # @time pred_eval_linear = predict(model, x_eval)
 # mean((pred_train_linear .- y_train) .^ 2)
 # mean((pred_eval_linear .- y_eval) .^ 2)
-
-plot(
+f = Figure()
+ax = Axis(f[1, 1], xlabel="feature", ylabel="target")
+scatter!(ax,
     dtrain.x_num,
     dtrain.y,
-    msize=0.5,
-    mcolor="darkgray",
-    mswidth=0,
-    background_color=RGB(1, 1, 1),
-    seriestype=:scatter,
-    xaxis=("feature"),
-    yaxis=("target"),
-    legend=true,
-    label="",
-)
+    color="#BBB",
+    markersize=2)
 dinfer = dtrain[dtrain.x_cat.=="A", :]
-pred = model(dinfer)
 x_perm = sortperm(dinfer.x_num)
-plot!(
+pred = model(dinfer)
+lines!(ax,
     dinfer.x_num[x_perm],
     pred[x_perm],
     color="lightblue",
-    linewidth=1.5,
-    label="Linear - A",
+    linewidth=1,
+    label="mse - A",
 )
 dinfer = dtrain[dtrain.x_cat.=="B", :]
 pred = model(dinfer);
 x_perm = sortperm(dinfer.x_num)
-plot!(
+lines!(ax,
     dinfer.x_num[x_perm],
     pred[x_perm],
     color="blue",
-    linewidth=1.5,
-    label="Linear - B",
+    linewidth=1,
+    label="mse - B",
 )
 dinfer = dtrain[dtrain.x_cat.=="C", :]
 pred = model(dinfer);
 x_perm = sortperm(dinfer.x_num)
-plot!(
+lines!(ax,
     dinfer.x_num[x_perm],
     pred[x_perm],
     color="navy",
-    linewidth=1.5,
-    label="Linear - C",
+    linewidth=1,
+    label="mse - C",
 )
+f

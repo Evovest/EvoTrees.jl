@@ -26,8 +26,8 @@ Y = sigmoid(Y)
 y = Y
 X = MLJBase.table(X)
 
-# linear regression
-tree_model = EvoTreeRegressor(loss=:linear, max_depth=5, eta=0.05, nrounds=10)
+# mse regression
+tree_model = EvoTreeRegressor(loss=:mse, max_depth=5, eta=0.05, nrounds=10)
 
 # set machine
 mach = machine(tree_model, X, y)

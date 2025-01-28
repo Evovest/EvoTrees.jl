@@ -1,10 +1,10 @@
 """
-    get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.TaskLocalRNG()) where {T}
-    get_edges(df; fnames, nbins, rng=Random.TaskLocalRNG())
+    get_edges(X::AbstractMatrix{T}; feature_names, nbins, rng=Random.TaskLocalRNG()) where {T}
+    get_edges(df; feature_names, nbins, rng=Random.TaskLocalRNG())
 
 Get the histogram breaking points of the feature data.
 """
-function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.MersenneTwister()) where {T}
+function get_edges(X::AbstractMatrix{T}; nbins, rng=Random.MersenneTwister(), kwargs...) where {T}
     @assert T <: Real
     nobs = min(size(X, 1), 1000 * nbins)
     idx = sample(rng, 1:size(X, 1), nobs, replace=false, ordered=true)
@@ -23,16 +23,16 @@ function get_edges(X::AbstractMatrix{T}; fnames, nbins, rng=Random.MersenneTwist
     return edges, featbins, feattypes
 end
 
-function get_edges(df; fnames, nbins, rng=Random.MersenneTwister())
+function get_edges(df; feature_names, nbins, rng=Random.MersenneTwister(), kwargs...)
     _nobs = Tables.DataAPI.nrow(df)
     nobs = min(_nobs, 1000 * nbins)
     idx = sample(rng, 1:_nobs, nobs, replace=false, ordered=true)
-    edges = Vector{Any}([Vector{eltype(Tables.getcolumn(df, col))}() for col in fnames])
-    nfeats = length(fnames)
+    edges = Vector{Any}([Vector{eltype(Tables.getcolumn(df, col))}() for col in feature_names])
+    nfeats = length(feature_names)
     featbins = Vector{UInt8}(undef, nfeats)
     feattypes = Vector{Bool}(undef, nfeats)
-    @threads for j in eachindex(fnames)
-        col = view(Tables.getcolumn(df, fnames[j]), idx)
+    @threads for j in eachindex(feature_names)
+        col = view(Tables.getcolumn(df, feature_names[j]), idx)
         if eltype(col) <: Bool
             edges[j] = [false, true]
             featbins[j] = 2
@@ -41,13 +41,13 @@ function get_edges(df; fnames, nbins, rng=Random.MersenneTwister())
             edges[j] = levels(col)
             featbins[j] = length(edges[j])
             feattypes[j] = isordered(col) ? true : false
-            @assert featbins[j] <= 255 "Max categorical levels currently limited to 255, $(fnames[j]) has $(featbins[j])."
+            @assert featbins[j] <= 255 "Max categorical levels currently limited to 255, $(feature_names[j]) has $(featbins[j])."
         elseif eltype(col) <: Real
             edges[j] = unique(quantile(col, (1:nbins-1) / nbins))
             featbins[j] = length(edges[j]) + 1
             feattypes[j] = true
         else
-            @error "Invalid feature eltype: $(fnames[j]) is $(eltype(col))"
+            @error "Invalid feature eltype: $(feature_names[j]) is $(eltype(col))"
         end
         if length(edges[j]) == 1
             edges[j] = [minimum(col)]
@@ -57,12 +57,12 @@ function get_edges(df; fnames, nbins, rng=Random.MersenneTwister())
 end
 
 """
-    binarize(X::AbstractMatrix; fnames, edges)
-    binarize(df; fnames, edges)
+    binarize(X::AbstractMatrix; feature_names, edges)
+    binarize(df; feature_names, edges)
 
 Transform feature data into a UInt8 binarized matrix.
 """
-function binarize(X::AbstractMatrix; fnames, edges)
+function binarize(X::AbstractMatrix; feature_names, edges)
     x_bin = zeros(UInt8, size(X))
     @threads for j in axes(X, 2)
         x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), view(X, :, j))
@@ -70,11 +70,11 @@ function binarize(X::AbstractMatrix; fnames, edges)
     return x_bin
 end
 
-function binarize(df; fnames, edges)
+function binarize(df; feature_names, edges)
     nobs = length(Tables.getcolumn(df, 1))
-    x_bin = zeros(UInt8, nobs, length(fnames))
-    @threads for j in eachindex(fnames)
-        col = Tables.getcolumn(df, fnames[j])
+    x_bin = zeros(UInt8, nobs, length(feature_names))
+    @threads for j in eachindex(feature_names)
+        col = Tables.getcolumn(df, feature_names[j])
         if eltype(col) <: Bool
             x_bin[:, j] .= col .+ 1
         elseif eltype(col) <: CategoricalValue
@@ -82,7 +82,7 @@ function binarize(df; fnames, edges)
         elseif eltype(col) <: Real
             x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), col)
         else
-            @error "Invalid feature eltype: $(fnames[j]) is $(eltype(col))"
+            @error "Invalid feature eltype: $(feature_names[j]) is $(eltype(col))"
         end
     end
     return x_bin
@@ -268,7 +268,8 @@ end
 
 """
     update_hist!
-        Generic fallback - Softmax
+        
+Generic fallback - Softmax
 """
 function update_hist!(
     ::Type{L},
@@ -292,20 +293,24 @@ end
 
 """
     update_gains!(
-        loss::L,
-        node::TrainNode{T},
-        js::Vector,
-        params::EvoTypes, K, monotone_constraints) where {L,T,S}
+        ::Type{L<:LossType},
+        node::TrainNode,
+        js,
+        params::EvoTypes,
+        feattypes::Vector{Bool},
+        monotone_constraints,
+    )
 
 Generic fallback
 """
 function update_gains!(
+    ::Type{L},
     node::TrainNode,
     js,
-    params::EvoTypes{L},
+    params::EvoTypes,
     feattypes::Vector{Bool},
     monotone_constraints,
-) where {L}
+) where {L<:LossType}
 
     h = node.h
     hL = node.hL
@@ -325,16 +330,16 @@ function update_gains!(
         @inbounds for bin in eachindex(gains[j])
             if hL[j][end, bin] > params.min_weight && hR[j][end, bin] > params.min_weight
                 if monotone_constraint != 0
-                    predL = pred_scalar(view(hL[j], :, bin), params)
-                    predR = pred_scalar(view(hR[j], :, bin), params)
+                    predL = pred_scalar(view(hL[j], :, bin), L, params)
+                    predR = pred_scalar(view(hR[j], :, bin), L, params)
                 end
                 if (monotone_constraint == 0) ||
                    (monotone_constraint == -1 && predL > predR) ||
                    (monotone_constraint == 1 && predL < predR)
 
                     gains[j][bin] =
-                        get_gain(params, view(hL[j], :, bin)) +
-                        get_gain(params, view(hR[j], :, bin))
+                        get_gain(L, params, view(hL[j], :, bin)) +
+                        get_gain(L, params, view(hR[j], :, bin))
                 end
             end
         end

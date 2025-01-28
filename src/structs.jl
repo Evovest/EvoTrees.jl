@@ -30,6 +30,57 @@ function TrainNode(featbins, K, is)
     return node
 end
 
+abstract type Cache end
+abstract type CacheCPU <: Cache end
+abstract type CacheGPU <: Cache end
+
+mutable struct CacheBaseCPU{Y,N,E} <: CacheCPU
+    nrounds::UInt32
+    const K::UInt8
+    const x_bin::Matrix{UInt8}
+    const y::Y
+    const w::Vector{Float32}
+    const pred::Matrix{Float32}
+    const nodes::N
+    const is_in::Vector{UInt32}
+    const is_out::Vector{UInt32}
+    const mask::Vector{UInt8}
+    const js_::Vector{UInt32}
+    const js::Vector{UInt32}
+    const out::Vector{UInt32}
+    const left::Vector{UInt32}
+    const right::Vector{UInt32}
+    const ∇::Matrix{Float32}
+    const edges::E
+    const feature_names::Vector{Symbol}
+    const featbins::Vector{UInt8}
+    const feattypes::Vector{Bool}
+    const monotone_constraints::Vector{Int32}
+end
+# struct CacheBaseCPU <: CacheCPU
+#     nrounds::UInt32
+#     K::UInt8
+#     x_bin::Matrix{UInt8}
+#     y
+#     w::Vector{Float32}
+#     pred::Matrix{Float32}
+#     nodes
+#     is_in::Vector{UInt32}
+#     is_out::Vector{UInt32}
+#     mask::Vector{UInt8}
+#     js_::Vector{UInt32}
+#     js::Vector{UInt32}
+#     out::Vector{UInt32}
+#     left::Vector{UInt32}
+#     right::Vector{UInt32}
+#     ∇::Matrix{Float32}
+#     edges
+#     feature_names::Vector{Symbol}
+#     featbins::Vector{UInt8}
+#     feattypes::Vector{Bool}
+#     monotone_constraints::Vector{Int32}
+# end
+
 # single tree is made of a vectors of length num nodes
 struct Tree{L,K}
     feat::Vector{Int}
@@ -84,8 +135,10 @@ pred = (m::EvoTree; ntree_limit=length(m.trees))(x)
 ```
 """
 struct EvoTree{L,K}
+    loss_type::Type{L}
+    K::UInt8
     trees::Vector{Tree{L,K}}
-    info::Dict
+    info::Dict{Symbol,Any}
 end
 function (m::EvoTree)(data; ntree_limit=length(m.trees), device=:cpu)
     @assert Symbol(device) ∈ [:cpu, :gpu]
@@ -93,11 +146,11 @@ function (m::EvoTree)(data; ntree_limit=length(m.trees), device=:cpu)
     return _predict(m, data, _device; ntree_limit)
 end
 
-_get_struct_loss(::EvoTree{L,K}) where {L,K} = L
+# _get_struct_loss(::EvoTree{L,K}) where {L,K} = L
 
 function Base.show(io::IO, evotree::EvoTree)
     println(io, "$(typeof(evotree))")
     println(io, " - Contains $(length(evotree.trees)) trees in field `trees` (incl. 1 bias tree).")
-    println(io, " - Data input has $(length(evotree.info[:fnames])) features.")
+    println(io, " - Data input has $(length(evotree.info[:feature_names])) features.")
     println(io, " - $(keys(evotree.info)) info accessible in field `info`")
 end

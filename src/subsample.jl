@@ -1,5 +1,5 @@
 """
-    subsample(out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat)
+    subsample(is_in::AbstractVector, is_out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat, rng)
 
 Returns a view of selected rows ids.
 """

@@ -9,22 +9,21 @@ struct CallBack{B,P,Y,C,D}
 end
 
 function CallBack(
-    ::EvoTypes{L},
+    params::EvoTypes,
     m::EvoTree{L,K},
     deval,
     device::Type{<:Device};
     target_name,
-    w_name=nothing,
-    offset_name=nothing,
-    metric) where {L,K}
+    weight_name=nothing,
+    offset_name=nothing) where {L,K}
 
     T = Float32
-    _w_name = isnothing(w_name) ? Symbol("") : Symbol(w_name)
+    _weight_name = isnothing(weight_name) ? Symbol("") : Symbol(weight_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
     _target_name = Symbol(target_name)
 
-    feval = metric_dict[metric]
-    x_bin = binarize(deval; fnames=m.info[:fnames], edges=m.info[:edges])
+    feval = metric_dict[params.metric]
+    x_bin = binarize(deval; feature_names=m.info[:feature_names], edges=m.info[:edges])
     nobs = length(Tables.getcolumn(deval, 1))
     p = zeros(T, K, nobs)
 
@@ -45,7 +44,7 @@ function CallBack(
         y = T.(y_eval)
     end
     V = device_array_type(device)
-    w = isnothing(w_name) ? device_ones(device, T, length(y)) : V{T}(Tables.getcolumn(deval, _w_name))
+    w = isnothing(weight_name) ? device_ones(device, T, length(y)) : V{T}(Tables.getcolumn(deval, _weight_name))
 
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
     if !isnothing(offset)
@@ -61,18 +60,17 @@ function CallBack(
 end
 
 function CallBack(
-    ::EvoTypes{L},
+    params::EvoTypes,
     m::EvoTree{L,K},
     x_eval::AbstractMatrix,
     y_eval,
     device::Type{<:Device};
     w_eval=nothing,
-    offset_eval=nothing,
-    metric) where {L,K}
+    offset_eval=nothing) where {L,K}
 
     T = Float32
-    feval = metric_dict[metric]
-    x_bin = binarize(x_eval; fnames=m.info[:fnames], edges=m.info[:edges])
+    feval = metric_dict[params.metric]
+    x_bin = binarize(x_eval; feature_names=m.info[:feature_names], edges=m.info[:edges])
     p = zeros(T, K, size(x_eval, 1))
 
     if L == MLogLoss
