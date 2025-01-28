@@ -39,10 +39,6 @@ include("subsample.jl")
 include("fit-utils.jl")
 include("fit.jl")
 
-if !isdefined(Base, :get_extension)
-    include("../ext/EvoTreesCUDAExt/EvoTreesCUDAExt.jl")
-end
-
 include("callback.jl")
 include("importance.jl")
 include("plot.jl")
