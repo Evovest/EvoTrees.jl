@@ -32,11 +32,10 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 
 # mse
 config = EvoTreeRegressor(;
-    loss=:mse,
     nrounds=500,
     early_stopping_rounds=50,
     nbins=64,
-    lambda=0.1,
+    L2=1.0,
     gamma=0.1,
     eta=0.1,
     max_depth=6,
@@ -68,12 +67,11 @@ sqrt(mean((pred_train_linear .- y_train) .^ 2))
 
 # logistic / cross-entropy
 config = EvoTreeRegressor(;
-    T=Float32,
     loss=:logloss,
     nrounds=500,
     early_stopping_rounds=50,
     nbins=64,
-    lambda=0.1,
+    L2=1.0,
     gamma=0.1,
     eta=0.1,
     max_depth=6,
@@ -97,12 +95,10 @@ sqrt(mean((pred_train_logistic .- y_train) .^ 2))
 
 # poisson
 config = EvoTreeCount(;
-    T=Float32,
-    loss=:poisson,
     nrounds=500,
     early_stopping_rounds=50,
     nbins=64,
-    lambda=0.1,
+    L2=1.0,
     gamma=0.1,
     eta=0.1,
     max_depth=6,
@@ -126,12 +122,11 @@ sqrt(mean((pred_train_poisson .- y_train) .^ 2))
 
 # gamma
 config = EvoTreeRegressor(;
-    T=Float32,
     loss=:gamma,
     nrounds=500,
     early_stopping_rounds=50,
     nbins=64,
-    lambda=0.1,
+    L2=1.0,
     gamma=0.1,
     eta=0.1,
     max_depth=6,
@@ -159,7 +154,7 @@ config = EvoTreeRegressor(;
     nrounds=500,
     early_stopping_rounds=50,
     nbins=64,
-    lambda=0.1,
+    L2=1.0,
     gamma=0.1,
     eta=0.1,
     max_depth=6,
@@ -187,7 +182,7 @@ config = EvoTreeRegressor(;
     nrounds=500,
     early_stopping_rounds=50,
     nbins=64,
-    lambda=0.1,
+    L2=1.0,
     gamma=0.1,
     eta=0.1,
     max_depth=6,
@@ -272,7 +267,7 @@ config = EvoTreeGaussian(;
     nrounds=500,
     early_stopping_rounds=50,
     nbins=64,
-    lambda=0.1,
+    L2=1.0,
     gamma=0.1,
     eta=0.1,
     max_depth=6,
@@ -357,6 +352,7 @@ params1 = EvoTreeRegressor(;
     nrounds=500,
     nbins=64,
     eta=0.1,
+    L2=1.0,
     max_depth=6,
     min_weight=1.0,
     rowsample=0.5,
@@ -376,7 +372,7 @@ params1 = EvoTreeRegressor(;
 # 116.822 ms (74496 allocations: 36.41 MiB) for 100 iterations
 # @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
 @time pred_train_q50 = model(x_train)
-sum(pred_train_q50 .< y_train) / length(y_train)
+@info sum(pred_train_q50 .< y_train) / length(y_train)
 
 # q20
 params1 = EvoTreeRegressor(;
@@ -385,6 +381,7 @@ params1 = EvoTreeRegressor(;
     nrounds=500,
     nbins=64,
     eta=0.1,
+    L2=1.0,
     max_depth=6,
     min_weight=1.0,
     rowsample=0.5,
@@ -395,7 +392,7 @@ params1 = EvoTreeRegressor(;
 )
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
 @time pred_train_q20 = model(x_train)
-sum(pred_train_q20 .> y_train) / length(y_train)
+@info sum(pred_train_q20 .> y_train) / length(y_train)
 
 # q80
 params1 = EvoTreeRegressor(;
@@ -403,6 +400,7 @@ params1 = EvoTreeRegressor(;
     alpha=0.8,
     nrounds=500,
     nbins=64,
+    L2=1.0,
     eta=0.2,
     max_depth=6,
     min_weight=1.0,
@@ -414,7 +412,7 @@ params1 = EvoTreeRegressor(;
 )
 @time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 @time pred_train_q80 = model(x_train)
-sum(pred_train_q80 .> y_train) / length(y_train)
+@info sum(pred_train_q80 .> y_train) / length(y_train)
 
 x_perm = sortperm(x_train[:, 1])
 f = Figure()
@@ -446,4 +444,5 @@ lines!(ax,
     label="Q80",
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
+f
 save("figures/quantiles-sinus-$tree_type-$_device.png", f)
