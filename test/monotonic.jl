@@ -42,7 +42,7 @@
         rng=seed,
     )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     preds_ref = EvoTrees.predict(model, x_train);
 
     # monotonic constraint
@@ -62,7 +62,7 @@
         rng=seed,
     )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     preds_mono = EvoTrees.predict(model, x_train);
 
     # using Plots
@@ -84,7 +84,7 @@
     #     max_depth=6, min_weight=0.0,
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
+    # model = fit(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
     # preds_ref = predict(model, x_train);
 
     # # monotonic constraint
@@ -97,7 +97,7 @@
     #     monotone_constraints=Dict(1 => 1),
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
+    # model = fit(params1; x_train, y_train, x_eval, y_eval, metric=:mse, print_every_n=25);
     # preds_mono = predict(model, x_train);
 
     # using Plots
@@ -126,7 +126,7 @@
         rng=seed,
     )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     preds_ref = predict(model, x_train)
 
     # monotonic constraint
@@ -146,7 +146,7 @@
         rng=seed,
     )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     preds_mono = predict(model, x_train)
 
     # x_perm = sortperm(x_train[:, 1])
@@ -167,7 +167,7 @@
     #     max_depth=6, min_weight=0.0,
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+    # model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
     # preds_ref = EvoTrees.predict(model, x_train);
 
     # # monotonic constraint
@@ -180,7 +180,7 @@
     #     monotone_constraints=Dict(1 => 1),
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+    # model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
     # preds_mono = EvoTrees.predict(model, x_train);
 
     # using Plots
@@ -210,7 +210,7 @@
         rng=seed,
     )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     preds_ref = predict(model, x_train)
 
     # monotonic constraint
@@ -229,7 +229,7 @@
         rng=seed,
     )
 
-    model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     preds_mono = EvoTrees.predict(model, x_train)
 
     # x_perm = sortperm(x_train[:, 1])
@@ -250,7 +250,7 @@
     #     max_depth=6, min_weight=0.0,
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    # model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     # preds_ref = EvoTrees.predict(model, x_train)
 
     # # monotonic constraint
@@ -263,7 +263,7 @@
     #     monotone_constraints=Dict(1 => 1),
     #     rowsample=0.5, colsample=1.0, rng=seed)
 
-    # model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+    # model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
     # preds_mono = EvoTrees.predict(model, x_train)
 
     # x_perm = sortperm(x_train[:, 1])

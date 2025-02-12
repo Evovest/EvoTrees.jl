@@ -58,6 +58,14 @@ function EvoTreeRegressor(; kwargs...)
 
     _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile]
     loss = Symbol(args[:loss])
+    if loss == :linear
+        loss = :mse
+        @warn "`:linear` loss is no longer supported - `:mse` loss will be used."
+    end
+    if loss == :logistic
+        loss = :logloss
+        @warn "`:logistic` loss is no longer supported - `:logloss` will be used."
+    end
     if loss ∉ _loss_list
         error("Invalid loss. Must be one of: $_loss_list")
     end
@@ -539,4 +547,5 @@ function check_args(model::EvoTypes)
     catch
         error("Invalid input for `tree_type` parameter: `$(model.tree_type)`. Must be of one of `binary` or `oblivious`")
     end
+    return nothing
 end

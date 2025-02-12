@@ -309,6 +309,184 @@ function grow_otree!(
     return nothing
 end
 
+# A no-op on the CPU, but on the GPU we perform garbage collection
+post_fit_gc(::Type{<:CPU}) = nothing
+
+"""
+    fit(
+        params::EvoTypes, 
+        dtrain;
+        target_name,
+        feature_names=nothing,
+        weight_name=nothing,
+        offset_name=nothing,
+        deval=nothing,
+        print_every_n=9999,
+        verbosity=1
+)
+
+Main training function. Performs model fitting given configuration `params`, `dtrain`, `target_name` and other optional kwargs. 
+
+# Arguments
+
+- `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` can be one of: 
+    - [`EvoTreeRegressor`](@ref)
+    - [`EvoTreeClassifier`](@ref)
+    - [`EvoTreeCount`](@ref)
+    - [`EvoTreeMLE`](@ref)
+- `dtrain`: A Tables compatible training data (named tuples, DataFrame...) containing features and target variables. 
+
+# Keyword arguments
+
+- `target_name`: name of target variable. 
+- `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
+- `weight_name = nothing`: name of the variable containing weights. If `nothing`, common weights on one will be used.
+- `offset_name = nothing`: name of the offset variable.
+- `deval`: A Tables compatible evaluation data containing features and target variables. 
+- `print_every_n`: sets at which frequency logging info should be printed. 
+- `verbosity`: set to 1 to print logging info during training.
+"""
+function fit(
+    params::EvoTypes,
+    dtrain;
+    target_name,
+    feature_names=nothing,
+    weight_name=nothing,
+    offset_name=nothing,
+    deval=nothing,
+    print_every_n=9999,
+    verbosity=1,
+)
+
+    @assert Tables.istable(dtrain) "fit(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
+    dtrain = Tables.columntable(dtrain)
+    _device = params.device == :gpu ? GPU : CPU
+    m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name)
+
+    # initialize callback and logger if tracking eval data
+    metric = params.metric
+    logging_flag = !isnothing(deval)
+    any_flag = !isnothing(deval)
+    if !logging_flag && any_flag
+        @warn "To track eval metric in logger, `deval` must be provided."
+    end
+    if logging_flag
+        deval = Tables.columntable(deval)
+        cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name)
+        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds)
+        cb(logger, 0, m.trees[end])
+        (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
+    else
+        logger, cb = nothing, nothing
+    end
+
+    for i = 1:params.nrounds
+        grow_evotree!(m, cache, params)
+        if !isnothing(logger)
+            cb(logger, i, m.trees[end])
+            if i % print_every_n == 0 && verbosity > 0
+                @info "iter $i" metric = logger[:metrics][end]
+            end
+            (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
+        end
+    end
+    post_fit_gc(_device)
+    m.info[:logger] = logger
+
+    return m
+
+end
+
+"""
+    fit(
+        params::EvoTypes{L};
+        x_train::AbstractMatrix, 
+        y_train::AbstractVector, 
+        w_train=nothing, 
+        offset_train=nothing,
+        x_eval=nothing, 
+        y_eval=nothing, 
+        w_eval=nothing, 
+        offset_eval=nothing,
+        early_stopping_rounds=9999,
+        print_every_n=9999,
+        verbosity=1)
+
+Main training function. Performs model fitting given configuration `params`, `x_train`, `y_train` and other optional kwargs. 
+
+# Arguments
+
+- `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` can be one of: 
+    - [`EvoTreeRegressor`](@ref)
+    - [`EvoTreeClassifier`](@ref)
+    - [`EvoTreeCount`](@ref)
+    - [`EvoTreeMLE`](@ref)
+
+# Keyword arguments
+
+- `x_train::Matrix`: training data of size `[#observations, #features]`. 
+- `y_train::Vector`: vector of train targets of length `#observations`.
+- `w_train::Vector`: vector of train weights of length `#observations`. If `nothing`, a vector of ones is assumed.
+- `offset_train::VecOrMat`: offset for the training data. Should match the size of the predictions.
+- `x_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
+- `y_eval::Vector`: vector of evaluation targets of length `#observations`.
+- `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
+- `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
+- `print_every_n`: sets at which frequency logging info should be printed. 
+- `verbosity`: set to 1 to print logging info during training.
+"""
+function fit(
+    params::EvoTypes;
+    x_train::AbstractMatrix,
+    y_train::AbstractVector,
+    w_train=nothing,
+    offset_train=nothing,
+    x_eval=nothing,
+    y_eval=nothing,
+    w_eval=nothing,
+    offset_eval=nothing,
+    print_every_n=9999,
+    verbosity=1,
+    feature_names=nothing
+)
+
+    _device = params.device == :gpu ? GPU : CPU
+    m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train)
+
+    # initialize callback and logger if tracking eval data
+    metric = params.metric
+    logging_flag = !isnothing(x_eval) && !isnothing(y_eval)
+    any_flag = !isnothing(x_eval) || !isnothing(y_eval)
+    if !logging_flag && any_flag
+        @warn "To track eval metric in logger, both `x_eval` and `y_eval` must be provided."
+    end
+    if logging_flag
+        cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval)
+        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds)
+        cb(logger, 0, m.trees[end])
+        (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
+    else
+        logger, cb = nothing, nothing
+    end
+
+    for i = 1:params.nrounds
+        grow_evotree!(m, cache, params)
+        if !isnothing(logger)
+            cb(logger, i, m.trees[end])
+            if i % print_every_n == 0 && verbosity > 0
+                @info "iter $i" metric = logger[:metrics][end]
+            end
+            (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
+        end
+    end
+    post_fit_gc(_device)
+    m.info[:logger] = logger
+
+    return m
+
+end
+
+
 
 """
     fit_evotree(
@@ -356,47 +534,27 @@ function fit_evotree(
     verbosity=1,
 )
 
-    @assert Tables.istable(dtrain) "fit_evotree(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
-    dtrain = Tables.columntable(dtrain)
-    _device = params.device == :gpu ? GPU : CPU
-    m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name)
+    # @warn "`fit_evotree` has been deprecated, use `fit` instead. 
+    # Following kwargs are no longer supported: `metric`, `return_logger`, `early_stopping_rounds` and `device`.
+    # See docs on how to get those functionalities through the model builder (ex: `EvoTreeRegressor`) and `fit`."
 
-    # initialize callback and logger if tracking eval data
-    metric = params.metric
-    logging_flag = !isnothing(deval)
-    any_flag = !isnothing(deval)
-    if !logging_flag && any_flag
-        @warn "To track eval metric in logger, `deval` must be provided."
-    end
-    if logging_flag
-        deval = Tables.columntable(deval)
-        cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name)
-        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds)
-        cb(logger, 0, m.trees[end])
-        (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
-    else
-        logger, cb = nothing, nothing
-    end
+    Base.depwarn(
+        "`fit_evotree` has been deprecated, use `fit` instead. 
+        Following kwargs are no longer supported in `fit_evotree`: `metric`, `return_logger`, `early_stopping_rounds` and `device`.
+        See docs on how to get those functionalities through the model builder (ex: `EvoTreeRegressor`) and `fit`.",
+        :fit_evotree
+    )
 
-    for i = 1:params.nrounds
-        grow_evotree!(m, cache, params)
-        if !isnothing(logger)
-            cb(logger, i, m.trees[end])
-            if i % print_every_n == 0 && verbosity > 0
-                @info "iter $i" metric = logger[:metrics][end]
-            end
-            (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
-        end
-    end
-    post_fit_gc(_device)
-    m.info[:logger] = logger
-
-    return m
+    return fit(params, dtrain;
+        target_name,
+        feature_names,
+        weight_name,
+        offset_name,
+        deval,
+        print_every_n,
+        verbosity)
 
 end
-
-# A no-op on the CPU, but on the GPU we perform garbage collection
-post_fit_gc(::Type{<:CPU}) = nothing
 
 """
     fit_evotree(
@@ -433,18 +591,6 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `y_eval::Vector`: vector of evaluation targets of length `#observations`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
-- `metric`: The evaluation metric that wil be tracked on `x_eval`, `y_eval` and optionally `w_eval` / `offset_eval` data. 
-    Supported metrics are: 
-    - `:mse`: mean-squared error. Adapted for general regression models.
-    - `:rmse`: root-mean-squared error (CPU only). Adapted for general regression models.
-    - `:mae`: mean absolute error. Adapted for general regression models.
-    - `:logloss`: Adapted for `:logistic` regression models.
-    - `:mlogloss`: Multi-class cross entropy. Adapted to `EvoTreeClassifier` classification models. 
-    - `:poisson`: Poisson deviance. Adapted to `EvoTreeCount` count models.
-    - `:gamma`: Gamma deviance. Adapted to regression problem on Gamma like, positively distributed targets.
-    - `:tweedie`: Tweedie deviance. Adapted to regression problem on Tweedie like, positively distributed targets with probability mass at `y == 0`.
-    - `:gaussian_mle`: Gaussian maximum log-likelihood. Adapted to `EvoTreeMLE` models with `loss = :gaussian_mle`. 
-    - `:logistic_mle`: Logistic maximum log-likelihood. Adapted to `EvoTreeMLE` models with `loss = :logistic_mle`. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
 """
@@ -460,40 +606,35 @@ function fit_evotree(
     offset_eval=nothing,
     print_every_n=9999,
     verbosity=1,
-    feature_names=nothing
+    feature_names=nothing,
+    kwargs...
 )
 
-    _device = params.device == :gpu ? GPU : CPU
-    m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train)
+    # @warn "`fit_evotree` has been deprecated, use `fit` instead. 
+    #     Following kwargs are no longer supported: `metric`, `return_logger`, `early_stopping_rounds` and `device`.
+    #     See docs on how to get those functionalities through the model builder (ex: `EvoTreeRegressor`) and `fit`."
 
-    # initialize callback and logger if tracking eval data
-    metric = params.metric
-    logging_flag = !isnothing(x_eval) && !isnothing(y_eval)
-    any_flag = !isnothing(x_eval) || !isnothing(y_eval)
-    if !logging_flag && any_flag
-        @warn "To track eval metric in logger, both `x_eval` and `y_eval` must be provided."
-    end
-    if logging_flag
-        cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval)
-        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds)
-        cb(logger, 0, m.trees[end])
-        (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
-    else
-        logger, cb = nothing, nothing
-    end
+    Base.depwarn(
+        "`fit_evotree` has been deprecated, use `fit` instead. 
+        Following kwargs are no longer supported in `fit_evotree`: `metric`, `return_logger`, `early_stopping_rounds` and `device`.
+        See docs on how to get those functionalities through the model builder (ex: `EvoTreeRegressor`) and `fit`.",
+        :fit_evotree
+    )
 
-    for i = 1:params.nrounds
-        grow_evotree!(m, cache, params)
-        if !isnothing(logger)
-            cb(logger, i, m.trees[end])
-            if i % print_every_n == 0 && verbosity > 0
-                @info "iter $i" metric = logger[:metrics][end]
-            end
-            (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
-        end
-    end
-    post_fit_gc(_device)
-    m.info[:logger] = logger
+    return fit(
+        params;
+        x_train,
+        y_train,
+        w_train,
+        offset_train,
+        x_eval,
+        y_eval,
+        w_eval,
+        offset_eval,
+        print_every_n,
+        verbosity,
+        feature_names
+    )
 
     return m
 

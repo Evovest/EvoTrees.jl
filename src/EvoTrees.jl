@@ -1,6 +1,6 @@
 module EvoTrees
 
-export fit_evotree
+# export fit_evotree
 export EvoTreeRegressor,
     EvoTreeCount,
     EvoTreeClassifier,

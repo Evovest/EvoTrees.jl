@@ -50,7 +50,7 @@ config = EvoTreeRegressor(
     m, cache = EvoTrees.init(config, dtrain; target_name="y")
     preds_ini = EvoTrees.predict(m, deval)
     mse_error_ini = mean((preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         config,
         dtrain;
         target_name)
@@ -60,7 +60,7 @@ config = EvoTreeRegressor(
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 
-    model = fit_evotree(
+    model = fit(
         config,
         dtrain;
         target_name,
@@ -83,7 +83,7 @@ end
     m, cache = EvoTrees.init(config, dtrain; target_name="y")
     preds_ini = EvoTrees.predict(m, deval)
     mse_error_ini = mean((preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         config,
         dtrain;
         target_name)
@@ -93,7 +93,7 @@ end
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 
-    model = fit_evotree(
+    model = fit(
         config,
         dtrain;
         target_name,
@@ -121,7 +121,7 @@ end
     m, cache = EvoTrees.init(config, dtrain; target_name)
     preds_ini = EvoTrees.predict(m, deval)
     mse_error_ini = mean((preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         config,
         dtrain;
         target_name)
@@ -149,7 +149,7 @@ end
     m, cache = EvoTrees.init(config, dtrain; target_name, feature_names)
     preds_ini = EvoTrees.predict(m, deval)
     mse_error_ini = mean((preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         config,
         dtrain;
         target_name,

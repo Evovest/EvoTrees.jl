@@ -6,7 +6,7 @@ using Random
 using CairoMakie
 using CUDA
 using EvoTrees
-using EvoTrees: predict, sigmoid, logit
+using EvoTrees: fit_evotree, predict, sigmoid, logit
 # using ProfileView
 
 # prepare a dataset
@@ -47,7 +47,7 @@ config = EvoTreeRegressor(;
 )
 
 # @time model = fit_evotree(config; x_train, y_train);
-@time model = fit_evotree(
+@time model = EvoTrees.fit_evotree(
     config;
     x_train,
     y_train,

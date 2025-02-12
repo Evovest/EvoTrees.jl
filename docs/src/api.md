@@ -3,7 +3,7 @@
 ## fit_evotree
 
 ```@docs
-fit_evotree
+EvoTrees.fit
 ```
 
 ## predict

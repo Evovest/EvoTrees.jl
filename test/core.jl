@@ -41,7 +41,7 @@ y_train, y_eval = Y[i_train], Y[i_eval]
     model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         params1;
         x_train,
         y_train,
@@ -73,7 +73,7 @@ end
     model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         params1;
         x_train,
         y_train,
@@ -105,7 +105,7 @@ end
     model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         params1;
         x_train,
         y_train,
@@ -137,7 +137,7 @@ end
     model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         params1;
         x_train,
         y_train,
@@ -171,7 +171,7 @@ end
     model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         params1;
         x_train,
         y_train,
@@ -205,7 +205,7 @@ end
     model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         params1;
         x_train,
         y_train,
@@ -237,7 +237,7 @@ end
     model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         params1;
         x_train,
         y_train,
@@ -270,7 +270,7 @@ end
     model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         params1;
         x_train,
         y_train,
@@ -303,7 +303,7 @@ end
     model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         params1;
         x_train,
         y_train,
@@ -335,7 +335,7 @@ end
     model, cache = EvoTrees.init(params1, x_train, y_train)
     preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         params1;
         x_train,
         y_train,
@@ -365,7 +365,7 @@ end
         rng=123,
     )
 
-    model = fit_evotree(params1; x_train, y_train)
+    model = fit(params1; x_train, y_train)
     features_gain = EvoTrees.importance(model)
 end
 
@@ -379,7 +379,7 @@ end
 
     rng = rand(UInt32)
     params1 = EvoTreeClassifier(; nrounds=100, eta=0.3, rng)
-    model = fit_evotree(params1; x_train, y_train)
+    model = fit(params1; x_train, y_train)
 
     preds = EvoTrees.predict(model, x_train)[:, 1]
     @test !any(isnan.(preds))
@@ -388,7 +388,7 @@ end
     y_train_cat = CategoricalArray(y_train; levels=1:2)
 
     params1 = EvoTreeClassifier(; nrounds=100, eta=0.3, rng)
-    model_cat = fit_evotree(params1; x_train, y_train=y_train_cat)
+    model_cat = fit(params1; x_train, y_train=y_train_cat)
 
     preds_cat = EvoTrees.predict(model_cat, x_train)[:, 1]
     @test preds_cat ≈ preds
@@ -397,7 +397,7 @@ end
     y_train_cat = CategoricalArray(y_train; levels=1:3)
 
     params1 = EvoTreeClassifier(; nrounds=100, eta=0.3, rng)
-    model_cat = fit_evotree(params1; x_train, y_train=y_train_cat)
+    model_cat = fit(params1; x_train, y_train=y_train_cat)
 
     preds_cat = EvoTrees.predict(model_cat, x_train)[:, 1]
     @test preds_cat ≈ preds # differences due to different stream of random numbers

@@ -50,7 +50,7 @@ config = EvoTreeClassifier(
     rowsample=0.8, 
     colsample=0.8)
 
-model = fit_evotree(config, dtrain;
+model = fit(config, dtrain;
     target_name,
     feature_names,
     deval,

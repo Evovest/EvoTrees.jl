@@ -71,7 +71,7 @@ config = EvoTreeRegressor(
   rowsample=0.5, 
   colsample=0.9)
 
-model = fit_evotree(
+model = fit(
     config, dtrain; 
     deval,
     target_name,

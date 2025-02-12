@@ -37,7 +37,7 @@ config = EvoTreeRegressor(
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, print_every_n=25)
+model = fit(config; x_train, y_train, x_eval, y_eval, print_every_n=25)
 pred_eval_linear = model(x_eval)
 
 # logistic / cross-entropy
@@ -59,7 +59,7 @@ config = EvoTreeRegressor(
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, print_every_n=25)
+model = fit(config; x_train, y_train, x_eval, y_eval, print_every_n=25)
 pred_eval_L1 = model(x_eval)
 ```
 
@@ -74,7 +74,7 @@ config = EvoTreeCount(
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+model = fit(config; x_train, y_train, x_eval, y_eval, print_every_n = 25)
 pred_eval_poisson = model(x_eval)
 ```
 
@@ -91,7 +91,7 @@ config = EvoTreeRegressor(
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+model = fit(config; x_train, y_train, x_eval, y_eval, print_every_n = 25)
 pred_train_q50 = model(x_train)
 
 # q20
@@ -102,7 +102,7 @@ config = EvoTreeRegressor(
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+model = fit(config; x_train, y_train, x_eval, y_eval, print_every_n = 25)
 pred_train_q20 = model(x_train)
 
 # q80
@@ -113,7 +113,7 @@ config = EvoTreeRegressor(
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, print_every_n = 25)
+model = fit(config; x_train, y_train, x_eval, y_eval, print_every_n = 25)
 pred_train_q80 = model(x_train)
 ```
 

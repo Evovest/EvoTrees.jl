@@ -76,7 +76,7 @@ config = EvoTreeRegressor(
     colsample=0.9,
 )
 
-m_mse, logger_mse = fit_evotree(
+m_mse, logger_mse = fit(
     config;
     x_train=x_train,
     y_train=y_train,

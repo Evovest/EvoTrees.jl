@@ -39,7 +39,7 @@ y_train_c, y_eval_c = Yc[i_train], Yc[i_eval]
         model, cache = EvoTrees.init(config, x_train, y_train)
         preds_ini = model(x_eval)
         mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-        model = fit_evotree(
+        model = fit(
             config;
             x_train,
             y_train,
@@ -68,7 +68,7 @@ end
     model, cache = EvoTrees.init(config, x_train, y_train)
     preds_ini = model(x_eval)
     mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit_evotree(
+    model = fit(
         config;
         x_train,
         y_train,
@@ -98,7 +98,7 @@ end
         model, cache = EvoTrees.init(config, x_train, y_train)
         preds_ini = model(x_eval)[:, 1]
         mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-        model = fit_evotree(
+        model = fit(
             config;
             x_train,
             y_train,
@@ -128,7 +128,7 @@ end
     preds_ini = model(x_eval)
     acc_ini = mean(map(argmax, eachrow(preds_ini)) .== y_eval_c)
 
-    model = fit_evotree(
+    model = fit(
         config;
         x_train,
         y_train=y_train_c,
