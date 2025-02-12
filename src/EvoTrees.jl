@@ -6,8 +6,7 @@ export EvoTreeRegressor,
     EvoTreeClassifier,
     EvoTreeMLE,
     EvoTreeGaussian,
-    EvoTree,
-    Random
+    EvoTree
 
 using Base.Threads: @threads, @spawn, nthreads, threadid
 using Statistics
