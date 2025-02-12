@@ -338,8 +338,8 @@ Main training function. Performs model fitting given configuration `params`, `dt
 
 # Keyword arguments
 
-- `target_name`: name of target variable. 
-- `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
+- `target_name`: name of the target variable. 
+- `feature_names = nothing`: the names `dtrain` variables to use as features. If not provided, it deafults to all variables that aren't one of `target`, `weight` or `offset``.
 - `weight_name = nothing`: name of the variable containing weights. If `nothing`, common weights on one will be used.
 - `offset_name = nothing`: name of the offset variable.
 - `deval`: A Tables compatible evaluation data containing features and target variables. 
@@ -408,6 +408,7 @@ end
         y_eval=nothing, 
         w_eval=nothing, 
         offset_eval=nothing,
+        feature_names=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
         verbosity=1)
@@ -432,6 +433,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `y_eval::Vector`: vector of evaluation targets of length `#observations`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
+- `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
 """
@@ -445,9 +447,9 @@ function fit(
     y_eval=nothing,
     w_eval=nothing,
     offset_eval=nothing,
+    feature_names=nothing,
     print_every_n=9999,
-    verbosity=1,
-    feature_names=nothing
+    verbosity=1
 )
 
     _device = params.device == :gpu ? GPU : CPU
@@ -515,7 +517,7 @@ Main training function. Performs model fitting given configuration `params`, `dt
 # Keyword arguments
 
 - `target_name`: name of target variable. 
-- `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
+- `feature_names = nothing`: the names `dtrain` variables to use as features. If not provided, it deafults to all variables that aren't one of `target`, `weight` or `offset``.
 - `weight_name = nothing`: name of the variable containing weights. If `nothing`, common weights on one will be used.
 - `offset_name = nothing`: name of the offset variable.
 - `deval`: A Tables compatible evaluation data containing features and target variables. 
@@ -567,6 +569,7 @@ end
         y_eval=nothing, 
         w_eval=nothing, 
         offset_eval=nothing,
+        feature_names=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
         verbosity=1)
@@ -591,6 +594,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `y_eval::Vector`: vector of evaluation targets of length `#observations`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
+- `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
 """
@@ -604,9 +608,9 @@ function fit_evotree(
     y_eval=nothing,
     w_eval=nothing,
     offset_eval=nothing,
+    feature_names=nothing,
     print_every_n=9999,
     verbosity=1,
-    feature_names=nothing,
     kwargs...
 )
 
