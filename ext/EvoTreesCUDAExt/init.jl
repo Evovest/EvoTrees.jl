@@ -108,9 +108,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     nrounds = 0
     Y = typeof(y)
     N = typeof(nodes)
-    E = typeof(edges)
     feattypes_gpu = CuArray(feattypes)
-    cache = CacheBaseGPU{Y,N,E}(
+    cache = CacheBaseGPU{Y,N}(
         nrounds,
         K,
         x_bin,
@@ -129,7 +128,6 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         ∇,
         h∇,
         h∇_cpu,
-        edges,
         feature_names,
         featbins,
         feattypes,

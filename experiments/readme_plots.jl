@@ -6,7 +6,9 @@ using Random
 using CairoMakie
 using CUDA
 using EvoTrees
-using EvoTrees: fit_evotree, predict, sigmoid, logit
+using EvoTrees: predict, sigmoid, logit
+using EvoTrees: fit_evotree
+
 # using ProfileView
 
 # prepare a dataset
@@ -55,6 +57,7 @@ config = EvoTreeRegressor(;
     y_eval,
     print_every_n=25,
 );
+
 # model, logger = fit_evotree(config; x_train, y_train, metric=:mse, x_eval, y_eval, early_stopping_rounds=20, print_every_n=10, return_logger=true);
 @time pred_train_linear_cpu = model(x_train)
 @time pred_train_linear_gpu = model(x_train; device=_device)

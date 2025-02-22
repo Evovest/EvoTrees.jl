@@ -20,7 +20,6 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
         cache.nodes,
         params,
         cache.∇,
-        cache.edges,
         cache.js,
         cache.out,
         cache.left,
@@ -41,7 +40,6 @@ function grow_tree!(
     nodes::Vector{N},
     params::EvoTypes,
     ∇::Matrix,
-    edges,
     js,
     out,
     left,
@@ -112,7 +110,6 @@ function grow_tree!(
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
-                    tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
                     tree.split[n] = best_bin != 0
 
                     _left, _right = split_set_threads!(
@@ -163,7 +160,6 @@ function grow_otree!(
     nodes::Vector{N},
     params::EvoTypes,
     ∇::Matrix,
-    edges,
     js,
     out,
     left,
@@ -263,7 +259,6 @@ function grow_otree!(
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
-                    tree.cond_float[n] = edges[best_feat][best_bin]
                     tree.split[n] = best_bin != 0
 
                     _left, _right = split_set_threads!(
@@ -536,10 +531,6 @@ function fit_evotree(
     verbosity=1,
 )
 
-    # @warn "`fit_evotree` has been deprecated, use `fit` instead. 
-    # Following kwargs are no longer supported: `metric`, `return_logger`, `early_stopping_rounds` and `device`.
-    # See docs on how to get those functionalities through the model builder (ex: `EvoTreeRegressor`) and `fit`."
-
     Base.depwarn(
         "`fit_evotree` has been deprecated, use `fit` instead. 
         Following kwargs are no longer supported in `fit_evotree`: `metric`, `return_logger`, `early_stopping_rounds` and `device`.
@@ -613,10 +604,6 @@ function fit_evotree(
     verbosity=1,
     kwargs...
 )
-
-    # @warn "`fit_evotree` has been deprecated, use `fit` instead. 
-    #     Following kwargs are no longer supported: `metric`, `return_logger`, `early_stopping_rounds` and `device`.
-    #     See docs on how to get those functionalities through the model builder (ex: `EvoTreeRegressor`) and `fit`."
 
     Base.depwarn(
         "`fit_evotree` has been deprecated, use `fit` instead. 

@@ -16,7 +16,6 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache::EvoTrees.CacheGPU,
         cache.nodes,
         params,
         cache.∇,
-        cache.edges,
         cache.js,
         cache.out,
         cache.left,
@@ -39,7 +38,6 @@ function grow_tree!(
     nodes::Vector{N},
     params::EvoTrees.EvoTypes,
     ∇::CuMatrix,
-    edges,
     js,
     out,
     left,
@@ -113,7 +111,6 @@ function grow_tree!(
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
-                    tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
                     tree.split[n] = best_bin != 0
 
                     _left, _right = split_set_threads_gpu!(
@@ -165,7 +162,6 @@ function grow_otree!(
     nodes::Vector{N},
     params::EvoTrees.EvoTypes,
     ∇::CuMatrix,
-    edges,
     js,
     out,
     left,
@@ -268,7 +264,6 @@ function grow_otree!(
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
-                    tree.cond_float[n] = edges[best_feat][best_bin]
                     tree.split[n] = best_bin != 0
 
                     _left, _right = split_set_threads_gpu!(

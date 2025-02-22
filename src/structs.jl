@@ -34,7 +34,7 @@ abstract type Cache end
 abstract type CacheCPU <: Cache end
 abstract type CacheGPU <: Cache end
 
-mutable struct CacheBaseCPU{Y,N,E} <: CacheCPU
+mutable struct CacheBaseCPU{Y,N} <: CacheCPU
     nrounds::UInt32
     const K::UInt8
     const x_bin::Matrix{UInt8}
@@ -51,41 +51,16 @@ mutable struct CacheBaseCPU{Y,N,E} <: CacheCPU
     const left::Vector{UInt32}
     const right::Vector{UInt32}
     const ∇::Matrix{Float32}
-    const edges::E
     const feature_names::Vector{Symbol}
     const featbins::Vector{UInt8}
     const feattypes::Vector{Bool}
     const monotone_constraints::Vector{Int32}
 end
-# struct CacheBaseCPU <: CacheCPU
-#     nrounds::UInt32
-#     K::UInt8
-#     x_bin::Matrix{UInt8}
-#     y
-#     w::Vector{Float32}
-#     pred::Matrix{Float32}
-#     nodes
-#     is_in::Vector{UInt32}
-#     is_out::Vector{UInt32}
-#     mask::Vector{UInt8}
-#     js_::Vector{UInt32}
-#     js::Vector{UInt32}
-#     out::Vector{UInt32}
-#     left::Vector{UInt32}
-#     right::Vector{UInt32}
-#     ∇::Matrix{Float32}
-#     edges
-#     feature_names::Vector{Symbol}
-#     featbins::Vector{UInt8}
-#     feattypes::Vector{Bool}
-#     monotone_constraints::Vector{Int32}
-# end
 
 # single tree is made of a vectors of length num nodes
 struct Tree{L,K}
     feat::Vector{Int}
     cond_bin::Vector{UInt8}
-    cond_float::Vector{Any}
     gain::Vector{Float64}
     pred::Matrix{Float32}
     split::Vector{Bool}
@@ -96,7 +71,6 @@ function Tree{L,K}(x::Vector) where {L,K}
         zeros(Int, 1),
         zeros(UInt8, 1),
         zeros(Float64, 1),
-        zeros(Float64, 1),
         reshape(x, :, 1),
         zeros(Bool, 1),
     )
@@ -106,7 +80,6 @@ function Tree{L,K}(depth::Int) where {L,K}
     Tree{L,K}(
         zeros(Int, 2^depth - 1),
         zeros(UInt8, 2^depth - 1),
-        zeros(Float64, 2^depth - 1),
         zeros(Float64, 2^depth - 1),
         zeros(Float32, K, 2^depth - 1),
         zeros(Bool, 2^depth - 1),
@@ -145,8 +118,6 @@ function (m::EvoTree)(data; ntree_limit=length(m.trees), device=:cpu)
     _device = Symbol(device) == :cpu ? CPU : GPU
     return _predict(m, data, _device; ntree_limit)
 end
-
-# _get_struct_loss(::EvoTree{L,K}) where {L,K} = L
 
 function Base.show(io::IO, evotree::EvoTree)
     println(io, "$(typeof(evotree))")

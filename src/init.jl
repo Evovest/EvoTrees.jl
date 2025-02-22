@@ -106,8 +106,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     nrounds = 0
     Y = typeof(y)
     N = typeof(nodes)
-    E = typeof(edges)
-    cache = CacheBaseCPU{Y,N,E}(
+    cache = CacheBaseCPU{Y,N}(
         nrounds,
         K,
         x_bin,
@@ -124,7 +123,6 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         left,
         right,
         ∇,
-        edges,
         feature_names,
         featbins,
         feattypes,

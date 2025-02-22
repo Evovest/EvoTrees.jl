@@ -1,4 +1,4 @@
-mutable struct CacheBaseGPU{Y,N,E} <: EvoTrees.CacheGPU
+mutable struct CacheBaseGPU{Y,N} <: EvoTrees.CacheGPU
     nrounds::UInt32
     const K::UInt8
     const x_bin::CuMatrix{UInt8}
@@ -17,7 +17,6 @@ mutable struct CacheBaseGPU{Y,N,E} <: EvoTrees.CacheGPU
     const ∇::CuArray{Float32}
     const h∇::CuArray{Float64, 3}
     const h∇_cpu::Array{Float64, 3}
-    const edges::E
     const feature_names::Vector{Symbol}
     const featbins::Vector{UInt8}
     const feattypes::Vector{Bool}

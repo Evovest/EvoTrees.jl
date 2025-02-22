@@ -26,6 +26,7 @@ using MLJModelInterface
 import MLJModelInterface as MMI
 import MLJModelInterface: fit, update, predict, schema, feature_importances
 import Base: convert
+import Base: depwarn
 
 include("learners.jl")
 include("loss.jl")
