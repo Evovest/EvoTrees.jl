@@ -167,6 +167,8 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:gamma`
   - `:tweedie`
   - `:quantile`
+  - `:cred_var`: **experimental** credibility-based gains, derived from ratio of spread to process variance.
+  - `:cred_std`: **experimental** credibility-based gains, derived from ratio of spread to process std deviation.
 - `metric`:     The evaluation metric used to track evaluation data and serves as a basis for early stopping. Supported metrics are: 
   - `:mse`:     Mean-squared error. Adapted for general regression models.
   - `:rmse`:    Root-mean-squared error. Adapted for general regression models.

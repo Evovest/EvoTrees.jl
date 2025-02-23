@@ -12,21 +12,26 @@ abstract type GaussianMLE <: MLE2P end
 abstract type LogisticMLE <: MLE2P end
 abstract type Quantile <: LossType end
 abstract type MAE <: LossType end
+abstract type Cred <: LossType end
+abstract type CredVar <: Cred end
+abstract type CredStd <: Cred end
 
 # Converts MSE -> :mse
-const _type2loss_dict = Dict(
-    MSE => :mse,
-    LogLoss => :logloss,
-    Poisson => :poisson,
-    Gamma => :gamma,
-    Tweedie => :tweedie,
-    MLogLoss => :mlogloss,
-    GaussianMLE => :gaussian_mle,
-    LogisticMLE => :logistic_mle,
-    Quantile => :quantile,
-    MAE => :mae,
-)
-_type2loss(L::Type) = _type2loss_dict[L]
+# const _type2loss_dict = Dict(
+#     MSE => :mse,
+#     LogLoss => :logloss,
+#     Poisson => :poisson,
+#     Gamma => :gamma,
+#     Tweedie => :tweedie,
+#     MLogLoss => :mlogloss,
+#     GaussianMLE => :gaussian_mle,
+#     LogisticMLE => :logistic_mle,
+#     Quantile => :quantile,
+#     MAE => :mae,
+#     CredVar => :cred_var,
+#     CredStd => :cred_std
+# )
+# _type2loss(L::Type) = _type2loss_dict[L]
 
 const _loss2type_dict = Dict(
     :mse => MSE,
@@ -39,7 +44,17 @@ const _loss2type_dict = Dict(
     :logistic_mle => LogisticMLE,
     :quantile => Quantile,
     :mae => MAE,
+    :cred_var => CredVar,
+    :cred_std => CredStd
 )
+
+# Credibility-based
+function update_grads!(∇::Matrix, p::Matrix{T}, y::Vector{T}, ::Type{<:Cred}, params::EvoTypes) where {T}
+    @threads for i in eachindex(y)
+        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
+        @inbounds ∇[2, i] = (y[i] - p[1, i])^2 * ∇[3, i]
+    end
+end
 
 # MSE
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MSE}, params::EvoTypes) where {T}
@@ -222,4 +237,30 @@ end
 function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Quantile,T}
     ϵ = eps(T)
     abs(∑[1]) / max(ϵ, (1 + params.lambda + params.L2 / ∑[3]))
+end
+
+# CredVar: ratio of variance
+# VHM = E²[X] = (∑1 / ∑3)²
+# EVPV = E[X^2] - E²[X] = ∑2 / ∑3 - VHM
+@inline function _get_cred(::Type{CredVar}, params::EvoTypes, ∑::AbstractVector{T}) where {T}
+    ϵ = eps(eltype(∑))
+    VHM = (∑[1] / ∑[3])^2
+    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM) / (1 + params.lambda * ∑[3]))
+    return VHM / (VHM + EVPV + params.L2 / ∑[3])
+end
+
+# CredStd: ratio of std dev 
+# VHM = E²[X] = (∑1 / ∑3)²
+# EVPV = E[X^2] - E²[X] = ∑2 / ∑3 - VHM
+@inline function _get_cred(::Type{CredStd}, params::EvoTypes, ∑::AbstractVector{T}) where {T}
+    ϵ = eps(eltype(∑))
+    VHM = (∑[1] / ∑[3])^2
+    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM) / (1 + params.lambda * ∑[3]))
+    return sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV) + sqrt(params.L2 / ∑[3]))
+end
+
+# gain for Cred
+function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Cred,T}
+    Z = _get_cred(L, params, ∑)
+    return Z * abs(∑[1])
 end

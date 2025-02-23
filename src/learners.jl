@@ -56,7 +56,7 @@ function EvoTreeRegressor(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile]
+    _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile, :cred_std, :cred_var]
     loss = Symbol(args[:loss])
     if loss == :linear
         loss = :mse
@@ -72,7 +72,11 @@ function EvoTreeRegressor(; kwargs...)
 
     _metric_list = [:mse, :rmse, :mae, :logloss, :poisson, :gamma, :tweedie, :quantile, :gini]
     if isnothing(args[:metric])
-        metric = loss
+        if loss ∈ [:cred_std, :cred_var]
+            metric = :mae
+        else
+            metric = loss
+        end
     else
         metric = Symbol(args[:metric])
     end

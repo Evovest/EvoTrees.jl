@@ -529,6 +529,7 @@ function fit_evotree(
     deval=nothing,
     print_every_n=9999,
     verbosity=1,
+    kwargs...
 )
 
     Base.depwarn(

@@ -449,3 +449,91 @@ lines!(ax,
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
 f
 save("figures/quantiles-sinus-$tree_type-$_device.png", f)
+
+
+###############################
+# credibility losses
+###############################
+# cred_var
+config = EvoTreeRegressor(;
+    loss=:cred_var,
+    nrounds=500,
+    early_stopping_rounds=50,
+    nbins=64,
+    L2=0.0,
+    lambda=0.0,
+    eta=0.1,
+    max_depth=6,
+    min_weight=1.0,
+    rowsample=0.5,
+    colsample=1.0,
+    tree_type,
+    device=_device
+)
+
+@time model = fit_evotree(
+    config;
+    x_train,
+    y_train,
+    x_eval,
+    y_eval,
+    print_every_n=25,
+);
+@time pred_train_cred_var = model(x_train; device=_device)
+sqrt(mean((pred_train_cred_var .- y_train) .^ 2))
+
+# cred_std
+config = EvoTreeRegressor(;
+    loss=:cred_std,
+    nrounds=500,
+    early_stopping_rounds=50,
+    nbins=64,
+    L2=0.0,
+    lambda=0.0,
+    eta=0.1,
+    max_depth=6,
+    min_weight=1.0,
+    rowsample=0.5,
+    colsample=1.0,
+    tree_type,
+    device=_device
+)
+
+@time model = fit_evotree(
+    config;
+    x_train,
+    y_train,
+    x_eval,
+    y_eval,
+    print_every_n=25,
+);
+@time pred_train_cred_std = model(x_train; device=_device)
+sqrt(mean((pred_train_cred_std .- y_train) .^ 2))
+
+###########################################
+# plot credibility
+###########################################
+x_perm = sortperm(x_train[:, 1])
+f = Figure()
+ax = Axis(f[1, 1], xlabel="feature", ylabel="target")
+scatter!(ax,
+    x_train[x_perm, 1],
+    y_train[x_perm],
+    color="#BBB",
+    markersize=2)
+lines!(ax,
+    x_train[x_perm, 1],
+    pred_train_cred_var[x_perm],
+    color="navy",
+    linewidth=1,
+    label="cred_var",
+)
+lines!(ax,
+    x_train[x_perm, 1],
+    pred_train_cred_std[x_perm],
+    color="darkred",
+    linewidth=1,
+    label="cred_std",
+)
+Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
+save("figures/credibility-sinus-$tree_type-$_device.png", f)

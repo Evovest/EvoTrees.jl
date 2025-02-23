@@ -125,6 +125,7 @@ function softmax!(p::AbstractMatrix)
     return nothing
 end
 
+# GradientRegression predictions
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:GradientRegression,T}
     ϵ = eps(T)
     p[1, n] = -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
@@ -132,6 +133,17 @@ end
 function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:GradientRegression,T}
     ϵ = eps(T)
     return -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
+end
+
+# Cred predictions
+function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:Cred,T}
+    # Z = _get_cred(L, params, ∑)
+    p[1, n] = params.eta * ∑[1] / ∑[3] #* Z
+    return nothing
+end
+function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:Cred,T}
+    # Z = _get_cred(L, params, ∑)
+    return params.eta * ∑[1] / ∑[3] #* Z
 end
 
 # prediction in Leaf - MLE2P

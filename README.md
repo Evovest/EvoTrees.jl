@@ -106,6 +106,7 @@ Look at the docs for more details on available hyper-parameters for each of the 
 
 ```julia
 using EvoTrees
+using EvoTrees: fit
 
 config = EvoTreeRegressor(
     loss=:mse, 
@@ -115,7 +116,7 @@ config = EvoTreeRegressor(
     eta=0.1)
 
 x_train, y_train = rand(1_000, 10), rand(1_000)
-m = fit_evotree(config; x_train, y_train)
+m = fit(config; x_train, y_train)
 preds = m(x_train)
 ```
 
@@ -128,8 +129,8 @@ When using a DataFrames as input, features with elements types `Real` (incl. `Bo
 ```julia
 dtrain = DataFrame(x_train, :auto)
 dtrain.y .= y_train
-m = fit_evotree(config, dtrain; target_name="y");
-m = fit_evotree(config, dtrain; target_name="y", fnames=["x1", "x3"]);
+m = fit(config, dtrain; target_name="y");
+m = fit(config, dtrain; target_name="y", fnames=["x1", "x3"]);
 ```
 
 ## Feature importance
@@ -148,7 +149,7 @@ Plot a given tree of the model:
 plot(m, 2)
 ```
 
-![](figures/plot_tree.png)
+![](docs/src/assets/plot_tree.png)
 
 Note that 1st tree is used to set the bias so the first real tree is #2.
 
