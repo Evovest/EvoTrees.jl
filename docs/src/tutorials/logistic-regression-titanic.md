@@ -37,7 +37,6 @@ transform!(df, :Age => (x -> coalesce.(x, median(skipmissing(x)))) => :Age);
 
 # remove unneeded variables
 df = df[:, Not([:PassengerId, :Name, :Embarked, :Cabin, :Ticket])]
-
 ```
 
 The full data can now be split according to train and eval indices. 
@@ -53,7 +52,7 @@ dtrain = df[train_indices, :]
 deval = df[setdiff(1:nrow(df), train_indices), :]
 
 target_name = "Survived"
-fnames = setdiff(names(df), [target_name])
+feature_names = setdiff(names(df), [target_name])
 ```
 
 ## Training
@@ -63,21 +62,20 @@ Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass 
 
 ```julia
 config = EvoTreeRegressor(
-  loss=:logistic, 
+  loss=:logloss, 
   nrounds=200, 
+  early_stopping_rounds=10,
   eta=0.05, 
   nbins=128, 
   max_depth=5, 
   rowsample=0.5, 
   colsample=0.9)
 
-model = fit_evotree(
+model = fit(
     config, dtrain; 
     deval,
     target_name,
-    fnames,
-    metric = :logloss,
-    early_stopping_rounds=10,
+    feature_names,
     print_every_n=10)
 ```
 

@@ -42,17 +42,16 @@ Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass 
 ```julia
 config = EvoTreeRegressor(
     nrounds=200, 
+    early_stopping_rounds=10,
     eta=0.1, 
     max_depth=4, 
     lambda=0.1, 
     rowsample=0.9, 
     colsample=0.9)
 
-model = fit_evotree(config;
+model = fit(config;
     x_train, y_train,
     x_eval, y_eval,
-    metric = :mse,
-    early_stopping_rounds=10,
     print_every_n=10)
 ```
 

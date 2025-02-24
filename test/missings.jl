@@ -37,7 +37,7 @@ y_tot_m1 = allowmissing(y_tot)
 y_tot_m1[1] = missing
 
 config = EvoTreeRegressor(
-    loss=:linear,
+    loss=:mse,
     nrounds=100,
     nbins=16,
     lambda=0.5,
@@ -55,40 +55,40 @@ config = EvoTreeRegressor(
     df_tot = DataFrame(x_num=x_num, x_bool=x_bool, x_cat=x_cat, y=y_tot)
     dtrain, deval = df_tot[i_train, :], df_tot[i_eval, :]
 
-    model = fit_evotree(
+    model = fit(
         config,
         dtrain;
         target_name)
 
-    @test model.info[:fnames] == [:x_num, :x_bool, :x_cat]
+    @test model.info[:feature_names] == [:x_num, :x_bool, :x_cat]
 
-    # keep only fnames <= Real or Categorical
+    # keep only feature_names <= Real or Categorical
     df_tot = DataFrame(x_num=x_num, x_num_m1=x_num_m1, x_num_m2=x_num_m2,
         x_cat_m1=x_cat_m1, x_bool_m1=x_bool_m1, y=y_tot)
     dtrain, deval = df_tot[i_train, :], df_tot[i_eval, :]
 
-    model = fit_evotree(
+    model = fit(
         config,
         dtrain;
         target_name,
         deval)
 
-    @test model.info[:fnames] == [:x_num]
+    @test model.info[:feature_names] == [:x_num]
 
-    model = fit_evotree(
+    model = fit(
         config,
         dtrain;
         target_name,
-        fnames=[:x_num])
+        feature_names=[:x_num])
 
-    @test model.info[:fnames] == [:x_num]
+    @test model.info[:feature_names] == [:x_num]
 
     # specifyin features with missings should error
-    @test_throws AssertionError fit_evotree(
+    @test_throws AssertionError fit(
         config,
         dtrain;
         deval,
-        fnames=[:x_num, :x_num_m1, :x_num_m2, :x_cat_m1, :x_bool_m1],
+        feature_names=[:x_num, :x_num_m1, :x_num_m2, :x_cat_m1, :x_bool_m1],
         target_name)
 
 end
@@ -98,7 +98,7 @@ end
     df_tot = DataFrame(x_num=x_num, x_bool=x_bool, x_cat=x_cat, y=y_tot_m1)
     dtrain, deval = df_tot[i_train, :], df_tot[i_eval, :]
 
-    @test_throws AssertionError fit_evotree(
+    @test_throws AssertionError fit(
         config,
         dtrain;
         target_name)
@@ -108,13 +108,13 @@ end
 @testset "Matrix - missing features" begin
 
     x_tot = allowmissing(hcat(x_num_m1))
-    @test_throws AssertionError fit_evotree(
+    @test_throws AssertionError fit(
         config;
         x_train=x_tot,
         y_train=y_tot)
 
     x_tot = Matrix{Any}(hcat(x_num_m2))
-    @test_throws AssertionError fit_evotree(
+    @test_throws AssertionError fit(
         config;
         x_train=x_tot,
         y_train=y_tot)

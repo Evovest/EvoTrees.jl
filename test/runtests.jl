@@ -1,10 +1,13 @@
 using Statistics
 using EvoTrees
-using EvoTrees: predict
+using EvoTrees: fit, predict
 using CategoricalArrays
 using Tables
 using Random
 using Test
+
+
+using EvoTrees: fit_evotree
 
 @testset "EvoTrees" begin
 

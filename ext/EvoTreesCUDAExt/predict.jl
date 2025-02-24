@@ -159,7 +159,7 @@ function EvoTrees._predict(
     EvoTrees.Tables.istable(data) ? data = EvoTrees.Tables.columntable(data) : nothing
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
-    x_bin = CuArray(EvoTrees.binarize(data; fnames=m.info[:fnames], edges=m.info[:edges]))
+    x_bin = CuArray(EvoTrees.binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges]))
     nobs = size(x_bin, 1)
     pred = CUDA.zeros(K, nobs)
     feattypes = CuArray(m.info[:feattypes])
@@ -202,4 +202,16 @@ function EvoTrees.softmax!(p::CuMatrix{T}; MAX_THREADS=1024) where {T}
     @cuda blocks = blocks threads = threads softmax_kernel!(p)
     CUDA.synchronize()
     return nothing
+end
+
+# Quantile - special case where ∇ is passed as argument
+function quantile_gpu(x::AnyCuVector, alpha)
+    x_sort = sort(x)
+    idx = ceil(Int, alpha * length(x_sort))
+    return CUDA.@allowscalar x_sort[idx]
+end
+
+function EvoTrees.pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTrees.EvoTypes, ∇::CuMatrix, is) where {L<:EvoTrees.Quantile,T}
+    ϵ = eps(T)
+    p[1, n] = params.eta * quantile_gpu(view(∇, 2, is), params.alpha) / (1 + params.lambda + params.L2 / ∑[3])
 end

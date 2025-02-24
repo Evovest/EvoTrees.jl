@@ -1,52 +1,26 @@
-abstract type ModelType end
-abstract type GradientRegression <: ModelType end
-abstract type MLE2P <: ModelType end # 2-parameters max-likelihood
-
-abstract type MSE <: GradientRegression end
-abstract type LogLoss <: GradientRegression end
-abstract type Poisson <: GradientRegression end
-abstract type Gamma <: GradientRegression end
-abstract type Tweedie <: GradientRegression end
-abstract type MLogLoss <: ModelType end
-abstract type GaussianMLE <: MLE2P end
-abstract type LogisticMLE <: MLE2P end
-abstract type Quantile <: ModelType end
-abstract type L1 <: ModelType end
-
-# Converts MSE -> :mse
-const _type2loss_dict = Dict(
-    MSE => :mse,
-    LogLoss => :logloss,
-    Poisson => :poisson,
-    Gamma => :gamma,
-    Tweedie => :tweedie,
-    MLogLoss => :mlogloss,
-    GaussianMLE => :gaussian_mle,
-    LogisticMLE => :logistic_mle,
-    Quantile => :quantile,
-    L1 => :l1,
-)
-_type2loss(L::Type) = _type2loss_dict[L]
-
 # make a Random Number Generator object
 mk_rng(rng::AbstractRNG) = rng
 mk_rng(int::Integer) = Random.MersenneTwister(int)
 
-mutable struct EvoTreeRegressor{L<:ModelType} <: MMI.Deterministic
+mutable struct EvoTreeRegressor <: MMI.Deterministic
+    loss::Symbol
+    metric::Symbol
     nrounds::Int
+    early_stopping_rounds::Int
     L2::Float64
     lambda::Float64
     gamma::Float64
     eta::Float64
     max_depth::Int
-    min_weight::Float64 # real minimum number of observations, different from xgboost (but same for linear)
-    rowsample::Float64 # subsample
+    min_weight::Float64
+    rowsample::Float64
     colsample::Float64
     nbins::Int
     alpha::Float64
-    monotone_constraints::Any
-    tree_type::String
-    rng::Any
+    monotone_constraints::Dict{Int,Int}
+    tree_type::Symbol
+    rng::AbstractRNG
+    device::Symbol
 end
 
 function EvoTreeRegressor(; kwargs...)
@@ -54,20 +28,23 @@ function EvoTreeRegressor(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :loss => :mse,
+        :metric => nothing,
         :nrounds => 100,
+        :early_stopping_rounds => typemax(Int),
         :L2 => 0.0,
         :lambda => 0.0,
-        :gamma => 0.0, # min gain to split
-        :eta => 0.1, # learning rate
+        :gamma => 0.0,
+        :eta => 0.1,
         :max_depth => 6,
-        :min_weight => 1.0, # minimal weight, different from xgboost (but same for linear)
+        :min_weight => 1.0,
         :rowsample => 1.0,
         :colsample => 1.0,
         :nbins => 64,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
-        :tree_type => "binary",
+        :tree_type => :binary,
         :rng => 123,
+        :device => :cpu
     )
 
     args_ignored = setdiff(keys(kwargs), keys(args))
@@ -79,35 +56,44 @@ function EvoTreeRegressor(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
-    args[:loss] = Symbol(args[:loss])
-
-    if args[:loss] == :mse
-        L = MSE
-    elseif args[:loss] == :linear
-        L = MSE
-    elseif args[:loss] == :logloss
-        L = LogLoss
-    elseif args[:loss] == :logistic
-        L = LogLoss
-    elseif args[:loss] == :gamma
-        L = Gamma
-    elseif args[:loss] == :tweedie
-        L = Tweedie
-    elseif args[:loss] == :l1
-        L = L1
-    elseif args[:loss] == :quantile
-        L = Quantile
-    else
-        error(
-            "Invalid loss: $(args[:loss]). Only [`:mse`, `:logloss`, `:gamma`, `:tweedie`, `:l1`, `:quantile`] are supported by EvoTreeRegressor.",
-        )
+    _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile, :cred_std, :cred_var]
+    loss = Symbol(args[:loss])
+    if loss == :linear
+        loss = :mse
+        @warn "`:linear` loss is no longer supported - `:mse` loss will be used."
+    end
+    if loss == :logistic
+        loss = :logloss
+        @warn "`:logistic` loss is no longer supported - `:logloss` will be used."
+    end
+    if loss ∉ _loss_list
+        error("Invalid loss. Must be one of: $_loss_list")
     end
 
+    _metric_list = [:mse, :rmse, :mae, :logloss, :poisson, :gamma, :tweedie, :quantile, :gini]
+    if isnothing(args[:metric])
+        if loss ∈ [:cred_std, :cred_var]
+            metric = :mae
+        else
+            metric = loss
+        end
+    else
+        metric = Symbol(args[:metric])
+    end
+    if metric ∉ _metric_list
+        error("Invalid metric. Must be one of: $_metric_list")
+    end
+
+    tree_type = Symbol(args[:tree_type])
+    device = Symbol(args[:device])
+    rng = mk_rng(args[:rng])
     check_args(args)
 
-    model = EvoTreeRegressor{L}(
+    model = EvoTreeRegressor(
+        loss,
+        metric,
         args[:nrounds],
+        args[:early_stopping_rounds],
         args[:L2],
         args[:lambda],
         args[:gamma],
@@ -119,32 +105,33 @@ function EvoTreeRegressor(; kwargs...)
         args[:nbins],
         args[:alpha],
         args[:monotone_constraints],
-        args[:tree_type],
-        args[:rng],
+        tree_type,
+        rng,
+        device
     )
 
     return model
 end
 
-function EvoTreeRegressor{L}(; kwargs...) where {L}
-    EvoTreeRegressor(; loss=_type2loss(L), kwargs...)
-end
-
-mutable struct EvoTreeCount{L<:ModelType} <: MMI.Probabilistic
+mutable struct EvoTreeCount <: MMI.Probabilistic
+    loss::Symbol
+    metric::Symbol
     nrounds::Int
+    early_stopping_rounds::Int
     L2::Float64
     lambda::Float64
     gamma::Float64
     eta::Float64
     max_depth::Int
-    min_weight::Float64 # real minimum number of observations, different from xgboost (but same for linear)
-    rowsample::Float64 # subsample
+    min_weight::Float64
+    rowsample::Float64
     colsample::Float64
     nbins::Int
     alpha::Float64
-    monotone_constraints::Any
-    tree_type::String
-    rng::Any
+    monotone_constraints::Dict{Int,Int}
+    tree_type::Symbol
+    rng::AbstractRNG
+    device::Symbol
 end
 
 function EvoTreeCount(; kwargs...)
@@ -152,19 +139,21 @@ function EvoTreeCount(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :nrounds => 100,
+        :early_stopping_rounds => typemax(Int),
         :L2 => 0.0,
         :lambda => 0.0,
-        :gamma => 0.0, # min gain to split
-        :eta => 0.1, # learning rate
+        :gamma => 0.0,
+        :eta => 0.1,
         :max_depth => 6,
-        :min_weight => 1.0, # minimal weight, different from xgboost (but same for linear)
+        :min_weight => 1.0,
         :rowsample => 1.0,
         :colsample => 1.0,
         :nbins => 64,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
-        :tree_type => "binary",
+        :tree_type => :binary,
         :rng => 123,
+        :device => :cpu
     )
 
     args_ignored = setdiff(keys(kwargs), keys(args))
@@ -176,12 +165,19 @@ function EvoTreeCount(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
-    L = Poisson
+    loss = :poisson
+    metric = :poisson
+
+    tree_type = Symbol(args[:tree_type])
+    device = Symbol(args[:device])
+    rng = mk_rng(args[:rng])
     check_args(args)
 
-    model = EvoTreeCount{L}(
+    model = EvoTreeCount(
+        loss,
+        metric,
         args[:nrounds],
+        args[:early_stopping_rounds],
         args[:L2],
         args[:lambda],
         args[:gamma],
@@ -193,31 +189,32 @@ function EvoTreeCount(; kwargs...)
         args[:nbins],
         args[:alpha],
         args[:monotone_constraints],
-        args[:tree_type],
-        args[:rng],
+        tree_type,
+        rng,
+        device
     )
 
     return model
 end
 
-function EvoTreeCount{L}(; kwargs...) where {L}
-    EvoTreeCount(; kwargs...)
-end
-
-mutable struct EvoTreeClassifier{L<:ModelType} <: MMI.Probabilistic
+mutable struct EvoTreeClassifier <: MMI.Probabilistic
+    loss::Symbol
+    metric::Symbol
     nrounds::Int
+    early_stopping_rounds::Int
     L2::Float64
     lambda::Float64
     gamma::Float64
     eta::Float64
     max_depth::Int
-    min_weight::Float64 # real minimum number of observations, different from xgboost (but same for linear)
-    rowsample::Float64 # subsample
+    min_weight::Float64
+    rowsample::Float64
     colsample::Float64
     nbins::Int
     alpha::Float64
-    tree_type::String
-    rng::Any
+    tree_type::Symbol
+    rng::AbstractRNG
+    device::Symbol
 end
 
 function EvoTreeClassifier(; kwargs...)
@@ -225,18 +222,20 @@ function EvoTreeClassifier(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :nrounds => 100,
+        :early_stopping_rounds => typemax(Int),
         :L2 => 0.0,
         :lambda => 0.0,
-        :gamma => 0.0, # min gain to split
-        :eta => 0.1, # learning rate
+        :gamma => 0.0,
+        :eta => 0.1,
         :max_depth => 6,
-        :min_weight => 1.0, # minimal weight, different from xgboost (but same for linear)
+        :min_weight => 1.0,
         :rowsample => 1.0,
         :colsample => 1.0,
         :nbins => 64,
         :alpha => 0.5,
-        :tree_type => "binary",
+        :tree_type => :binary,
         :rng => 123,
+        :device => :cpu
     )
 
     args_ignored = setdiff(keys(kwargs), keys(args))
@@ -248,12 +247,19 @@ function EvoTreeClassifier(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
-    L = MLogLoss
+    loss = :mlogloss
+    metric = :mlogloss
+
+    tree_type = Symbol(args[:tree_type])
+    device = Symbol(args[:device])
+    rng = mk_rng(args[:rng])
     check_args(args)
 
-    model = EvoTreeClassifier{L}(
+    model = EvoTreeClassifier(
+        loss,
+        metric,
         args[:nrounds],
+        args[:early_stopping_rounds],
         args[:L2],
         args[:lambda],
         args[:gamma],
@@ -264,32 +270,33 @@ function EvoTreeClassifier(; kwargs...)
         args[:colsample],
         args[:nbins],
         args[:alpha],
-        args[:tree_type],
-        args[:rng],
+        tree_type,
+        rng,
+        device
     )
 
     return model
 end
 
-function EvoTreeClassifier{L}(; kwargs...) where {L}
-    EvoTreeClassifier(; kwargs...)
-end
-
-mutable struct EvoTreeMLE{L<:ModelType} <: MMI.Probabilistic
+mutable struct EvoTreeMLE <: MMI.Probabilistic
+    loss::Symbol
+    metric::Symbol
     nrounds::Int
+    early_stopping_rounds::Int
     L2::Float64
     lambda::Float64
     gamma::Float64
     eta::Float64
     max_depth::Int
-    min_weight::Float64 # real minimum number of observations, different from xgboost (but same for linear)
-    rowsample::Float64 # subsample
+    min_weight::Float64
+    rowsample::Float64
     colsample::Float64
     nbins::Int
     alpha::Float64
-    monotone_constraints::Any
-    tree_type::String
-    rng::Any
+    monotone_constraints::Dict{Int,Int}
+    tree_type::Symbol
+    rng::AbstractRNG
+    device::Symbol
 end
 
 function EvoTreeMLE(; kwargs...)
@@ -297,20 +304,23 @@ function EvoTreeMLE(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :loss => :gaussian_mle,
+        :metric => nothing,
         :nrounds => 100,
+        :early_stopping_rounds => typemax(Int),
         :L2 => 0.0,
         :lambda => 0.0,
-        :gamma => 0.0, # min gain to split
-        :eta => 0.1, # learning rate
+        :gamma => 0.0,
+        :eta => 0.1,
         :max_depth => 6,
-        :min_weight => 8.0, # minimal weight, different from xgboost (but same for linear)
+        :min_weight => 8.0,
         :rowsample => 1.0,
         :colsample => 1.0,
         :nbins => 64,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
-        :tree_type => "binary",
+        :tree_type => :binary,
         :rng => 123,
+        :device => :cpu
     )
 
     args_ignored = setdiff(keys(kwargs), keys(args))
@@ -322,23 +332,30 @@ function EvoTreeMLE(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
-    args[:loss] = Symbol(args[:loss])
-
-    if args[:loss] in [:gaussian, :gaussian_mle]
-        L = GaussianMLE
-    elseif args[:loss] in [:logistic, :logistic_mle]
-        L = LogisticMLE
-    else
-        error(
-            "Invalid loss: $(args[:loss]). Only `:gaussian_mle` and `:logistic_mle` are supported by EvoTreeMLE.",
-        )
+    _loss_list = [:gaussian_mle, :logistic_mle]
+    loss = Symbol(args[:loss])
+    if loss ∉ _loss_list
+        error("Invalid loss. Must be one of: $_loss_list")
     end
 
+    _metric_list = [:gaussian_mle, :logistic_mle]
+    if isnothing(args[:metric])
+        metric = loss
+    end
+    if metric ∉ _metric_list
+        error("Invalid metric. Must be one of: $_metric_list")
+    end
+
+    tree_type = Symbol(args[:tree_type])
+    device = Symbol(args[:device])
+    rng = mk_rng(args[:rng])
     check_args(args)
 
-    model = EvoTreeMLE{L}(
+    model = EvoTreeMLE(
+        loss,
+        metric,
         args[:nrounds],
+        args[:early_stopping_rounds],
         args[:L2],
         args[:lambda],
         args[:gamma],
@@ -350,57 +367,54 @@ function EvoTreeMLE(; kwargs...)
         args[:nbins],
         args[:alpha],
         args[:monotone_constraints],
-        args[:tree_type],
-        args[:rng],
+        tree_type,
+        rng,
+        device
     )
 
     return model
 end
 
-function EvoTreeMLE{L}(; kwargs...) where {L}
-    if L == GaussianMLE
-        loss = :gaussian_mle
-    elseif L == LogisticMLE
-        loss = :logistic_mle
-    end
-    EvoTreeMLE(; loss=loss, kwargs...)
-end
-
-
-mutable struct EvoTreeGaussian{L<:ModelType} <: MMI.Probabilistic
+mutable struct EvoTreeGaussian <: MMI.Probabilistic
+    loss::Symbol
+    metric::Symbol
     nrounds::Int
+    early_stopping_rounds::Int
     L2::Float64
     lambda::Float64
     gamma::Float64
     eta::Float64
     max_depth::Int
-    min_weight::Float64 # real minimum number of observations, different from xgboost (but same for linear)
-    rowsample::Float64 # subsample
+    min_weight::Float64
+    rowsample::Float64
     colsample::Float64
     nbins::Int
     alpha::Float64
-    monotone_constraints::Any
-    tree_type::String
-    rng::Any
+    monotone_constraints::Dict{Int,Int}
+    tree_type::Symbol
+    rng::AbstractRNG
+    device::Symbol
 end
 function EvoTreeGaussian(; kwargs...)
 
     # defaults arguments
     args = Dict{Symbol,Any}(
         :nrounds => 100,
+        :early_stopping_rounds => typemax(Int),
         :L2 => 0.0,
         :lambda => 0.0,
-        :gamma => 0.0, # min gain to split
-        :eta => 0.1, # learning rate
+        :gamma => 0.0,
+        :eta => 0.1,
         :max_depth => 6,
-        :min_weight => 8.0, # minimal weight, different from xgboost (but same for linear)
+        :min_weight => 8.0,
         :rowsample => 1.0,
         :colsample => 1.0,
         :nbins => 64,
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
-        :tree_type => "binary",
+        :tree_type => :binary,
         :rng => 123,
+        :device => :cpu
     )
 
     args_ignored = setdiff(keys(kwargs), keys(args))
@@ -412,12 +426,19 @@ function EvoTreeGaussian(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    args[:rng] = mk_rng(args[:rng])
-    L = GaussianMLE
+    loss = :gaussian_mle
+    metric = :gaussian_mle
+
+    tree_type = Symbol(args[:tree_type])
+    device = Symbol(args[:device])
+    rng = mk_rng(args[:rng])
     check_args(args)
 
-    model = EvoTreeGaussian{L}(
+    model = EvoTreeGaussian(
+        loss,
+        metric,
         args[:nrounds],
+        args[:early_stopping_rounds],
         args[:L2],
         args[:lambda],
         args[:gamma],
@@ -429,26 +450,21 @@ function EvoTreeGaussian(; kwargs...)
         args[:nbins],
         args[:alpha],
         args[:monotone_constraints],
-        args[:tree_type],
-        args[:rng],
+        tree_type,
+        rng,
+        device
     )
 
     return model
 end
 
-function EvoTreeGaussian{L}(; kwargs...) where {L}
-    EvoTreeGaussian(; kwargs...)
-end
-
-const EvoTypes{L} = Union{
-    EvoTreeRegressor{L},
-    EvoTreeCount{L},
-    EvoTreeClassifier{L},
-    EvoTreeGaussian{L},
-    EvoTreeMLE{L},
+const EvoTypes = Union{
+    EvoTreeRegressor,
+    EvoTreeCount,
+    EvoTreeClassifier,
+    EvoTreeGaussian,
+    EvoTreeMLE,
 }
-
-_get_struct_loss(::EvoTypes{L}) where {L} = L
 
 function Base.show(io::IO, config::EvoTypes)
     println(io, "$(typeof(config))")
@@ -506,12 +522,12 @@ function check_args(args::Dict{Symbol,Any})
 end
 
 """
-    check_args(model::EvoTypes{L}) where {L}
+    check_args(model::EvoTypes)
 
 Check model arguments if they are valid (eg, after mutation when tuning hyperparams)
 Note: does not check consistency of model type and loss selected
 """
-function check_args(model::EvoTypes{L}) where {L}
+function check_args(model::EvoTypes)
 
     # Check integer parameters
     check_parameter(Int, model.max_depth, 1, typemax(Int), :max_depth)
@@ -535,4 +551,5 @@ function check_args(model::EvoTypes{L}) where {L}
     catch
         error("Invalid input for `tree_type` parameter: `$(model.tree_type)`. Must be of one of `binary` or `oblivious`")
     end
+    return nothing
 end

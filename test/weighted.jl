@@ -18,57 +18,51 @@ train_size = 0.8
 𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
 
 x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
-Y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
+y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
 w_train = W[𝑖_train]
 w_eval = W[𝑖_eval]
 
-# linear - no weights
+# mse - no weights
 params1 = EvoTreeRegressor(T=Float32, device="cpu",
-    loss=:linear, metric=:mse,
+    loss=:mse, metric=:mse,
     nrounds=100, nbins=100,
     lambda=0.0, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=0.0,
     rowsample=0.5, colsample=1.0, rng=seed)
 
-model, cache = EvoTrees.init_evotree(params1, X_train, Y_train)
 model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
-preds_no_weight = predict(model, X_train)
+preds_no_weight = predict(model, x_train)
 
-# linear - weighted
+# mse - weighted
 params1 = EvoTreeRegressor(T=Float32, device="cpu",
-    loss=:linear, metric=:mse,
+    loss=:mse, metric=:mse,
     nrounds=100, nbins=100,
     lambda=0.0, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=0.0,
     rowsample=0.5, colsample=1.0, rng=seed)
 
-model, cache = EvoTrees.init_evotree(params1, X_train, Y_train, W_train)
 model = fit_evotree(params1; x_train, y_train, w_train, x_eval, y_eval, print_every_n=25);
-preds_weighted_1 = predict(model, X_train)
+preds_weighted_1 = predict(model, x_train)
 
 params1 = EvoTreeRegressor(T=Float32, device="cpu",
-    loss=:linear, metric=:mse,
+    loss=:mse, metric=:mse,
     nrounds=100, nbins=100,
     lambda=0.0, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=0.0,
     rowsample=0.5, colsample=1.0, rng=seed)
-
-model, cache = EvoTrees.init_evotree(params1, X_train, Y_train, W_train)
 model = fit_evotree(params1; x_train, y_train, w_train, x_eval, y_eval, w_eval, print_every_n=25);
-preds_weighted_2 = predict(model, X_train)
+preds_weighted_2 = predict(model, x_train)
 
 params1 = EvoTreeRegressor(T=Float32, device="cpu",
-    loss=:linear, metric=:mse,
+    loss=:mse, metric=:mse,
     nrounds=100, nbins=100,
     lambda=0.0, gamma=0.1, eta=0.05,
     max_depth=6, min_weight=0.0,
     rowsample=0.5, colsample=1.0, rng=seed)
 
 w_train_3 = ones(eltype(Y_train), size(Y_train)) .* 5
-
-model, cache = EvoTrees.init_evotree(params1, X_train, Y_train, W_train_3)
 model = fit_evotree(params1; x_train, y_train, w_train=w_train_3, x_eval, y_eval, print_every_n=25);
-preds_weighted_3 = predict(model, X_train)
+preds_weighted_3 = predict(model, x_train)
 
 sum(abs.(preds_no_weight .- preds_weighted_3))
 cor(preds_no_weight, preds_weighted_3)

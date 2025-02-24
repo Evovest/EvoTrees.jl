@@ -67,6 +67,7 @@ Then, we use [`fit_evotree`](@ref) to train a boosted tree model. The optional `
 ```julia
 config = EvoTreeRegressor(
     nrounds=6000,
+    early_stopping_rounds=200,
     loss=:mse,
     eta=0.02,
     nbins=64,
@@ -75,16 +76,13 @@ config = EvoTreeRegressor(
     colsample=0.9,
 )
 
-m_mse, logger_mse = fit_evotree(
+m_mse, logger_mse = fit(
     config;
     x_train=x_train,
     y_train=y_train,
     x_eval=x_eval,
     y_eval=y_eval,
-    early_stopping_rounds=200,
     print_every_n=50,
-    metric=:mse,
-    return_logger=true
 );
 
 p_test = m_mse(x_test);
@@ -139,6 +137,7 @@ y_test = dtest[:y] ./ max_rank
 
 config = EvoTreeRegressor(
     nrounds=6000,
+    early_stopping_rounds=200,
     loss=:logloss,
     eta=0.01,
     nbins=64,
@@ -153,10 +152,7 @@ m_logloss, logger_logloss = fit_evotree(
     y_train=y_train,
     x_eval=x_eval,
     y_eval=y_eval,
-    early_stopping_rounds=200,
     print_every_n=50,
-    metric=:logloss,
-    return_logger=true
 );
 ```
 

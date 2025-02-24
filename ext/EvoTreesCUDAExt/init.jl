@@ -1,10 +1,12 @@
-function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}, data, fnames, y_train, w, offset) where {L}
+function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, data, feature_names, y_train, w, offset)
 
     # binarize data into quantiles
-    edges, featbins, feattypes = EvoTrees.get_edges(data; fnames, nbins=params.nbins, rng=params.rng)
-    x_bin = CuArray(EvoTrees.binarize(data; fnames, edges))
+    edges, featbins, feattypes = EvoTrees.get_edges(data; feature_names, nbins=params.nbins, rng=params.rng)
+    x_bin = CuArray(EvoTrees.binarize(data; feature_names, edges))
     nobs, nfeats = size(x_bin)
+
     T = Float32
+    L = EvoTrees._loss2type_dict[params.loss]
 
     target_levels = nothing
     target_isordered = false
@@ -89,7 +91,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
 
     # model info
     info = Dict(
-        :fnames => fnames,
+        :feature_names => feature_names,
         :target_levels => target_levels,
         :target_isordered => target_isordered,
         :edges => edges,
@@ -100,34 +102,37 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
     # initialize model
     nodes = [EvoTrees.TrainNode(featbins, K, view(is_in, 1:0)) for n = 1:2^params.max_depth-1]
     bias = [EvoTrees.Tree{L,K}(μ)]
-    m = EvoTree{L,K}(bias, info)
+    m = EvoTree{L,K}(L, K, bias, info)
 
     # build cache
-    cache = (
-        info=Dict(:nrounds => 0),
-        x_bin=x_bin,
-        y=y,
-        w=w,
-        K=K,
-        nodes=nodes,
-        pred=pred,
-        is_in=is_in,
-        is_out=is_out,
-        mask=mask,
-        js_=js_,
-        js=js,
-        out=out,
-        left=left,
-        right=right,
-        ∇=∇,
-        h∇=h∇,
-        h∇_cpu=h∇_cpu,
-        fnames=fnames,
-        edges=edges,
-        featbins=featbins,
-        feattypes=feattypes,
-        feattypes_gpu=CuArray(feattypes),
-        monotone_constraints=monotone_constraints,
+    nrounds = 0
+    Y = typeof(y)
+    N = typeof(nodes)
+    feattypes_gpu = CuArray(feattypes)
+    cache = CacheBaseGPU{Y,N}(
+        nrounds,
+        K,
+        x_bin,
+        y,
+        w,
+        pred,
+        nodes,
+        is_in,
+        is_out,
+        mask,
+        js_,
+        js,
+        out,
+        left,
+        right,
+        ∇,
+        h∇,
+        h∇_cpu,
+        feature_names,
+        featbins,
+        feattypes,
+        feattypes_gpu,
+        monotone_constraints,
     )
     return m, cache
 end

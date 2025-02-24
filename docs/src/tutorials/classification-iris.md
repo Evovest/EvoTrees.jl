@@ -26,7 +26,7 @@ Random.seed!(123)
 
 df[!, :class] = categorical(df[!, :class])
 target_name = "class"
-fnames = setdiff(names(df), [target_name])
+feature_names = setdiff(names(df), [target_name])
 
 train_ratio = 0.8
 train_indices = randperm(nrow(df))[1:Int(train_ratio * nrow(df))]
@@ -43,35 +43,34 @@ Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass 
 ```julia
 config = EvoTreeClassifier(
     nrounds=200, 
+    early_stopping_rounds=10,
     eta=0.05, 
     max_depth=5, 
     lambda=0.1, 
     rowsample=0.8, 
     colsample=0.8)
 
-model = fit_evotree(config, dtrain;
+model = fit(config, dtrain;
     target_name,
-    fnames,
+    feature_names,
     deval,
-    metric = :mlogloss,
-    early_stopping_rounds=10,
     print_every_n=10)
 ```
 
 Finally, we can get predictions by passing training and testing data to our model. We can then evaluate the accuracy of our model, which should be near 100% for this simple classification problem. 
 
 ```julia
-pred_train = model(x_train)
+pred_train = model(dtrain)
 idx_train = [findmax(row)[2] for row in eachrow(pred_train)]
 
-pred_eval = model(x_eval)
+pred_eval = model(deval)
 idx_eval = [findmax(row)[2] for row in eachrow(pred_eval)]
 ```
 
 ```julia-repl
-julia> mean(idx_train .== levelcode.(y_train))
+julia> mean(idx_train .== levelcode.(dtrain[:, target_name]))
 1.0
 
-julia> mean(idx_eval .== levelcode.(y_eval))
+julia> mean(idx_eval .== levelcode.(deval[:, target_name]))
 0.9333333333333333
 ```

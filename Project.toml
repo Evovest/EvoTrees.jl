@@ -1,11 +1,10 @@
 name = "EvoTrees"
 uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
 authors = ["jeremiedb <jeremie.db@evovest.com>"]
-version = "0.16.9"
+version = "0.17.0"
 
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 MLJModelInterface = "e80e1ace-859a-464e-9ed9-23947d8ae3ea"
@@ -34,16 +33,14 @@ RecipesBase = "1"
 Statistics = "1"
 StatsBase = "0.32, 0.33, 0.34"
 Tables = "1.9"
-julia = "1.6"
+julia = "1.9"
 
 [extras]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 MLJBase = "a7f614a8-145f-11e9-1d2a-a57a1082229d"
 MLJTestInterface = "72560011-54dd-4dc2-94f3-c5de45b75ecd"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-docs = ["Documenter"]
 test = ["CUDA", "DataFrames", "Test", "MLJBase", "MLJTestInterface"]

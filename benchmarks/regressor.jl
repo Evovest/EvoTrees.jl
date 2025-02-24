@@ -8,27 +8,17 @@ using EvoTrees
 using BenchmarkTools
 using Random: seed!
 
-### v.0.15.1
-# desktop | 1e6 | depth 11 | cpu: 37.2s
-# desktop | 10e6 | depth 11 | cpu
-
-### v0.16.5
-# desktop | 1e6 | depth 11 | cpu: 31s gpu: 50 sec  | xgboost cpu: 26s
-# desktop | 10e6 | depth 11 | cpu 200s gpu: 80 sec | xgboost cpu: 267s
-
-### gpu-hist
-# desktop | 1e6 | depth 11 | cpu: Xs gpu: Xs  | xgboost cpu: Xs
-# desktop | 10e6 | depth 11 | cpu Xs gpu: Xs | xgboost cpu: Xs
-
 run_evo = true
 run_xgb = true
-max_nrounds = 200
-tree_type = "binary"
-T = Float64
+nrounds = 200
+
+loss = :mse
+tree_type = :binary
+T = Float32
 nthreads = Base.Threads.nthreads()
 
-device_list = ["cpu", "gpu"]
-# device_list = ["gpu"]
+device_list = [:cpu, :gpu]
+# device_list = [:gpu]
 
 nobs_list = Int.([1e5, 1e6, 1e7])
 # nobs_list = Int.([1e4, 1e5])
@@ -38,7 +28,6 @@ nfeats_list = [10, 100]
 
 max_depth_list = [6, 11]
 # max_depth_list = [6]
-
 
 for device in device_list
     df = DataFrame()
@@ -52,52 +41,39 @@ for device in device_list
                     :nfeats => nfeats,
                     :max_depth => max_depth)
 
-                @info "device: $device | nobs: $nobs | nfeats: $nfeats | max_depth : $max_depth | nthreads: $nthreads | tree_type : $tree_type"
+                @info "device: $device | nobs: $nobs | nfeats: $nfeats | max_depth : $max_depth | nthreads: $nthreads"
                 seed!(123)
                 x_train = rand(T, nobs, nfeats)
                 y_train = rand(T, size(x_train, 1))
 
-                loss = "mse"
-                if loss == "mse"
-                    loss_xgb = "reg:squarederror"
-                    metric_xgb = "mae"
-                    loss_evo = :mse
-                    metric_evo = :mae
-                elseif loss == "logloss"
-                    loss_xgb = "reg:logistic"
-                    metric_xgb = "logloss"
-                    loss_evo = :logloss
-                    metric_evo = :logloss
-                end
-                tree_method = device == "gpu" ? "gpu_hist" : "hist"
-
                 if run_evo
                     @info "EvoTrees"
-                    verbosity = 1
 
                     params_evo = EvoTreeRegressor(;
-                        loss=loss_evo,
-                        nrounds=max_nrounds,
-                        alpha=0.5,
+                        loss,
+                        nrounds,
+                        max_depth,
                         lambda=0.0,
                         gamma=0.0,
                         eta=0.05,
-                        max_depth=max_depth,
                         min_weight=1.0,
                         rowsample=0.5,
                         colsample=0.5,
                         nbins=64,
                         tree_type,
-                        rng=123
+                        rng=123,
+                        device
                     )
 
-                    @info "train - eval"
-                    @time m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100)
-                    t_train_evo = @elapsed m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=metric_evo, device, verbosity, print_every_n=100)
-
-                    @info "predict"
-                    @time pred_evo = m_evo(x_train; device)
+                    if nobs == first(nobs_list) && nfeats == first(nfeats_list) && max_depth == first(max_depth_list)
+                        @info "warmup"
+                        _m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, print_every_n=100)
+                        _m_evo(x_train; device)
+                    end
+                    t_train_evo = @elapsed m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, print_every_n=100)
+                    @info "train" t_train_evo
                     t_infer_evo = @elapsed pred_evo = m_evo(x_train; device)
+                    @info "predict" t_infer_evo
 
                     _df = hcat(_df, DataFrame(
                         :train_evo => t_train_evo,
@@ -107,8 +83,17 @@ for device in device_list
 
                 if run_xgb
                     @info "XGBoost"
+                    if loss == :mse
+                        loss_xgb = "reg:squarederror"
+                        metric_xgb = "mae"
+                    elseif loss == :logloss
+                        loss_xgb = "reg:logistic"
+                        metric_xgb = "logloss"
+                    end
+                    tree_method = device == :gpu ? "gpu_hist" : "hist"
+
                     params_xgb = Dict(
-                        :num_round => max_nrounds,
+                        :num_round => nrounds,
                         :max_depth => max_depth - 1,
                         :eta => 0.05,
                         :objective => loss_xgb,
@@ -119,14 +104,18 @@ for device in device_list
                         :max_bin => 64,
                     )
 
-                    @info "train"
                     dtrain = DMatrix(x_train, y_train)
                     watchlist = Dict("train" => DMatrix(x_train, y_train))
-                    m_xgb = xgboost(dtrain; watchlist, nthread=nthreads, verbosity=0, eval_metric=metric_xgb, params_xgb...)
+
+                    @info "warmup"
+                    if nobs == first(nobs_list) && nfeats == first(nfeats_list) && max_depth == first(max_depth_list)
+                        _m_xgb = xgboost(dtrain; watchlist, nthread=nthreads, verbosity=0, eval_metric=metric_xgb, params_xgb...)
+                        XGBoost.predict(_m_xgb, x_train)
+                    end
                     t_train_xgb = @elapsed m_xgb = xgboost(dtrain; watchlist, nthread=nthreads, verbosity=0, eval_metric=metric_xgb, params_xgb...)
-                    @info "predict"
-                    pred_xgb = XGBoost.predict(m_xgb, x_train)
+                    @info "train" t_train_xgb
                     t_infer_xgb = @elapsed pred_xgb = XGBoost.predict(m_xgb, x_train)
+                    @info "predict" t_infer_xgb
 
                     _df = hcat(_df, DataFrame(
                         :train_xgb => t_train_xgb,

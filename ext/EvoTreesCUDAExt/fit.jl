@@ -1,7 +1,7 @@
-function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}) where {L,K}
+function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache::EvoTrees.CacheGPU, params::EvoTrees.EvoTypes) where {L,K}
 
     # compute gradients
-    EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, params)
+    EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, L, params)
     # subsample rows
     cache.nodes[1].is =
         EvoTrees.subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
@@ -16,7 +16,6 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.E
         cache.nodes,
         params,
         cache.∇,
-        cache.edges,
         cache.js,
         cache.out,
         cache.left,
@@ -29,7 +28,7 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.E
     )
     push!(evotree.trees, tree)
     EvoTrees.predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
-    cache[:info][:nrounds] += 1
+    cache.nrounds += 1
     return nothing
 end
 
@@ -37,9 +36,8 @@ end
 function grow_tree!(
     tree::EvoTrees.Tree{L,K},
     nodes::Vector{N},
-    params::EvoTrees.EvoTypes{L},
+    params::EvoTrees.EvoTypes,
     ∇::CuMatrix,
-    edges,
     js,
     out,
     left,
@@ -68,7 +66,7 @@ function grow_tree!(
 
     # initialize summary stats
     nodes[1].∑ .= Vector(vec(sum(∇[:, nodes[1].is], dims=2)))
-    nodes[1].gain = EvoTrees.get_gain(params, nodes[1].∑) # should use a GPU version?
+    nodes[1].gain = EvoTrees.get_gain(L, params, nodes[1].∑) # should use a GPU version?
 
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
@@ -93,13 +91,17 @@ function grow_tree!(
                 end
             end
             Threads.@threads for n ∈ sort(n_current)
-                EvoTrees.update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
+                EvoTrees.update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
             end
         end
 
         for n ∈ sort(n_current)
             if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
-                EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
+                if L <: EvoTrees.Quantile
+                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
+                else
+                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                end
             else
                 best = findmax(findmax.(nodes[n].gains))
                 best_gain = best[1][1]
@@ -109,7 +111,6 @@ function grow_tree!(
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
-                    tree.cond_float[n] = edges[tree.feat[n]][tree.cond_bin[n]]
                     tree.split[n] = best_bin != 0
 
                     _left, _right = split_set_threads_gpu!(
@@ -128,8 +129,8 @@ function grow_tree!(
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
                     nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
-                    nodes[n<<1].gain = EvoTrees.get_gain(params, nodes[n<<1].∑)
-                    nodes[n<<1+1].gain = EvoTrees.get_gain(params, nodes[n<<1+1].∑)
+                    nodes[n<<1].gain = EvoTrees.get_gain(L, params, nodes[n<<1].∑)
+                    nodes[n<<1+1].gain = EvoTrees.get_gain(L, params, nodes[n<<1+1].∑)
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
@@ -139,7 +140,11 @@ function grow_tree!(
                         push!(n_next, n << 1)
                     end
                 else
-                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
+                    if L <: EvoTrees.Quantile
+                        EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
+                    else
+                        EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                    end
                 end
             end
         end
@@ -155,9 +160,8 @@ end
 function grow_otree!(
     tree::EvoTrees.Tree{L,K},
     nodes::Vector{N},
-    params::EvoTrees.EvoTypes{L},
+    params::EvoTrees.EvoTypes,
     ∇::CuMatrix,
-    edges,
     js,
     out,
     left,
@@ -186,7 +190,7 @@ function grow_otree!(
 
     # initialize summary stats
     nodes[1].∑ .= Vector(vec(sum(∇[:, nodes[1].is], dims=2)))
-    nodes[1].gain = EvoTrees.get_gain(params, nodes[1].∑) # should use a GPU version?
+    nodes[1].gain = EvoTrees.get_gain(L, params, nodes[1].∑) # should use a GPU version?
 
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
@@ -199,8 +203,11 @@ function grow_otree!(
         end
         if depth == params.max_depth || min_weight_flag
             for n in n_current
-                # @info "length(nodes[n].is)" length(nodes[n].is) depth n
-                EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
+                if L <: EvoTrees.Quantile
+                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
+                else
+                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                end
             end
         else
             # update histograms
@@ -221,7 +228,7 @@ function grow_otree!(
                 end
             end
             Threads.@threads for n ∈ n_current
-                EvoTrees.update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
+                EvoTrees.update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
             end
 
             # initialize gains for node 1 in which all gains of a given depth will be accumulated
@@ -257,7 +264,6 @@ function grow_otree!(
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
-                    tree.cond_float[n] = edges[best_feat][best_bin]
                     tree.split[n] = best_bin != 0
 
                     _left, _right = split_set_threads_gpu!(
@@ -276,8 +282,8 @@ function grow_otree!(
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
                     nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
-                    nodes[n<<1].gain = EvoTrees.get_gain(params, nodes[n<<1].∑)
-                    nodes[n<<1+1].gain = EvoTrees.get_gain(params, nodes[n<<1+1].∑)
+                    nodes[n<<1].gain = EvoTrees.get_gain(L, params, nodes[n<<1].∑)
+                    nodes[n<<1+1].gain = EvoTrees.get_gain(L, params, nodes[n<<1+1].∑)
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
@@ -289,7 +295,11 @@ function grow_otree!(
                 end
             else
                 for n in n_current
-                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params, ∇, nodes[n].is)
+                    if L <: EvoTrees.Quantile
+                        EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
+                    else
+                        EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                    end
                 end
             end
         end

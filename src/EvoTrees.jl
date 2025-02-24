@@ -1,13 +1,12 @@
 module EvoTrees
 
-export fit_evotree
+# export fit_evotree
 export EvoTreeRegressor,
     EvoTreeCount,
     EvoTreeClassifier,
     EvoTreeMLE,
     EvoTreeGaussian,
-    EvoTree,
-    Random
+    EvoTree
 
 using Base.Threads: @threads, @spawn, nthreads, threadid
 using Statistics
@@ -25,23 +24,23 @@ using RecipesBase
 
 using MLJModelInterface
 import MLJModelInterface as MMI
-import MLJModelInterface: fit, update, predict, schema
+import MLJModelInterface: fit, update, predict, schema, feature_importances
 import Base: convert
+import Base: depwarn
 
-include("models.jl")
-
-include("structs.jl")
+include("learners.jl")
 include("loss.jl")
-include("eval.jl")
+include("metrics.jl")
+include("structs.jl")
 include("predict.jl")
 include("init.jl")
 include("subsample.jl")
 include("fit-utils.jl")
 include("fit.jl")
 
-if !isdefined(Base, :get_extension)
-    include("../ext/EvoTreesCUDAExt/EvoTreesCUDAExt.jl")
-end
+# if !isdefined(Base, :get_extension)
+#     include("../ext/EvoTreesCUDAExt/EvoTreesCUDAExt.jl")
+# end
 
 include("callback.jl")
 include("importance.jl")

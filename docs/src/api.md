@@ -3,7 +3,7 @@
 ## fit_evotree
 
 ```@docs
-fit_evotree
+EvoTrees.fit
 ```
 
 ## predict
@@ -16,4 +16,10 @@ EvoTrees.predict
 
 ```@docs
 EvoTrees.importance
+```
+
+## Deprecated
+
+```@docs
+EvoTrees.fit_evotree
 ```
