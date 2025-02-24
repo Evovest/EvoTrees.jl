@@ -10,7 +10,7 @@ df = MLDatasets.Iris().dataframe</code></pre><h2 id="Preprocessing"><a class="do
 
 df[!, :class] = categorical(df[!, :class])
 target_name = &quot;class&quot;
-fnames = setdiff(names(df), [target_name])
+feature_names = setdiff(names(df), [target_name])
 
 train_ratio = 0.8
 train_indices = randperm(nrow(df))[1:Int(train_ratio * nrow(df))]
@@ -18,24 +18,23 @@ train_indices = randperm(nrow(df))[1:Int(train_ratio * nrow(df))]
 dtrain = df[train_indices, :]
 deval = df[setdiff(1:nrow(df), train_indices), :]</code></pre><h2 id="Training"><a class="docs-heading-anchor" href="#Training">Training</a><a id="Training-1"></a><a class="docs-heading-anchor-permalink" href="#Training" title="Permalink"></a></h2><p>Now we are ready to train our model. We will first define a model configuration using the <a href="../../models/#EvoTreeClassifier"><code>EvoTreeClassifier</code></a> model constructor.  Then, we&#39;ll use <a href="../../api/#fit_evotree"><code>fit_evotree</code></a> to train a boosted tree model. We&#39;ll pass optional <code>x_eval</code> and <code>y_eval</code> arguments, which enable the usage of early stopping. </p><pre><code class="language-julia hljs">config = EvoTreeClassifier(
     nrounds=200, 
+    early_stopping_rounds=10,
     eta=0.05, 
     max_depth=5, 
     lambda=0.1, 
     rowsample=0.8, 
     colsample=0.8)
 
-model = fit_evotree(config, dtrain;
+model = fit(config, dtrain;
     target_name,
-    fnames,
+    feature_names,
     deval,
-    metric = :mlogloss,
-    early_stopping_rounds=10,
-    print_every_n=10)</code></pre><p>Finally, we can get predictions by passing training and testing data to our model. We can then evaluate the accuracy of our model, which should be near 100% for this simple classification problem. </p><pre><code class="language-julia hljs">pred_train = model(x_train)
+    print_every_n=10)</code></pre><p>Finally, we can get predictions by passing training and testing data to our model. We can then evaluate the accuracy of our model, which should be near 100% for this simple classification problem. </p><pre><code class="language-julia hljs">pred_train = model(dtrain)
 idx_train = [findmax(row)[2] for row in eachrow(pred_train)]
 
-pred_eval = model(x_eval)
-idx_eval = [findmax(row)[2] for row in eachrow(pred_eval)]</code></pre><pre><code class="language-julia-repl hljs">julia&gt; mean(idx_train .== levelcode.(y_train))
+pred_eval = model(deval)
+idx_eval = [findmax(row)[2] for row in eachrow(pred_eval)]</code></pre><pre><code class="language-julia-repl hljs">julia&gt; mean(idx_train .== levelcode.(dtrain[:, target_name]))
 1.0
 
-julia&gt; mean(idx_eval .== levelcode.(y_eval))
-0.9333333333333333</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../logistic-regression-titanic/">« Logistic Regression - Titanic</a><a class="docs-footer-nextpage" href="../ranking-LTRC/">Ranking - Yahoo! LTRC »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.8.0 on <span class="colophon-date" title="Thursday 23 January 2025 03:00">Thursday 23 January 2025</span>. Using Julia version 1.11.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+julia&gt; mean(idx_eval .== levelcode.(deval[:, target_name]))
+0.9333333333333333</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../logistic-regression-titanic/">« Logistic Regression - Titanic</a><a class="docs-footer-nextpage" href="../ranking-LTRC/">Ranking - Yahoo! LTRC »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.8.1 on <span class="colophon-date" title="Monday 24 February 2025 05:18">Monday 24 February 2025</span>. Using Julia version 1.11.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
