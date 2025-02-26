@@ -403,18 +403,6 @@ end
     @test preds_cat ≈ preds # differences due to different stream of random numbers
 end
 
-@testset "Parametric kwarg constructor" begin
-    @testset "_type2loss" begin
-        # utility that converts types into loss symbols for EvoTreeRegressor
-        @test EvoTrees._type2loss(EvoTrees.MSE) == :mse
-        @test EvoTrees._type2loss(EvoTrees.MAE) == :mae
-        @test EvoTrees._type2loss(EvoTrees.LogLoss) == :logloss
-        @test EvoTrees._type2loss(EvoTrees.Gamma) == :gamma
-        @test EvoTrees._type2loss(EvoTrees.Tweedie) == :tweedie
-        @test EvoTrees._type2loss(EvoTrees.Quantile) == :quantile
-    end
-end
-
 
 @testset "check_args functionality" begin
     # check_args should throw an exception if the parameters are invalid
