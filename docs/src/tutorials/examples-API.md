@@ -10,6 +10,7 @@ Minimal example to fit a noisy sinus wave.
 
 ```julia
 using EvoTrees
+using EvoTrees: fit
 using EvoTrees: sigmoid, logit
 using StatsBase: sample
 
@@ -48,7 +49,7 @@ config = EvoTreeRegressor(
     max_depth=6, min_weight=1.0,
     rowsample=0.5, colsample=1.0)
 
-model = fit_evotree(config; x_train, y_train, x_eval, y_eval, print_every_n=25)
+model = fit(config; x_train, y_train, x_eval, y_eval, print_every_n=25)
 pred_eval_logistic = model(x_eval)
 
 # L1

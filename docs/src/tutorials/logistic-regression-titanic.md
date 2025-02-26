@@ -10,7 +10,7 @@ To begin, we will load the required packages and the dataset:
 using EvoTrees
 using MLDatasets
 using DataFrames
-using Statistics: mean
+using Statistics: mean, median
 using CategoricalArrays
 using Random
 
@@ -71,7 +71,7 @@ config = EvoTreeRegressor(
   rowsample=0.5, 
   colsample=0.9)
 
-model = fit(
+model = EvoTrees.fit(
     config, dtrain; 
     deval,
     target_name,
