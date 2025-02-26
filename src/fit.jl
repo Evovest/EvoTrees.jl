@@ -361,10 +361,6 @@ function fit(
     # initialize callback and logger if tracking eval data
     metric = params.metric
     logging_flag = !isnothing(deval)
-    any_flag = !isnothing(deval)
-    if !logging_flag && any_flag
-        @warn "To track eval metric in logger, `deval` must be provided."
-    end
     if logging_flag
         deval = Tables.columntable(deval)
         cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name)
