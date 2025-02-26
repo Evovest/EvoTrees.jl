@@ -57,10 +57,11 @@ config = EvoTreeClassifier(
     gamma=0.0,
     nbins=64,
     nrounds=500,
-    early_stopping_rounds=25
+    early_stopping_rounds=25,
+    device=:gpu
 )
-model = fit_evotree(config; x_train, y_train);
-model = fit_evotree(config; x_train, y_train, x_eval=x_train, y_eval=y_train, print_every_n=10);
+model = EvoTrees.fit(config; x_train, y_train);
+model = EvoTrees.fit(config; x_train, y_train, x_eval=x_train, y_eval=y_train, print_every_n=10);
 
 pred = model(x_train)
 pred_cat = pred .> 0.5
