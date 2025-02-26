@@ -49,7 +49,7 @@ config = EvoTreeRegressor(
     rowsample=0.9, 
     colsample=0.9)
 
-model = fit(config;
+model = EvoTrees.fit(config;
     x_train, y_train,
     x_eval, y_eval,
     print_every_n=10)

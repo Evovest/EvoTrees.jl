@@ -358,14 +358,8 @@ function fit(
     _device = params.device == :gpu ? GPU : CPU
     m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name)
 
-    # initialize callback and logger if tracking eval data
-    metric = params.metric
-    logging_flag = !isnothing(deval)
-    any_flag = !isnothing(deval)
-    if !logging_flag && any_flag
-        @warn "To track eval metric in logger, `deval` must be provided."
-    end
-    if logging_flag
+    # initialize callback and logger if deval is provided
+    if !isnothing(deval)
         deval = Tables.columntable(deval)
         cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name)
         logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds)
