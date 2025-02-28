@@ -89,6 +89,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
 
     # model info
     info = Dict(
+        :nrounds => 0
         :feature_names => feature_names,
         :target_levels => target_levels,
         :target_isordered => target_isordered,
@@ -103,11 +104,9 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     m = EvoTree{L,K}(L, K, bias, info)
 
     # build cache
-    nrounds = 0
     Y = typeof(y)
     N = typeof(nodes)
     cache = CacheBaseCPU{Y,N}(
-        nrounds,
         K,
         x_bin,
         y,

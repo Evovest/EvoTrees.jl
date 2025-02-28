@@ -91,6 +91,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
 
     # model info
     info = Dict(
+        :nrounds => 0,
         :feature_names => feature_names,
         :target_levels => target_levels,
         :target_isordered => target_isordered,
@@ -105,12 +106,10 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     m = EvoTree{L,K}(L, K, bias, info)
 
     # build cache
-    nrounds = 0
     Y = typeof(y)
     N = typeof(nodes)
     feattypes_gpu = CuArray(feattypes)
     cache = CacheBaseGPU{Y,N}(
-        nrounds,
         K,
         x_bin,
         y,

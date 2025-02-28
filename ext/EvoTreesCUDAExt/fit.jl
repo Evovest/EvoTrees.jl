@@ -1,4 +1,4 @@
-function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache::EvoTrees.CacheGPU, params::EvoTrees.EvoTypes) where {L,K}
+function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, params::EvoTrees.EvoTypes) where {L,K}
 
     # compute gradients
     EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, L, params)
@@ -28,7 +28,7 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache::EvoTrees.CacheGPU,
     )
     push!(evotree.trees, tree)
     EvoTrees.predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
-    cache.nrounds += 1
+    m.info[:nrounds] += 1
     return nothing
 end
 

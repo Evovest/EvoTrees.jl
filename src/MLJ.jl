@@ -10,7 +10,7 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
   w = isnothing(w) ? device_ones(device, T, nobs) : V{T}(w)
   fitresult, cache = init_core(model, device, A, feature_names, y, w, nothing)
 
-  while cache.nrounds < model.nrounds
+  while fitresult.info[:nrounds] < model.nrounds
     grow_evotree!(fitresult, cache, model)
   end
   report = (features=cache.feature_names,)
@@ -18,7 +18,7 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
 end
 
 function okay_to_continue(model, fitresult, cache)
-  check = model.nrounds - cache.nrounds >= 0
+  check = model.nrounds - fitresult.info[:nrounds] >= 0
   return check
 end
 
@@ -35,7 +35,7 @@ function MMI.update(
   w=nothing,
 )
   if okay_to_continue(model, fitresult, cache)
-    while cache.nrounds < model.nrounds
+    while fitresult.info[:nrounds] < model.nrounds
       grow_evotree!(fitresult, cache, model)
     end
     report = (features=cache.feature_names,)

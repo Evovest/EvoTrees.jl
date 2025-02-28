@@ -30,7 +30,7 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
     )
     push!(m.trees, tree)
     predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
-    cache.nrounds += 1
+    m.info[:nrounds] += 1
     return nothing
 end
 
