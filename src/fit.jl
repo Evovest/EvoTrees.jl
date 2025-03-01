@@ -8,7 +8,7 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, L, params)
     # subsample rows
-    cache.nodes[1].is = subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
+    cache.nodes[1].is = subsample(cache.is_in, cache.out, cache.mask, params.rowsample, params.rng)
     # subsample cols
     sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
 
@@ -112,17 +112,25 @@ function grow_tree!(
                     tree.feat[n] = best_feat
                     tree.split[n] = best_bin != 0
 
-                    _left, _right = split_set_threads!(
+                    _left, _right = split_set!(
                         out,
-                        left,
-                        right,
                         nodes[n].is,
                         x_bin,
                         tree.feat[n],
                         tree.cond_bin[n],
                         feattypes[best_feat],
-                        offset,
                     )
+                    # _left, _right = split_set_threads!(
+                    #     out,
+                    #     left,
+                    #     right,
+                    #     nodes[n].is,
+                    #     x_bin,
+                    #     tree.feat[n],
+                    #     tree.cond_bin[n],
+                    #     feattypes[best_feat],
+                    #     offset,
+                    # )
 
                     offset += length(nodes[n].is)
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right

@@ -72,12 +72,14 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     ∇[end, :] .= w
 
     # initialize indexes
-    is_in = zeros(UInt32, nobs)
+    # is_in = zeros(UInt32, nobs)
+    is_in = 1:nobs
     is_out = zeros(UInt32, nobs)
     mask = zeros(UInt8, nobs)
     js_ = UInt32.(collect(1:nfeats))
     js = zeros(UInt32, ceil(Int, params.colsample * nfeats))
-    out = zeros(UInt32, nobs)
+    # out = zeros(UInt32, nobs)
+    out = zeros(Bool, nobs)
     left = zeros(UInt32, nobs)
     right = zeros(UInt32, nobs)
 
@@ -89,7 +91,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
 
     # model info
     info = Dict(
-        :nrounds => 0
+        :nrounds => 0,
         :feature_names => feature_names,
         :target_levels => target_levels,
         :target_isordered => target_isordered,
@@ -99,7 +101,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     )
 
     # initialize model
-    nodes = [TrainNode(featbins, K, view(is_in, 1:0)) for n = 1:2^params.max_depth-1]
+    nodes = [TrainNode(featbins, K, view(is_in, out)) for n = 1:2^params.max_depth-1]
     bias = [Tree{L,K}(μ)]
     m = EvoTree{L,K}(L, K, bias, info)
 

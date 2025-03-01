@@ -169,13 +169,13 @@ function split_set_threads!(
     offset,
 ) where {S}
 
-    chunk_size = cld(length(is), min(cld(length(is), 16_000), Threads.nthreads()))
+    chunk_size = cld(length(is), min(cld(length(is), 1), Threads.nthreads()))
     nblocks = cld(length(is), chunk_size)
 
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
-    @threads for bid = 1:nblocks
+    for bid = 1:nblocks
         lefts[bid], rights[bid] = split_set_chunk!(
             left,
             right,
@@ -195,7 +195,7 @@ function split_set_threads!(
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
 
-    @threads for bid = 1:nblocks
+    for bid = 1:nblocks
         split_views_kernel!(
             out,
             left,
@@ -217,6 +217,23 @@ function split_set_threads!(
     )
 end
 
+function split_set!(
+    out,
+    is,
+    x_bin::Matrix{S},
+    feat,
+    cond_bin,
+    feattype::Bool,
+) where {S}
+    for i in eachindex(is)
+        cond = feattype ? x_bin[is[i], feat] <= cond_bin : x_bin[is[i], feat] == cond_bin
+        out[i] = cond
+    end
+    return (
+        view(is, view(out, 1:length(is))),
+        view(is, .!view(out, 1:length(is)))
+    )
+end
 
 """
     update_hist!
