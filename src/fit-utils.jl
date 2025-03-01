@@ -225,7 +225,7 @@ function split_set!(
     cond_bin,
     feattype::Bool,
 ) where {S}
-    for i in eachindex(is)
+    @threads for i in eachindex(is)
         cond = feattype ? x_bin[is[i], feat] <= cond_bin : x_bin[is[i], feat] == cond_bin
         out[i] = cond
     end
