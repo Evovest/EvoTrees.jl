@@ -4,9 +4,9 @@ function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, param
     EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, L, params)
     # subsample rows
     cache.nodes[1].is =
-        EvoTrees.subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
+        EvoTrees.subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, params.rng)
     # subsample cols
-    EvoTrees.sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
+    EvoTrees.sample!(params.rng, UInt32(1):UInt32(length(cache.feattypes)), cache.js, replace=false, ordered=true)
 
     # assign a root and grow tree
     tree = EvoTrees.Tree{L,K}(params.max_depth)
@@ -17,7 +17,7 @@ function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, param
         params,
         cache.∇,
         cache.js,
-        cache.out,
+        cache.is,
         cache.left,
         cache.right,
         cache.h∇_cpu,
@@ -26,7 +26,7 @@ function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, param
         cache.feattypes,
         cache.monotone_constraints,
     )
-    push!(evotree.trees, tree)
+    push!(m.trees, tree)
     EvoTrees.predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
     m.info[:nrounds] += 1
     return nothing
@@ -39,7 +39,7 @@ function grow_tree!(
     params::EvoTrees.EvoTypes,
     ∇::CuMatrix,
     js,
-    out,
+    is,
     left,
     right,
     h∇_cpu::Array{Float64,3},
@@ -113,19 +113,19 @@ function grow_tree!(
                     tree.feat[n] = best_feat
                     tree.split[n] = best_bin != 0
 
-                    _left, _right = split_set_threads_gpu!(
-                        out,
+                    _left, _right = EvoTrees.split_set!(
+                        nodes[n].is,
+                        is,
                         left,
                         right,
-                        nodes[n].is,
                         x_bin,
                         tree.feat[n],
                         tree.cond_bin[n],
                         feattypes[best_feat],
                         offset,
                     )
-
                     offset += length(nodes[n].is)
+
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
                     nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
@@ -163,7 +163,7 @@ function grow_otree!(
     params::EvoTrees.EvoTypes,
     ∇::CuMatrix,
     js,
-    out,
+    is,
     left,
     right,
     h∇_cpu::Array{Float64,3},
@@ -266,17 +266,18 @@ function grow_otree!(
                     tree.feat[n] = best_feat
                     tree.split[n] = best_bin != 0
 
-                    _left, _right = split_set_threads_gpu!(
-                        out,
+                    _left, _right = EvoTrees.split_set!(
+                        nodes[n].is,
+                        is,
                         left,
                         right,
-                        nodes[n].is,
                         x_bin,
                         tree.feat[n],
                         tree.cond_bin[n],
                         feattypes[best_feat],
                         offset,
                     )
+                    offset += length(nodes[n].is)
 
                     offset += length(nodes[n].is)
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right

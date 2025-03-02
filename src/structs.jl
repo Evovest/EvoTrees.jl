@@ -41,16 +41,11 @@ struct CacheBaseCPU{Y,N} <: CacheCPU
     w::Vector{Float32}
     pred::Matrix{Float32}
     nodes::N
-    is_in::Vector{UInt32}
-    # is_in::UnitRange{UInt32}
-    is_out::Vector{UInt32}
-    mask::Vector{UInt8}
-    js_::Vector{UInt32}
-    js::Vector{UInt32}
-    out::Vector{UInt32}
-    # out::Vector{Bool}
+    mask_cond::Vector{UInt8}
+    is::Vector{UInt32}
     left::Vector{UInt32}
     right::Vector{UInt32}
+    js::Vector{UInt32}    
     ∇::Matrix{Float32}
     feature_names::Vector{Symbol}
     featbins::Vector{UInt8}

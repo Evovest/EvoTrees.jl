@@ -13,7 +13,7 @@ using EvoTrees: fit_evotree
 
 # prepare a dataset
 tree_type = :binary # binary/oblivious
-_device = :cpu
+_device = :gpu
 
 Random.seed!(123)
 features = rand(10_000) .* 5

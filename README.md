@@ -1,5 +1,5 @@
 
-# EvoTrees <a href="https://evovest.github.io/EvoTrees.jl/dev/"><img src="figures/hex-evotrees-2.png" align="right" height="160"/></a>
+# EvoTrees <a href="https://evovest.github.io/EvoTrees.jl/dev/"><img src="docs/src/assets/logo.png" align="right" height="160"/></a>
 
 
 | Documentation | CI Status | DOI |
