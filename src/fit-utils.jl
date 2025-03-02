@@ -169,7 +169,8 @@ function split_set_threads!(
     offset,
 ) where {S}
 
-    chunk_size = cld(length(is), min(cld(length(is), 1), Threads.nthreads()))
+    chunk_size = cld(length(is), min(cld(length(is), 16_000), Threads.nthreads()))
+    # @info "chunk_size" chunk_size
     nblocks = cld(length(is), chunk_size)
 
     lefts = zeros(Int, nblocks)
@@ -218,7 +219,7 @@ function split_set_threads!(
 end
 
 function split_set!(
-    out,
+    mask_bool,
     is,
     x_bin::Matrix{S},
     feat,
@@ -227,11 +228,39 @@ function split_set!(
 ) where {S}
     @threads for i in eachindex(is)
         cond = feattype ? x_bin[is[i], feat] <= cond_bin : x_bin[is[i], feat] == cond_bin
-        out[i] = cond
+        mask_bool[i] = cond
+    end
+    mask = view(mask_bool, 1:length(is))
+    return (
+        view(is, mask),
+        view(is, .!mask)
+    )
+end
+
+function split_set_single!(
+    is,
+    x_bin::Matrix{S},
+    feat,
+    cond_bin,
+    feattype::Bool,
+    left,
+    right,
+) where {S}
+    count_left = 0
+    count_right = 0
+    @inbounds for i in eachindex(is)
+        cond = feattype ? x_bin[is[i], feat] <= cond_bin : x_bin[is[i], feat] == cond_bin
+        if cond
+            count_left += 1
+            left[count_left] = is[i]
+        else
+            count_right += 1
+            right[count_right] = is[i]
+        end
     end
     return (
-        view(is, view(out, 1:length(is))),
-        view(is, .!view(out, 1:length(is)))
+        view(left, 1:count_left),
+        view(right, 1:count_right)
     )
 end
 
