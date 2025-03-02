@@ -9,7 +9,7 @@ using BenchmarkTools
 using Random: seed!
 
 run_evo = true
-run_xgb = false
+run_xgb = true
 nrounds = 200
 
 loss = :mse
@@ -17,8 +17,8 @@ tree_type = :binary
 T = Float32
 nthreads = Base.Threads.nthreads()
 
-# device_list = [:cpu, :gpu]
-device_list = [:cpu]
+device_list = [:cpu, :gpu]
+# device_list = [:cpu]
 
 nobs_list = Int.([1e5, 1e6, 1e7])
 # nobs_list = Int.([1e5])
