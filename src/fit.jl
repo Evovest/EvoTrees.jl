@@ -122,31 +122,31 @@ function grow_tree!(
                     #     tree.cond_bin[n],
                     #     feattypes[best_feat],
                     # )
-                    # _left, _right = split_set_single!(
-                    #     nodes[n].is,
-                    #     x_bin,
-                    #     tree.feat[n],
-                    #     tree.cond_bin[n],
-                    #     feattypes[best_feat],
-                    #     left,
-                    #     right,
-                    #     out,
-                    #     offset,
-                    # )
-                    # offset += length(nodes[n].is)
-                    # @info "_left/right" length(_left) length(_right)
-                    # @info "offset_left/right" offset_left offset_right
-                    _left, _right = split_set_threads!(
-                        out,
-                        left,
-                        right,
-                        nodes[n].is,
-                        x_bin,
-                        tree.feat[n],
-                        tree.cond_bin[n],
-                        feattypes[best_feat],
-                        offset,
-                    )
+                    if length(nodes[n].is) < 16_000
+                        _left, _right = split_set_single!(
+                            nodes[n].is,
+                            x_bin,
+                            tree.feat[n],
+                            tree.cond_bin[n],
+                            feattypes[best_feat],
+                            left,
+                            right,
+                            out,
+                            offset,
+                        )
+                    else
+                        _left, _right = split_set_threads!(
+                            out,
+                            left,
+                            right,
+                            nodes[n].is,
+                            x_bin,
+                            tree.feat[n],
+                            tree.cond_bin[n],
+                            feattypes[best_feat],
+                            offset,
+                        )
+                    end
                     offset += length(nodes[n].is)
                     # @info "_left/right" length(_left) length(_right)
                     # @info "offset" offset

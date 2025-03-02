@@ -169,14 +169,14 @@ function split_set_threads!(
     offset,
 ) where {S}
 
-    chunk_size = cld(length(is), min(cld(length(is), 16_000), Threads.nthreads()))
+    chunk_size = cld(length(is), Threads.nthreads())
     # @info "chunk_size" chunk_size
     nblocks = cld(length(is), chunk_size)
 
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
 
-    for bid = 1:nblocks
+    @threads for bid = 1:nblocks
         lefts[bid], rights[bid] = split_set_chunk!(
             left,
             right,
@@ -196,7 +196,7 @@ function split_set_threads!(
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
 
-    for bid = 1:nblocks
+    @threads for bid = 1:nblocks
         split_views_kernel!(
             out,
             left,
