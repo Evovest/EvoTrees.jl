@@ -239,28 +239,66 @@ end
 
 function split_set_single!(
     is,
-    x_bin::Matrix{S},
+    x_bin::Matrix,
     feat,
     cond_bin,
     feattype::Bool,
     left,
     right,
-) where {S}
-    count_left = 0
-    count_right = 0
-    @inbounds for i in eachindex(is)
-        cond = feattype ? x_bin[is[i], feat] <= cond_bin : x_bin[is[i], feat] == cond_bin
+    out,
+    offset,
+)
+    count_left, count_right = 0, 0
+
+    @inbounds for i in is
+        cond = feattype ? x_bin[i, feat] <= cond_bin : x_bin[i, feat] == cond_bin
         if cond
             count_left += 1
-            left[count_left] = is[i]
+            left[count_left] = i
         else
             count_right += 1
-            right[count_right] = is[i]
+            right[count_right] = i
+        end
+    end
+
+    @inbounds for i in 1:count_left
+        out[offset+i] = left[i]
+    end
+    @inbounds for i in 1:count_right
+        out[offset+count_left+i] = right[i]
+    end
+
+    return (
+        view(out, offset+1:offset+count_left),
+        view(out, offset+count_left+1:offset+length(is)),
+    )
+end
+
+function split_set_out!(
+    is,
+    x_bin::Matrix,
+    feat,
+    cond_bin,
+    feattype::Bool,
+    out,
+    offset,
+)
+    oleft = offset
+    oright = offset + length(is) + 1
+
+    @inbounds for i in is
+        cond = feattype ? x_bin[i, feat] <= cond_bin : x_bin[i, feat] == cond_bin
+        if cond
+            oleft += 1
+            out[oleft] = i
+        else
+            oright -= 1
+            out[oright] = i
         end
     end
     return (
-        view(left, 1:count_left),
-        view(right, 1:count_right)
+        view(out, offset+1:oleft),
+        view(out, oright:offset+length(is)),
     )
 end
 

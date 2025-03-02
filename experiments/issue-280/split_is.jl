@@ -25,7 +25,7 @@ right = zeros(UInt32, nobs)
 rowsample = 0.5
 is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
 
-# laptop: 2.881 ms (50 allocations: 3.88 MiB)
+# desktop: 1.790 ms (70 allocations: 3.89 MiB)
 @btime _left, _right = EvoTrees.split_set!(
     mask_bool,
     is,
@@ -35,7 +35,7 @@ is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
     true,
 );
 
-# laptop: 76.136 ns (1 allocation: 96 bytes)
+# desktop: 1.677 ms (1 allocation: 96 bytes)
 @btime _left, _right = EvoTrees.split_set_single!(
     is,
     x_bin,
@@ -43,10 +43,12 @@ is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
     128,
     true,
     left,
-    right
+    right,
+    is_out,
+    0,
 );
 
-# laptop: 2.009 ms (5 allocations: 608 bytes)
+# desktop: 2.008 ms (5 allocations: 736 bytes)
 @btime _left, _right = EvoTrees.split_set_threads!(
     is_out,
     left,
@@ -62,7 +64,7 @@ is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
 
 rowsample = 0.001
 is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
-# laptop: 8.400 μs (51 allocations: 18.03 KiB)
+# deskptop: 8.231 μs (67 allocations: 19.31 KiB)
 @btime _left, _right = EvoTrees.split_set!(
     mask_bool,
     is,
@@ -72,7 +74,7 @@ is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
     true,
 );
 
-# laptop: 76.136 ns (1 allocation: 96 bytes)
+# desktop: 773.156 ns (1 allocation: 96 bytes)
 @btime _left, _right = EvoTrees.split_set_single!(
     is,
     x_bin,
@@ -80,11 +82,13 @@ is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
     128,
     true,
     left,
-    right
+    right,
+    out,
+    0,
 );
 
-# laoptop: 189.533 ns (5 allocations: 352 bytes)
-@btime _left, _right = EvoTrees.split_set_threads!(
+# desktop: 1.339 μs (5 allocations: 352 bytes)
+@btime _left3, _right3 = EvoTrees.split_set_threads!(
     is_out,
     left,
     right,

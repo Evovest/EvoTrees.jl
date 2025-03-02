@@ -71,6 +71,7 @@ function grow_tree!(
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
+        offset_left, offset_right = 0, 0
         n_next = Int[]
 
         if depth < params.max_depth
@@ -121,6 +122,20 @@ function grow_tree!(
                     #     tree.cond_bin[n],
                     #     feattypes[best_feat],
                     # )
+                    # _left, _right = split_set_single!(
+                    #     nodes[n].is,
+                    #     x_bin,
+                    #     tree.feat[n],
+                    #     tree.cond_bin[n],
+                    #     feattypes[best_feat],
+                    #     left,
+                    #     right,
+                    #     out,
+                    #     offset,
+                    # )
+                    # offset += length(nodes[n].is)
+                    # @info "_left/right" length(_left) length(_right)
+                    # @info "offset_left/right" offset_left offset_right
                     _left, _right = split_set_threads!(
                         out,
                         left,
@@ -132,8 +147,10 @@ function grow_tree!(
                         feattypes[best_feat],
                         offset,
                     )
-
                     offset += length(nodes[n].is)
+                    # @info "_left/right" length(_left) length(_right)
+                    # @info "offset" offset
+
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
                     nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]

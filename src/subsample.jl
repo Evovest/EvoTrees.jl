@@ -3,13 +3,6 @@
 
 Returns a view of selected rows ids.
 """
-# function subsample(is_in::AbstractVector, out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat, rng)
-#     Random.rand!(rng, mask)
-#     cond = round(UInt8, 255 * rowsample)
-#     out .= mask .<= cond
-#     return view(is_in, out)
-# end
-
 function subsample(is_in::AbstractVector, is_out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat, rng)
     Random.rand!(rng, mask)
 
@@ -47,3 +40,9 @@ function subsample(is_in::AbstractVector, is_out::AbstractVector, mask::Abstract
     end
 end
 
+# function subsample_single(is_in::AbstractVector, out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat, rng)
+#     Random.rand!(rng, mask)
+#     cond = round(UInt8, 255 * rowsample)
+#     out .= mask .<= cond
+#     return view(is_in, out)
+# end
