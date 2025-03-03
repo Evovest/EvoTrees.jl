@@ -70,7 +70,6 @@ function grow_tree!(
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
         offset = 0 # identifies breakpoint for each node set within a depth
-        offset_left, offset_right = 0, 0
         n_next = Int[]
 
         if depth < params.max_depth

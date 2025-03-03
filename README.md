@@ -142,7 +142,7 @@ features_gain = EvoTrees.importance(m)
 
 ## Plot
 
-Plot a given tree of the model:
+Plot a model *ith* tree (first *actual* tree is #2 as 1st *tree* is reserved to set the model's bias):
 
 ```julia
 plot(m, 2)
@@ -150,7 +150,6 @@ plot(m, 2)
 
 ![](docs/src/assets/plot_tree.png)
 
-Note that 1st tree is used to set the bias so the first real tree is #2.
 
 ## Save/Load
 
