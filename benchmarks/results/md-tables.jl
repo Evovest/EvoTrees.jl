@@ -3,7 +3,7 @@ using DataFrames
 using PrettyTables
 using Format: format
 
-device = "gpu"
+device = "cpu"
 
 df = CSV.read(joinpath(@__DIR__, "regressor-$device.csv"), DataFrame)
 df = df[:, Cols(Not(:device))]

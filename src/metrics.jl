@@ -10,8 +10,8 @@ function mse(
     end
     return sum(eval) / sum(w)
 end
-rmse(p::AbstractMatrix{T}, y::AbstractVector, w::AbstractVector; kwargs...) where {T} =
-    sqrt(mse(p, y, w))
+rmse(p::AbstractMatrix{T}, y::AbstractVector, w::AbstractVector, eval::AbstractVector; kwargs...) where {T} =
+    sqrt(mse(p, y, w, eval::AbstractVector; kwargs...))
 
 function mae(
     p::AbstractMatrix{T},
