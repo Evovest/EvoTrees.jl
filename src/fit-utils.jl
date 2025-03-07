@@ -310,9 +310,9 @@ function update_hist!(
     @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
-            hist[j][1, bin] += ∇[1, i]
-            hist[j][2, bin] += ∇[2, i]
-            hist[j][3, bin] += ∇[3, i]
+            hist[1, bin, j] += ∇[1, i]
+            hist[2, bin, j] += ∇[2, i]
+            hist[3, bin, j] += ∇[3, i]
         end
     end
     return nothing
@@ -333,11 +333,11 @@ function update_hist!(
     @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
-            hist[j][1, bin] += ∇[1, i]
-            hist[j][2, bin] += ∇[2, i]
-            hist[j][3, bin] += ∇[3, i]
-            hist[j][4, bin] += ∇[4, i]
-            hist[j][5, bin] += ∇[5, i]
+            hist[1, bin, j] += ∇[1, i]
+            hist[2, bin, j] += ∇[2, i]
+            hist[3, bin, j] += ∇[3, i]
+            hist[4, bin, j] += ∇[4, i]
+            hist[5, bin, j] += ∇[5, i]
         end
     end
     return nothing
@@ -360,7 +360,7 @@ function update_hist!(
         @inbounds for i in is
             bin = x_bin[i, j]
             @inbounds @simd for k in axes(∇, 1)
-                hist[j][k, bin] += ∇[k, i]
+                hist[k, bin, j] += ∇[k, i]
             end
         end
     end
@@ -414,9 +414,9 @@ function update_gains!(
                    (monotone_constraint == -1 && predL > predR) ||
                    (monotone_constraint == 1 && predL < predR)
 
-                    gains[j][bin] =
-                        get_gain(L, params, view(hL[j], :, bin)) +
-                        get_gain(L, params, view(hR[j], :, bin))
+                    gains[bin, j] =
+                        get_gain(L, params, view(hL, :, bin, j)) +
+                        get_gain(L, params, view(hR, :, bin, j))
                 end
             end
         end

@@ -77,13 +77,9 @@ function grow_tree!(
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
-                        @inbounds for j in js
-                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j]
-                        end
+                        nodes[n].h .= nodes[n>>1].h .- nodes[n+1].h
                     else
-                        @inbounds for j in js
-                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
-                        end
+                        nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
                     end
                 else
                     update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)

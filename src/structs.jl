@@ -7,25 +7,25 @@ abstract type GPU <: Device end
     
 Carries training information for a given tree node
 """
-mutable struct TrainNode{S,V,M}
+mutable struct TrainNode{S,V,M,A}
     gain::Float64
     is::S
     ∑::V
-    h::Vector{M}
-    hL::Vector{M}
-    hR::Vector{M}
-    gains::Vector{V}
+    h::A
+    hL::A
+    hR::A
+    gains::M
 end
 
-function TrainNode(featbins, K, is)
+function TrainNode(nfeats, K, is)
     node = TrainNode(
         zero(Float64),
         is,
         zeros(2 * K + 1),
-        [zeros(2 * K + 1, nbins) for nbins in featbins],
-        [zeros(2 * K + 1, nbins) for nbins in featbins],
-        [zeros(2 * K + 1, nbins) for nbins in featbins],
-        [zeros(nbins) for nbins in featbins],
+        zeros(2 * K + 1, nbins, nfeats),
+        zeros(2 * K + 1, nbins, nfeats),
+        zeros(2 * K + 1, nbins, nfeats),
+        zeros(nbins, nfeats)
     )
     return node
 end
@@ -34,7 +34,7 @@ abstract type Cache end
 abstract type CacheCPU <: Cache end
 abstract type CacheGPU <: Cache end
 
-struct CacheBaseCPU{Y,N} <: CacheCPU
+struct CacheBaseCPU{Y,N<:TrainNode} <: CacheCPU
     K::UInt8
     x_bin::Matrix{UInt8}
     y::Y
@@ -45,7 +45,7 @@ struct CacheBaseCPU{Y,N} <: CacheCPU
     is::Vector{UInt32}
     left::Vector{UInt32}
     right::Vector{UInt32}
-    js::Vector{UInt32}    
+    js::Vector{UInt32}
     ∇::Matrix{Float32}
     feature_names::Vector{Symbol}
     featbins::Vector{UInt8}
