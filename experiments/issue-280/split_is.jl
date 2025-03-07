@@ -7,6 +7,55 @@ using Base.Threads: @threads
 using StatsBase: sample!
 using EvoTrees
 
+function create(nnodes, nbins, nfeats)
+    h = [[ones(3, nbins) for feat in 1:nfeats] for node in 1:nnodes]
+    return h
+end
+
+function zeroise_1!(h)
+    @threads for n in eachindex(h)
+        _h = h[n]
+        for i in eachindex(_h)
+            _h[i] .= 0
+        end
+    end
+    return nothing
+end
+
+@time h = create(2048, 64, 100);
+# 106.777 ms (206849 allocations: 320.52 MiB)
+@btime h = create(2048, 64, 100);
+h[5][5]
+
+@time zeroise_1!(h)
+# 15.443 ms (61 allocations: 6.14 KiB)
+@btime zeroise_1!(h)
+
+
+function create_2(nnodes, nbins, nfeats)
+    # h = [ones(3, nbins, nfeats) for node in 1:nnodes]
+    h = ones(3, nbins, nfeats, nnodes)
+    return h
+end
+
+function zeroise_2!(h)
+    h .= 0
+    # @threads for n in eachindex(h)
+    #     h[n] .= 0
+    # end
+    return nothing
+end
+
+@time h = create_2(2048, 64, 100);
+# 18.737 ms (4097 allocations: 300.14 MiB)
+@btime h = create_2(2048, 64, 100);
+h[5]
+
+@time zeroise_2!(h)
+# 15.443 ms (61 allocations: 6.14 KiB)
+@btime zeroise_2!(h)
+
+
 nobs = Int(1e6)
 nfeats = 100
 x_bin = rand(UInt8, nobs, nfeats);
