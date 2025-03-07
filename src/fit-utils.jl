@@ -88,6 +88,47 @@ function binarize(df; feature_names, edges)
     return x_bin
 end
 
+
+function split_set!(
+    is_view,
+    is,
+    left,
+    right,
+    x_bin,
+    feat,
+    cond_bin,
+    feattype,
+    offset,
+)
+
+    if length(is_view) < 16_000
+        _left, _right = split_set_single!(
+            is_view,
+            is,
+            left,
+            right,
+            x_bin,
+            feat,
+            cond_bin,
+            feattype,
+            offset,
+        )
+    else
+        _left, _right = split_set_threads!(
+            is_view,
+            is,
+            left,
+            right,
+            x_bin,
+            feat,
+            cond_bin,
+            feattype,
+            offset,
+        )
+    end
+    return (_left, _right)
+end
+
 """
     Multi-threaded split_set!
         Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
@@ -158,19 +199,19 @@ function split_views_kernel!(
 end
 
 function split_set_threads!(
-    out,
+    is_view,
+    is,
     left,
     right,
-    is,
-    x_bin::Matrix{S},
+    x_bin,
     feat,
     cond_bin,
     feattype,
     offset,
-) where {S}
+)
 
-    chunk_size = cld(length(is), min(cld(length(is), 16_000), Threads.nthreads()))
-    nblocks = cld(length(is), chunk_size)
+    chunk_size = cld(length(is_view), Threads.nthreads())
+    nblocks = cld(length(is_view), chunk_size)
 
     lefts = zeros(Int, nblocks)
     rights = zeros(Int, nblocks)
@@ -179,7 +220,7 @@ function split_set_threads!(
         lefts[bid], rights[bid] = split_set_chunk!(
             left,
             right,
-            is,
+            is_view,
             bid,
             nblocks,
             x_bin,
@@ -197,7 +238,7 @@ function split_set_threads!(
 
     @threads for bid = 1:nblocks
         split_views_kernel!(
-            out,
+            is,
             left,
             right,
             bid,
@@ -212,11 +253,47 @@ function split_set_threads!(
     end
 
     return (
-        view(out, offset+1:offset+sum_lefts),
-        view(out, offset+sum_lefts+1:offset+length(is)),
+        view(is, offset+1:offset+sum_lefts),
+        view(is, offset+sum_lefts+1:offset+length(is_view)),
     )
 end
 
+function split_set_single!(
+    is_view,
+    is,
+    left,
+    right,
+    x_bin,
+    feat,
+    cond_bin,
+    feattype,
+    offset,
+)
+    count_left, count_right = 0, 0
+
+    @inbounds for i in is_view
+        cond = feattype ? x_bin[i, feat] <= cond_bin : x_bin[i, feat] == cond_bin
+        if cond
+            count_left += 1
+            left[count_left] = i
+        else
+            count_right += 1
+            right[count_right] = i
+        end
+    end
+
+    @inbounds for i in 1:count_left
+        is[offset+i] = left[i]
+    end
+    @inbounds for i in 1:count_right
+        is[offset+count_left+i] = right[i]
+    end
+
+    return (
+        view(is, offset+1:offset+count_left),
+        view(is, offset+count_left+1:offset+length(is_view)),
+    )
+end
 
 """
     update_hist!

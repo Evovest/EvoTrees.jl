@@ -74,14 +74,11 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     ∇[end, :] .= w
 
     # initialize indexes
-    is_in = CUDA.zeros(UInt32, nobs)
-    is_out = CUDA.zeros(UInt32, nobs)
-    mask = CUDA.zeros(UInt8, nobs)
-    js_ = UInt32.(collect(1:nfeats))
-    js = zeros(eltype(js_), ceil(Int, params.colsample * nfeats))
-    out = CUDA.zeros(UInt32, nobs)
+    mask_cond = CUDA.zeros(UInt8, nobs)
+    is = CUDA.zeros(UInt32, nobs)
     left = CUDA.zeros(UInt32, nobs)
     right = CUDA.zeros(UInt32, nobs)
+    js = zeros(UInt32, ceil(Int, params.colsample * nfeats))
 
     # assign monotone contraints in constraints vector
     monotone_constraints = zeros(Int32, nfeats)
@@ -91,6 +88,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
 
     # model info
     info = Dict(
+        :nrounds => 0,
         :feature_names => feature_names,
         :target_levels => target_levels,
         :target_isordered => target_isordered,
@@ -100,31 +98,26 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     )
 
     # initialize model
-    nodes = [EvoTrees.TrainNode(featbins, K, view(is_in, 1:0)) for n = 1:2^params.max_depth-1]
+    nodes = [EvoTrees.TrainNode(featbins, K, view(is, 1:0)) for n = 1:2^params.max_depth-1]
     bias = [EvoTrees.Tree{L,K}(μ)]
     m = EvoTree{L,K}(L, K, bias, info)
 
     # build cache
-    nrounds = 0
     Y = typeof(y)
     N = typeof(nodes)
     feattypes_gpu = CuArray(feattypes)
     cache = CacheBaseGPU{Y,N}(
-        nrounds,
         K,
         x_bin,
         y,
         w,
         pred,
         nodes,
-        is_in,
-        is_out,
-        mask,
-        js_,
-        js,
-        out,
+        mask_cond,
+        is,
         left,
         right,
+        js,
         ∇,
         h∇,
         h∇_cpu,

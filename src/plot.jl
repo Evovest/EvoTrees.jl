@@ -39,18 +39,20 @@ function get_shapes(tree_layout)
     return shapes
 end
 
-function get_annotations(tree_layout, map, tree, var_names)
+function get_annotations(tree_layout, map, tree, feature_names, edges)
     # annotations = Vector{Tuple{Float64, Float64, String, Tuple}}(undef, length(tree_layout))
     annotations = []
     for i = eachindex(tree_layout)
         x, y = tree_layout[i][1], tree_layout[i][2] # center point
         if tree.split[map[i]]
-            feat =
-                isnothing(var_names) ? "feat: " * string(tree.feat[map[i]]) :
-                var_names[tree.feat[map[i]]]
-            txt = "$feat\n" * string(round(tree.cond_float[map[i]], sigdigits=3))
+            fidx = tree.feat[map[i]]
+            fname = feature_names[fidx]
+            bin = tree.cond_bin[map[i]]
+            value = edges[fidx][bin]
+            typeof(value) <: Number ? value = round(value, sigdigits=3) : nothing
+            txt = "$fname\n$value"
         else
-            txt = "pred:\n" * string(round(tree.pred[1, map[i]], sigdigits=3))
+            txt = string(round(tree.pred[1, map[i]], sigdigits=3))
         end
         # annotations[i] = (x, y, txt, (9, :white, "helvetica"))
         push!(annotations, (x, y, txt, 10))
@@ -76,49 +78,15 @@ function get_curves(adj, tree_layout, shapes)
     return curves
 end
 
-@recipe function plot(tree::EvoTrees.Tree, var_names=nothing)
+@recipe function plot(model::EvoTrees.EvoTree, n=2)
 
-    map, adj = EvoTrees.get_adj_list(tree)
-    tree_layout = length(adj) == 1 ? [[0.0, 0.0]] : NetworkLayout.buchheim(adj)
-    shapes = EvoTrees.get_shapes(tree_layout) # issue with Shape coming from Plots... to be converted o Shape in Receipe?
-    annotations = EvoTrees.get_annotations(tree_layout, map, tree, var_names) # same with Plots.text
-    curves = EvoTrees.get_curves(adj, tree_layout, shapes)
-
-    size_base = floor(log2(length(adj)))
-    size = (128 * 2^size_base, 96 * (1 + size_base))
-
-    background_color --> :white
-    linecolor --> :black
-    legend --> nothing
-    axis --> nothing
-    framestyle --> :none
-    size --> size
-    annotations --> annotations
-
-    for i = eachindex(shapes)
-        @series begin
-            fillcolor = length(adj[i]) == 0 ? "#84DCC6" : "#C8D3D5"
-            fillcolor --> fillcolor
-            seriestype --> :shape
-            return shapes[i]
-        end
-    end
-
-    for i = eachindex(curves)
-        @series begin
-            seriestype --> :curves
-            return curves[i]
-        end
-    end
-end
-
-@recipe function plot(model::EvoTrees.EvoTree, n=1; var_names=model.info[:feature_names])
-
+    feature_names = model.info[:feature_names]
+    edges = model.info[:edges]
     tree = model.trees[n]
     map, adj = EvoTrees.get_adj_list(tree)
     tree_layout = length(adj) == 1 ? [[0.0, 0.0]] : NetworkLayout.buchheim(adj)
     shapes = EvoTrees.get_shapes(tree_layout) # issue with Shape coming from Plots... to be converted o Shape in Receipe?
-    annotations = EvoTrees.get_annotations(tree_layout, map, tree, var_names) # same with Plots.text
+    annotations = EvoTrees.get_annotations(tree_layout, map, tree, feature_names, edges) # same with Plots.text
     curves = EvoTrees.get_curves(adj, tree_layout, shapes)
 
     size_base = floor(log2(length(adj)))
@@ -134,8 +102,9 @@ end
 
     for i = eachindex(shapes)
         @series begin
-            fillcolor = length(adj[i]) == 0 ? "#84DCC6" : "#C8D3D5"
-            fillcolor --> fillcolor
+            _color = length(adj[i]) == 0 ? "#26a671" : "#e6ebf1"
+            fillcolor --> _color
+            linewidth --> 0
             seriestype --> :shape
             return shapes[i]
         end

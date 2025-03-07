@@ -47,12 +47,38 @@ function update_hist_gpu!(h, h∇_cpu, h∇, ∇, x_bin, is, js, jsc)
     return nothing
 end
 
+
+function EvoTrees.split_set!(
+    is_view,
+    is::CuVector,
+    left,
+    right,
+    x_bin,
+    feat,
+    cond_bin,
+    feattype,
+    offset,
+)
+    _left, _right = EvoTrees.split_set_threads!(
+        is_view,
+        is,
+        left,
+        right,
+        x_bin,
+        feat,
+        cond_bin,
+        feattype,
+        offset,
+    )
+    return (_left, _right)
+end
+
 # Multi-threads split_set!
 # Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
 function split_chunk_kernel!(
     left::CuDeviceVector{S},
     right::CuDeviceVector{S},
-    is::CuDeviceVector{S},
+    is_view::CuDeviceVector{S},
     x_bin,
     feat,
     cond_bin,
@@ -71,17 +97,17 @@ function split_chunk_kernel!(
     right_count = 0
 
     i = chunk_size * (bid - 1) + 1
-    bid == gdim ? bsize = length(is) - chunk_size * (bid - 1) : bsize = chunk_size
+    bid == gdim ? bsize = length(is_view) - chunk_size * (bid - 1) : bsize = chunk_size
     i_max = i + bsize - 1
 
     @inbounds while i <= i_max
-        cond = feattype ? x_bin[is[i], feat] <= cond_bin : x_bin[is[i], feat] == cond_bin
+        cond = feattype ? x_bin[is_view[i], feat] <= cond_bin : x_bin[is_view[i], feat] == cond_bin
         if cond
             left_count += 1
-            left[offset+chunk_size*(bid-1)+left_count] = is[i]
+            left[offset+chunk_size*(bid-1)+left_count] = is_view[i]
         else
             right_count += 1
-            right[offset+chunk_size*(bid-1)+right_count] = is[i]
+            right[offset+chunk_size*(bid-1)+right_count] = is_view[i]
         end
         i += 1
     end
@@ -92,7 +118,7 @@ function split_chunk_kernel!(
 end
 
 function EvoTrees.split_views_kernel!(
-    out::CuDeviceVector{S},
+    is::CuDeviceVector{S},
     left::CuDeviceVector{S},
     right::CuDeviceVector{S},
     offset,
@@ -111,23 +137,33 @@ function EvoTrees.split_views_kernel!(
     iter = 1
     i_max = lefts[bid]
     @inbounds while iter <= i_max
-        out[offset+cumsum_left+iter] = left[offset+chunk_size*(bid-1)+iter]
+        is[offset+cumsum_left+iter] = left[offset+chunk_size*(bid-1)+iter]
         iter += 1
     end
 
     iter = 1
     i_max = rights[bid]
     @inbounds while iter <= i_max
-        out[offset+sum_lefts+cumsum_right+iter] = right[offset+chunk_size*(bid-1)+iter]
+        is[offset+sum_lefts+cumsum_right+iter] = right[offset+chunk_size*(bid-1)+iter]
         iter += 1
     end
     sync_threads()
     return nothing
 end
 
-function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, feattype, offset)
-    chunk_size = cld(length(is), min(cld(length(is), 128), 2048))
-    nblocks = cld(length(is), chunk_size)
+function EvoTrees.split_set_threads!(
+    is_view,
+    is::CuVector,
+    left,
+    right,
+    x_bin,
+    feat,
+    cond_bin,
+    feattype,
+    offset
+)
+    chunk_size = cld(length(is_view), 1024)
+    nblocks = cld(length(is_view), chunk_size)
     lefts = CUDA.zeros(Int, nblocks)
     rights = CUDA.zeros(Int, nblocks)
 
@@ -135,7 +171,7 @@ function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, fea
     @cuda blocks = nblocks threads = 1 split_chunk_kernel!(
         left,
         right,
-        is,
+        is_view,
         x_bin,
         feat,
         cond_bin,
@@ -151,7 +187,7 @@ function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, fea
     cumsum_lefts = cumsum(lefts)
     cumsum_rights = cumsum(rights)
     @cuda blocks = nblocks threads = 1 EvoTrees.split_views_kernel!(
-        out,
+        is,
         left,
         right,
         offset,
@@ -165,7 +201,7 @@ function split_set_threads_gpu!(out, left, right, is, x_bin, feat, cond_bin, fea
 
     CUDA.synchronize()
     return (
-        view(out, offset+1:offset+sum_lefts),
-        view(out, offset+sum_lefts+1:offset+length(is)),
+        view(is, offset+1:offset+sum_lefts),
+        view(is, offset+sum_lefts+1:offset+length(is_view)),
     )
 end

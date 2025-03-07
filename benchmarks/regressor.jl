@@ -18,10 +18,10 @@ T = Float32
 nthreads = Base.Threads.nthreads()
 
 device_list = [:cpu, :gpu]
-# device_list = [:gpu]
+# device_list = [:cpu]
 
 nobs_list = Int.([1e5, 1e6, 1e7])
-# nobs_list = Int.([1e4, 1e5])
+# nobs_list = Int.([1e5])
 
 nfeats_list = [10, 100]
 # nfeats_list = [10]
@@ -67,10 +67,10 @@ for device in device_list
 
                     if nobs == first(nobs_list) && nfeats == first(nfeats_list) && max_depth == first(max_depth_list)
                         @info "warmup"
-                        _m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, print_every_n=100)
+                        _m_evo = EvoTrees.fit(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, print_every_n=100)
                         _m_evo(x_train; device)
                     end
-                    t_train_evo = @elapsed m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, print_every_n=100)
+                    t_train_evo = @elapsed m_evo = EvoTrees.fit(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, print_every_n=100)
                     @info "train" t_train_evo
                     t_infer_evo = @elapsed pred_evo = m_evo(x_train; device)
                     @info "predict" t_infer_evo
