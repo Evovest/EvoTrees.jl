@@ -51,12 +51,10 @@ function grow_tree!(
 
     # reset nodes - FIXME: expensive operation with large depth (~4 sec for depth 11)
     @threads for n in nodes
-        n.∑ .= 0
+        n.h .= 0
+        n.gains .= 0
         n.gain = 0.0
-        @inbounds for i in eachindex(n.h)
-            n.h[i] .= 0
-            n.gains[i] .= 0
-        end
+        n.∑ .= 0
     end
 
     # initialize
@@ -98,10 +96,9 @@ function grow_tree!(
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
                 end
             else
-                best = findmax(findmax.(nodes[n].gains))
-                best_gain = best[1][1]
-                best_bin = best[1][2]
-                best_feat = best[2]
+                best = findmax(nodes[n].gains)
+                best_gain = best[1]
+                best_bin, best_feat = Tuple(best[2])
                 if best_gain > nodes[n].gain + params.gamma
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
@@ -122,8 +119,8 @@ function grow_tree!(
                     offset += length(nodes[n].is)
 
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
+                    nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
+                    nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
                     nodes[n<<1].gain = get_gain(L, params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = get_gain(L, params, nodes[n<<1+1].∑)
 

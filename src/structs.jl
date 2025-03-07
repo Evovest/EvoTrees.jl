@@ -17,7 +17,7 @@ mutable struct TrainNode{S,V,M,A}
     gains::M
 end
 
-function TrainNode(nfeats, K, is)
+function TrainNode(nfeats, nbins, K, is)
     node = TrainNode(
         zero(Float64),
         is,
@@ -40,7 +40,7 @@ struct CacheBaseCPU{Y,N<:TrainNode} <: CacheCPU
     y::Y
     w::Vector{Float32}
     pred::Matrix{Float32}
-    nodes::N
+    nodes::Vector{N}
     mask_cond::Vector{UInt8}
     is::Vector{UInt32}
     left::Vector{UInt32}
