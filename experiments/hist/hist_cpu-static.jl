@@ -53,7 +53,3 @@ colsample = 1
 js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
 @time hist_cpu_static!(h∇, ∇, x_bin, is, js)
 @btime hist_cpu_static!($h∇, $∇, $x_bin, $is, $js)
-
-
-
-
