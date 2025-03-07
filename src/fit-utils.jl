@@ -301,7 +301,7 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Array{Float64, 3},
+    hist::Array{Float64,3},
     ∇::Matrix{Float32},
     x_bin::Matrix,
     is::AbstractVector,
@@ -324,7 +324,7 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Array{Float64, 3},
+    hist::Array{Float64,3},
     ∇::Matrix{Float32},
     x_bin::Matrix,
     is::AbstractVector,
@@ -350,7 +350,7 @@ Generic fallback - Softmax
 """
 function update_hist!(
     ::Type{L},
-    hist::Array{Float64, 3},
+    hist::Array{Float64,3},
     ∇::Matrix{Float32},
     x_bin::Matrix,
     is::AbstractVector,
@@ -398,7 +398,7 @@ function update_gains!(
     cumsum!(hL, h, dims=2)
     hR .= ∑ .- hL
 
-    @threads for j in axes(h, 3)
+    @inbounds for j in axes(h, 3)
         @inbounds for bin in axes(h, 2)
             gains[bin, j] =
                 get_gain(L, params, view(hL, :, bin, j)) +
