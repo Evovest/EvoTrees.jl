@@ -406,38 +406,5 @@ function update_gains!(
         end
     end
 
-    # h = node.h
-    # hL = node.hL
-    # hR = node.hR
-    # gains = node.gains
-    # ∑ = node.∑
-
-    # @inbounds for j in js
-    #     if feattypes[j]
-    #         cumsum!(hL[j], h[j], dims=2)
-    #         hR[j] .= ∑ .- hL[j]
-    #     else
-    #         hR[j] .= ∑ .- h[j]
-    #         hL[j] .= h[j]
-    #     end
-    #     monotone_constraint = monotone_constraints[j]
-    #     @inbounds for bin in eachindex(gains[j])
-    #         if hL[j][end, bin] > params.min_weight && hR[j][end, bin] > params.min_weight
-    #             if monotone_constraint != 0
-    #                 predL = pred_scalar(view(hL[j], :, bin), L, params)
-    #                 predR = pred_scalar(view(hR[j], :, bin), L, params)
-    #             end
-    #             if (monotone_constraint == 0) ||
-    #                (monotone_constraint == -1 && predL > predR) ||
-    #                (monotone_constraint == 1 && predL < predR)
-
-    #                 gains[bin, j] =
-    #                     get_gain(L, params, view(hL, :, bin, j)) +
-    #                     get_gain(L, params, view(hR, :, bin, j))
-    #             end
-    #         end
-    #     end
-    # end
-
     return nothing
 end
