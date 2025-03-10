@@ -51,7 +51,7 @@ function grow_tree!(
 
     jsg = CuVector(js)
     # reset nodes - FIXME: expensive operation with large depth (~4 sec for depth 11)
-    @threads for n in nodes
+    Threads.@threads for n in nodes
         n.∑ .= 0
         n.gain = 0.0
         @inbounds for i in eachindex(n.h)
@@ -175,7 +175,7 @@ function grow_otree!(
 
     jsg = CuVector(js)
     # reset nodes - FIXME: expensive operation with large depth (~4 sec for depth 11)
-    @threads for n in nodes
+    Threads.@threads for n in nodes
         n.∑ .= 0
         n.gain = 0.0
         @inbounds for i in eachindex(n.h)
