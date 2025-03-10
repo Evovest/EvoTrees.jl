@@ -50,14 +50,12 @@ function grow_tree!(
 ) where {L,K,N}
 
     jsg = CuVector(js)
-    # reset nodes
-    for n in nodes
-        n.∑ .= 0
+    # reset nodes - FIXME: expensive operation with large depth (~4 sec for depth 11)
+    Threads.@threads for n in nodes
+        n.h .= 0
+        n.gains .= 0
         n.gain = 0.0
-        @inbounds for i in eachindex(n.h)
-            n.h[i] .= 0
-            n.gains[i] .= 0
-        end
+        n.∑ .= 0
     end
 
     # initialize
@@ -78,17 +76,14 @@ function grow_tree!(
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
-                        @inbounds for j in js
-                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j]
-                        end
+                        nodes[n].h .= nodes[n>>1].h .- nodes[n+1].h
                     else
-                        @inbounds for j in js
-                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
-                        end
+                        nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
                     end
                 else
-                    update_hist_gpu!(nodes[n].h, h∇_cpu, h∇, ∇, x_bin, nodes[n].is, jsg, js)
+                    update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg)
                 end
+                # update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg)
             end
             Threads.@threads for n ∈ sort(n_current)
                 EvoTrees.update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
@@ -103,10 +98,9 @@ function grow_tree!(
                     EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
                 end
             else
-                best = findmax(findmax.(nodes[n].gains))
-                best_gain = best[1][1]
-                best_bin = best[1][2]
-                best_feat = best[2]
+                best = findmax(nodes[n].gains)
+                best_gain = best[1]
+                best_bin, best_feat = Tuple(best[2])
                 if best_gain > nodes[n].gain + params.gamma
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
@@ -127,8 +121,8 @@ function grow_tree!(
                     offset += length(nodes[n].is)
 
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
+                    nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
+                    nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
                     nodes[n<<1].gain = EvoTrees.get_gain(L, params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = EvoTrees.get_gain(L, params, nodes[n<<1+1].∑)
 
@@ -224,7 +218,7 @@ function grow_otree!(
                         end
                     end
                 else
-                    update_hist_gpu!(nodes[n].h, h∇_cpu, h∇, ∇, x_bin, nodes[n].is, jsg, js)
+                    update_hist_gpu!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg)
                 end
             end
             Threads.@threads for n ∈ n_current

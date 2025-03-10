@@ -396,7 +396,7 @@ function update_gains!(
     ∑ = node.∑
 
     cumsum!(hL, h, dims=2)
-    hR .= ∑ .- hL
+    hR .= view(hL, :, size(hL, 2), 1) .- hL
 
     @inbounds for j in axes(h, 3)
         @inbounds for bin in axes(h, 2)
