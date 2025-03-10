@@ -169,8 +169,8 @@ function grow_otree!(
     monotone_constraints
 ) where {L,K,N}
 
-    # reset nodes
-    for n in nodes
+    # reset nodes - FIXME: expensive operation with large depth (~4 sec for depth 11)
+    @threads for n in nodes
         n.∑ .= 0
         n.gain = 0.0
         @inbounds for i in eachindex(n.h)
