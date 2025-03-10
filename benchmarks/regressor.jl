@@ -18,7 +18,7 @@ T = Float32
 nthreads = Base.Threads.nthreads()
 
 device_list = [:cpu, :gpu]
-# device_list = [:gpu]
+# device_list = [:cpu]
 
 nobs_list = Int.([1e5, 1e6, 1e7])
 # nobs_list = Int.([1e5])

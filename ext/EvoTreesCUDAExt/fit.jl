@@ -168,14 +168,12 @@ function grow_otree!(
 ) where {L,K,N}
 
     jsg = CuVector(js)
-    # reset nodes
-    for n in nodes
-        n.∑ .= 0
+    # reset nodes - FIXME: expensive operation with large depth (~4 sec for depth 11)
+    Threads.@threads for n in nodes
+        n.h .= 0
+        n.gains .= 0
         n.gain = 0.0
-        @inbounds for i in eachindex(n.h)
-            n.h[i] .= 0
-            n.gains[i] .= 0
-        end
+        n.∑ .= 0
     end
 
     # initialize

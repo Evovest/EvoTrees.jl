@@ -97,7 +97,6 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
 
     # initialize model
     nodes = [TrainNode(nfeats, params.nbins, K, view(is, 1:0)) for n = 1:2^params.max_depth-1]
-    # nodes = [TrainNode(nfeats, K, view(is_in, out)) for n = 1:2^params.max_depth-1]
     bias = [Tree{L,K}(μ)]
     m = EvoTree{L,K}(L, K, bias, info)
 
