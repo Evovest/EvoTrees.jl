@@ -4,6 +4,7 @@ using CUDA
 using StatsBase: sample
 using BenchmarkTools
 using Base.Threads: @threads
+using StatsBase: sample!
 
 function hist_cpu!(
     hist::Vector,
@@ -27,15 +28,81 @@ nbins = 32
 nobs = Int(1e6)
 nfeats = 100
 rowsample = 0.5
-colsample = 0.5
 
 x_bin = UInt8.(rand(1:nbins, nobs, nfeats));
 ∇ = rand(Float32, 3, nobs);
 h∇ = [zeros(Float64, 3, nbins) for n in 1:nfeats]
-is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
-js = sample(1:nfeats, Int(round(rowsample * nfeats)), replace=false, ordered=true)
 
-# laptop: 6.886 ms (97 allocations: 10.67 KiB)
-# desktop: 3.451 ms (61 allocations: 6.52 KiB)
+####################################################
+# vector
+####################################################
+is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
+
+# laptop: 949.700 μs (41 allocations: 5.11 KiB)
+colsample = 0.01
+js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
+@time hist_cpu!(h∇, ∇, x_bin, is, js)
+@btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)
+
+# 2.788 ms (41 allocations: 5.11 KiB)
+colsample = 0.1
+js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
+@time hist_cpu!(h∇, ∇, x_bin, is, js)
+@btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)
+
+# laptop: 23.854 ms (41 allocations: 5.11 KiB)
+colsample = 1
+js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
+@time hist_cpu!(h∇, ∇, x_bin, is, js)
+@btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)
+
+####################################################
+# UnitRange - little slower
+####################################################
+mask = rand(Bool, nobs)
+is = view(1:nobs, mask)
+
+# laptop: 998.000 μs (41 allocations: 5.36 KiB)
+colsample = 0.01
+js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
+@time hist_cpu!(h∇, ∇, x_bin, is, js)
+@btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)
+
+# 3.005 ms (41 allocations: 5.36 KiB)
+colsample = 0.1
+js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
+@time hist_cpu!(h∇, ∇, x_bin, is, js)
+@btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)
+
+# laptop: 28.263 ms (41 allocations: 5.36 KiB)
+colsample = 1
+js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
+@time hist_cpu!(h∇, ∇, x_bin, is, js)
+@btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)
+
+####################################################
+# continuous view - as fast as vector (view(::Vector{Int64}, 1:499431))
+####################################################
+mask = rand(Bool, nobs)
+_is = view(1:nobs, mask)
+is = zeros(Int, nobs)
+is[1:length(_is)] .= _is
+is = view(is, 1:length(_is))
+
+# laptop: 921.700 μs (41 allocations: 5.36 KiB)
+colsample = 0.01
+js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
+@time hist_cpu!(h∇, ∇, x_bin, is, js)
+@btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)
+
+# laptop: 2.660 ms (41 allocations: 5.36 KiB)
+colsample = 0.1
+js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
+@time hist_cpu!(h∇, ∇, x_bin, is, js)
+@btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)
+
+# laptop: 23.646 ms (41 allocations: 5.36 KiB)
+colsample = 1
+js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
 @time hist_cpu!(h∇, ∇, x_bin, is, js)
 @btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)

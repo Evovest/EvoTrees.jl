@@ -1,25 +1,21 @@
-mutable struct CacheBaseGPU{Y,N} <: EvoTrees.CacheGPU
-    nrounds::UInt32
-    const K::UInt8
-    const x_bin::CuMatrix{UInt8}
-    const y::Y
-    const w::Vector{Float32}
-    const pred::CuMatrix{Float32}
-    const nodes::N
-    const is_in::CuVector{UInt32}
-    const is_out::CuVector{UInt32}
-    const mask::CuVector{UInt8}
-    const js_::Vector{UInt32}
-    const js::Vector{UInt32}
-    const out::CuVector{UInt32}
-    const left::CuVector{UInt32}
-    const right::CuVector{UInt32}
-    const ∇::CuArray{Float32}
-    const h∇::CuArray{Float64, 3}
-    const h∇_cpu::Array{Float64, 3}
-    const feature_names::Vector{Symbol}
-    const featbins::Vector{UInt8}
-    const feattypes::Vector{Bool}
-    const feattypes_gpu::CuVector{Bool}
-    const monotone_constraints::Vector{Int32}
+struct CacheBaseGPU{Y,N} <: EvoTrees.CacheGPU
+    K::UInt8
+    x_bin::CuMatrix{UInt8}
+    y::Y
+    w::Vector{Float32}
+    pred::CuMatrix{Float32}
+    nodes::N
+    mask_cond::CuVector{UInt8}
+    is::CuVector{UInt32}
+    left::CuVector{UInt32}
+    right::CuVector{UInt32}
+    js::Vector{UInt32}
+    ∇::CuArray{Float32}
+    h∇::CuArray{Float64,3}
+    h∇_cpu::Array{Float64,3}
+    feature_names::Vector{Symbol}
+    featbins::Vector{UInt8}
+    feattypes::Vector{Bool}
+    feattypes_gpu::CuVector{Bool}
+    monotone_constraints::Vector{Int32}
 end

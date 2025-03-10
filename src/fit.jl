@@ -8,9 +8,9 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, L, params)
     # subsample rows
-    cache.nodes[1].is = subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
+    cache.nodes[1].is = subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, params.rng)
     # subsample cols
-    sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
+    sample!(params.rng, UInt32(1):UInt32(length(cache.feattypes)), cache.js, replace=false, ordered=true)
 
     # instantiate a tree then grow it
     tree = Tree{L,K}(params.max_depth)
@@ -21,7 +21,7 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
         params,
         cache.∇,
         cache.js,
-        cache.out,
+        cache.is,
         cache.left,
         cache.right,
         cache.x_bin,
@@ -30,7 +30,7 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
     )
     push!(m.trees, tree)
     predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
-    cache.nrounds += 1
+    m.info[:nrounds] += 1
     return nothing
 end
 
@@ -41,7 +41,7 @@ function grow_tree!(
     params::EvoTypes,
     ∇::Matrix,
     js,
-    out,
+    is,
     left,
     right,
     x_bin,
@@ -49,8 +49,8 @@ function grow_tree!(
     monotone_constraints
 ) where {L,K,N}
 
-    # reset nodes
-    for n in nodes
+    # reset nodes - FIXME: expensive operation with large depth (~4 sec for depth 11)
+    @threads for n in nodes
         n.∑ .= 0
         n.gain = 0.0
         @inbounds for i in eachindex(n.h)
@@ -112,19 +112,19 @@ function grow_tree!(
                     tree.feat[n] = best_feat
                     tree.split[n] = best_bin != 0
 
-                    _left, _right = split_set_threads!(
-                        out,
+                    _left, _right = split_set!(
+                        nodes[n].is,
+                        is,
                         left,
                         right,
-                        nodes[n].is,
                         x_bin,
                         tree.feat[n],
                         tree.cond_bin[n],
                         feattypes[best_feat],
                         offset,
                     )
-
                     offset += length(nodes[n].is)
+
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
                     nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
@@ -161,7 +161,7 @@ function grow_otree!(
     params::EvoTypes,
     ∇::Matrix,
     js,
-    out,
+    is,
     left,
     right,
     x_bin,
@@ -169,8 +169,8 @@ function grow_otree!(
     monotone_constraints
 ) where {L,K,N}
 
-    # reset nodes
-    for n in nodes
+    # reset nodes - FIXME: expensive operation with large depth (~4 sec for depth 11)
+    @threads for n in nodes
         n.∑ .= 0
         n.gain = 0.0
         @inbounds for i in eachindex(n.h)
@@ -261,19 +261,19 @@ function grow_otree!(
                     tree.feat[n] = best_feat
                     tree.split[n] = best_bin != 0
 
-                    _left, _right = split_set_threads!(
-                        out,
+                    _left, _right = split_set!(
+                        nodes[n].is,
+                        is,
                         left,
                         right,
-                        nodes[n].is,
                         x_bin,
                         tree.feat[n],
                         tree.cond_bin[n],
                         feattypes[best_feat],
                         offset,
                     )
-
                     offset += length(nodes[n].is)
+
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
                     nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
