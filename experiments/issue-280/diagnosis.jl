@@ -6,9 +6,9 @@ using DataFrames
 using BenchmarkTools
 using Random: seed!
 
-nobs = Int(1e5)
+nobs = Int(1e6)
 num_feat = Int(100)
-nrounds = 1
+nrounds = 200
 T = Float64
 nthread = Base.Threads.nthreads()
 seed!(123)
@@ -34,6 +34,8 @@ config = EvoTreeRegressor(;
 # depth 6: ~1.0 sec
 # depth 11: 14.466424 seconds (28.66 M allocations: 2.271 GiB, 5.09% gc time)
 # depth 11 laptop: 10.479518 seconds (4.16 M allocations: 1.561 GiB, 2.82% gc time)
+# desktop 1M - depth-6: 5.438947 seconds (726.77 k allocations: 293.581 MiB, 1.07% gc time)
+# desktop 1M - depth-11: 29.500740 seconds (7.74 M allocations: 2.008 GiB, 1.73% gc time)
 @time m = EvoTrees.fit(config, dtrain; target_name)
 # @profview EvoTrees.fit(config, dtrain; target_name)
 
