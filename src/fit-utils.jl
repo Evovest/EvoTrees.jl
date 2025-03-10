@@ -301,7 +301,7 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Vector{Matrix{Float64}},
+    hist::Array{Float64,3},
     ∇::Matrix{Float32},
     x_bin::Matrix,
     is::AbstractVector,
@@ -310,9 +310,9 @@ function update_hist!(
     @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
-            hist[j][1, bin] += ∇[1, i]
-            hist[j][2, bin] += ∇[2, i]
-            hist[j][3, bin] += ∇[3, i]
+            hist[1, bin, j] += ∇[1, i]
+            hist[2, bin, j] += ∇[2, i]
+            hist[3, bin, j] += ∇[3, i]
         end
     end
     return nothing
@@ -324,7 +324,7 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Vector{Matrix{Float64}},
+    hist::Array{Float64,3},
     ∇::Matrix{Float32},
     x_bin::Matrix,
     is::AbstractVector,
@@ -333,11 +333,11 @@ function update_hist!(
     @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
-            hist[j][1, bin] += ∇[1, i]
-            hist[j][2, bin] += ∇[2, i]
-            hist[j][3, bin] += ∇[3, i]
-            hist[j][4, bin] += ∇[4, i]
-            hist[j][5, bin] += ∇[5, i]
+            hist[1, bin, j] += ∇[1, i]
+            hist[2, bin, j] += ∇[2, i]
+            hist[3, bin, j] += ∇[3, i]
+            hist[4, bin, j] += ∇[4, i]
+            hist[5, bin, j] += ∇[5, i]
         end
     end
     return nothing
@@ -350,7 +350,7 @@ Generic fallback - Softmax
 """
 function update_hist!(
     ::Type{L},
-    hist::Vector{Matrix{Float64}},
+    hist::Array{Float64,3},
     ∇::Matrix{Float32},
     x_bin::Matrix,
     is::AbstractVector,
@@ -360,7 +360,7 @@ function update_hist!(
         @inbounds for i in is
             bin = x_bin[i, j]
             @inbounds @simd for k in axes(∇, 1)
-                hist[j][k, bin] += ∇[k, i]
+                hist[k, bin, j] += ∇[k, i]
             end
         end
     end
@@ -389,37 +389,22 @@ function update_gains!(
     monotone_constraints,
 ) where {L<:LossType}
 
-    h = node.h
-    hL = node.hL
-    hR = node.hR
-    gains = node.gains
+    h = view(node.h, :, :, js)
+    hL = view(node.hL, :, :, js)
+    hR = view(node.hR, :, :, js)
+    gains = view(node.gains, :, js)
     ∑ = node.∑
 
-    @inbounds for j in js
-        if feattypes[j]
-            cumsum!(hL[j], h[j], dims=2)
-            hR[j] .= ∑ .- hL[j]
-        else
-            hR[j] .= ∑ .- h[j]
-            hL[j] .= h[j]
-        end
-        monotone_constraint = monotone_constraints[j]
-        @inbounds for bin in eachindex(gains[j])
-            if hL[j][end, bin] > params.min_weight && hR[j][end, bin] > params.min_weight
-                if monotone_constraint != 0
-                    predL = pred_scalar(view(hL[j], :, bin), L, params)
-                    predR = pred_scalar(view(hR[j], :, bin), L, params)
-                end
-                if (monotone_constraint == 0) ||
-                   (monotone_constraint == -1 && predL > predR) ||
-                   (monotone_constraint == 1 && predL < predR)
+    cumsum!(hL, h, dims=2)
+    hR .= view(hL, :, size(hL, 2), 1) .- hL
 
-                    gains[j][bin] =
-                        get_gain(L, params, view(hL[j], :, bin)) +
-                        get_gain(L, params, view(hR[j], :, bin))
-                end
-            end
+    @inbounds for j in axes(h, 3)
+        @inbounds for bin in axes(h, 2)
+            gains[bin, j] =
+                get_gain(L, params, view(hL, :, bin, j)) +
+                get_gain(L, params, view(hR, :, bin, j))
         end
     end
+
     return nothing
 end

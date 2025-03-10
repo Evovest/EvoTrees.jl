@@ -1,6 +1,4 @@
 using Revise
-using CUDA
-# using StaticArrays
 using StatsBase: sample
 using BenchmarkTools
 using Base.Threads: @threads
@@ -31,7 +29,7 @@ rowsample = 0.5
 
 x_bin = UInt8.(rand(1:nbins, nobs, nfeats));
 ∇ = rand(Float32, 3, nobs);
-h∇ = zeros(Float32, 3, nbins, nfeats)
+h∇ = zeros(Float64, 3, nbins, nfeats)
 
 ####################################################
 # vector

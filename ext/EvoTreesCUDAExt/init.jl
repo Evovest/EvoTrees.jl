@@ -98,7 +98,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     )
 
     # initialize model
-    nodes = [EvoTrees.TrainNode(featbins, K, view(is, 1:0)) for n = 1:2^params.max_depth-1]
+    nodes = [EvoTrees.TrainNode(nfeats, params.nbins, K, view(is, 1:0)) for n = 1:2^params.max_depth-1]
     bias = [EvoTrees.Tree{L,K}(μ)]
     m = EvoTree{L,K}(L, K, bias, info)
 
