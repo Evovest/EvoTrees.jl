@@ -4,7 +4,7 @@ using BenchmarkTools
 using Base.Threads: @threads
 using StatsBase: sample!
 
-function hist_cpu_2!(
+function hist_cpu_array!(
     hist::Array{Float64,3},
     ∇::Matrix,
     x_bin::Matrix,
@@ -37,19 +37,22 @@ h∇ = zeros(Float64, 3, nbins, nfeats)
 is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
 
 # laptop: 949.700 μs (41 allocations: 5.11 KiB)
+# desktop: 614.685 μs (61 allocations: 6.52 KiB)
 colsample = 0.01
 js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
-@time hist_cpu_2!(h∇, ∇, x_bin, is, js)
-@btime hist_cpu_2!($h∇, $∇, $x_bin, $is, $js)
+@time hist_cpu_array!(h∇, ∇, x_bin, is, js)
+@btime hist_cpu_array!($h∇, $∇, $x_bin, $is, $js)
 
 # 2.788 ms (41 allocations: 5.11 KiB)
+# desktop: 691.058 μs (61 allocations: 6.52 KiB)
 colsample = 0.1
 js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
-@time hist_cpu_2!(h∇, ∇, x_bin, is, js)
-@btime hist_cpu_2!($h∇, $∇, $x_bin, $is, $js)
+@time hist_cpu_array!(h∇, ∇, x_bin, is, js)
+@btime hist_cpu_array!($h∇, $∇, $x_bin, $is, $js)
 
 # laptop: 23.854 ms (41 allocations: 5.11 KiB)
+# desktop: 6.301 ms (61 allocations: 6.52 KiB)
 colsample = 1
 js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
-@time hist_cpu_2!(h∇, ∇, x_bin, is, js)
-@btime hist_cpu_2!($h∇, $∇, $x_bin, $is, $js)
+@time hist_cpu_array!(h∇, ∇, x_bin, is, js)
+@btime hist_cpu_array!($h∇, $∇, $x_bin, $is, $js)

@@ -49,14 +49,6 @@ function grow_tree!(
     monotone_constraints
 ) where {L,K,N}
 
-    # reset nodes - FIXME: expensive operation with large depth (~4 sec for depth 11)
-    @threads for n in nodes
-        n.h .= 0
-        n.gains .= 0
-        n.gain = 0.0
-        n.∑ .= 0
-    end
-
     # initialize
     n_current = [1]
     depth = 1
@@ -75,9 +67,9 @@ function grow_tree!(
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
-                        nodes[n].h .= nodes[n>>1].h .- nodes[n+1].h
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
                     else
-                        nodes[n].h .= nodes[n>>1].h .- nodes[n-1].h
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
                     end
                 else
                     update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
@@ -96,9 +88,10 @@ function grow_tree!(
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
                 end
             else
-                best = findmax(nodes[n].gains)
+                best = findmax(view(nodes[n].gains, :, js))
                 best_gain = best[1]
-                best_bin, best_feat = Tuple(best[2])
+                best_bin = best[2][1]
+                best_feat = js[best[2][2]]
                 if best_gain > nodes[n].gain + params.gamma
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin

@@ -6,7 +6,7 @@ using DataFrames
 using BenchmarkTools
 using Random: seed!
 
-nobs = Int(1e6)
+nobs = Int(1e5)
 num_feat = Int(100)
 nrounds = 200
 T = Float64
@@ -24,9 +24,12 @@ config = EvoTreeRegressor(;
     loss=:mse,
     nrounds=200,
     eta=0.1,
+    L2=1,
     max_depth=11,
     rowsample=0.5,
     colsample=0.5,
+    min_weight=1,
+    nbins=64,
     device=:cpu
 )
 

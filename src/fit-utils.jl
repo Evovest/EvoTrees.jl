@@ -307,6 +307,7 @@ function update_hist!(
     is::AbstractVector,
     js::AbstractVector,
 ) where {L<:GradientRegression}
+    hist .= 0
     @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
@@ -330,6 +331,7 @@ function update_hist!(
     is::AbstractVector,
     js::AbstractVector,
 ) where {L<:MLE2P}
+    hist .= 0
     @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
@@ -356,6 +358,7 @@ function update_hist!(
     is::AbstractVector,
     js::AbstractVector,
 ) where {L}
+    hist .= 0
     @threads for j in js
         @inbounds for i in is
             bin = x_bin[i, j]
@@ -393,18 +396,67 @@ function update_gains!(
     hL = view(node.hL, :, :, js)
     hR = view(node.hR, :, :, js)
     gains = view(node.gains, :, js)
+    constraints = view(monotone_constraints, js)
+    num_flags = view(feattypes, js)
     ∑ = node.∑
+    nbins = size(h, 2)
 
-    cumsum!(hL, h, dims=2)
-    hR .= view(hL, :, size(hL, 2), 1) .- hL
+    gains .= 0 # initialization on demand (rather than at start of tree) 
+    hL .= h
+
+    # original - compatible for num features only
+    # cumsum!(hL, h, dims=2)
+    # hR .= view(hL, :, size(hL, 2), 1) .- hL
+
+    # @inbounds for j in axes(h, 3)
+    #     @inbounds for bin in axes(h, 2)
+    #         if hL[j][end, bin] > params.min_weight && hR[j][end, bin] > params.min_weight
+    #             if constraint != 0
+    #                 predL = pred_scalar(view(hL, :, bin, j), L, params)
+    #                 predR = pred_scalar(view(hR, :, bin, j), L, params)
+    #             end
+    #             if (monotone_constraints[j] == 0) ||
+    #                (monotone_constraints[j] == -1 && predL > predR) ||
+    #                (monotone_constraints[j] == 1 && predL < predR)
+
+    #                 gains[bin, j] =
+    #                     get_gain(L, params, view(hL, :, bin, j)) +
+    #                     get_gain(L, params, view(hR, :, bin, j))
+    #             end
+    #         end
+    #     end
+    # end
 
     @inbounds for j in axes(h, 3)
+        num_flag = num_flags[j]
+        constraint = constraints[j]
+        if num_flag
+            cumsum!(view(hL, :, :, j), view(hL, :, :, j); dims=2)
+            view(hR, :, :, j) .= view(hL, :, nbins, j) .- view(hL, :, :, j)
+        else
+            view(hR, :, :, j) .= ∑ .- view(hL, :, :, j)
+        end
         @inbounds for bin in axes(h, 2)
-            gains[bin, j] =
-                get_gain(L, params, view(hL, :, bin, j)) +
-                get_gain(L, params, view(hR, :, bin, j))
+            if hL[end, bin, j] > params.min_weight && hR[end, bin, j] > params.min_weight
+                if constraint != 0
+                    predL = pred_scalar(view(hL, :, bin, j), L, params)
+                    predR = pred_scalar(view(hR, :, bin, j), L, params)
+                end
+                if (constraint == 0) ||
+                   (constraint == -1 && predL > predR) ||
+                   (constraint == 1 && predL < predR)
+
+                    gains[bin, j] =
+                        get_gain(L, params, view(hL, :, bin, j)) +
+                        get_gain(L, params, view(hR, :, bin, j))
+                end
+            end
         end
     end
+
+    # @info "hL" hL
+    # @info "hR" hR
+    # @info "gains" gains
 
     return nothing
 end
