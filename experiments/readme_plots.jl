@@ -6,13 +6,12 @@ using Random
 using CairoMakie
 using CUDA
 using EvoTrees
-using EvoTrees: predict, sigmoid, logit
-using EvoTrees: fit_evotree
+using EvoTrees: fit, predict, sigmoid, logit
 
 # using ProfileView
 
 # prepare a dataset
-tree_type = :oblivious # binary/oblivious
+tree_type = :binary # binary/oblivious
 _device = :cpu
 
 Random.seed!(123)
@@ -48,8 +47,7 @@ config = EvoTreeRegressor(;
     device=_device
 )
 
-# @time model = fit_evotree(config; x_train, y_train);
-@time model = EvoTrees.fit_evotree(
+@time model = fit(
     config;
     x_train,
     y_train,
@@ -58,12 +56,10 @@ config = EvoTreeRegressor(;
     print_every_n=25,
 );
 
-# model, logger = fit_evotree(config; x_train, y_train, metric=:mse, x_eval, y_eval, early_stopping_rounds=20, print_every_n=10, return_logger=true);
 @time pred_train_linear_cpu = model(x_train)
 @time pred_train_linear_gpu = model(x_train; device=_device)
 sum(pred_train_linear_gpu .- pred_train_linear_cpu)
 
-# @btime model = grow_gbtree($X_train, $Y_train, $config, X_eval = $X_eval, Y_eval = $Y_eval, print_every_n = 25, metric=:mae)
 @time pred_train_linear = predict(model, x_train)
 mean(abs.(pred_train_linear .- y_train))
 sqrt(mean((pred_train_linear .- y_train) .^ 2))
@@ -85,7 +81,7 @@ config = EvoTreeRegressor(;
     device=_device
 )
 
-@time model = fit_evotree(
+@time model = fit(
     config;
     x_train,
     y_train,
@@ -112,7 +108,7 @@ config = EvoTreeCount(;
     device=_device
 )
 
-@time model = fit_evotree(
+@time model = fit(
     config;
     x_train,
     y_train,
@@ -140,7 +136,7 @@ config = EvoTreeRegressor(;
     device=_device
 )
 
-@time model = fit_evotree(
+@time model = fit(
     config;
     x_train,
     y_train,
@@ -168,7 +164,7 @@ config = EvoTreeRegressor(;
     device=_device
 )
 
-@time model = fit_evotree(
+@time model = fit(
     config;
     x_train,
     y_train,
@@ -196,7 +192,7 @@ config = EvoTreeRegressor(;
     device=_device
 )
 
-@time model = fit_evotree(
+@time model = fit(
     config;
     x_train,
     y_train,
@@ -282,7 +278,7 @@ config = EvoTreeGaussian(;
     device=_device
 )
 
-@time model = fit_evotree(
+@time model = fit(
     config;
     x_train,
     y_train,
@@ -290,7 +286,6 @@ config = EvoTreeGaussian(;
     y_eval,
     print_every_n=25,
 );
-# @time model = fit_evotree(config, X_train, Y_train, print_every_n = 10);
 @time pred_train_gaussian = model(x_train; device=_device)
 
 pred_gauss = [
@@ -346,7 +341,7 @@ Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
 save("docs/src/assets/gaussian-sinus-$tree_type-$_device.png", f)
 
 ###############################
-## Quantiles - cpu only
+## Quantiles
 ###############################
 # q50
 params1 = EvoTreeRegressor(;
@@ -364,7 +359,7 @@ params1 = EvoTreeRegressor(;
     early_stopping_rounds=50,
     device=_device
 )
-@time model = fit_evotree(
+@time model = fit(
     params1;
     x_train,
     y_train,
@@ -393,7 +388,7 @@ params1 = EvoTreeRegressor(;
     early_stopping_rounds=50,
     device=_device
 )
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
+@time model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25);
 @time pred_train_q20 = model(x_train)
 @info sum(pred_train_q20 .> y_train) / length(y_train)
 
@@ -413,7 +408,7 @@ params1 = EvoTreeRegressor(;
     early_stopping_rounds=50,
     device=_device
 )
-@time model = fit_evotree(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
+@time model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
 @time pred_train_q80 = model(x_train)
 @info sum(pred_train_q80 .> y_train) / length(y_train)
 
@@ -471,7 +466,7 @@ config = EvoTreeRegressor(;
     device=_device
 )
 
-@time model = fit_evotree(
+@time model = fit(
     config;
     x_train,
     y_train,
@@ -499,7 +494,7 @@ config = EvoTreeRegressor(;
     device=_device
 )
 
-@time model = fit_evotree(
+@time model = fit(
     config;
     x_train,
     y_train,

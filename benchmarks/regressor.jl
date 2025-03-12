@@ -58,8 +58,6 @@ for _device in device_list
                         loss,
                         nrounds,
                         max_depth,
-                        lambda=0.0,
-                        gamma=0.0,
                         eta=0.05,
                         min_weight=1.0,
                         rowsample=0.5,

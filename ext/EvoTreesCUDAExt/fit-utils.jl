@@ -23,7 +23,7 @@ function hist_kernel!(h∇::CuDeviceArray{T,3}, ∇::CuDeviceMatrix{S}, x_bin, i
     return nothing
 end
 
-function update_hist_gpu!(h∇_cpu, h∇, ∇, x_bin, is, js)
+function update_hist!(h∇_cpu, h∇::CuArray, ∇::CuMatrix, x_bin, is, js)
     kernel = @cuda launch = false hist_kernel!(h∇, ∇, x_bin, is, js)
     config = launch_configuration(kernel.fun)
     max_threads = config.threads
