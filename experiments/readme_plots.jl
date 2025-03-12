@@ -12,7 +12,7 @@ using EvoTrees: fit_evotree
 # using ProfileView
 
 # prepare a dataset
-tree_type = :binary # binary/oblivious
+tree_type = :oblivious # binary/oblivious
 _device = :cpu
 
 Random.seed!(123)
@@ -38,7 +38,7 @@ config = EvoTreeRegressor(;
     early_stopping_rounds=50,
     nbins=64,
     L2=1.0,
-    gamma=0.1,
+    # gamma=0.1,
     eta=0.1,
     max_depth=6,
     min_weight=1.0,
@@ -75,7 +75,7 @@ config = EvoTreeRegressor(;
     early_stopping_rounds=50,
     nbins=64,
     L2=1.0,
-    gamma=0.1,
+    # gamma=0.1,
     eta=0.1,
     max_depth=6,
     min_weight=1.0,
@@ -102,7 +102,7 @@ config = EvoTreeCount(;
     early_stopping_rounds=50,
     nbins=64,
     L2=1.0,
-    gamma=0.1,
+    # gamma=0.1,
     eta=0.1,
     max_depth=6,
     min_weight=1.0,
@@ -130,7 +130,7 @@ config = EvoTreeRegressor(;
     early_stopping_rounds=50,
     nbins=64,
     L2=1.0,
-    gamma=0.1,
+    # gamma=0.1,
     eta=0.1,
     max_depth=6,
     min_weight=1.0,
@@ -158,7 +158,7 @@ config = EvoTreeRegressor(;
     early_stopping_rounds=50,
     nbins=64,
     L2=1.0,
-    gamma=0.1,
+    # gamma=0.1,
     eta=0.1,
     max_depth=6,
     min_weight=1.0,
@@ -186,7 +186,7 @@ config = EvoTreeRegressor(;
     early_stopping_rounds=50,
     nbins=64,
     L2=1.0,
-    gamma=0.1,
+    # gamma=0.1,
     eta=0.1,
     max_depth=6,
     min_weight=1.0,
@@ -261,7 +261,7 @@ lines!(ax,
     label="mae",
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
-save("figures/regression-sinus-$tree_type-$_device.png", f)
+save("docs/src/assets/regression-sinus-$tree_type-$_device.png", f)
 
 ###############################
 ## gaussian
@@ -271,7 +271,7 @@ config = EvoTreeGaussian(;
     early_stopping_rounds=50,
     nbins=64,
     L2=1.0,
-    gamma=0.1,
+    # gamma=0.1,
     eta=0.1,
     max_depth=6,
     min_weight=8,
@@ -343,7 +343,7 @@ lines!(ax,
     label="q80",
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
-save("figures/gaussian-sinus-$tree_type-$_device.png", f)
+save("docs/src/assets/gaussian-sinus-$tree_type-$_device.png", f)
 
 ###############################
 ## Quantiles - cpu only
@@ -355,7 +355,7 @@ params1 = EvoTreeRegressor(;
     nrounds=500,
     nbins=64,
     eta=0.1,
-    L2=1.0,
+    # L2=1.0,
     max_depth=6,
     min_weight=1.0,
     rowsample=0.5,
@@ -448,7 +448,7 @@ lines!(ax,
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
 f
-save("figures/quantiles-sinus-$tree_type-$_device.png", f)
+save("docs/src/assets/quantiles-sinus-$tree_type-$_device.png", f)
 
 
 ###############################
@@ -460,7 +460,7 @@ config = EvoTreeRegressor(;
     nrounds=500,
     early_stopping_rounds=50,
     nbins=64,
-    L2=0.0,
+    L2=1.0,
     lambda=0.0,
     eta=0.1,
     max_depth=6,
@@ -488,7 +488,7 @@ config = EvoTreeRegressor(;
     nrounds=500,
     early_stopping_rounds=50,
     nbins=64,
-    L2=0.0,
+    L2=1.0,
     lambda=0.0,
     eta=0.1,
     max_depth=6,
@@ -536,4 +536,4 @@ lines!(ax,
     label="cred_std",
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
-save("figures/credibility-sinus-$tree_type-$_device.png", f)
+save("docs/src/assets/credibility-sinus-$tree_type-$_device.png", f)

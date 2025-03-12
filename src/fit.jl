@@ -14,7 +14,7 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
 
     # instantiate a tree then grow it
     tree = Tree{L,K}(params.max_depth)
-    grow! = params.tree_type == "oblivious" ? grow_otree! : grow_tree!
+    grow! = params.tree_type == :oblivious ? grow_otree! : grow_tree!
     grow!(
         tree,
         cache.nodes,
@@ -62,6 +62,7 @@ function grow_tree!(
         offset = 0 # identifies breakpoint for each node set within a depth
         n_next = Int[]
 
+        # update histograms and gains
         if depth < params.max_depth
             for n_id in eachindex(n_current)
                 n = n_current[n_id]
@@ -155,14 +156,6 @@ function grow_otree!(
     monotone_constraints
 ) where {L,K,N}
 
-    # reset nodes - FIXME: expensive operation with large depth (~4 sec for depth 11)
-    @threads for n in nodes
-        n.h .= 0
-        n.gains .= 0
-        n.gain = 0.0
-        n.∑ .= 0
-    end
-
     # initialize
     n_current = [1]
     depth = 1
@@ -189,55 +182,45 @@ function grow_otree!(
                 end
             end
         else
-            # update histograms
+            # update histograms and gains
             for n_id in eachindex(n_current)
                 n = n_current[n_id]
                 if n_id % 2 == 0
                     if n % 2 == 0
-                        @inbounds for j in js
-                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j]
-                        end
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
                     else
-                        @inbounds for j in js
-                            nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j]
-                        end
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
                     end
                 else
                     update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
             end
-            @threads for n ∈ n_current
+            @threads for n ∈ sort(n_current)
                 update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
             end
 
             # initialize gains for node 1 in which all gains of a given depth will be accumulated
             if depth > 1
-                @inbounds for j in js
-                    nodes[1].gains[j] .= 0
-                end
+                view(nodes[1].gains, :, js) .= 0
             end
             gain = 0
             # update gains based on the aggregation of all nodes of a given depth. One gains matrix per depth (vs one per node in binary trees).
             for n ∈ sort(n_current)
                 if n > 1 # accumulate gains in node 1
-                    for j in js
-                        nodes[1].gains[j] .+= nodes[n].gains[j]
-                    end
+                    @views nodes[1].gains[:, js] .+= nodes[n].gains[:, js]
                 end
                 gain += nodes[n].gain
             end
             for n ∈ sort(n_current)
                 if n > 1
-                    for j in js
-                        nodes[1].gains[j] .*= nodes[n].gains[j] .> 0 #mask ignore gains if any node isn't eligible (too small per leaf weight)
-                    end
+                    @views nodes[1].gains[:, js] .*= nodes[n].gains[:, js] .> 0 #mask ignore gains if any node isn't eligible (too small per leaf weight)
                 end
             end
             # find best split
-            best = findmax(findmax.(nodes[1].gains))
-            best_gain = best[1][1]
-            best_bin = best[1][2]
-            best_feat = best[2]
+            best = findmax(view(nodes[1].gains, :, js))
+            best_gain = best[1]
+            best_bin = best[2][1]
+            best_feat = js[best[2][2]]
             if best_gain > gain + params.gamma
                 for n in sort(n_current)
                     tree.gain[n] = best_gain - nodes[n].gain
@@ -259,8 +242,8 @@ function grow_otree!(
                     offset += length(nodes[n].is)
 
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
+                    nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
+                    nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
                     nodes[n<<1].gain = get_gain(L, params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = get_gain(L, params, nodes[n<<1+1].∑)
 

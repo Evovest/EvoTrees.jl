@@ -428,9 +428,8 @@ function update_gains!(
     # end
 
     @inbounds for j in axes(h, 3)
-        num_flag = num_flags[j]
         constraint = constraints[j]
-        if num_flag
+        if num_flags[j]
             cumsum!(view(hL, :, :, j), view(hL, :, :, j); dims=2)
             view(hR, :, :, j) .= view(hL, :, nbins, j) .- view(hL, :, :, j)
         else
