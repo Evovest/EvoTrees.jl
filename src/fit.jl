@@ -64,19 +64,30 @@ function grow_tree!(
 
         # update histograms and gains
         if depth < params.max_depth
-            for n_id in eachindex(n_current)
-                n = n_current[n_id]
-                if n_id % 2 == 0
-                    if n % 2 == 0
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                    else
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                    end
+            @threads for n ∈ n_current[1:2:end]
+                update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
+            end
+            @threads for n ∈ n_current[2:2:end]
+                if n % 2 == 0
+                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
                 else
-                    update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
+                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
                 end
             end
+            # for n_id in eachindex(n_current)
+            #     n = n_current[n_id]
+            #     if n_id % 2 == 0
+            #         if n % 2 == 0
+            #             @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
+            #         else
+            #             @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
+            #         end
+            #     else
+            #         update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
+            #     end
+            # end
             @threads for n ∈ sort(n_current)
+                # update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
             end
         end

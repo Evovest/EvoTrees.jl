@@ -101,31 +101,43 @@ function split_set!(
     offset,
 )
 
-    if length(is_view) < 16_000
-        _left, _right = split_set_single!(
-            is_view,
-            is,
-            left,
-            right,
-            x_bin,
-            feat,
-            cond_bin,
-            feattype,
-            offset,
-        )
-    else
-        _left, _right = split_set_threads!(
-            is_view,
-            is,
-            left,
-            right,
-            x_bin,
-            feat,
-            cond_bin,
-            feattype,
-            offset,
-        )
-    end
+    _left, _right = split_set_single!(
+        is_view,
+        is,
+        left,
+        right,
+        x_bin,
+        feat,
+        cond_bin,
+        feattype,
+        offset,
+    )
+
+    # if length(is_view) < 16_000
+    #     _left, _right = split_set_single!(
+    #         is_view,
+    #         is,
+    #         left,
+    #         right,
+    #         x_bin,
+    #         feat,
+    #         cond_bin,
+    #         feattype,
+    #         offset,
+    #     )
+    # else
+    #     _left, _right = split_set_threads!(
+    #         is_view,
+    #         is,
+    #         left,
+    #         right,
+    #         x_bin,
+    #         feat,
+    #         cond_bin,
+    #         feattype,
+    #         offset,
+    #     )
+    # end
     return (_left, _right)
 end
 
@@ -403,29 +415,6 @@ function update_gains!(
 
     gains .= 0 # initialization on demand (rather than at start of tree) 
     hL .= h
-
-    # original - compatible for num features only
-    # cumsum!(hL, h, dims=2)
-    # hR .= view(hL, :, size(hL, 2), 1) .- hL
-
-    # @inbounds for j in axes(h, 3)
-    #     @inbounds for bin in axes(h, 2)
-    #         if hL[j][end, bin] > params.min_weight && hR[j][end, bin] > params.min_weight
-    #             if constraint != 0
-    #                 predL = pred_scalar(view(hL, :, bin, j), L, params)
-    #                 predR = pred_scalar(view(hR, :, bin, j), L, params)
-    #             end
-    #             if (monotone_constraints[j] == 0) ||
-    #                (monotone_constraints[j] == -1 && predL > predR) ||
-    #                (monotone_constraints[j] == 1 && predL < predR)
-
-    #                 gains[bin, j] =
-    #                     get_gain(L, params, view(hL, :, bin, j)) +
-    #                     get_gain(L, params, view(hR, :, bin, j))
-    #             end
-    #         end
-    #     end
-    # end
 
     @inbounds for j in axes(h, 3)
         constraint = constraints[j]

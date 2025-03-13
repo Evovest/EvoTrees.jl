@@ -31,7 +31,7 @@ config = EvoTreeRegressor(;
     min_weight=1,
     nbins=64,
     device=:cpu,
-    tree_type=:oblivious
+    tree_type=:binary
 )
 
 @info "fit"
@@ -41,7 +41,7 @@ config = EvoTreeRegressor(;
 # desktop 1M - depth-6: 5.438947 seconds (726.77 k allocations: 293.581 MiB, 1.07% gc time)
 # desktop 1M - depth-11: 29.500740 seconds (7.74 M allocations: 2.008 GiB, 1.73% gc time)
 @time m = EvoTrees.fit(config, dtrain; target_name)
-# @profview EvoTrees.fit(config, dtrain; target_name)
+@profview EvoTrees.fit(config, dtrain; target_name)
 
 @info "init"
 @time m, cache = EvoTrees.init(config, dtrain, EvoTrees.CPU; target_name);
