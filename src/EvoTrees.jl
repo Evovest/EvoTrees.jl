@@ -8,7 +8,7 @@ export EvoTreeRegressor,
     EvoTreeGaussian,
     EvoTree
 
-using Base.Threads: @threads, @spawn, nthreads, threadid
+using Base.Threads: @threads, @spawn, nthreads
 using Statistics
 using StatsBase: sample, sample!, quantile, proportions
 using Random
