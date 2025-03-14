@@ -17,8 +17,8 @@ tree_type = :binary
 T = Float32
 nthreads = Base.Threads.nthreads()
 
-device_list = [:cpu, :gpu]
-# device_list = [:cpu]
+# device_list = [:cpu, :gpu]
+device_list = [:cpu]
 
 nobs_list = Int.([1e5, 1e6, 1e7])
 # nobs_list = Int.([1e5])
@@ -54,8 +54,11 @@ for _device in device_list
                 if run_evo
                     @info "EvoTrees"
 
+                    if loss == :mse ? metric = :mae : metric = loss
+
                     params_evo = EvoTreeRegressor(;
                         loss,
+                        metric,
                         nrounds,
                         max_depth,
                         eta=0.05,

@@ -101,43 +101,32 @@ function split_set!(
     offset,
 )
 
-    _left, _right = split_set_single!(
-        is_view,
-        is,
-        left,
-        right,
-        x_bin,
-        feat,
-        cond_bin,
-        feattype,
-        offset,
-    )
+    if length(is_view) < 16_000
+        _left, _right = split_set_single!(
+            is_view,
+            is,
+            left,
+            right,
+            x_bin,
+            feat,
+            cond_bin,
+            feattype,
+            offset,
+        )
+    else
+        _left, _right = split_set_threads!(
+            is_view,
+            is,
+            left,
+            right,
+            x_bin,
+            feat,
+            cond_bin,
+            feattype,
+            offset,
+        )
+    end
 
-    # if length(is_view) < 16_000
-    #     _left, _right = split_set_single!(
-    #         is_view,
-    #         is,
-    #         left,
-    #         right,
-    #         x_bin,
-    #         feat,
-    #         cond_bin,
-    #         feattype,
-    #         offset,
-    #     )
-    # else
-    #     _left, _right = split_set_threads!(
-    #         is_view,
-    #         is,
-    #         left,
-    #         right,
-    #         x_bin,
-    #         feat,
-    #         cond_bin,
-    #         feattype,
-    #         offset,
-    #     )
-    # end
     return (_left, _right)
 end
 
