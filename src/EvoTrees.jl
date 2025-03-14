@@ -44,6 +44,7 @@ include("fit.jl")
 
 include("callback.jl")
 include("importance.jl")
+include("treeshapv1.jl")
 include("plot.jl")
 include("MLJ.jl")
 
