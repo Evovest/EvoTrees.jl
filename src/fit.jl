@@ -64,18 +64,35 @@ function grow_tree!(
 
         # update histograms and gains
         if depth < params.max_depth
-            @threads for n ∈ n_current[1:2:end]
-                update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
-            end
-            @threads for n ∈ n_current[2:2:end]
-                if n % 2 == 0
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                else
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
+
+            if length(n_current) <= nthreads()
+                for n ∈ n_current[1:2:end]
+                    update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
-            end
-            @threads for n ∈ n_current
-                update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
+                for n ∈ n_current[2:2:end]
+                    if n % 2 == 0
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
+                    else
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
+                    end
+                end
+                for n ∈ n_current
+                    update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
+                end
+            else
+                @threads for n ∈ n_current[1:2:end]
+                    update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
+                end
+                @threads for n ∈ n_current[2:2:end]
+                    if n % 2 == 0
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
+                    else
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
+                    end
+                end
+                @threads for n ∈ n_current
+                    update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
+                end
             end
         end
 

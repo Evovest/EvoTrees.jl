@@ -53,8 +53,7 @@ for _device in device_list
 
                 if run_evo
                     @info "EvoTrees"
-
-                    if loss == :mse ? metric = :mae : metric = loss
+                    loss == :mse ? metric = :mae : metric = loss
 
                     params_evo = EvoTreeRegressor(;
                         loss,
