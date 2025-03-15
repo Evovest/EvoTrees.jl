@@ -384,7 +384,7 @@ end
 
 Generic fallback
 """
-function update_gains!(
+function get_best_split!(
     ::Type{L},
     node::TrainNode,
     js,
@@ -396,16 +396,17 @@ function update_gains!(
     h = view(node.h, :, :, js)
     hL = view(node.hL, :, :, js)
     hR = view(node.hR, :, :, js)
-    gains = view(node.gains, :, js)
     constraints = view(monotone_constraints, js)
     num_flags = view(feattypes, js)
     ∑ = node.∑
     nbins = size(h, 2)
-
-    gains .= 0 # initialization on demand (rather than at start of tree) 
     hL .= h
 
-    @inbounds for j in axes(h, 3)
+    best_gain = node.gain + params.gamma
+    best_feat = zero(Int)
+    best_bin = zero(Int)
+
+    @inbounds for j in axes(h, 3) # loop over features
         constraint = constraints[j]
         if num_flags[j]
             cumsum!(view(hL, :, :, j), view(hL, :, :, j); dims=2)
@@ -413,7 +414,7 @@ function update_gains!(
         else
             view(hR, :, :, j) .= ∑ .- view(hL, :, :, j)
         end
-        @inbounds for bin in axes(h, 2)
+        @inbounds for bin in axes(h, 2) # loop over bins
             if hL[end, bin, j] > params.min_weight && hR[end, bin, j] > params.min_weight
                 if constraint != 0
                     predL = pred_scalar(view(hL, :, bin, j), L, params)
@@ -423,17 +424,73 @@ function update_gains!(
                    (constraint == -1 && predL > predR) ||
                    (constraint == 1 && predL < predR)
 
-                    gains[bin, j] =
+                    gain =
                         get_gain(L, params, view(hL, :, bin, j)) +
                         get_gain(L, params, view(hR, :, bin, j))
+
+                    if gain > best_gain
+                        best_gain = gain
+                        best_feat = js[j]
+                        best_bin = bin
+                    end
                 end
             end
         end
     end
 
-    # @info "hL" hL
-    # @info "hR" hR
-    # @info "gains" gains
-
-    return nothing
+    return (best_gain, best_feat, best_bin)
 end
+
+# function update_gains!(
+#     ::Type{L},
+#     node::TrainNode,
+#     js,
+#     params::EvoTypes,
+#     feattypes::Vector{Bool},
+#     monotone_constraints,
+# ) where {L<:LossType}
+
+#     h = view(node.h, :, :, js)
+#     hL = view(node.hL, :, :, js)
+#     hR = view(node.hR, :, :, js)
+#     gains = view(node.gains, :, js)
+#     constraints = view(monotone_constraints, js)
+#     num_flags = view(feattypes, js)
+#     ∑ = node.∑
+#     nbins = size(h, 2)
+
+#     gains .= 0 # initialization on demand (rather than at start of tree) 
+#     hL .= h
+
+#     @inbounds for j in axes(h, 3)
+#         constraint = constraints[j]
+#         if num_flags[j]
+#             cumsum!(view(hL, :, :, j), view(hL, :, :, j); dims=2)
+#             view(hR, :, :, j) .= view(hL, :, nbins, j) .- view(hL, :, :, j)
+#         else
+#             view(hR, :, :, j) .= ∑ .- view(hL, :, :, j)
+#         end
+#         @inbounds for bin in axes(h, 2)
+#             if hL[end, bin, j] > params.min_weight && hR[end, bin, j] > params.min_weight
+#                 if constraint != 0
+#                     predL = pred_scalar(view(hL, :, bin, j), L, params)
+#                     predR = pred_scalar(view(hR, :, bin, j), L, params)
+#                 end
+#                 if (constraint == 0) ||
+#                    (constraint == -1 && predL > predR) ||
+#                    (constraint == 1 && predL < predR)
+
+#                     gains[bin, j] =
+#                         get_gain(L, params, view(hL, :, bin, j)) +
+#                         get_gain(L, params, view(hR, :, bin, j))
+#                 end
+#             end
+#         end
+#     end
+
+#     # @info "hL" hL
+#     # @info "hR" hR
+#     # @info "gains" gains
+
+#     return nothing
+# end

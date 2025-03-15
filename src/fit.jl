@@ -77,7 +77,13 @@ function grow_tree!(
                     end
                 end
                 for n ∈ n_current
-                    update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
+                    best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
+                    if best_bin != 0
+                        tree.gain[n] = best_gain - nodes[n].gain
+                        tree.cond_bin[n] = best_bin
+                        tree.feat[n] = best_feat
+                        tree.split[n] = true
+                    end
                 end
             else
                 @threads for n ∈ n_current[1:2:end]
@@ -91,7 +97,13 @@ function grow_tree!(
                     end
                 end
                 @threads for n ∈ n_current
-                    update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
+                    best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
+                    if best_bin != 0
+                        tree.gain[n] = best_gain - nodes[n].gain
+                        tree.cond_bin[n] = best_bin
+                        tree.feat[n] = best_feat
+                        tree.split[n] = true
+                    end
                 end
             end
         end
@@ -105,15 +117,10 @@ function grow_tree!(
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
                 end
             else
-                best = findmax(view(nodes[n].gains, :, js))
-                best_gain = best[1]
-                best_bin = best[2][1]
-                best_feat = js[best[2][2]]
-                if best_gain > nodes[n].gain + params.gamma
-                    tree.gain[n] = best_gain - nodes[n].gain
-                    tree.cond_bin[n] = best_bin
-                    tree.feat[n] = best_feat
-                    tree.split[n] = best_bin != 0
+                if tree.split[n]
+
+                    best_feat = tree.feat[n]
+                    best_bin = tree.cond_bin[n]
 
                     _left, _right = split_set!(
                         nodes[n].is,
