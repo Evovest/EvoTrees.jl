@@ -384,7 +384,7 @@ end
 
 Generic fallback
 """
-function get_best_split!(
+function get_best_split(
     ::Type{L},
     node::TrainNode,
     js,

@@ -62,10 +62,16 @@ function grow_tree!(
         offset = 0 # identifies breakpoint for each node set within a depth
         n_next = Int[]
 
-        # update histograms and gains
-        if depth < params.max_depth
-
-            if length(n_current) <= nthreads()
+        if depth == params.max_depth
+            for n ∈ n_current
+                if L <: Quantile
+                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
+                else
+                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
+                end
+            end
+        else
+            if length(n_current) < nthreads()
                 for n ∈ n_current[1:2:end]
                     update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
                 end
@@ -106,17 +112,9 @@ function grow_tree!(
                     end
                 end
             end
-        end
 
-        sort!(n_current)
-        for n ∈ n_current
-            if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
-                if L <: Quantile
-                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
-                else
-                    pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
-                end
-            else
+            sort!(n_current)
+            for n ∈ n_current
                 if tree.split[n]
 
                     best_feat = tree.feat[n]
@@ -192,11 +190,7 @@ function grow_otree!(
         offset = 0 # identifies breakpoint for each node set within a depth
         n_next = Int[]
 
-        min_weight_flag = false
-        for n in n_current
-            nodes[n].∑[end] <= params.min_weight ? min_weight_flag = true : nothing
-        end
-        if depth == params.max_depth || min_weight_flag
+        if depth == params.max_depth
             for n in n_current
                 if L <: Quantile
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
