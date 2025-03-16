@@ -35,8 +35,7 @@ config = EvoTreeRegressor(;
 )
 
 @info "fit"
-# depth 6: ~1.0 sec
-# laptop 100K - depth 11 : 4.734577 seconds (5.64 M allocations: 1.614 GiB, 4.20% gc time)
+# laptop depth 11:  3.887943 seconds (4.06 M allocations: 1.500 GiB, 4.65% gc time)
 # desktop 1M - depth-6: 5.438947 seconds (726.77 k allocations: 293.581 MiB, 1.07% gc time)
 # desktop 1M - depth-11: 18.084438 seconds (7.98 M allocations: 1.980 GiB, 0.91% gc time)
 @time m = EvoTrees.fit(config, dtrain; target_name)
