@@ -5,8 +5,9 @@ using EvoTrees
 using DataFrames
 using BenchmarkTools
 using Random: seed!
+# using CUDA
 
-nobs = Int(1e6)
+nobs = Int(1e5)
 num_feat = Int(100)
 nrounds = 200
 T = Float64
@@ -30,14 +31,13 @@ config = EvoTreeRegressor(;
     colsample=0.5,
     min_weight=1,
     nbins=64,
-    device=:gpu,
+    device=:cpu,
     tree_type=:binary
 )
 
 @info "fit"
-# depth 6: ~1.0 sec
-# depth 11: 14.466424 seconds (28.66 M allocations: 2.271 GiB, 5.09% gc time)
-# depth 11 laptop: 10.479518 seconds (4.16 M allocations: 1.561 GiB, 2.82% gc time)
+# laptop 100k - depth-11: 5.146400 seconds (3.60 M allocations: 1.492 GiB, 4.15% gc time)
+# laptop 1M - depth-11: 22.864825 seconds (5.09 M allocations: 1.794 GiB, 2.36% gc time)
 # desktop 1M - depth-6: 5.438947 seconds (726.77 k allocations: 293.581 MiB, 1.07% gc time)
 # desktop 1M - depth-11: 29.500740 seconds (7.74 M allocations: 2.008 GiB, 1.73% gc time)
 @time m = EvoTrees.fit(config, dtrain; target_name)
