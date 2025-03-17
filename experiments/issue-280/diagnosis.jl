@@ -5,6 +5,7 @@ using EvoTrees
 using DataFrames
 using BenchmarkTools
 using Random: seed!
+using CUDA
 
 nobs = Int(1e5)
 num_feat = Int(100)
@@ -30,7 +31,7 @@ config = EvoTreeRegressor(;
     colsample=0.5,
     min_weight=1,
     nbins=64,
-    device=:cpu,
+    device=:gpu,
     tree_type=:binary
 )
 

@@ -20,7 +20,6 @@ function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, param
         cache.is,
         cache.left,
         cache.right,
-        cache.h∇_cpu,
         cache.h∇,
         cache.x_bin,
         cache.feattypes,
@@ -42,7 +41,6 @@ function grow_tree!(
     is,
     left,
     right,
-    h∇_cpu::Array{Float64,3},
     h∇::CuArray{Float64,3},
     x_bin::CuMatrix,
     feattypes::Vector{Bool},
@@ -63,42 +61,62 @@ function grow_tree!(
         offset = 0 # identifies breakpoint for each node set within a depth
         n_next = Int[]
 
-        # update histograms and gains
-        if depth < params.max_depth
-            for n_id in eachindex(n_current)
-                n = n_current[n_id]
-                if n_id % 2 == 0
-                    if n % 2 == 0
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                    else
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                    end
-                else
-                    update_hist!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg)
-                end
-            end
-            @threads for n ∈ n_current
-                update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
-            end
-        end
-
-        for n ∈ sort(n_current)
-            if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
+        # pred leafs if max depth is reached
+        if depth == params.max_depth
+            for n ∈ n_current
                 if L <: Quantile
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
                 else
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
                 end
+            end
+        else
+            # look for best split for each node
+            for n ∈ n_current[1:2:end]
+                update_hist!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg)
+            end
+            if length(n_current) < nthreads()
+                for n ∈ n_current[2:2:end]
+                    if n % 2 == 0
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
+                    else
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
+                    end
+                end
+                for n ∈ n_current
+                    best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
+                    if best_bin != 0
+                        tree.gain[n] = best_gain - nodes[n].gain
+                        tree.cond_bin[n] = best_bin
+                        tree.feat[n] = best_feat
+                        tree.split[n] = true
+                    end
+                end
             else
-                best = findmax(view(nodes[n].gains, :, js))
-                best_gain = best[1]
-                best_bin = best[2][1]
-                best_feat = js[best[2][2]]
-                if best_gain > nodes[n].gain + params.gamma
-                    tree.gain[n] = best_gain - nodes[n].gain
-                    tree.cond_bin[n] = best_bin
-                    tree.feat[n] = best_feat
-                    tree.split[n] = best_bin != 0
+                @threads for n ∈ n_current[2:2:end]
+                    if n % 2 == 0
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
+                    else
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
+                    end
+                end
+                @threads for n ∈ n_current
+                    best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
+                    if best_bin != 0
+                        tree.gain[n] = best_gain - nodes[n].gain
+                        tree.cond_bin[n] = best_bin
+                        tree.feat[n] = best_feat
+                        tree.split[n] = true
+                    end
+                end
+            end
+
+            sort!(n_current)
+            for n ∈ n_current
+                if tree.split[n]
+
+                    best_feat = tree.feat[n]
+                    best_bin = tree.cond_bin[n]
 
                     _left, _right = split_set!(
                         nodes[n].is,
@@ -153,7 +171,6 @@ function grow_otree!(
     is,
     left,
     right,
-    h∇_cpu::Array{Float64,3},
     h∇::CuArray{Float64,3},
     x_bin::CuMatrix,
     feattypes::Vector{Bool},
@@ -174,34 +191,40 @@ function grow_otree!(
         offset = 0 # identifies breakpoint for each node set within a depth
         n_next = Int[]
 
-        min_weight_flag = false
-        for n in n_current
-            nodes[n].∑[end] <= params.min_weight ? min_weight_flag = true : nothing
-        end
-        if depth == params.max_depth || min_weight_flag
+        if depth == params.max_depth
             for n in n_current
-                if L <: EvoTrees.Quantile
+                if L <: Quantile
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
                 else
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
                 end
             end
         else
-            # update histograms
-            for n_id in eachindex(n_current)
-                n = n_current[n_id]
-                if n_id % 2 == 0
+            for n ∈ n_current[1:2:end]
+                update_hist!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg)
+            end
+            if length(n_current) <= nthreads()
+                for n ∈ n_current[2:2:end]
                     if n % 2 == 0
                         @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
                     else
                         @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
                     end
-                else
-                    update_hist!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg)
                 end
-            end
-            @threads for n ∈ n_current
-                update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
+                for n ∈ n_current
+                    update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
+                end
+            else
+                @threads for n ∈ n_current[2:2:end]
+                    if n % 2 == 0
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
+                    else
+                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
+                    end
+                end
+                @threads for n ∈ n_current
+                    update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
+                end
             end
 
             # initialize gains for node 1 in which all gains of a given depth will be accumulated
@@ -210,13 +233,13 @@ function grow_otree!(
             end
             gain = 0
             # update gains based on the aggregation of all nodes of a given depth. One gains matrix per depth (vs one per node in binary trees).
-            for n ∈ sort(n_current)
+            for n ∈ n_current
                 if n > 1 # accumulate gains in node 1
                     @views nodes[1].gains[:, js] .+= nodes[n].gains[:, js]
                 end
                 gain += nodes[n].gain
             end
-            for n ∈ sort(n_current)
+            for n ∈ n_current
                 if n > 1
                     @views nodes[1].gains[:, js] .*= nodes[n].gains[:, js] .> 0 #mask ignore gains if any node isn't eligible (too small per leaf weight)
                 end
@@ -227,7 +250,7 @@ function grow_otree!(
             best_bin = best[2][1]
             best_feat = js[best[2][2]]
             if best_gain > gain + params.gamma
-                for n in sort(n_current)
+                for n in n_current
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat

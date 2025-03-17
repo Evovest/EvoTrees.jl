@@ -62,6 +62,7 @@ function grow_tree!(
         offset = 0 # identifies breakpoint for each node set within a depth
         n_next = Int[]
 
+        # pred leafs if max depth is reached
         if depth == params.max_depth
             for n ∈ n_current
                 if L <: Quantile
@@ -71,6 +72,7 @@ function grow_tree!(
                 end
             end
         else
+            # look for best split for each node
             if length(n_current) < nthreads()
                 for n ∈ n_current[1:2:end]
                     update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
