@@ -21,13 +21,13 @@ nthreads = Base.Threads.nthreads()
 device_list = [:cpu]
 
 nobs_list = Int.([1e5, 1e6, 1e7])
-# nobs_list = Int.([1e5])
+# nobs_list = Int.([1e5, 1e6])
 
 nfeats_list = [10, 100]
 # nfeats_list = [10]
 
 max_depth_list = [6, 11]
-# max_depth_list = [6]
+# max_depth_list = [11]
 
 # nobs = first(nobs_list)
 # nfeats = first(nfeats_list)

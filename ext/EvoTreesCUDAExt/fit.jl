@@ -71,43 +71,24 @@ function grow_tree!(
                 end
             end
         else
-            # look for best split for each node
+            # find best split for each node
             for n ∈ n_current[1:2:end]
                 update_hist!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg)
             end
-            if length(n_current) < nthreads()
-                for n ∈ n_current[2:2:end]
-                    if n % 2 == 0
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                    else
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                    end
+            @threads for n ∈ n_current[2:2:end]
+                if n % 2 == 0
+                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
+                else
+                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
                 end
-                for n ∈ n_current
-                    best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
-                    if best_bin != 0
-                        tree.gain[n] = best_gain - nodes[n].gain
-                        tree.cond_bin[n] = best_bin
-                        tree.feat[n] = best_feat
-                        tree.split[n] = true
-                    end
-                end
-            else
-                @threads for n ∈ n_current[2:2:end]
-                    if n % 2 == 0
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                    else
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                    end
-                end
-                @threads for n ∈ n_current
-                    best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
-                    if best_bin != 0
-                        tree.gain[n] = best_gain - nodes[n].gain
-                        tree.cond_bin[n] = best_bin
-                        tree.feat[n] = best_feat
-                        tree.split[n] = true
-                    end
+            end
+            @threads for n ∈ n_current
+                best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
+                if best_bin != 0
+                    tree.gain[n] = best_gain - nodes[n].gain
+                    tree.cond_bin[n] = best_bin
+                    tree.feat[n] = best_feat
+                    tree.split[n] = true
                 end
             end
 
@@ -203,28 +184,15 @@ function grow_otree!(
             for n ∈ n_current[1:2:end]
                 update_hist!(nodes[n].h, h∇, ∇, x_bin, nodes[n].is, jsg)
             end
-            if length(n_current) <= nthreads()
-                for n ∈ n_current[2:2:end]
-                    if n % 2 == 0
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                    else
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                    end
+            @threads for n ∈ n_current[2:2:end]
+                if n % 2 == 0
+                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
+                else
+                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
                 end
-                for n ∈ n_current
-                    update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
-                end
-            else
-                @threads for n ∈ n_current[2:2:end]
-                    if n % 2 == 0
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                    else
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                    end
-                end
-                @threads for n ∈ n_current
-                    update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
-                end
+            end
+            @threads for n ∈ n_current
+                update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
             end
 
             # initialize gains for node 1 in which all gains of a given depth will be accumulated
