@@ -82,6 +82,7 @@ function grow_tree!(
                     @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
                 end
             end
+            sort!(n_current)
             @threads for n ∈ n_current
                 best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
                 if best_bin != 0
@@ -92,7 +93,6 @@ function grow_tree!(
                 end
             end
 
-            sort!(n_current)
             for n ∈ n_current
                 if tree.split[n]
 
@@ -191,6 +191,7 @@ function grow_otree!(
                     @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
                 end
             end
+            sort!(n_current)
             @threads for n ∈ n_current
                 update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
             end

@@ -11,8 +11,8 @@ using EvoTrees: fit, predict, sigmoid, logit
 # using ProfileView
 
 # prepare a dataset
-tree_type = :binary # binary/oblivious
-_device = :gpu
+tree_type = :oblivious # binary/oblivious
+_device = :cpu
 
 Random.seed!(123)
 features = rand(10_000) .* 5

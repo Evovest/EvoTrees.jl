@@ -83,6 +83,7 @@ function grow_tree!(
                     @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
                 end
             end
+            sort!(n_current)
             @threads for n ∈ n_current
                 best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
                 if best_bin != 0
@@ -92,7 +93,7 @@ function grow_tree!(
                     tree.split[n] = true
                 end
             end
-            sort!(n_current)
+
             for n ∈ n_current
                 if tree.split[n]
 
@@ -189,14 +190,9 @@ function grow_otree!(
                     @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
                 end
             end
+            sort!(n_current)
             @threads for n ∈ n_current
-                best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
-                if best_bin != 0
-                    tree.gain[n] = best_gain - nodes[n].gain
-                    tree.cond_bin[n] = best_bin
-                    tree.feat[n] = best_feat
-                    tree.split[n] = true
-                end
+                update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
             end
 
             # initialize gains for node 1 in which all gains of a given depth will be accumulated
