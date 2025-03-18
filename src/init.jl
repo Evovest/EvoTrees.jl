@@ -68,8 +68,10 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     !isnothing(offset) && (pred .+= offset')
 
     # initialize gradients
-    ∇ = zeros(T, 2 * K + 1, nobs)
-    ∇[end, :] .= w
+    # ∇ = zeros(T, 2 * K + 1, nobs)
+    # ∇[end, :] .= w
+    ∇ = [SVector{3,Float32}(0, 0, _w) for _w in w]
+    # ∇ = zeros(SVector{3,Float32}, nobs)
 
     # initialize indexes
     mask_cond = zeros(UInt8, nobs)

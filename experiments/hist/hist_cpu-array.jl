@@ -5,7 +5,7 @@ using Base.Threads: @threads
 using StatsBase: sample!
 
 function hist_cpu_array!(
-    hist::Array{Float64,3},
+    hist::Array,
     ∇::Matrix,
     x_bin::Matrix,
     is::AbstractVector,

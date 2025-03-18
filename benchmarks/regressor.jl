@@ -9,7 +9,7 @@ using BenchmarkTools
 using Random: seed!
 
 run_evo = true
-run_xgb = true
+run_xgb = false
 nrounds = 200
 
 loss = :mse

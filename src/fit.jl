@@ -39,7 +39,7 @@ function grow_tree!(
     tree::Tree{L,K},
     nodes::Vector{N},
     params::EvoTypes,
-    ∇::Matrix,
+    ∇,
     js,
     is,
     left,
@@ -54,7 +54,7 @@ function grow_tree!(
     depth = 1
 
     # initialize summary stats
-    nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
+    nodes[1].∑ = sum(view(∇, nodes[1].is))
     nodes[1].gain = get_gain(L, params, nodes[1].∑)
 
     # grow while there are remaining active nodes
@@ -78,9 +78,9 @@ function grow_tree!(
             end
             @threads for n ∈ n_current[2:2:end]
                 if n % 2 == 0
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
+                    @views nodes[n].h[:, js] .= nodes[n>>1].h[:, js] .- nodes[n+1].h[:, js]
                 else
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
+                    @views nodes[n].h[:, js] .= nodes[n>>1].h[:, js] .- nodes[n-1].h[:, js]
                 end
             end
             sort!(n_current)
@@ -114,8 +114,8 @@ function grow_tree!(
                     offset += length(nodes[n].is)
 
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
+                    nodes[n<<1].∑ = nodes[n].hL[best_bin, best_feat]
+                    nodes[n<<1+1].∑ = nodes[n].hR[best_bin, best_feat]
                     nodes[n<<1].gain = get_gain(L, params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = get_gain(L, params, nodes[n<<1+1].∑)
 
@@ -147,7 +147,7 @@ function grow_otree!(
     tree::Tree{L,K},
     nodes::Vector{N},
     params::EvoTypes,
-    ∇::Matrix,
+    ∇,
     js,
     is,
     left,

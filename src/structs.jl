@@ -8,7 +8,7 @@ abstract type GPU <: Device end
 Carries training information for a given tree node
 """
 mutable struct TrainNode{S,V,M,A}
-    gain::Float64
+    gain::Float32
     is::S
     ∑::V
     h::A
@@ -19,13 +19,13 @@ end
 
 function TrainNode(nfeats, nbins, K, is)
     node = TrainNode(
-        zero(Float64),
+        zero(Float32),
         is,
-        zeros(2 * K + 1),
-        zeros(2 * K + 1, nbins, nfeats),
-        zeros(2 * K + 1, nbins, nfeats),
-        zeros(2 * K + 1, nbins, nfeats),
-        zeros(nbins, nfeats)
+        zero(SVector{2 * K + 1,Float32}),
+        zeros(SVector{2 * K + 1,Float32}, nbins, nfeats),
+        zeros(SVector{2 * K + 1,Float32}, nbins, nfeats),
+        zeros(SVector{2 * K + 1,Float32}, nbins, nfeats),
+        zeros(Float32, nbins, nfeats),
     )
     return node
 end
@@ -46,7 +46,7 @@ struct CacheBaseCPU{Y,N<:TrainNode} <: CacheCPU
     left::Vector{UInt32}
     right::Vector{UInt32}
     js::Vector{UInt32}
-    ∇::Matrix{Float32}
+    ∇::Vector{SVector{3,Float32}}
     feature_names::Vector{Symbol}
     featbins::Vector{UInt8}
     feattypes::Vector{Bool}

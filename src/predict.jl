@@ -126,13 +126,14 @@ function softmax!(p::AbstractMatrix)
 end
 
 # GradientRegression predictions
-function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:GradientRegression,T}
+function pred_leaf_cpu!(p::Matrix{T}, n, ∑, ::Type{L}, params::EvoTypes) where {L<:GradientRegression,T}
     ϵ = eps(T)
     p[1, n] = -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
 end
-function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:GradientRegression,T}
-    ϵ = eps(T)
-    return -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
+function pred_scalar(∑, ::Type{L}, params::EvoTypes) where {L<:GradientRegression}
+    # ϵ = eps(T)
+    return -params.eta * ∑[1] / (∑[2] + params.lambda * ∑[3] + params.L2)
+    # return -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
 end
 
 # Cred predictions

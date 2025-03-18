@@ -57,10 +57,13 @@ function update_grads!(∇::Matrix, p::Matrix{T}, y::Vector{T}, ::Type{<:Cred}, 
 end
 
 # MSE
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MSE}, params::EvoTypes) where {T}
+function update_grads!(∇::Vector{G}, p::Matrix{T}, y::Vector{T}, ::Type{MSE}, params::EvoTypes) where {G,T}
     @threads for i in eachindex(y)
-        @inbounds ∇[1, i] = 2 * (p[1, i] - y[i]) * ∇[3, i]
-        @inbounds ∇[2, i] = 2 * ∇[3, i]
+        ∇[i] = G(
+            2 * (p[1, i] - y[i]) * ∇[i][3],
+            2 * ∇[i][3],
+            ∇[i][3]
+        )
     end
 end
 
@@ -199,11 +202,11 @@ end
 # get the gain metric
 ##############################
 # GradientRegression
-function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:GradientRegression,T}
-    ϵ = eps(T)
+function get_gain(::Type{L}, params::EvoTypes, ∑) where {L<:GradientRegression}
+    # ϵ = eps(T)
     lambda = params.lambda
     L2 = params.L2
-    ∑[1]^2 / max(ϵ, (∑[2] + lambda * ∑[3] + L2)) / 2
+    ∑[1]^2 / (∑[2] + lambda * ∑[3] + L2) / 2
 end
 
 # GaussianRegression

@@ -18,6 +18,7 @@ using Tables
 using CategoricalArrays
 using Tables
 using BSON
+using StaticArrays
 
 using NetworkLayout
 using RecipesBase

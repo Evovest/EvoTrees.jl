@@ -4,14 +4,14 @@ using StatsBase: sample, quantile
 using Distributions
 using Random
 using CairoMakie
-using CUDA
+# using CUDA
 using EvoTrees
 using EvoTrees: fit, predict, sigmoid, logit
 
 # using ProfileView
 
 # prepare a dataset
-tree_type = :oblivious # binary/oblivious
+tree_type = :binary # binary/oblivious
 _device = :cpu
 
 Random.seed!(123)
