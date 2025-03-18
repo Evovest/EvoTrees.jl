@@ -31,7 +31,7 @@ config = EvoTreeRegressor(;
     colsample=0.5,
     min_weight=1,
     nbins=64,
-    device=:gpu,
+    device=:cpu,
     tree_type=:binary
 )
 
