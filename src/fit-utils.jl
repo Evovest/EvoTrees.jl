@@ -302,8 +302,8 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Array{Float64,3},
-    ∇::Matrix{Float32},
+    hist::Array,
+    ∇::Matrix,
     x_bin::Matrix,
     is::AbstractVector,
     js::AbstractVector,
@@ -326,8 +326,8 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Array{Float64,3},
-    ∇::Matrix{Float32},
+    hist::Array,
+    ∇::Matrix,
     x_bin::Matrix,
     is::AbstractVector,
     js::AbstractVector,
@@ -353,8 +353,8 @@ Generic fallback - Softmax
 """
 function update_hist!(
     ::Type{L},
-    hist::Array{Float64,3},
-    ∇::Matrix{Float32},
+    hist::Array,
+    ∇::Matrix,
     x_bin::Matrix,
     is::AbstractVector,
     js::AbstractVector,

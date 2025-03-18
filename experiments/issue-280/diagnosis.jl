@@ -7,7 +7,7 @@ using BenchmarkTools
 using Random: seed!
 using CUDA
 
-nobs = Int(1e5)
+nobs = Int(1e6)
 num_feat = Int(100)
 nrounds = 200
 T = Float64
@@ -37,8 +37,9 @@ config = EvoTreeRegressor(;
 
 @info "fit"
 # laptop depth 11:  3.887943 seconds (4.06 M allocations: 1.500 GiB, 4.65% gc time)
-# desktop 1M - depth-6: 5.438947 seconds (726.77 k allocations: 293.581 MiB, 1.07% gc time)
-# desktop 1M - depth-11: 18.084438 seconds (7.98 M allocations: 1.980 GiB, 0.91% gc time)
+# desktop 100K - depth-11: 4.538235 seconds (5.77 M allocations: 1.627 GiB, 3.49% gc time)
+# desktop 1M - depth-6: 4.993774 seconds (865.10 k allocations: 306.904 MiB)
+# desktop 1M - depth-11: 15.564866 seconds (8.14 M allocations: 1.557 GiB, 1.27% gc time)
 @time m = EvoTrees.fit(config, dtrain; target_name)
 @profview EvoTrees.fit(config, dtrain; target_name)
 
