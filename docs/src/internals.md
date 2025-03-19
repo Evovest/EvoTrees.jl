@@ -15,6 +15,7 @@ EvoTrees.check_args
 ```@docs
 EvoTrees.init
 EvoTrees.grow_evotree!
+EvoTrees.get_best_split
 EvoTrees.update_gains!
 EvoTrees.predict!
 EvoTrees.subsample

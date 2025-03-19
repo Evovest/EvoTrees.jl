@@ -8,7 +8,7 @@ abstract type GPU <: Device end
 Carries training information for a given tree node
 """
 mutable struct TrainNode{S,V,M,A}
-    gain::Float64
+    gain::Float32
     is::S
     ∑::V
     h::A
@@ -19,12 +19,12 @@ end
 
 function TrainNode(nfeats, nbins, K, is)
     node = TrainNode(
-        zero(Float64),
+        zero(Float32),
         is,
-        zeros(2 * K + 1),
-        zeros(2 * K + 1, nbins, nfeats),
-        zeros(2 * K + 1, nbins, nfeats),
-        zeros(2 * K + 1, nbins, nfeats),
+        zeros(Float32, 2 * K + 1),
+        zeros(Float32, 2 * K + 1, nbins, nfeats),
+        zeros(Float32, 2 * K + 1, nbins, nfeats),
+        zeros(Float32, 2 * K + 1, nbins, nfeats),
         zeros(nbins, nfeats)
     )
     return node
@@ -57,7 +57,7 @@ end
 struct Tree{L,K}
     feat::Vector{Int}
     cond_bin::Vector{UInt8}
-    gain::Vector{Float64}
+    gain::Vector{Float32}
     pred::Matrix{Float32}
     split::Vector{Bool}
 end
@@ -66,7 +66,7 @@ function Tree{L,K}(x::Vector) where {L,K}
     Tree{L,K}(
         zeros(Int, 1),
         zeros(UInt8, 1),
-        zeros(Float64, 1),
+        zeros(Float32, 1),
         reshape(x, :, 1),
         zeros(Bool, 1),
     )
@@ -76,7 +76,7 @@ function Tree{L,K}(depth::Int) where {L,K}
     Tree{L,K}(
         zeros(Int, 2^depth - 1),
         zeros(UInt8, 2^depth - 1),
-        zeros(Float64, 2^depth - 1),
+        zeros(Float32, 2^depth - 1),
         zeros(Float32, K, 2^depth - 1),
         zeros(Bool, 2^depth - 1),
     )

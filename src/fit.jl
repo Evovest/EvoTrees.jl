@@ -54,7 +54,7 @@ function grow_tree!(
     depth = 1
 
     # initialize summary stats
-    nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
+    nodes[1].∑ .= dropdims(sum(view(∇, :, nodes[1].is), dims=2), dims=2)
     nodes[1].gain = get_gain(L, params, nodes[1].∑)
 
     # grow while there are remaining active nodes
@@ -62,58 +62,43 @@ function grow_tree!(
         offset = 0 # identifies breakpoint for each node set within a depth
         n_next = Int[]
 
-        # update histograms and gains
-        if depth < params.max_depth
-
-            if length(n_current) <= nthreads()
-                for n ∈ n_current[1:2:end]
-                    update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
-                end
-                for n ∈ n_current[2:2:end]
-                    if n % 2 == 0
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                    else
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                    end
-                end
-                for n ∈ n_current
-                    update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
-                end
-            else
-                @threads for n ∈ n_current[1:2:end]
-                    update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
-                end
-                @threads for n ∈ n_current[2:2:end]
-                    if n % 2 == 0
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                    else
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                    end
-                end
-                @threads for n ∈ n_current
-                    update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
-                end
-            end
-        end
-
-        sort!(n_current)
-        for n ∈ n_current
-            if depth == params.max_depth || nodes[n].∑[end] <= params.min_weight
+        # pred leafs if max depth is reached
+        if depth == params.max_depth
+            for n ∈ n_current
                 if L <: Quantile
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
                 else
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params)
                 end
-            else
-                best = findmax(view(nodes[n].gains, :, js))
-                best_gain = best[1]
-                best_bin = best[2][1]
-                best_feat = js[best[2][2]]
-                if best_gain > nodes[n].gain + params.gamma
+            end
+        else
+            # look for best split for each node
+            @threads for n ∈ n_current[1:2:end]
+                update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
+            end
+            @threads for n ∈ n_current[2:2:end]
+                if n % 2 == 0
+                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
+                else
+                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
+                end
+            end
+            sort!(n_current)
+            @threads for n ∈ n_current
+                best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
+                if best_bin != 0
                     tree.gain[n] = best_gain - nodes[n].gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
-                    tree.split[n] = best_bin != 0
+                    tree.split[n] = true
+                end
+            end
+
+            for n ∈ n_current
+                if tree.split[n]
+
+                    best_feat = tree.feat[n]
+                    best_bin = tree.cond_bin[n]
 
                     _left, _right = split_set!(
                         nodes[n].is,
@@ -177,7 +162,7 @@ function grow_otree!(
     depth = 1
 
     # initialize summary stats
-    nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
+    nodes[1].∑ .= dropdims(sum(view(∇, :, nodes[1].is), dims=2), dims=2)
     nodes[1].gain = get_gain(L, params, nodes[1].∑)
 
     # grow while there are remaining active nodes
@@ -185,11 +170,7 @@ function grow_otree!(
         offset = 0 # identifies breakpoint for each node set within a depth
         n_next = Int[]
 
-        min_weight_flag = false
-        for n in n_current
-            nodes[n].∑[end] <= params.min_weight ? min_weight_flag = true : nothing
-        end
-        if depth == params.max_depth || min_weight_flag
+        if depth == params.max_depth
             for n in n_current
                 if L <: Quantile
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
@@ -198,34 +179,20 @@ function grow_otree!(
                 end
             end
         else
-            if length(n_current) <= nthreads()
-                for n ∈ n_current[1:2:end]
-                    update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
+            # look for best split for each node
+            @threads for n ∈ n_current[1:2:end]
+                update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
+            end
+            @threads for n ∈ n_current[2:2:end]
+                if n % 2 == 0
+                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
+                else
+                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
                 end
-                for n ∈ n_current[2:2:end]
-                    if n % 2 == 0
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                    else
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                    end
-                end
-                for n ∈ n_current
-                    update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
-                end
-            else
-                @threads for n ∈ n_current[1:2:end]
-                    update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
-                end
-                @threads for n ∈ n_current[2:2:end]
-                    if n % 2 == 0
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                    else
-                        @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                    end
-                end
-                @threads for n ∈ n_current
-                    update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
-                end
+            end
+            sort!(n_current)
+            @threads for n ∈ n_current
+                update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
             end
 
             # initialize gains for node 1 in which all gains of a given depth will be accumulated

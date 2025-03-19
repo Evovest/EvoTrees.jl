@@ -5,7 +5,7 @@ using EvoTrees
 using DataFrames
 using BenchmarkTools
 using Random: seed!
-# using CUDA
+using CUDA
 
 nobs = Int(1e5)
 num_feat = Int(100)
@@ -36,10 +36,10 @@ config = EvoTreeRegressor(;
 )
 
 @info "fit"
-# laptop 100k - depth-11: 5.146400 seconds (3.60 M allocations: 1.492 GiB, 4.15% gc time)
-# laptop 1M - depth-11: 22.864825 seconds (5.09 M allocations: 1.794 GiB, 2.36% gc time)
-# desktop 1M - depth-6: 5.438947 seconds (726.77 k allocations: 293.581 MiB, 1.07% gc time)
-# desktop 1M - depth-11: 29.500740 seconds (7.74 M allocations: 2.008 GiB, 1.73% gc time)
+# laptop depth 11:  3.887943 seconds (4.06 M allocations: 1.500 GiB, 4.65% gc time)
+# desktop 100K - depth-11: 3.149763 seconds (5.85 M allocations: 1.194 GiB, 4.00% gc time)
+# desktop 1M - depth-6: 4.993774 seconds (865.10 k allocations: 306.904 MiB)
+# desktop 1M - depth-11: 15.306711 seconds (8.10 M allocations: 1.553 GiB, 2.16% gc time)
 @time m = EvoTrees.fit(config, dtrain; target_name)
 @profview EvoTrees.fit(config, dtrain; target_name)
 
