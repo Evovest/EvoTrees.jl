@@ -11,8 +11,8 @@ struct CacheBaseGPU{Y,N} <: EvoTrees.CacheGPU
     right::CuVector{UInt32}
     js::Vector{UInt32}
     ∇::CuArray{Float32}
-    h∇::CuArray{Float64,3}
-    h∇_cpu::Array{Float64,3}
+    h∇::CuArray{Float32,3}
+    h∇_cpu::Array{Float32,3}
     feature_names::Vector{Symbol}
     featbins::Vector{UInt8}
     feattypes::Vector{Bool}
