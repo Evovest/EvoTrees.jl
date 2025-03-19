@@ -49,7 +49,7 @@ Code to reproduce is available in [`benchmarks/regressor.jl`](https://github.com
     - Julia: v1.10.8
 - Algorithms
     - XGBoost: v2.5.1 (Using the `hist` algorithm)
-    - EvoTrees: v0.17.0
+    - EvoTrees: v0.17.1
 
 ### CPU:
 
