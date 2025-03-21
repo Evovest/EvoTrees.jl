@@ -8,7 +8,7 @@ abstract type GPU <: Device end
 Carries training information for a given tree node
 """
 mutable struct TrainNode{S,V,M,A}
-    gain::Float32
+    gain::Float64
     is::S
     ∑::V
     h::A
@@ -19,12 +19,12 @@ end
 
 function TrainNode(nfeats, nbins, K, is)
     node = TrainNode(
-        zero(Float32),
+        zero(Float64),
         is,
-        zeros(Float32, 2 * K + 1),
-        zeros(Float32, 2 * K + 1, nbins, nfeats),
-        zeros(Float32, 2 * K + 1, nbins, nfeats),
-        zeros(Float32, 2 * K + 1, nbins, nfeats),
+        zeros(Float64, 2 * K + 1),
+        zeros(Float64, 2 * K + 1, nbins, nfeats),
+        zeros(Float64, 2 * K + 1, nbins, nfeats),
+        zeros(Float64, 2 * K + 1, nbins, nfeats),
         zeros(nbins, nfeats)
     )
     return node
