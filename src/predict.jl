@@ -128,33 +128,31 @@ end
 # GradientRegression predictions
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:GradientRegression,T}
     ϵ = eps(T)
-    p[1, n] = -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
+    p[1, n] = -params.eta / params.bagging_size * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
 end
 function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:GradientRegression,T}
     ϵ = eps(T)
-    return -params.eta * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
+    return -params.eta / params.bagging_size * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
 end
 
 # Cred predictions
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:Cred,T}
-    # Z = _get_cred(L, params, ∑)
-    p[1, n] = params.eta * ∑[1] / ∑[3] #* Z
+    p[1, n] = params.eta / params.bagging_size * ∑[1] / ∑[3] #* Z
     return nothing
 end
 function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:Cred,T}
-    # Z = _get_cred(L, params, ∑)
-    return params.eta * ∑[1] / ∑[3] #* Z
+    return params.eta / params.bagging_size * ∑[1] / ∑[3] #* Z
 end
 
 # prediction in Leaf - MLE2P
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MLE2P,T}
     ϵ = eps(T)
-    p[1, n] = -params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[5] + params.L2))
-    p[2, n] = -params.eta * ∑[2] / max(ϵ, (∑[4] + params.lambda * ∑[5] + params.L2))
+    p[1, n] = -params.eta / params.bagging_size * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[5] + params.L2))
+    p[2, n] = -params.eta / params.bagging_size * ∑[2] / max(ϵ, (∑[4] + params.lambda * ∑[5] + params.L2))
 end
 function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MLE2P,T}
     ϵ = eps(T)
-    return -params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[5] + params.L2))
+    return -params.eta / params.bagging_size * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[5] + params.L2))
 end
 
 # prediction in Leaf - MultiClassRegression
@@ -162,22 +160,22 @@ function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params:
     ϵ = eps(T)
     K = size(p, 1)
     @inbounds for k = axes(p, 1)
-        p[k, n] = -params.eta * ∑[k] / max(ϵ, (∑[k+K] + params.lambda * ∑[end] + params.L2))
+        p[k, n] = -params.eta / params.bagging_size * ∑[k] / max(ϵ, (∑[k+K] + params.lambda * ∑[end] + params.L2))
     end
 end
 
 # MAE
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MAE,T}
     ϵ = eps(T)
-    p[1, n] = params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
+    p[1, n] = params.eta / params.bagging_size * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
 end
 function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MAE,T}
     ϵ = eps(T)
-    return params.eta * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
+    return params.eta / params.bagging_size * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
 end
 
 # Quantile
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes, ∇, is) where {L<:Quantile,T}
     ϵ = eps(T)
-    p[1, n] = params.eta * quantile(view(∇, 2, is), params.alpha) / (1 + params.lambda + params.L2 / ∑[3])
+    p[1, n] = params.eta / params.bagging_size * quantile(view(∇, 2, is), params.alpha) / (1 + params.lambda + params.L2 / ∑[3])
 end

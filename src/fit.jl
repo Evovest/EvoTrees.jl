@@ -7,29 +7,34 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
 
     # compute gradients
     update_grads!(cache.∇, cache.pred, cache.y, L, params)
-    # subsample rows
-    cache.nodes[1].is = subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, params.rng)
-    # subsample cols
-    sample!(params.rng, UInt32(1):UInt32(length(cache.feattypes)), cache.js, replace=false, ordered=true)
 
-    # instantiate a tree then grow it
-    tree = Tree{L,K}(params.max_depth)
-    grow! = params.tree_type == :oblivious ? grow_otree! : grow_tree!
-    grow!(
-        tree,
-        cache.nodes,
-        params,
-        cache.∇,
-        cache.js,
-        cache.is,
-        cache.left,
-        cache.right,
-        cache.x_bin,
-        cache.feattypes,
-        cache.monotone_constraints
-    )
-    push!(m.trees, tree)
-    predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
+    for _ in 1:params.bagging_size
+
+        # subsample rows
+        cache.nodes[1].is = subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, params.rng)
+        # subsample cols
+        sample!(params.rng, UInt32(1):UInt32(length(cache.feattypes)), cache.js, replace=false, ordered=true)
+
+        # instantiate a tree then grow it
+        tree = Tree{L,K}(params.max_depth)
+        grow! = params.tree_type == :oblivious ? grow_otree! : grow_tree!
+        grow!(
+            tree,
+            cache.nodes,
+            params,
+            cache.∇,
+            cache.js,
+            cache.is,
+            cache.left,
+            cache.right,
+            cache.x_bin,
+            cache.feattypes,
+            cache.monotone_constraints
+        )
+        push!(m.trees, tree)
+        predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
+    end
+
     m.info[:nrounds] += 1
     return nothing
 end

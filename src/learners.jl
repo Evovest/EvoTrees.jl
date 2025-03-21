@@ -6,6 +6,7 @@ mutable struct EvoTreeRegressor <: MMI.Deterministic
     loss::Symbol
     metric::Symbol
     nrounds::Int
+    bagging_size::Int
     early_stopping_rounds::Int
     L2::Float64
     lambda::Float64
@@ -30,6 +31,7 @@ function EvoTreeRegressor(; kwargs...)
         :loss => :mse,
         :metric => nothing,
         :nrounds => 100,
+        :bagging_size => 1,
         :early_stopping_rounds => typemax(Int),
         :L2 => 1.0,
         :lambda => 0.0,
@@ -93,6 +95,7 @@ function EvoTreeRegressor(; kwargs...)
         loss,
         metric,
         args[:nrounds],
+        args[:bagging_size],
         args[:early_stopping_rounds],
         args[:L2],
         args[:lambda],
