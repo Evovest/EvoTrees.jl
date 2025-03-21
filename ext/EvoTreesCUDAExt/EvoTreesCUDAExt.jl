@@ -1,6 +1,9 @@
 module EvoTreesCUDAExt
 
+using Base.Threads: @threads, nthreads
 using EvoTrees
+using EvoTrees: split_set!, pred_leaf_cpu!, update_gains!, get_best_split, get_gain, Quantile
+import EvoTrees: update_hist!
 using CUDA
 
 # This should be different on CPUs and GPUs

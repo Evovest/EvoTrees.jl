@@ -222,7 +222,6 @@ end
 
 @testset "EvoTreeCount - Count" begin
     params1 = EvoTreeCount(
-        loss=:poisson,
         nrounds=100,
         lambda=0.5,
         gamma=0.1,

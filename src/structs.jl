@@ -7,25 +7,25 @@ abstract type GPU <: Device end
     
 Carries training information for a given tree node
 """
-mutable struct TrainNode{S,V,M}
-    gain::Float64
+mutable struct TrainNode{S,V,M,A}
+    gain::Float32
     is::S
     ∑::V
-    h::Vector{M}
-    hL::Vector{M}
-    hR::Vector{M}
-    gains::Vector{V}
+    h::A
+    hL::A
+    hR::A
+    gains::M
 end
 
-function TrainNode(featbins, K, is)
+function TrainNode(nfeats, nbins, K, is)
     node = TrainNode(
-        zero(Float64),
+        zero(Float32),
         is,
-        zeros(2 * K + 1),
-        [zeros(2 * K + 1, nbins) for nbins in featbins],
-        [zeros(2 * K + 1, nbins) for nbins in featbins],
-        [zeros(2 * K + 1, nbins) for nbins in featbins],
-        [zeros(nbins) for nbins in featbins],
+        zeros(Float32, 2 * K + 1),
+        zeros(Float32, 2 * K + 1, nbins, nfeats),
+        zeros(Float32, 2 * K + 1, nbins, nfeats),
+        zeros(Float32, 2 * K + 1, nbins, nfeats),
+        zeros(nbins, nfeats)
     )
     return node
 end
@@ -34,18 +34,18 @@ abstract type Cache end
 abstract type CacheCPU <: Cache end
 abstract type CacheGPU <: Cache end
 
-struct CacheBaseCPU{Y,N} <: CacheCPU
+struct CacheBaseCPU{Y,N<:TrainNode} <: CacheCPU
     K::UInt8
     x_bin::Matrix{UInt8}
     y::Y
     w::Vector{Float32}
     pred::Matrix{Float32}
-    nodes::N
+    nodes::Vector{N}
     mask_cond::Vector{UInt8}
     is::Vector{UInt32}
     left::Vector{UInt32}
     right::Vector{UInt32}
-    js::Vector{UInt32}    
+    js::Vector{UInt32}
     ∇::Matrix{Float32}
     feature_names::Vector{Symbol}
     featbins::Vector{UInt8}
@@ -57,7 +57,7 @@ end
 struct Tree{L,K}
     feat::Vector{Int}
     cond_bin::Vector{UInt8}
-    gain::Vector{Float64}
+    gain::Vector{Float32}
     pred::Matrix{Float32}
     split::Vector{Bool}
 end
@@ -66,7 +66,7 @@ function Tree{L,K}(x::Vector) where {L,K}
     Tree{L,K}(
         zeros(Int, 1),
         zeros(UInt8, 1),
-        zeros(Float64, 1),
+        zeros(Float32, 1),
         reshape(x, :, 1),
         zeros(Bool, 1),
     )
@@ -76,7 +76,7 @@ function Tree{L,K}(depth::Int) where {L,K}
     Tree{L,K}(
         zeros(Int, 2^depth - 1),
         zeros(UInt8, 2^depth - 1),
-        zeros(Float64, 2^depth - 1),
+        zeros(Float32, 2^depth - 1),
         zeros(Float32, K, 2^depth - 1),
         zeros(Bool, 2^depth - 1),
     )

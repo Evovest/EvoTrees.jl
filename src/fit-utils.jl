@@ -126,6 +126,7 @@ function split_set!(
             offset,
         )
     end
+
     return (_left, _right)
 end
 
@@ -301,18 +302,19 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Vector{Matrix{Float64}},
-    ∇::Matrix{Float32},
+    hist::Array,
+    ∇::Matrix,
     x_bin::Matrix,
     is::AbstractVector,
     js::AbstractVector,
 ) where {L<:GradientRegression}
+    hist .= 0
     @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
-            hist[j][1, bin] += ∇[1, i]
-            hist[j][2, bin] += ∇[2, i]
-            hist[j][3, bin] += ∇[3, i]
+            hist[1, bin, j] += ∇[1, i]
+            hist[2, bin, j] += ∇[2, i]
+            hist[3, bin, j] += ∇[3, i]
         end
     end
     return nothing
@@ -324,20 +326,21 @@ end
 """
 function update_hist!(
     ::Type{L},
-    hist::Vector{Matrix{Float64}},
-    ∇::Matrix{Float32},
+    hist::Array,
+    ∇::Matrix,
     x_bin::Matrix,
     is::AbstractVector,
     js::AbstractVector,
 ) where {L<:MLE2P}
+    hist .= 0
     @threads for j in js
         @inbounds @simd for i in is
             bin = x_bin[i, j]
-            hist[j][1, bin] += ∇[1, i]
-            hist[j][2, bin] += ∇[2, i]
-            hist[j][3, bin] += ∇[3, i]
-            hist[j][4, bin] += ∇[4, i]
-            hist[j][5, bin] += ∇[5, i]
+            hist[1, bin, j] += ∇[1, i]
+            hist[2, bin, j] += ∇[2, i]
+            hist[3, bin, j] += ∇[3, i]
+            hist[4, bin, j] += ∇[4, i]
+            hist[5, bin, j] += ∇[5, i]
         end
     end
     return nothing
@@ -350,17 +353,18 @@ Generic fallback - Softmax
 """
 function update_hist!(
     ::Type{L},
-    hist::Vector{Matrix{Float64}},
-    ∇::Matrix{Float32},
+    hist::Array,
+    ∇::Matrix,
     x_bin::Matrix,
     is::AbstractVector,
     js::AbstractVector,
 ) where {L}
+    hist .= 0
     @threads for j in js
         @inbounds for i in is
             bin = x_bin[i, j]
             @inbounds @simd for k in axes(∇, 1)
-                hist[j][k, bin] += ∇[k, i]
+                hist[k, bin, j] += ∇[k, i]
             end
         end
     end
@@ -369,8 +373,8 @@ end
 
 
 """
-    update_gains!(
-        ::Type{L<:LossType},
+    get_best_split(
+        ::Type{L},
         node::TrainNode,
         js,
         params::EvoTypes,
@@ -379,6 +383,74 @@ end
     )
 
 Generic fallback
+"""
+function get_best_split(
+    ::Type{L},
+    node::TrainNode,
+    js,
+    params::EvoTypes,
+    feattypes::Vector{Bool},
+    monotone_constraints,
+) where {L<:LossType}
+
+    h = view(node.h, :, :, js)
+    hL = view(node.hL, :, :, js)
+    hR = view(node.hR, :, :, js)
+    constraints = view(monotone_constraints, js)
+    num_flags = view(feattypes, js)
+    ∑ = node.∑
+    nbins = size(h, 2)
+    hL .= h
+
+    best_gain = node.gain + params.gamma
+    best_feat = zero(Int)
+    best_bin = zero(Int)
+
+    @inbounds for j in axes(h, 3) # loop over features
+        constraint = constraints[j]
+        if num_flags[j]
+            cumsum!(view(hL, :, :, j), view(hL, :, :, j); dims=2)
+            view(hR, :, :, j) .= view(hL, :, nbins, j) .- view(hL, :, :, j)
+        else
+            view(hR, :, :, j) .= ∑ .- view(hL, :, :, j)
+        end
+        @inbounds for bin in axes(h, 2) # loop over bins
+            if hL[end, bin, j] > params.min_weight && hR[end, bin, j] > params.min_weight
+                if constraint != 0
+                    predL = pred_scalar(view(hL, :, bin, j), L, params)
+                    predR = pred_scalar(view(hR, :, bin, j), L, params)
+                end
+                if (constraint == 0) ||
+                   (constraint == -1 && predL > predR) ||
+                   (constraint == 1 && predL < predR)
+
+                    gain =
+                        get_gain(L, params, view(hL, :, bin, j)) +
+                        get_gain(L, params, view(hR, :, bin, j))
+
+                    if gain > best_gain
+                        best_gain = gain
+                        best_feat = js[j]
+                        best_bin = bin
+                    end
+                end
+            end
+        end
+    end
+
+    return (best_gain, best_feat, best_bin)
+end
+
+
+"""
+    update_gains!(
+        ::Type{L},
+        node::TrainNode,
+        js,
+        params::EvoTypes,
+        feattypes::Vector{Bool},
+        monotone_constraints,
+    )
 """
 function update_gains!(
     ::Type{L},
@@ -389,37 +461,43 @@ function update_gains!(
     monotone_constraints,
 ) where {L<:LossType}
 
-    h = node.h
-    hL = node.hL
-    hR = node.hR
-    gains = node.gains
+    h = view(node.h, :, :, js)
+    hL = view(node.hL, :, :, js)
+    hR = view(node.hR, :, :, js)
+    gains = view(node.gains, :, js)
+    constraints = view(monotone_constraints, js)
+    num_flags = view(feattypes, js)
     ∑ = node.∑
+    nbins = size(h, 2)
 
-    @inbounds for j in js
-        if feattypes[j]
-            cumsum!(hL[j], h[j], dims=2)
-            hR[j] .= ∑ .- hL[j]
+    gains .= 0 # initialization on demand (rather than at start of tree) 
+    hL .= h
+
+    @inbounds for j in axes(h, 3)
+        constraint = constraints[j]
+        if num_flags[j]
+            cumsum!(view(hL, :, :, j), view(hL, :, :, j); dims=2)
+            view(hR, :, :, j) .= view(hL, :, nbins, j) .- view(hL, :, :, j)
         else
-            hR[j] .= ∑ .- h[j]
-            hL[j] .= h[j]
+            view(hR, :, :, j) .= ∑ .- view(hL, :, :, j)
         end
-        monotone_constraint = monotone_constraints[j]
-        @inbounds for bin in eachindex(gains[j])
-            if hL[j][end, bin] > params.min_weight && hR[j][end, bin] > params.min_weight
-                if monotone_constraint != 0
-                    predL = pred_scalar(view(hL[j], :, bin), L, params)
-                    predR = pred_scalar(view(hR[j], :, bin), L, params)
+        @inbounds for bin in axes(h, 2)
+            if hL[end, bin, j] > params.min_weight && hR[end, bin, j] > params.min_weight
+                if constraint != 0
+                    predL = pred_scalar(view(hL, :, bin, j), L, params)
+                    predR = pred_scalar(view(hR, :, bin, j), L, params)
                 end
-                if (monotone_constraint == 0) ||
-                   (monotone_constraint == -1 && predL > predR) ||
-                   (monotone_constraint == 1 && predL < predR)
+                if (constraint == 0) ||
+                   (constraint == -1 && predL > predR) ||
+                   (constraint == 1 && predL < predR)
 
-                    gains[j][bin] =
-                        get_gain(L, params, view(hL[j], :, bin)) +
-                        get_gain(L, params, view(hR[j], :, bin))
+                    gains[bin, j] =
+                        get_gain(L, params, view(hL, :, bin, j)) +
+                        get_gain(L, params, view(hR, :, bin, j))
                 end
             end
         end
     end
+
     return nothing
 end

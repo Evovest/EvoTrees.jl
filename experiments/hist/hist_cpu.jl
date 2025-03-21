@@ -38,19 +38,22 @@ h∇ = [zeros(Float64, 3, nbins) for n in 1:nfeats]
 ####################################################
 is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
 
-# laptop: 949.700 μs (41 allocations: 5.11 KiB)
+# laptop: 571.700 μs (41 allocations: 5.11 KiB)
+# desktop: 632.805 μs (61 allocations: 6.52 KiB)
 colsample = 0.01
 js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
 @time hist_cpu!(h∇, ∇, x_bin, is, js)
 @btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)
 
-# 2.788 ms (41 allocations: 5.11 KiB)
+# 1.397 ms (41 allocations: 5.11 KiB)
+# desktop: 714.998 μs (61 allocations: 6.52 KiB)
 colsample = 0.1
 js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
 @time hist_cpu!(h∇, ∇, x_bin, is, js)
 @btime hist_cpu!($h∇, $∇, $x_bin, $is, $js)
 
-# laptop: 23.854 ms (41 allocations: 5.11 KiB)
+# laptop: 15.139 ms (41 allocations: 5.11 KiB)
+# desktop: 6.411 ms (61 allocations: 6.52 KiB)
 colsample = 1
 js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
 @time hist_cpu!(h∇, ∇, x_bin, is, js)

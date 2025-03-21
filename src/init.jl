@@ -96,14 +96,13 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     )
 
     # initialize model
-    nodes = [TrainNode(featbins, K, view(is, 1:0)) for n = 1:2^params.max_depth-1]
-    # nodes = [TrainNode(featbins, K, view(is_in, out)) for n = 1:2^params.max_depth-1]
+    nodes = [TrainNode(nfeats, params.nbins, K, view(is, 1:0)) for n = 1:2^params.max_depth-1]
     bias = [Tree{L,K}(μ)]
     m = EvoTree{L,K}(L, K, bias, info)
 
     # build cache
     Y = typeof(y)
-    N = typeof(nodes)
+    N = typeof(first(nodes))
     cache = CacheBaseCPU{Y,N}(
         K,
         x_bin,
