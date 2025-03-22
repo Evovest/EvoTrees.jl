@@ -54,7 +54,7 @@ function grow_tree!(
     depth = 1
 
     # initialize summary stats
-    nodes[1].∑ .= dropdims(sum(view(∇, :, nodes[1].is), dims=2), dims=2)
+    nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
     nodes[1].gain = get_gain(L, params, nodes[1].∑)
 
     # grow while there are remaining active nodes
@@ -162,7 +162,7 @@ function grow_otree!(
     depth = 1
 
     # initialize summary stats
-    nodes[1].∑ .= dropdims(sum(view(∇, :, nodes[1].is), dims=2), dims=2)
+    nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
     nodes[1].gain = get_gain(L, params, nodes[1].∑)
 
     # grow while there are remaining active nodes

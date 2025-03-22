@@ -7,7 +7,7 @@ using BenchmarkTools
 using Random: seed!
 using CUDA
 
-nobs = Int(1e5)
+nobs = Int(1e6)
 num_feat = Int(100)
 nrounds = 200
 T = Float64
@@ -26,7 +26,7 @@ config = EvoTreeRegressor(;
     nrounds=200,
     eta=0.1,
     L2=1,
-    max_depth=11,
+    max_depth=6,
     rowsample=0.5,
     colsample=0.5,
     min_weight=1,
