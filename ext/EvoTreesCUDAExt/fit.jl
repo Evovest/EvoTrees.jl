@@ -53,7 +53,7 @@ function grow_tree!(
     jsg = CuVector(js)
 
     # initialize summary stats
-    copyto!(nodes[1].∑, sum(view(∇, :, nodes[1].is), dims=2))
+    copyto!(nodes[1].∑, sum(Float64, view(∇, :, nodes[1].is), dims=2))
     nodes[1].gain = get_gain(L, params, nodes[1].∑)
 
     # grow while there are remaining active nodes
@@ -164,7 +164,7 @@ function grow_otree!(
     jsg = CuVector(js)
 
     # initialize summary stats
-    copyto!(nodes[1].∑, sum(view(∇, :, nodes[1].is), dims=2))
+    copyto!(nodes[1].∑, sum(Float64, view(∇, :, nodes[1].is), dims=2))
     nodes[1].gain = get_gain(L, params, nodes[1].∑)
 
     # grow while there are remaining active nodes

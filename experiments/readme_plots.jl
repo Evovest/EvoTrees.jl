@@ -55,10 +55,6 @@ config = EvoTreeRegressor(;
     print_every_n=25,
 );
 
-@time pred_train_linear_cpu = model(x_train)
-@time pred_train_linear_gpu = model(x_train; device=_device)
-sum(pred_train_linear_gpu .- pred_train_linear_cpu)
-
 @time pred_train_linear = predict(model, x_train)
 mean(abs.(pred_train_linear .- y_train))
 sqrt(mean((pred_train_linear .- y_train) .^ 2))
