@@ -20,6 +20,7 @@ X = reshape(features, (size(features)[1], 1))
 Y = sin.(features) .* 0.5 .+ 0.5
 Y = logit(Y) + randn(size(Y))
 Y = sigmoid(Y)
+# Y = 0.5 .* features .+ rand(size(X, 1))
 is = collect(1:size(X, 1))
 
 # train-eval split
@@ -33,13 +34,13 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 
 # mse
 config = EvoTreeRegressor(;
-    nrounds=1,
-    bagging_size=32,
+    nrounds=100,
+    bagging_size=1,
     early_stopping_rounds=50,
-    nbins=64,
+    nbins=8,
     L2=0.0,
     eta=1.0,
-    max_depth=11,
+    max_depth=5,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -64,12 +65,12 @@ sqrt(mean((pred_train_linear .- y_train) .^ 2))
 config = EvoTreeRegressor(;
     loss=:logloss,
     nrounds=1,
-    bagging_size=32,
+    bagging_size=1,
     early_stopping_rounds=50,
-    nbins=64,
+    nbins=8,
     L2=0.0,
     eta=1.0,
-    max_depth=11,
+    max_depth=7,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -89,42 +90,42 @@ config = EvoTreeRegressor(;
 sqrt(mean((pred_train_logistic .- y_train) .^ 2))
 
 # poisson
-config = EvoTreeCount(;
-    nrounds=1,
-    bagging_size=32,
-    early_stopping_rounds=50,
-    nbins=64,
-    L2=0.0,
-    eta=1.0,
-    max_depth=11,
-    min_weight=1.0,
-    rowsample=0.5,
-    colsample=1.0,
-    tree_type,
-    device=_device
-)
+# config = EvoTreeCount(;
+#     nrounds=1,
+#     bagging_size=1,
+#     early_stopping_rounds=50,
+#     nbins=8,
+#     L2=0.0,
+#     eta=1.0,
+#     max_depth=5,
+#     min_weight=1.0,
+#     rowsample=0.5,
+#     colsample=1.0,
+#     tree_type,
+#     device=_device
+# )
 
-@time model = fit(
-    config;
-    x_train,
-    y_train,
-    x_eval,
-    y_eval,
-    print_every_n=25,
-);
-@time pred_train_poisson = model(x_train; device=_device)
-sqrt(mean((pred_train_poisson .- y_train) .^ 2))
+# @time model = fit(
+#     config;
+#     x_train,
+#     y_train,
+#     x_eval,
+#     y_eval,
+#     print_every_n=25,
+# );
+# @time pred_train_poisson = model(x_train; device=_device)
+# sqrt(mean((pred_train_poisson .- y_train) .^ 2))
 
 # gamma
 config = EvoTreeRegressor(;
     loss=:gamma,
     nrounds=1,
-    bagging_size=32,
+    bagging_size=1,
     early_stopping_rounds=50,
-    nbins=64,
+    nbins=8,
     L2=0.0,
     eta=1.0,
-    max_depth=11,
+    max_depth=5,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -147,12 +148,12 @@ sqrt(mean((pred_train_gamma .- y_train) .^ 2))
 config = EvoTreeRegressor(;
     loss=:tweedie,
     nrounds=1,
-    bagging_size=32,
+    bagging_size=1,
     early_stopping_rounds=50,
-    nbins=64,
+    nbins=8,
     L2=0.0,
     eta=1.0,
-    max_depth=11,
+    max_depth=5,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -169,20 +170,21 @@ config = EvoTreeRegressor(;
     print_every_n=25,
 );
 @time pred_train_tweedie = model(x_train; device=_device)
-sqrt(mean((pred_train_tweedie .- y_train) .^ 2))
+mean((pred_train_tweedie .- y_train) .^ 2)
 
 # MAE
 config = EvoTreeRegressor(;
     loss=:mae,
-    nrounds=2,
-    bagging_size=32,
+    metric=:mse,
+    nrounds=1,
+    bagging_size=1,
     early_stopping_rounds=50,
-    nbins=64,
-    L2=0.0,
+    nbins=8,
+    L2=1.0,
     eta=1.0,
-    max_depth=11,
+    max_depth=5,
     min_weight=1.0,
-    rowsample=0.5,
+    rowsample=1.0,
     colsample=1.0,
     tree_type,
     device=_device
@@ -197,7 +199,15 @@ config = EvoTreeRegressor(;
     print_every_n=25,
 );
 @time pred_train_mae = model(x_train; device=_device)
-sqrt(mean((pred_train_mae .- y_train) .^ 2))
+mean((pred_train_mae .- y_train) .^ 2)
+
+# 1 3 -2 -2
+# sum abs error: 4
+# sum abs error: 4
+# pred: 2
+# gain: 4-2 = 2
+# pred: 1 3 
+# gain: 4-0 = 4
 
 ###########################################
 # plot
@@ -224,13 +234,13 @@ lines!(ax,
     linewidth=1,
     label="logloss",
 )
-lines!(ax,
-    x_train[x_perm, 1],
-    pred_train_poisson[x_perm],
-    color="green",
-    linewidth=1,
-    label="poisson",
-)
+# lines!(ax,
+#     x_train[x_perm, 1],
+#     pred_train_poisson[x_perm],
+#     color="green",
+#     linewidth=1,
+#     label="poisson",
+# )
 lines!(ax,
     x_train[x_perm, 1],
     pred_train_gamma[x_perm],
@@ -253,6 +263,7 @@ lines!(ax,
     label="mae",
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
+f
 save("docs/src/assets/regression-sinus-$tree_type-$_device.png", f)
 
 ###############################
@@ -343,11 +354,12 @@ save("docs/src/assets/gaussian-sinus-$tree_type-$_device.png", f)
 params1 = EvoTreeRegressor(;
     loss=:quantile,
     alpha=0.5,
-    nrounds=500,
-    nbins=64,
+    nrounds=1,
+    bagging_size=1,
+    nbins=8,
     eta=0.1,
-    # L2=1.0,
-    max_depth=6,
+    L2=0.0,
+    max_depth=5,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -372,11 +384,12 @@ params1 = EvoTreeRegressor(;
 params1 = EvoTreeRegressor(;
     loss=:quantile,
     alpha=0.2,
-    nrounds=500,
-    nbins=64,
+    nrounds=1,
+    bagging_size=1,
+    nbins=8,
     eta=0.1,
-    L2=1.0,
-    max_depth=6,
+    L2=0.0,
+    max_depth=5,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -392,11 +405,12 @@ params1 = EvoTreeRegressor(;
 params1 = EvoTreeRegressor(;
     loss=:quantile,
     alpha=0.8,
-    nrounds=500,
-    nbins=64,
-    L2=1.0,
-    eta=0.2,
-    max_depth=6,
+    nrounds=1,
+    bagging_size=1,
+    nbins=8,
+    L2=0.0,
+    eta=1.0,
+    max_depth=5,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -448,13 +462,15 @@ save("docs/src/assets/quantiles-sinus-$tree_type-$_device.png", f)
 # cred_var
 config = EvoTreeRegressor(;
     loss=:cred_var,
-    nrounds=500,
+    metric=:mse,
+    nrounds=1,
+    bagging_size=1,
     early_stopping_rounds=50,
-    nbins=64,
-    L2=1.0,
-    lambda=1.0,
-    eta=0.1,
-    max_depth=6,
+    nbins=8,
+    L2=0.0,
+    lambda=0.0,
+    eta=1.0,
+    max_depth=5,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -476,13 +492,15 @@ sqrt(mean((pred_train_cred_var .- y_train) .^ 2))
 # cred_std
 config = EvoTreeRegressor(;
     loss=:cred_std,
-    nrounds=500,
+    metric=:mse,
+    nrounds=1,
+    bagging_size=1,
     early_stopping_rounds=50,
-    nbins=64,
-    L2=1.0,
-    lambda=1.0,
-    eta=0.1,
-    max_depth=6,
+    nbins=8,
+    L2=0.0,
+    lambda=0.0,
+    eta=1.0,
+    max_depth=5,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -527,4 +545,5 @@ lines!(ax,
     label="cred_std",
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
+f
 save("docs/src/assets/credibility-sinus-$tree_type-$_device.png", f)

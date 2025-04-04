@@ -126,6 +126,7 @@ end
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MAE}, params::EvoTypes) where {T}
     @threads for i in eachindex(y)
         @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
+        @inbounds ∇[2, i] = abs(y[i] - p[1, i]) * ∇[3, i]
     end
 end
 
@@ -262,5 +263,6 @@ end
 # gain for Cred
 function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Cred,T}
     Z = _get_cred(L, params, ∑)
-    return Z * abs(∑[1])
+    # return Z * abs(∑[1])
+    return Z * ∑[3]
 end
