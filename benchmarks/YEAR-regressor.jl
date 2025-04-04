@@ -1,10 +1,10 @@
-using Revise
 using CSV
 using DataFrames
-using EvoTrees
 using StatsBase: sample, tiedrank
 using Statistics
 using Random: seed!
+using EvoTrees
+using EvoTrees: fit
 
 using AWS: AWSCredentials, AWSConfig, @service
 @service S3
@@ -43,35 +43,34 @@ Y_raw = Float64.(df[:, 1])
 Y = (Y_raw .- mean(Y_raw)) ./ std(Y_raw)
 
 x_tot, y_tot = X[1:(end-51630), :], Y[1:(end-51630)]
-x_test, y_test = X[(end-51630+1):end, :], Y[(end-51630+1):end]
-x_train, x_eval = x_tot[train_idx, :], x_tot[eval_idx, :]
+x_test, y_test = Matrix(X[(end-51630+1):end, :]), Y[(end-51630+1):end]
+x_train, x_eval = Matrix(x_tot[train_idx, :]), Matrix(x_tot[eval_idx, :])
 y_train, y_eval = y_tot[train_idx], y_tot[eval_idx]
 
 config = EvoTreeRegressor(
-    T=Float32,
-    nrounds=1200,
-    loss=:linear,
+    nrounds=3000,
+    loss=:cred_std,
+    metric=:mse,
     eta=0.1,
-    nbins=128,
-    min_weight=4,
+    nbins=32,
+    min_weight=1,
     max_depth=7,
     lambda=0,
+    L2=0,
     gamma=0,
-    rowsample=0.8,
-    colsample=0.8,
+    rowsample=0.5,
+    colsample=0.9,
+    early_stopping_rounds=50,
 )
 
 # @time m = fit_evotree(config; x_train, y_train, print_every_n=25);
-@time m, logger = fit_evotree(
+@time m = fit(
     config;
     x_train,
     y_train,
     x_eval,
     y_eval,
-    early_stopping_rounds=100,
-    print_every_n=10,
-    metric=:mse,
-    return_logger=true,
+    print_every_n=100,
 );
 p_evo = m(x_test);
 mean((p_evo .- y_test) .^ 2) * std(Y_raw)^2

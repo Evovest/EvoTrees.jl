@@ -246,6 +246,5 @@ end
 # gain for Cred
 function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Cred,T}
     Z = _get_cred(L, params, ∑)
-    # return Z * abs(∑[1])
     return Z * ∑[3]
 end

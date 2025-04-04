@@ -117,7 +117,7 @@ function init_logger(; metric, maximise, early_stopping_rounds)
         :early_stopping_rounds => early_stopping_rounds,
         :nrounds => 0,
         :iter => Int[],
-        :metrics => Float32[],
+        :metrics => Float64[],
         :iter_since_best => 0,
         :best_iter => 0,
         :best_metric => 0.0,

@@ -120,6 +120,7 @@ mutable struct EvoTreeCount <: MMI.Probabilistic
     loss::Symbol
     metric::Symbol
     nrounds::Int
+    bagging_size::Int
     early_stopping_rounds::Int
     L2::Float64
     lambda::Float64
@@ -142,6 +143,7 @@ function EvoTreeCount(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :nrounds => 100,
+        :bagging_size => 1,
         :early_stopping_rounds => typemax(Int),
         :L2 => 1.0,
         :lambda => 0.0,
@@ -180,6 +182,7 @@ function EvoTreeCount(; kwargs...)
         loss,
         metric,
         args[:nrounds],
+        args[:bagging_size],
         args[:early_stopping_rounds],
         args[:L2],
         args[:lambda],
@@ -204,6 +207,7 @@ mutable struct EvoTreeClassifier <: MMI.Probabilistic
     loss::Symbol
     metric::Symbol
     nrounds::Int
+    bagging_size::Int
     early_stopping_rounds::Int
     L2::Float64
     lambda::Float64
@@ -225,6 +229,7 @@ function EvoTreeClassifier(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :nrounds => 100,
+        :bagging_size => 1,
         :early_stopping_rounds => typemax(Int),
         :L2 => 1.0,
         :lambda => 0.0,
@@ -262,6 +267,7 @@ function EvoTreeClassifier(; kwargs...)
         loss,
         metric,
         args[:nrounds],
+        args[:bagging_size],
         args[:early_stopping_rounds],
         args[:L2],
         args[:lambda],
@@ -285,6 +291,7 @@ mutable struct EvoTreeMLE <: MMI.Probabilistic
     loss::Symbol
     metric::Symbol
     nrounds::Int
+    bagging_size::Int
     early_stopping_rounds::Int
     L2::Float64
     lambda::Float64
@@ -309,6 +316,7 @@ function EvoTreeMLE(; kwargs...)
         :loss => :gaussian_mle,
         :metric => nothing,
         :nrounds => 100,
+        :bagging_size => 1,
         :early_stopping_rounds => typemax(Int),
         :L2 => 1.0,
         :lambda => 0.0,
@@ -358,6 +366,7 @@ function EvoTreeMLE(; kwargs...)
         loss,
         metric,
         args[:nrounds],
+        args[:bagging_size],
         args[:early_stopping_rounds],
         args[:L2],
         args[:lambda],
@@ -382,6 +391,7 @@ mutable struct EvoTreeGaussian <: MMI.Probabilistic
     loss::Symbol
     metric::Symbol
     nrounds::Int
+    bagging_size::Int
     early_stopping_rounds::Int
     L2::Float64
     lambda::Float64
@@ -403,6 +413,7 @@ function EvoTreeGaussian(; kwargs...)
     # defaults arguments
     args = Dict{Symbol,Any}(
         :nrounds => 100,
+        :bagging_size => 1,
         :early_stopping_rounds => typemax(Int),
         :L2 => 1.0,
         :lambda => 0.0,
@@ -441,6 +452,7 @@ function EvoTreeGaussian(; kwargs...)
         loss,
         metric,
         args[:nrounds],
+        args[:bagging_size],
         args[:early_stopping_rounds],
         args[:L2],
         args[:lambda],

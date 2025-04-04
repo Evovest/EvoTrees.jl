@@ -34,13 +34,13 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 
 # mse
 config = EvoTreeRegressor(;
-    nrounds=100,
-    bagging_size=1,
+    nrounds=1,
+    bagging_size=16,
     early_stopping_rounds=50,
-    nbins=8,
+    nbins=32,
     L2=0.0,
     eta=1.0,
-    max_depth=5,
+    max_depth=7,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -48,7 +48,7 @@ config = EvoTreeRegressor(;
     device=_device
 )
 
-@time model = fit(
+model = fit(
     config;
     x_train,
     y_train,
@@ -57,17 +57,15 @@ config = EvoTreeRegressor(;
     print_every_n=25,
 );
 
-@time pred_train_linear = predict(model, x_train)
-mean(abs.(pred_train_linear .- y_train))
-sqrt(mean((pred_train_linear .- y_train) .^ 2))
+pred_train_linear = predict(model, x_train)
 
 # logistic / cross-entropy
 config = EvoTreeRegressor(;
     loss=:logloss,
     nrounds=1,
-    bagging_size=1,
+    bagging_size=16,
     early_stopping_rounds=50,
-    nbins=8,
+    nbins=32,
     L2=0.0,
     eta=1.0,
     max_depth=7,
@@ -90,42 +88,42 @@ config = EvoTreeRegressor(;
 sqrt(mean((pred_train_logistic .- y_train) .^ 2))
 
 # poisson
-# config = EvoTreeCount(;
-#     nrounds=1,
-#     bagging_size=1,
-#     early_stopping_rounds=50,
-#     nbins=8,
-#     L2=0.0,
-#     eta=1.0,
-#     max_depth=5,
-#     min_weight=1.0,
-#     rowsample=0.5,
-#     colsample=1.0,
-#     tree_type,
-#     device=_device
-# )
+config = EvoTreeCount(;
+    nrounds=1,
+    bagging_size=16,
+    early_stopping_rounds=50,
+    nbins=32,
+    L2=0.0,
+    eta=1.0,
+    max_depth=7,
+    min_weight=1.0,
+    rowsample=0.5,
+    colsample=1.0,
+    tree_type,
+    device=_device
+)
 
-# @time model = fit(
-#     config;
-#     x_train,
-#     y_train,
-#     x_eval,
-#     y_eval,
-#     print_every_n=25,
-# );
-# @time pred_train_poisson = model(x_train; device=_device)
-# sqrt(mean((pred_train_poisson .- y_train) .^ 2))
+@time model = fit(
+    config;
+    x_train,
+    y_train,
+    x_eval,
+    y_eval,
+    print_every_n=25,
+);
+@time pred_train_poisson = model(x_train; device=_device)
+sqrt(mean((pred_train_poisson .- y_train) .^ 2))
 
 # gamma
 config = EvoTreeRegressor(;
     loss=:gamma,
     nrounds=1,
-    bagging_size=1,
+    bagging_size=16,
     early_stopping_rounds=50,
-    nbins=8,
+    nbins=32,
     L2=0.0,
     eta=1.0,
-    max_depth=5,
+    max_depth=7,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -148,12 +146,12 @@ sqrt(mean((pred_train_gamma .- y_train) .^ 2))
 config = EvoTreeRegressor(;
     loss=:tweedie,
     nrounds=1,
-    bagging_size=1,
+    bagging_size=16,
     early_stopping_rounds=50,
-    nbins=8,
+    nbins=32,
     L2=0.0,
     eta=1.0,
-    max_depth=5,
+    max_depth=7,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -177,14 +175,14 @@ config = EvoTreeRegressor(;
     loss=:mae,
     metric=:mse,
     nrounds=1,
-    bagging_size=1,
+    bagging_size=16,
     early_stopping_rounds=50,
-    nbins=8,
+    nbins=32,
     L2=1.0,
     eta=1.0,
-    max_depth=5,
+    max_depth=7,
     min_weight=1.0,
-    rowsample=1.0,
+    rowsample=0.5,
     colsample=1.0,
     tree_type,
     device=_device
@@ -198,8 +196,7 @@ config = EvoTreeRegressor(;
     y_eval,
     print_every_n=25,
 );
-@time pred_train_mae = model(x_train; device=_device)
-mean((pred_train_mae .- y_train) .^ 2)
+pred_train_mae = model(x_train; device=_device)
 
 # 1 3 -2 -2
 # sum abs error: 4
@@ -234,13 +231,13 @@ lines!(ax,
     linewidth=1,
     label="logloss",
 )
-# lines!(ax,
-#     x_train[x_perm, 1],
-#     pred_train_poisson[x_perm],
-#     color="green",
-#     linewidth=1,
-#     label="poisson",
-# )
+lines!(ax,
+    x_train[x_perm, 1],
+    pred_train_poisson[x_perm],
+    color="green",
+    linewidth=1,
+    label="poisson",
+)
 lines!(ax,
     x_train[x_perm, 1],
     pred_train_gamma[x_perm],
@@ -270,13 +267,14 @@ save("docs/src/assets/regression-sinus-$tree_type-$_device.png", f)
 ## gaussian
 ###############################
 config = EvoTreeGaussian(;
-    nrounds=500,
+    nrounds=1,
+    bagging_size=16,
     early_stopping_rounds=50,
-    nbins=64,
-    L2=1.0,
+    nbins=32,
+    L2=0.0,
     # gamma=0.1,
-    eta=0.1,
-    max_depth=6,
+    eta=1.0,
+    max_depth=7,
     min_weight=8,
     rowsample=0.5,
     colsample=1.0,
@@ -285,7 +283,7 @@ config = EvoTreeGaussian(;
     device=_device
 )
 
-@time model = fit(
+model = fit(
     config;
     x_train,
     y_train,
@@ -293,7 +291,7 @@ config = EvoTreeGaussian(;
     y_eval,
     print_every_n=25,
 );
-@time pred_train_gaussian = model(x_train; device=_device)
+pred_train_gaussian = model(x_train; device=_device)
 
 pred_gauss = [
     Distributions.Normal(pred_train_gaussian[i, 1], pred_train_gaussian[i, 2]) for
@@ -330,21 +328,22 @@ lines!(ax,
     linewidth=1,
     label="sigma",
 )
-lines!(ax,
-    x_train[x_perm, 1],
-    pred_q20[x_perm, 1],
-    color="green",
-    linewidth=1,
-    label="q20",
-)
-lines!(ax,
-    x_train[x_perm, 1],
-    pred_q80[x_perm, 1],
-    color="green",
-    linewidth=1,
-    label="q80",
-)
+# lines!(ax,
+#     x_train[x_perm, 1],
+#     pred_q20[x_perm, 1],
+#     color="green",
+#     linewidth=1,
+#     label="q20",
+# )
+# lines!(ax,
+#     x_train[x_perm, 1],
+#     pred_q80[x_perm, 1],
+#     color="green",
+#     linewidth=1,
+#     label="q80",
+# )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
+f
 save("docs/src/assets/gaussian-sinus-$tree_type-$_device.png", f)
 
 ###############################
@@ -355,11 +354,11 @@ params1 = EvoTreeRegressor(;
     loss=:quantile,
     alpha=0.5,
     nrounds=1,
-    bagging_size=1,
-    nbins=8,
-    eta=0.1,
+    bagging_size=16,
+    nbins=32,
+    eta=1.0,
     L2=0.0,
-    max_depth=5,
+    max_depth=7,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -387,9 +386,9 @@ params1 = EvoTreeRegressor(;
     nrounds=1,
     bagging_size=1,
     nbins=8,
-    eta=0.1,
+    eta=1.0,
     L2=0.0,
-    max_depth=5,
+    max_depth=7,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -410,7 +409,7 @@ params1 = EvoTreeRegressor(;
     nbins=8,
     L2=0.0,
     eta=1.0,
-    max_depth=5,
+    max_depth=7,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -463,14 +462,14 @@ save("docs/src/assets/quantiles-sinus-$tree_type-$_device.png", f)
 config = EvoTreeRegressor(;
     loss=:cred_var,
     metric=:mse,
-    nrounds=1,
-    bagging_size=1,
+    nrounds=2,
+    bagging_size=16,
     early_stopping_rounds=50,
-    nbins=8,
+    nbins=32,
     L2=0.0,
     lambda=0.0,
     eta=1.0,
-    max_depth=5,
+    max_depth=7,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -493,14 +492,14 @@ sqrt(mean((pred_train_cred_var .- y_train) .^ 2))
 config = EvoTreeRegressor(;
     loss=:cred_std,
     metric=:mse,
-    nrounds=1,
-    bagging_size=1,
+    nrounds=2,
+    bagging_size=16,
     early_stopping_rounds=50,
-    nbins=8,
+    nbins=32,
     L2=0.0,
     lambda=0.0,
     eta=1.0,
-    max_depth=5,
+    max_depth=7,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
