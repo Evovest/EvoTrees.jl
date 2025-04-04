@@ -16,23 +16,6 @@ abstract type Cred <: LossType end
 abstract type CredVar <: Cred end
 abstract type CredStd <: Cred end
 
-# Converts MSE -> :mse
-# const _type2loss_dict = Dict(
-#     MSE => :mse,
-#     LogLoss => :logloss,
-#     Poisson => :poisson,
-#     Gamma => :gamma,
-#     Tweedie => :tweedie,
-#     MLogLoss => :mlogloss,
-#     GaussianMLE => :gaussian_mle,
-#     LogisticMLE => :logistic_mle,
-#     Quantile => :quantile,
-#     MAE => :mae,
-#     CredVar => :cred_var,
-#     CredStd => :cred_std
-# )
-# _type2loss(L::Type) = _type2loss_dict[L]
-
 const _loss2type_dict = Dict(
     :mse => MSE,
     :logloss => LogLoss,

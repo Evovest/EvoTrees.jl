@@ -1,15 +1,15 @@
 ## package loading
 using EvoTrees
-using EvoTrees: get_gain, _get_cred, update_grads!
+using EvoTrees: get_gain, _get_cred, _loss2type_dict, update_grads!
 using DataFrames
 using Distributions
 using Statistics: mean, std
 using CairoMakie
 
-function get_∑(p::Matrix{T}, y::Vector{T}, params) where {T}
+function get_∑(p::Matrix{T}, y::Vector{T}, L, config) where {T}
     ∇ = Matrix{T}(undef, 3, length(y))
     view(∇, 3, :) .= 1
-    update_grads!(∇, p, y, params)
+    update_grads!(∇, p, y, L, config)
     ∑ = dropdims(sum(∇, dims=2), dims=2)
     return ∑
 end
@@ -17,17 +17,19 @@ end
 # visible code
 function simul_Z(; nobs, loss, spread=1.0, sd=1.0)
     config = EvoTreeRegressor(; loss)
+    L = _loss2type_dict[config.loss]
     p = zeros(1, nobs)
     y = randn(nobs)
     _std = length(y) == 1 ? abs(first(y)) : std(y; corrected=false)
     y .= (y .- mean(y)) ./ _std .* sd .- spread
-    ∑ = get_∑(p, y, config)
-    Z = _get_cred(config, ∑)
+    ∑ = get_∑(p, y, L, config)
+    Z = _get_cred(L, config, ∑)
     return Z
 end
 
 function get_data(; loss, nobs, spread=1.0, sd=1.0)
     config = EvoTreeRegressor(; loss)
+    L = _loss2type_dict[config.loss]
 
     yL, yR = randn(nobs), randn(nobs)
     yL .= (yL .- mean(yL)) ./ std(yL) .* sd .- spread / 2
@@ -43,16 +45,16 @@ function get_data(; loss, nobs, spread=1.0, sd=1.0)
     data[:yR] = yR
 
     ## gains
-    ∑T = get_∑(pT, yT, config)
-    ∑L = get_∑(pL, yL, config)
-    ∑R = get_∑(pR, yR, config)
-    data[:gP] = get_gain(config, ∑T)
-    data[:gL] = get_gain(config, ∑L)
-    data[:gR] = get_gain(config, ∑R)
+    ∑T = get_∑(pT, yT, L, config)
+    ∑L = get_∑(pL, yL, L, config)
+    ∑R = get_∑(pR, yR, L, config)
+    data[:gP] = get_gain(L, config, ∑T)
+    data[:gL] = get_gain(L, config, ∑L)
+    data[:gR] = get_gain(L, config, ∑R)
     data[:gC] = data[:gL] + data[:gR]
 
     if loss != :mse
-        data[:ZR] = _get_cred(config, ∑R)
+        data[:ZR] = _get_cred(L, config, ∑R)
     else
         data[:ZR] = NaN
     end
