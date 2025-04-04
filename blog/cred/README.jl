@@ -93,9 +93,9 @@ save(joinpath(@__DIR__, "assets", "dist-cred_var-3B.png"), f);#hide
 
 #=
 ## Credibility figures
-Four credibility variations are being tested:
- - **cred_var**: `VHM / (VHM + EVPV / N)`
- - **cred_std**: `sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV / N))`
+Two credibility variations are tested:
+ - **cred_var**: `VHM / (VHM + EVPV)`
+ - **cred_std**: `sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV))`
 The figures below present the credibility factor associated with different spreads and number observations
 =#
 

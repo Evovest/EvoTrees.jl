@@ -16,7 +16,7 @@ end
 
 # visible code
 function simul_Z(; nobs, loss, spread=1.0, sd=1.0)
-    config = EvoTreeRegressor(; loss)
+    config = EvoTreeRegressor(; loss, L2=0, lambda=0)
     L = _loss2type_dict[config.loss]
     p = zeros(1, nobs)
     y = randn(nobs)
@@ -28,7 +28,7 @@ function simul_Z(; nobs, loss, spread=1.0, sd=1.0)
 end
 
 function get_data(; loss, nobs, spread=1.0, sd=1.0)
-    config = EvoTreeRegressor(; loss)
+    config = EvoTreeRegressor(; loss, L2=0, lambda=0)
     L = _loss2type_dict[config.loss]
 
     yL, yR = randn(nobs), randn(nobs)

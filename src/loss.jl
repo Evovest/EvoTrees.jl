@@ -229,8 +229,8 @@ end
 @inline function _get_cred(::Type{CredVar}, params::EvoTypes, ∑::AbstractVector{T}) where {T}
     ϵ = eps(eltype(∑))
     VHM = (∑[1] / ∑[3])^2
-    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM) / (1 + params.lambda * ∑[3]))
-    return VHM / (VHM + EVPV + params.L2 / ∑[3])
+    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM))
+    return VHM / (VHM + EVPV)
 end
 
 # CredStd: ratio of std dev 
@@ -239,12 +239,12 @@ end
 @inline function _get_cred(::Type{CredStd}, params::EvoTypes, ∑::AbstractVector{T}) where {T}
     ϵ = eps(eltype(∑))
     VHM = (∑[1] / ∑[3])^2
-    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM) / (1 + params.lambda * ∑[3]))
-    return sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV) + sqrt(params.L2 / ∑[3]))
+    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM))
+    return sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV))
 end
 
 # gain for Cred
 function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Cred,T}
     Z = _get_cred(L, params, ∑)
-    return Z * ∑[3]
+    return Z * ∑[3] / (1 + params.L2 / ∑[3])
 end

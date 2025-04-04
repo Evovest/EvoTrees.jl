@@ -1,6 +1,13 @@
 # Exploring a credibility-based approach for tree-gain estimation
 
 
+````
+Precompiling packages...
+   4431.3 ms  ✓ EvoTrees
+  1 dependency successfully precompiled in 6 seconds. 59 already precompiled.
+
+````
+
 > The motivation for this experiment stems from potential benefits in alternatives to gradient-based gains to identify the best split candidate.
 
 The figures below illustrate the behavior of vanilla gradient-based approach using a mean-squarred error (MSE) loss.
@@ -49,9 +56,9 @@ However, a smaller volatility results in an increased gain, as shown in 2nd vs 1
 | ![](assets/dist-cred_var-3A.png) | ![](assets/dist-cred_var-3B.png) |
 
 ## Credibility figures
-Four credibility variations are being tested:
- - **cred_var**: `VHM / (VHM + EVPV / N)`
- - **cred_std**: `sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV / N))`
+Two credibility variations are tested:
+ - **cred_var**: `VHM / (VHM + EVPV)`
+ - **cred_std**: `sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV))`
 The figures below present the credibility factor associated with different spreads and number observations
 
 ````julia
