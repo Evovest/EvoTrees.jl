@@ -41,7 +41,7 @@ config = EvoTreeRegressor(;
     lambda=0.0,
     L2=0,
     eta=1.0,
-    max_depth=3,
+    max_depth=4,
     min_weight=1.0,
     rowsample=1.0,
     colsample=1.0,
@@ -63,14 +63,13 @@ pred_train_linear = predict(model, x_train)
 ###############################
 # credibility
 config = EvoTreeRegressor(;
-    loss=:cred_std,
+    loss=:cred_var,
     metric=:mse,
     nrounds=1,
     bagging_size=1,
     early_stopping_rounds=50,
     nbins=8,
-    L2=0.0,
-    lambda=0.001,
+    L2=10.0,
     eta=1.0,
     max_depth=4,
     min_weight=1.0,

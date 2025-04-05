@@ -49,7 +49,7 @@ y_train, y_eval = y_tot[train_idx], y_tot[eval_idx]
 
 config = EvoTreeRegressor(
     nrounds=3000,
-    loss=:cred_var,
+    loss=:cred_std,
     metric=:mse,
     eta=0.1,
     nbins=32,
