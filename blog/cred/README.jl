@@ -7,6 +7,9 @@ include(joinpath(@__DIR__, "utils.jl")); #hide
 =#
 
 #=
+
+## Review of MSE key characteristics
+
 The figures below illustrate the behavior of vanilla gradient-based approach using a mean-squarred error (MSE) loss.
 The 2 colors represent the observations belonging to the left and right children.
 Key observations:
@@ -67,7 +70,6 @@ EVPV is estimated as the variance of the observations. This value can be derived
 =#
 
 #=
-### Credibility-based gains
 Same as for the previous the gradient-based MSE error, the gain grows linearly with the number of observations, all other things being equal.
 However, a smaller volatility results in an increased gain, as shown in 2nd vs 1st row. 
 =#
