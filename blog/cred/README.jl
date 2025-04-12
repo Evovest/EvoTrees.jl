@@ -58,10 +58,12 @@ Classical gradient based is about deriving a second-order approximation of the l
 The gain corresponds to the reduction in this approximated loss by taking the prediciton that minimises the quadratic loss curve. 
 The credibility-based takes a loss function agnostic approach, and view the gain as the total absolute change in the credibility-adjusted predicted value.
 Example, if a child has a mean residual of *2.0*, credibility of 0.5 and 100 observations, the resulting gain is: `2.0 * 0.5 * 100 = 100.0`, where `2.0 * 0.5` corresponds to the credibility adjusted prediction.
+
 VHM is estimated as the square of the mean of the spread between observed values and predictions: 
- - `VHM = E[X] = mean(y - p)`
+- `VHM = E[X] = mean(y - p)`
+
 EVPV is estimated as the variance of the observations. This value can be derived from the aggregation of the first and second moment of the individual observations: 
- - `EVPV = E[(x - μ)²] = E[X²] - E²[X]`
+- `EVPV = E[(x - μ)²] = E[X²] - E²[X]`
 =#
 
 #=
@@ -99,7 +101,7 @@ Two credibility variations are tested:
 The figures below present the credibility factor associated with different spreads and number observations
 =#
 
-## simulation grid
+# ### Simulation grid
 
 #=
 The chart below show the associated credibility and gain for a given node split candidate for various spreads and standards deviations.
@@ -119,7 +121,7 @@ save(joinpath(@__DIR__, "assets", "heatmap-$metric_name-cred_std.png"), f);#hide
 |:----------------------:|:----------------------:|
 =#
 
-### Illustration of different cred-based decision compared to MSE:
+# ### Illustration of different cred-based decision compared to MSE:
 
 #=
 Despite both `mse` and `cred_std` resulting in the same prediction, which matches the mean of the observations, the associated gain differs due to the volatility penalty.
