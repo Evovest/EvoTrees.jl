@@ -3,6 +3,8 @@
 
 > The motivation for this experiment was to explore an alternative to gradient-based gain measure by integrating the volatility of split candidates to identity the best node split.
 
+## Review of MSE key characteristics
+
 The figures below illustrate the behavior of vanilla gradient-based approach using a mean-squarred error (MSE) loss.
 The 2 colors represent the observations belonging to the left and right children.
 Key observations:
@@ -40,7 +42,6 @@ VHM is estimated as the square of the mean of the spread between observed values
 EVPV is estimated as the variance of the observations. This value can be derived from the aggregation of the first and second moment of the individual observations:
 - `EVPV = E[(x - μ)²] = E[X²] - E²[X]`
 
-### Credibility-based gains
 Same as for the previous the gradient-based MSE error, the gain grows linearly with the number of observations, all other things being equal.
 However, a smaller volatility results in an increased gain, as shown in 2nd vs 1st row.
 
