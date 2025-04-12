@@ -8,10 +8,11 @@ include(joinpath(@__DIR__, "utils.jl")); #hide
 
 #=
 
-## Review of MSE key characteristics
+## Review of key gradient-based MSE characteristics
 
 The figures below illustrate the behavior of vanilla gradient-based approach using a mean-squarred error (MSE) loss.
 The 2 colors represent the observations belonging to the left and right children.
+
 Key observations:
 - **the gain is invariant to the volatility**: the top vs bottom figures differs only by the std dev of the observations. 
     The associated gain is identical, which is aligned with the gradient-based approach to gain: the gain matches the reduction in the MSE, which is identical regardless of the dispersion. It's strictly driven by their mean.
@@ -45,7 +46,7 @@ save(joinpath(@__DIR__, "assets", "dist-mse-3B.png"), f);#hide
 =#
 
 #=
-The idea is for the *gain* to reflect varying uncertainty levels for observations associated to each of the tree-split candidates. 
+The idea is for *gain* to reflect varying uncertainty levels for observations associated to each of the tree-split candidates. 
 For tree-split candidates with an identical spread, the intuition is that candidates with a lower volatility, all other things being equal, should be preferred.
 The original inspiration comes from credibility theory, a foundational notion in actuarial science with direct connexion mixed effect models and bayesian theory. 
 Key concept is that the credibility associated with a set of observations is driven by the relative effect of 2 components:
