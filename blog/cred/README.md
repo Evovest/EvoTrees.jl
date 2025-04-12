@@ -17,8 +17,7 @@ Key observations:
 
 | ![](assets/dist-mse-1A.png) | ![](assets/dist-mse-1B.png) |
 |:----------------------:|:----------------------:|
-| ![](assets/dist-mse-2A.png) | ![](assets/dist-mse-2B.png) |
-| ![](assets/dist-mse-3A.png) | ![](assets/dist-mse-3B.png) |
+| ![](assets/dist-mse-2A.png) | ![](assets/dist-mse-3A.png) |
 
 ## Credibility-based gains
 
@@ -49,8 +48,7 @@ However, a smaller volatility results in an increased gain, as shown in 2nd vs 1
 
 | ![](assets/dist-cred_std-1A.png) | ![](assets/dist-cred_std-1B.png) |
 |:----------------------:|:----------------------:|
-| ![](assets/dist-cred_std-2A.png) | ![](assets/dist-cred_std-2B.png) |
-| ![](assets/dist-cred_std-3A.png) | ![](assets/dist-cred_std-3B.png) |
+| ![](assets/dist-cred_std-2A.png) | ![](assets/dist-cred_std-3A.png) |
 
 ## Credibility figures
 Two credibility variations are tested:
@@ -66,8 +64,6 @@ The chart below show the associated credibility and gain for a given node split 
 nobs = 1000
 sd_list = [0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5]
 spread_list = [0.01, 0.05, 0.1, 0.2, 0.5, 1]
-metric_name = "cred"
-metric_name = "gain"
 ````
 
 | ![](assets/heatmap-cred-cred_std.png) | ![](assets/heatmap-gain-cred_std.png) |

@@ -23,22 +23,21 @@ Key observations:
 loss = :mse#hide
 f = get_dist_figure(; loss, nobs=100, spread=1.0, sd=1.0)#hide
 save(joinpath(@__DIR__, "assets", "dist-mse-1A.png"), f)#hide
-f = get_dist_figure(; loss, nobs=10_000, spread=1.0, sd=1.0)#hide
+f = get_dist_figure(; loss, nobs=1_000, spread=1.0, sd=1.0)#hide
 save(joinpath(@__DIR__, "assets", "dist-mse-1B.png"), f)#hide
 f = get_dist_figure(; loss, nobs=100, spread=1.0, sd=0.1)#hide
 save(joinpath(@__DIR__, "assets", "dist-mse-2A.png"), f)#hide
-f = get_dist_figure(; loss, nobs=10_000, spread=1.0, sd=0.1)#hide
+f = get_dist_figure(; loss, nobs=1_000, spread=1.0, sd=0.1)#hide
 save(joinpath(@__DIR__, "assets", "dist-mse-2B.png"), f);#hide
 f = get_dist_figure(; loss, nobs=100, spread=0.1, sd=0.1)#hide
 save(joinpath(@__DIR__, "assets", "dist-mse-3A.png"), f)#hide
-f = get_dist_figure(; loss, nobs=10_000, spread=0.1, sd=0.1)#hide
+f = get_dist_figure(; loss, nobs=1_000, spread=0.1, sd=0.1)#hide
 save(joinpath(@__DIR__, "assets", "dist-mse-3B.png"), f);#hide
 
 #=
 | ![](assets/dist-mse-1A.png) | ![](assets/dist-mse-1B.png) |
 |:----------------------:|:----------------------:|
-| ![](assets/dist-mse-2A.png) | ![](assets/dist-mse-2B.png) |
-| ![](assets/dist-mse-3A.png) | ![](assets/dist-mse-3B.png) |
+| ![](assets/dist-mse-2A.png) | ![](assets/dist-mse-3A.png) |
 =#
 
 #=
@@ -78,22 +77,21 @@ However, a smaller volatility results in an increased gain, as shown in 2nd vs 1
 loss = :cred_std#hide
 f = get_dist_figure(; loss, nobs=100, spread=1.0, sd=1.0)#hide
 save(joinpath(@__DIR__, "assets", "dist-cred_std-1A.png"), f);#hide
-f = get_dist_figure(; loss, nobs=10_000, spread=1.0, sd=1.0)#hide
+f = get_dist_figure(; loss, nobs=1_000, spread=1.0, sd=1.0)#hide
 save(joinpath(@__DIR__, "assets", "dist-cred_std-1B.png"), f);#hide
 f = get_dist_figure(; loss, nobs=100, spread=1.0, sd=0.1)#hide
 save(joinpath(@__DIR__, "assets", "dist-cred_std-2A.png"), f);#hide
-f = get_dist_figure(; loss, nobs=10_000, spread=1.0, sd=0.1)#hide
+f = get_dist_figure(; loss, nobs=1_000, spread=1.0, sd=0.1)#hide
 save(joinpath(@__DIR__, "assets", "dist-cred_std-2B.png"), f);#hide
 f = get_dist_figure(; loss, nobs=100, spread=0.1, sd=0.1)#hide
 save(joinpath(@__DIR__, "assets", "dist-cred_std-3A.png"), f);#hide
-f = get_dist_figure(; loss, nobs=10_000, spread=0.1, sd=0.1)#hide
+f = get_dist_figure(; loss, nobs=1_000, spread=0.1, sd=0.1)#hide
 save(joinpath(@__DIR__, "assets", "dist-cred_std-3B.png"), f);#hide
 
 #=
 | ![](assets/dist-cred_std-1A.png) | ![](assets/dist-cred_std-1B.png) |
 |:----------------------:|:----------------------:|
-| ![](assets/dist-cred_std-2A.png) | ![](assets/dist-cred_std-2B.png) |
-| ![](assets/dist-cred_std-3A.png) | ![](assets/dist-cred_std-3B.png) |
+| ![](assets/dist-cred_std-2A.png) | ![](assets/dist-cred_std-3A.png) |
 =#
 
 #=
@@ -113,10 +111,10 @@ The chart below show the associated credibility and gain for a given node split 
 nobs = 1000
 sd_list = [0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5]
 spread_list = [0.01, 0.05, 0.1, 0.2, 0.5, 1]
-metric_name = "cred"
+metric_name = "cred"#hide
 f = get_cred_figureB(; metric_name, loss=:cred_std, nobs, sd_list, spread_list)#hide
 save(joinpath(@__DIR__, "assets", "heatmap-$metric_name-cred_std.png"), f);#hide
-metric_name = "gain"
+metric_name = "gain"#hide
 f = get_cred_figureB(; metric_name, loss=:cred_var, nobs, sd_list, spread_list)#hide
 save(joinpath(@__DIR__, "assets", "heatmap-$metric_name-cred_std.png"), f);#hide
 #=
