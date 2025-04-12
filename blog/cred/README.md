@@ -1,14 +1,7 @@
 # Exploring a credibility-based approach for tree-gain estimation
 
 
-````
-Precompiling packages...
-   4431.3 ms  ✓ EvoTrees
-  1 dependency successfully precompiled in 6 seconds. 59 already precompiled.
-
-````
-
-> The motivation for this experiment stems from potential benefits in alternatives to gradient-based gains to identify the best split candidate.
+> The motivation for this experiment was to explore an alternative to gradient-based gain measure by integrating the volatility of split candidates to identity the best node split.
 
 The figures below illustrate the behavior of vanilla gradient-based approach using a mean-squarred error (MSE) loss.
 The 2 colors represent the observations belonging to the left and right children.
@@ -45,15 +38,15 @@ VHM is estimated as the square of the mean of the spread between observed values
 EVPV is estimated as the variance of the observations. This value can be derived from the aggregation of the first and second moment of the individual observations:
  - `EVPV = E[(x - μ)²] = E[X²] - E²[X]`
 
-### Credibility-based gains - credV1A
+### Credibility-based gains
 Same as for the previous the gradient-based MSE error, the gain grows linearly with the number of observations, all other things being equal.
 However, a smaller volatility results in an increased gain, as shown in 2nd vs 1st row.
 
 
-| ![](assets/dist-cred_var-1A.png) | ![](assets/dist-cred_var-1B.png) |
+| ![](assets/dist-cred_std-1A.png) | ![](assets/dist-cred_std-1B.png) |
 |:----------------------:|:----------------------:|
-| ![](assets/dist-cred_var-2A.png) | ![](assets/dist-cred_var-2B.png) |
-| ![](assets/dist-cred_var-3A.png) | ![](assets/dist-cred_var-3B.png) |
+| ![](assets/dist-cred_std-2A.png) | ![](assets/dist-cred_std-2B.png) |
+| ![](assets/dist-cred_std-3A.png) | ![](assets/dist-cred_std-3B.png) |
 
 ## Credibility figures
 Two credibility variations are tested:
@@ -63,28 +56,59 @@ The figures below present the credibility factor associated with different sprea
 
 ````julia
 # simulation grid
-sd = 1.0
-nobs_list = Int.(10.0 .^ (0:6))
-nobs_list[1] = 2
-spread_list = [0.001, 0.01, 0.1, 0.5, 1, 2, 10, 100]
 ````
 
-| ![](assets/heatmap-cred_var.png) | ![](assets/heatmap-cred_std.png) |
+The chart below show the associated credibility and gain for a given node split candidate for various spreads and standards deviations.
+
+````julia
+nobs = 1000
+sd_list = [0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5]
+spread_list = [0.01, 0.05, 0.1, 0.2, 0.5, 1]
+metric_name = "cred"
+metric_name = "gain"
+````
+
+| ![](assets/heatmap-cred-cred_std.png) | ![](assets/heatmap-gain-cred_std.png) |
 |:----------------------:|:----------------------:|
 
 ````julia
-# simulation grid
-nobs = 100
-sd_list = [0.1, 0.2, 0.5, 1.0, 2.0, 10.0]
-spread_list = [0.001, 0.01, 0.1, 0.5, 1, 2, 10, 100]
+### Illustration of different cred-based decision compared to MSE:
 ````
 
-| ![](assets/heatmapB-cred_var.png) | ![](assets/heatmapB-cred_std.png) |
+Despite both `mse` and `cred_std` resulting in the same prediction, which matches the mean of the observations, the associated gain differs due to the volatility penalty.
+
+The following illustrates a minimal scenario of 2 features, each with only 2 levels.
+
+| ![](assets/dist-mse-cred-x1.png) | ![](assets/dist-mse-cred-x2.png) |
 |:----------------------:|:----------------------:|
+
+```julia
+config = EvoTreeRegressor(loss=:mse, nrounds=1, max_depth=2)
+model_mse = EvoTrees.fit(config, dtrain; target_name="y")
+
+EvoTrees.Tree{EvoTrees.MSE, 1}
+ - feat: [2, 0, 0]
+ - cond_bin: UInt8[0x01, 0x00, 0x00]
+ - gain: Float32[12113.845, 0.0, 0.0]
+ - pred: Float32[0.0 -0.017858343 0.3391479]
+ - split: Bool[1, 0, 0]
+```
+
+```julia
+config = EvoTreeRegressor(loss=:cred_std, nrounds=1, max_depth=2)
+model_std = EvoTrees.fit(config, dtrain; target_name="y")
+
+EvoTrees.Tree{EvoTrees.CredStd, 1}
+ - feat: [1, 0, 0]
+ - cond_bin: UInt8[0x02, 0x00, 0x00]
+ - gain: Float32[8859.706, 0.0, 0.0]
+ - pred: Float32[0.0 0.07375729 -0.07375729]
+ - split: Bool[1, 0, 0]
+```
 
 ## Results
 From [MLBenchmarks.jl](https://github.com/Evovest/MLBenchmarks.jl).
-| **model** | **metric** | **ref** | **credV1A** | **credV2A** | **credV1B** | **credV2B** |
+| **model** | **metric** | **MSE** | **credV1A** | **credV2A** | **credV1B** | **credV2B** |
 |:---------:|:----------:|:-------:|:-----------:|:-----------:|:-----------:|:-----------:|
 | boston    | mse        | 6.3     | 6.18        | 6.01        | 6.47        | 6.18        |
 | boston    | gini       | 0.945   | 0.948       | 0.953       | 0.949       | 0.944       |

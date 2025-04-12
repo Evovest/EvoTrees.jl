@@ -1,6 +1,6 @@
 ## package loading
 using EvoTrees
-using EvoTrees: get_gain, _get_cred, _loss2type_dict, update_grads!
+using EvoTrees: get_gain, _get_cred, _loss2type_dict, update_grads!, Cred
 using DataFrames
 using Distributions
 using Statistics: mean, std
@@ -15,7 +15,7 @@ function get_∑(p::Matrix{T}, y::Vector{T}, L, config) where {T}
 end
 
 # visible code
-function simul_Z(; nobs, loss, spread=1.0, sd=1.0)
+function get_simul_metric(metric_name="cred"; nobs, loss, spread=1.0, sd=1.0)
     config = EvoTreeRegressor(; loss, L2=0, lambda=0)
     L = _loss2type_dict[config.loss]
     p = zeros(1, nobs)
@@ -23,8 +23,15 @@ function simul_Z(; nobs, loss, spread=1.0, sd=1.0)
     _std = length(y) == 1 ? abs(first(y)) : std(y; corrected=false)
     y .= (y .- mean(y)) ./ _std .* sd .- spread
     ∑ = get_∑(p, y, L, config)
-    Z = _get_cred(L, config, ∑)
-    return Z
+
+    if metric_name == "cred"
+        metric = _get_cred(L, config, ∑)
+    elseif metric_name == "gain"
+        metric = get_gain(L, config, ∑)
+    else
+        error("metric_name must be either 'cred' or 'cred_std'")
+    end
+    return metric
 end
 
 function get_data(; loss, nobs, spread=1.0, sd=1.0)
@@ -53,7 +60,7 @@ function get_data(; loss, nobs, spread=1.0, sd=1.0)
     data[:gR] = get_gain(L, config, ∑R)
     data[:gC] = data[:gL] + data[:gR]
 
-    if loss != :mse
+    if L <: Cred
         data[:ZR] = _get_cred(L, config, ∑R)
     else
         data[:ZR] = NaN
@@ -81,13 +88,14 @@ function get_dist_figure(; loss, nobs, spread=1.0, sd=1.0)
         gainL=$gL | gainR=$gR | ZR=$ZR
         """
     )
-    density!(ax1, data[:yL]; color="#02723599", label="left")
-    density!(ax1, data[:yR]; color="#02357299", label="right")
+    density!(ax1, data[:yL]; color="#4571a5CC", label="left")
+    density!(ax1, data[:yR]; color="#26a671CC", label="right")
     Legend(f[2, 1], ax1, orientation=:horizontal)
     return f
 end
 
 function get_cred_figure(;
+    metric_name="cred",
     loss,
     sd,
     nobs_list,
@@ -100,18 +108,19 @@ function get_cred_figure(;
 
     for (idx, nobs) in enumerate(nobs_list)
         for (idy, spread) in enumerate(spread_list)
-            z = simul_Z(; loss, nobs, spread, sd)
-            matrix[idx, idy] = z
+            metric = get_simul_metric(metric_name; loss, nobs, spread, sd)
+            matrix[idx, idy] = metric
         end
     end
     fig = Figure()
-    ax = Axis(fig[1, 1]; title="$(string(loss)) | sd: $sd", xlabel="nobs", ylabel="spread", xticks=(1:length(xticks), xticks), yticks=(1:length(yticks), yticks))
+    ax = Axis(fig[1, 1]; title=metric_name, subtitle="$(string(loss)) | sd: $sd", xlabel="nobs", ylabel="spread", xticks=(1:length(xticks), xticks), yticks=(1:length(yticks), yticks))
     heat = heatmap!(ax, matrix)
     Colorbar(fig[2, 1], heat; vertical=false)
     return fig
 end
 
 function get_cred_figureB(;
+    metric_name="cred",
     loss,
     nobs,
     sd_list,
@@ -124,12 +133,12 @@ function get_cred_figureB(;
 
     for (idx, sd) in enumerate(sd_list)
         for (idy, spread) in enumerate(spread_list)
-            z = simul_Z(; loss, nobs, spread, sd)
-            matrix[idx, idy] = z
+            metric = get_simul_metric(metric_name; loss, nobs, spread, sd)
+            matrix[idx, idy] = metric
         end
     end
     fig = Figure()
-    ax = Axis(fig[1, 1]; title="$(string(loss)) | nobs: $nobs", xlabel="sd", ylabel="spread", xticks=(1:length(xticks), xticks), yticks=(1:length(yticks), yticks))
+    ax = Axis(fig[1, 1]; title=metric_name, subtitle="$(string(loss)) | nobs: $nobs", xlabel="sd", ylabel="spread", xticks=(1:length(xticks), xticks), yticks=(1:length(yticks), yticks))
     heat = heatmap!(ax, matrix)
     Colorbar(fig[2, 1], heat; vertical=false)
     return fig
