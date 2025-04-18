@@ -182,12 +182,12 @@ end
 # get the gain metric
 ##############################
 # GradientRegression
-# function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:GradientRegression,T}
-#     ϵ = eps(T)
-#     lambda = params.lambda
-#     L2 = params.L2
-#     ∑[1]^2 / max(ϵ, (∑[2] + lambda * ∑[3] + L2)) / 2
-# end
+function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:GradientRegression,T}
+    ϵ = eps(T)
+    lambda = params.lambda
+    L2 = params.L2
+    ∑[1]^2 / max(ϵ, (∑[2] + lambda * ∑[3] + L2)) / 2
+end
 function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:GradientRegression,T,V<:AbstractVector}
     ϵ = eps(T)
     lambda = params.lambda
@@ -199,12 +199,6 @@ function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V)
 end
 
 # GaussianRegression
-# function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:MLE2P,T}
-#     ϵ = eps(T)
-#     lambda = params.lambda
-#     L2 = params.L2
-#     (∑[1]^2 / max(ϵ, (∑[3] + lambda * ∑[5] + L2)) + ∑[2]^2 / max(ϵ, (∑[4] + lambda * ∑[5] + L2))) / 2
-# end
 function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:MLE2P,T,V<:AbstractVector}
     ϵ = eps(T)
     lambda = params.lambda
@@ -216,17 +210,6 @@ function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V)
 end
 
 # MultiClassRegression
-# function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:MLogLoss,T}
-#     ϵ = eps(T)
-#     lambda = params.lambda
-#     L2 = params.L2
-#     gain = zero(T)
-#     K = (length(∑) - 1) ÷ 2
-#     @inbounds for k = 1:K
-#         gain += ∑[k]^2 / max(ϵ, (∑[k+K] + lambda * ∑[end] + L2)) / 2
-#     end
-#     return gain
-# end
 function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:MLogLoss,T,V<:AbstractVector}
     ϵ = eps(T)
     lambda = params.lambda
@@ -242,10 +225,6 @@ function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V)
 end
 
 # MAE
-# function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:MAE,T}
-#     ϵ = eps(T)
-#     abs(∑[1]) / max(ϵ, (1 + params.lambda + params.L2 / ∑[3]))
-# end
 function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:MAE,T,V<:AbstractVector}
     ϵ = eps(T)
     gain = abs(∑L[1] / ∑L[3] - ∑[1] / ∑[3]) * ∑L[3] / max(ϵ, (1 + params.lambda + params.L2 / ∑L[3])) +
@@ -254,10 +233,6 @@ function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V)
 end
 
 # Quantile
-# function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Quantile,T}
-#     ϵ = eps(T)
-#     abs(∑[1]) / max(ϵ, (1 + params.lambda + params.L2 / ∑[3]))
-# end
 function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:Quantile,T,V<:AbstractVector}
     ϵ = eps(T)
     gain = abs(∑L[1] / ∑L[3] - ∑[1] / ∑[3]) * ∑L[3] / max(ϵ, (1 + params.lambda + params.L2 / ∑L[3])) +
@@ -286,10 +261,10 @@ end
 end
 
 # gain for Cred
-# function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Cred,T}
-#     Z = _get_cred(L, params, ∑)
-#     return Z * abs(∑[1]) / (1 + params.L2 / ∑[3])
-# end
+function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Cred,T}
+    Z = _get_cred(L, params, ∑)
+    return Z * abs(∑[1]) / (1 + params.L2 / ∑[3])
+end
 # gain for Cred
 function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:Cred,T,V<:AbstractVector}
     Z = _get_cred(L, params, ∑)
