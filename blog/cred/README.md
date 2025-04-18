@@ -42,19 +42,18 @@ VHM is estimated as the square of the mean of the spread between observed values
 EVPV is estimated as the variance of the observations. This value can be derived from the aggregation of the first and second moment of the individual observations:
 - `EVPV = E[(x - μ)²] = E[X²] - E²[X]`
 
-Same as for the previous the gradient-based MSE error, the gain grows linearly with the number of observations, all other things being equal.
+## Credibility
+Two credibility-based losses are supported with `EvoTreeRegressor`:
+ - **cred_var**: `VHM / (VHM + EVPV)`
+ - **cred_std**: `sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV))`
+
+Just like the gradient-based MSE error, the gain grows linearly with the number of observations, all other things being equal.
 However, a smaller volatility results in an increased gain, as shown in 2nd vs 1st row.
 
 
 | ![](assets/dist-cred_std-1A.png) | ![](assets/dist-cred_std-1B.png) |
 |:----------------------:|:----------------------:|
 | ![](assets/dist-cred_std-2A.png) | ![](assets/dist-cred_std-3A.png) |
-
-## Credibility figures
-Two credibility variations are tested:
- - **cred_var**: `VHM / (VHM + EVPV)`
- - **cred_std**: `sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV))`
-The figures below present the credibility factor associated with different spreads and number observations
 
 ### Simulation grid
 
@@ -69,7 +68,7 @@ spread_list = [0.01, 0.05, 0.1, 0.2, 0.5, 1]
 | ![](assets/heatmap-cred-cred_std.png) | ![](assets/heatmap-gain-cred_std.png) |
 |:----------------------:|:----------------------:|
 
-### Illustration of different cred-based decision compared to MSE:
+### Illustration of different cred-based decision between `cred_std` to `MSE`
 
 Despite both `mse` and `cred_std` resulting in the same prediction, which matches the mean of the observations, the associated gain differs due to the volatility penalty.
 
@@ -102,16 +101,18 @@ EvoTrees.Tree{EvoTrees.CredStd, 1}
  - split: Bool[1, 0, 0]
 ```
 
-## Results
+## Benchmarks
+
 From [MLBenchmarks.jl](https://github.com/Evovest/MLBenchmarks.jl).
-| **model** | **metric** | **MSE** | **credV1A** | **credV2A** | **credV1B** | **credV2B** |
-|:---------:|:----------:|:-------:|:-----------:|:-----------:|:-----------:|:-----------:|
-| boston    | mse        | 6.3     | 6.18        | 6.01        | 6.47        | 6.18        |
-| boston    | gini       | 0.945   | 0.948       | 0.953       | 0.949       | 0.944       |
-| year      | mse        | 74.9    | 78.3        | 74.3        | 77.6        | 76.9        |
-| year      | gini       | 0.662   | 0.645       | 0.667       | 0.653       | 0.651       |
-| msrank    | mse        | 0.55    | 0.56        | 0.55        | 0.552       | 0.552       |
-| msrank    | ndcg       | 0.511   | 0.499       | 0.509       | 0.509       | 0.509       |
-| yahoo     | mse        | 0.565   | 0.587       | 0.569       | missing     | missing     |
-| yahoo     | ndcg       | 0.795   | 0.787       | 0.793       | missing     | missing     |
+
+| **model** | **metric** | **ref** | **cred\_var** | **cred\_std** |
+|:---------:|:----------:|:-------:|:-------------:|:-------------:|
+| boston    | mse        | 6.3     | 5.95          | 5.43          |
+| boston    | gini       | 0.945   | 0.947         | 0.952         |
+| year      | mse        | 74.9    | 74.6          | 74.2          |
+| year      | gini       | 0.662   | 0.664         | 0.661         |
+| msrank    | mse        | 0.55    | 0.551         | 0.549         |
+| msrank    | ndcg       | 0.511   | 0.509         | 0.51          |
+| yahoo     | mse        | 0.565   | 0.589         | 0.568         |
+| yahoo     | ndcg       | 0.795   | 0.787         | 0.794         |
 
