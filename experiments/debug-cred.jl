@@ -34,7 +34,8 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 
 # mse
 config = EvoTreeRegressor(;
-    nrounds=100,
+    loss=:mse,
+    nrounds=1,
     bagging_size=1,
     early_stopping_rounds=50,
     nbins=8,
@@ -102,9 +103,9 @@ scatter!(ax,
 lines!(ax,
     x_train[x_perm, 1],
     pred_train_linear[x_perm],
-    color="navy",
+    color="red",
     linewidth=1,
-    label="mse",
+    label="mae",
 )
 lines!(ax,
     x_train[x_perm, 1],

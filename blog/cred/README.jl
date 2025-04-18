@@ -70,7 +70,15 @@ EVPV is estimated as the variance of the observations. This value can be derived
 =#
 
 #=
-Same as for the previous the gradient-based MSE error, the gain grows linearly with the number of observations, all other things being equal.
+## Credibility
+Two credibility-based losses are supported with `EvoTreeRegressor`:
+ - **cred_var**: `VHM / (VHM + EVPV)`
+ - **cred_std**: `sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV))`
+=#
+
+
+#=
+Just like the gradient-based MSE error, the gain grows linearly with the number of observations, all other things being equal.
 However, a smaller volatility results in an increased gain, as shown in 2nd vs 1st row. 
 =#
 
@@ -94,14 +102,6 @@ save(joinpath(@__DIR__, "assets", "dist-cred_std-3B.png"), f);#hide
 | ![](assets/dist-cred_std-2A.png) | ![](assets/dist-cred_std-3A.png) |
 =#
 
-#=
-## Credibility figures
-Two credibility variations are tested:
- - **cred_var**: `VHM / (VHM + EVPV)`
- - **cred_std**: `sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV))`
-The figures below present the credibility factor associated with different spreads and number observations
-=#
-
 # ### Simulation grid
 
 #=
@@ -122,7 +122,7 @@ save(joinpath(@__DIR__, "assets", "heatmap-$metric_name-cred_std.png"), f);#hide
 |:----------------------:|:----------------------:|
 =#
 
-# ### Illustration of different cred-based decision compared to MSE:
+# ### Illustration of different cred-based decision between `cred_std` to `MSE`
 
 #=
 Despite both `mse` and `cred_std` resulting in the same prediction, which matches the mean of the observations, the associated gain differs due to the volatility penalty.
@@ -164,8 +164,10 @@ EvoTrees.Tree{EvoTrees.CredStd, 1}
 =#
 
 #=
-## Results
+## Benchmarks
+
 From [MLBenchmarks.jl](https://github.com/Evovest/MLBenchmarks.jl).
+
 | **model** | **metric** | **MSE** | **credV1A** | **credV2A** | **credV1B** | **credV2B** |
 |:---------:|:----------:|:-------:|:-----------:|:-----------:|:-----------:|:-----------:|
 | boston    | mse        | 6.3     | 6.18        | 6.01        | 6.47        | 6.18        |

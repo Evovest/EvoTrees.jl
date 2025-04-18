@@ -268,7 +268,7 @@ save("docs/src/assets/regression-sinus-$tree_type-$_device.png", f)
 ###############################
 config = EvoTreeGaussian(;
     nrounds=1,
-    bagging_size=16,
+    bagging_size=1,
     early_stopping_rounds=50,
     nbins=32,
     L2=0.0,
@@ -385,7 +385,7 @@ params1 = EvoTreeRegressor(;
     alpha=0.2,
     nrounds=1,
     bagging_size=1,
-    nbins=8,
+    nbins=32,
     eta=1.0,
     L2=0.0,
     max_depth=7,
@@ -406,7 +406,7 @@ params1 = EvoTreeRegressor(;
     alpha=0.8,
     nrounds=1,
     bagging_size=1,
-    nbins=8,
+    nbins=32,
     L2=0.0,
     eta=1.0,
     max_depth=7,
@@ -462,7 +462,7 @@ save("docs/src/assets/quantiles-sinus-$tree_type-$_device.png", f)
 config = EvoTreeRegressor(;
     loss=:cred_var,
     metric=:mse,
-    nrounds=2,
+    nrounds=1,
     bagging_size=16,
     early_stopping_rounds=50,
     nbins=32,
@@ -492,7 +492,7 @@ sqrt(mean((pred_train_cred_var .- y_train) .^ 2))
 config = EvoTreeRegressor(;
     loss=:cred_std,
     metric=:mse,
-    nrounds=2,
+    nrounds=1,
     bagging_size=16,
     early_stopping_rounds=50,
     nbins=32,

@@ -60,7 +60,6 @@ function grow_tree!(
 
     # initialize summary stats
     nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
-    nodes[1].gain = get_gain(L, params, nodes[1].∑)
 
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
@@ -92,7 +91,7 @@ function grow_tree!(
             @threads for n ∈ n_current
                 best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
                 if best_bin != 0
-                    tree.gain[n] = best_gain - nodes[n].gain
+                    tree.gain[n] = best_gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
                     tree.split[n] = true
@@ -121,8 +120,6 @@ function grow_tree!(
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
                     nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
-                    nodes[n<<1].gain = get_gain(L, params, nodes[n<<1].∑)
-                    nodes[n<<1+1].gain = get_gain(L, params, nodes[n<<1+1].∑)
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
@@ -168,7 +165,6 @@ function grow_otree!(
 
     # initialize summary stats
     nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
-    nodes[1].gain = get_gain(L, params, nodes[1].∑)
 
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
@@ -222,9 +218,9 @@ function grow_otree!(
             best_gain = best[1]
             best_bin = best[2][1]
             best_feat = js[best[2][2]]
-            if best_gain > gain + params.gamma
+            if best_gain > params.gamma
                 for n in n_current
-                    tree.gain[n] = best_gain - nodes[n].gain
+                    tree.gain[n] = best_gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
                     tree.split[n] = best_bin != 0
@@ -245,8 +241,6 @@ function grow_otree!(
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
                     nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
-                    nodes[n<<1].gain = get_gain(L, params, nodes[n<<1].∑)
-                    nodes[n<<1+1].gain = get_gain(L, params, nodes[n<<1+1].∑)
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
