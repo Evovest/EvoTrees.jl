@@ -227,7 +227,7 @@ end
 #     end
 #     return gain
 # end
-function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:MLE2P,T,V<:AbstractVector}
+function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:MLogLoss,T,V<:AbstractVector}
     ϵ = eps(T)
     lambda = params.lambda
     L2 = params.L2
