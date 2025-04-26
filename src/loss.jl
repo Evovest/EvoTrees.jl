@@ -108,8 +108,12 @@ end
 # MAE
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MAE}, params::EvoTypes) where {T}
     @threads for i in eachindex(y)
-        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
+        diff = (y[i] - p[1, i])
+        @inbounds ∇[1, i] = diff > 0 ? params.alpha * diff * ∇[3, i] : (1 - params.alpha) * diff * ∇[3, i]
     end
+    # @threads for i in eachindex(y)
+    #     @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
+    # end
 end
 
 # Quantile

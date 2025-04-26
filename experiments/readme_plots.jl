@@ -12,7 +12,7 @@ using EvoTrees: fit, predict, sigmoid, logit
 
 # prepare a dataset
 tree_type = :binary # binary/oblivious
-_device = :gpu
+_device = :cpu
 
 Random.seed!(123)
 features = rand(10_000) .* 5
@@ -172,6 +172,7 @@ config = EvoTreeRegressor(;
     nrounds=500,
     early_stopping_rounds=50,
     nbins=64,
+    alpha=0.5,
     L2=1.0,
     eta=0.1,
     max_depth=6,
@@ -247,6 +248,7 @@ lines!(ax,
     label="mae",
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
+f
 save("docs/src/assets/regression-sinus-$tree_type-$_device.png", f)
 
 ###############################

@@ -35,12 +35,12 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 # mse
 config = EvoTreeRegressor(;
     nrounds=1,
-    bagging_size=16,
+    bagging_size=1,
     early_stopping_rounds=50,
     nbins=32,
     L2=0.0,
     eta=1.0,
-    max_depth=7,
+    max_depth=9,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -68,7 +68,7 @@ config = EvoTreeRegressor(;
     nbins=32,
     L2=0.0,
     eta=1.0,
-    max_depth=7,
+    max_depth=9,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -95,7 +95,7 @@ config = EvoTreeCount(;
     nbins=32,
     L2=0.0,
     eta=1.0,
-    max_depth=7,
+    max_depth=9,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -123,7 +123,7 @@ config = EvoTreeRegressor(;
     nbins=32,
     L2=0.0,
     eta=1.0,
-    max_depth=7,
+    max_depth=9,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -151,7 +151,7 @@ config = EvoTreeRegressor(;
     nbins=32,
     L2=0.0,
     eta=1.0,
-    max_depth=7,
+    max_depth=9,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -180,7 +180,7 @@ config = EvoTreeRegressor(;
     nbins=32,
     L2=1.0,
     eta=1.0,
-    max_depth=7,
+    max_depth=9,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -198,13 +198,22 @@ config = EvoTreeRegressor(;
 );
 pred_train_mae = model(x_train; device=_device)
 
-# 1 3 -2 -2
-# sum abs error: 4
-# sum abs error: 4
-# pred: 2
-# gain: 4-2 = 2
-# pred: 1 3 
-# gain: 4-0 = 4
+# using XGBoost
+# params_xgb = Dict(
+#     :num_round => 1,
+#     :max_depth => 8,
+#     :eta => 1.0,
+#     :objective => "reg:logistic",
+#     :print_every_n => 5,
+#     :subsample => 0.5,
+#     :colsample_bytree => 0.5,
+#     :tree_method => "hist", # hist/gpu_hist
+#     :max_bin => 32,
+# )
+# dtrain = DMatrix(x_train, y_train)
+# watchlist = Dict("train" => DMatrix(x_train, y_train))
+# m_xgb = xgboost(dtrain; watchlist, verbosity=0, eval_metric="mae", params_xgb...)
+# pred_train_xgb = XGBoost.predict(m_xgb, x_train)
 
 ###########################################
 # plot
@@ -259,22 +268,29 @@ lines!(ax,
     linewidth=1,
     label="mae",
 )
+# lines!(ax,
+#     x_train[x_perm, 1],
+#     pred_train_xgb[x_perm],
+#     color="black",
+#     linewidth=1,
+#     label="xgb-logistic",
+# )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
 f
-save("docs/src/assets/regression-sinus-$tree_type-$_device.png", f)
+save("docs/src/assets/bagging-regression-sinus-$tree_type-$_device.png", f)
 
 ###############################
 ## gaussian
 ###############################
 config = EvoTreeGaussian(;
     nrounds=1,
-    bagging_size=1,
+    bagging_size=16,
     early_stopping_rounds=50,
     nbins=32,
     L2=0.0,
     # gamma=0.1,
     eta=1.0,
-    max_depth=7,
+    max_depth=9,
     min_weight=8,
     rowsample=0.5,
     colsample=1.0,
@@ -344,7 +360,7 @@ lines!(ax,
 # )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
 f
-save("docs/src/assets/gaussian-sinus-$tree_type-$_device.png", f)
+save("docs/src/assets/bagging-gaussian-sinus-$tree_type-$_device.png", f)
 
 ###############################
 ## Quantiles
@@ -358,7 +374,7 @@ params1 = EvoTreeRegressor(;
     nbins=32,
     eta=1.0,
     L2=0.0,
-    max_depth=7,
+    max_depth=9,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -388,7 +404,7 @@ params1 = EvoTreeRegressor(;
     nbins=32,
     eta=1.0,
     L2=0.0,
-    max_depth=7,
+    max_depth=9,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -409,7 +425,7 @@ params1 = EvoTreeRegressor(;
     nbins=32,
     L2=0.0,
     eta=1.0,
-    max_depth=7,
+    max_depth=9,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -452,7 +468,7 @@ lines!(ax,
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
 f
-save("docs/src/assets/quantiles-sinus-$tree_type-$_device.png", f)
+save("docs/src/assets/bagging-quantiles-sinus-$tree_type-$_device.png", f)
 
 
 ###############################
@@ -469,7 +485,7 @@ config = EvoTreeRegressor(;
     L2=0.0,
     lambda=0.0,
     eta=1.0,
-    max_depth=7,
+    max_depth=9,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -499,7 +515,7 @@ config = EvoTreeRegressor(;
     L2=0.0,
     lambda=0.0,
     eta=1.0,
-    max_depth=7,
+    max_depth=9,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
@@ -545,4 +561,4 @@ lines!(ax,
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
 f
-save("docs/src/assets/credibility-sinus-$tree_type-$_device.png", f)
+save("docs/src/assets/bagging-credibility-sinus-$tree_type-$_device.png", f)
