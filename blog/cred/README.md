@@ -115,4 +115,3 @@ From [MLBenchmarks.jl](https://github.com/Evovest/MLBenchmarks.jl).
 | msrank    | ndcg       | 0.511   | 0.509        | 0.51         |
 | yahoo     | mse        | 0.565   | 0.589        | 0.568        |
 | yahoo     | ndcg       | 0.795   | 0.787        | 0.794        |
-

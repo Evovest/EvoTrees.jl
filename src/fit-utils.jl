@@ -425,9 +425,6 @@ function get_best_split(
                    (constraint == 1 && predL < predR)
 
                     gain = get_gain(L, params, ∑, view(hL, :, bin, j), view(hR, :, bin, j))
-                    # gain =
-                    #     get_gain(L, params, view(hL, :, bin, j)) +
-                    #     get_gain(L, params, view(hR, :, bin, j))
 
                     if gain > best_gain
                         best_gain = gain
@@ -493,9 +490,7 @@ function update_gains!(
                    (constraint == 1 && predL < predR)
 
                     gains[bin, j] = get_gain(L, params, ∑, view(hL, :, bin, j), view(hR, :, bin, j))
-                    # gains[bin, j] =
-                    #     get_gain(L, params, view(hL, :, bin, j)) +
-                    #     get_gain(L, params, view(hR, :, bin, j))
+
                 end
             end
         end
