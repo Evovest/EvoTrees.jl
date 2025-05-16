@@ -16,23 +16,6 @@ abstract type Cred <: LossType end
 abstract type CredVar <: Cred end
 abstract type CredStd <: Cred end
 
-# Converts MSE -> :mse
-# const _type2loss_dict = Dict(
-#     MSE => :mse,
-#     LogLoss => :logloss,
-#     Poisson => :poisson,
-#     Gamma => :gamma,
-#     Tweedie => :tweedie,
-#     MLogLoss => :mlogloss,
-#     GaussianMLE => :gaussian_mle,
-#     LogisticMLE => :logistic_mle,
-#     Quantile => :quantile,
-#     MAE => :mae,
-#     CredVar => :cred_var,
-#     CredStd => :cred_std
-# )
-# _type2loss(L::Type) = _type2loss_dict[L]
-
 const _loss2type_dict = Dict(
     :mse => MSE,
     :logloss => LogLoss,
@@ -47,14 +30,6 @@ const _loss2type_dict = Dict(
     :cred_var => CredVar,
     :cred_std => CredStd
 )
-
-# Credibility-based
-function update_grads!(∇::Matrix, p::Matrix{T}, y::Vector{T}, ::Type{<:Cred}, params::EvoTypes) where {T}
-    @threads for i in eachindex(y)
-        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
-        @inbounds ∇[2, i] = (y[i] - p[1, i])^2 * ∇[3, i]
-    end
-end
 
 # MSE
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MSE}, params::EvoTypes) where {T}
@@ -138,6 +113,14 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{Quanti
     end
 end
 
+# Credibility-based
+function update_grads!(∇::Matrix, p::Matrix{T}, y::Vector{T}, ::Type{<:Cred}, params::EvoTypes) where {T}
+    @threads for i in eachindex(y)
+        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
+        @inbounds ∇[2, i] = (y[i] - p[1, i])^2 * ∇[3, i]
+    end
+end
+
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
@@ -199,44 +182,56 @@ end
 # get the gain metric
 ##############################
 # GradientRegression
-function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:GradientRegression,T}
+function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:GradientRegression,T,V<:AbstractVector}
     ϵ = eps(T)
     lambda = params.lambda
     L2 = params.L2
-    ∑[1]^2 / max(ϵ, (∑[2] + lambda * ∑[3] + L2)) / 2
+    gain = ∑L[1]^2 / max(ϵ, (∑L[2] + lambda * ∑L[3] + L2)) / 2 +
+           ∑R[1]^2 / max(ϵ, (∑R[2] + lambda * ∑R[3] + L2)) / 2 -
+           ∑[1]^2 / max(ϵ, (∑[2] + lambda * ∑[3] + L2)) / 2
+    return gain
 end
 
 # GaussianRegression
-function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:MLE2P,T}
+function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:MLE2P,T,V<:AbstractVector}
     ϵ = eps(T)
     lambda = params.lambda
     L2 = params.L2
-    (∑[1]^2 / max(ϵ, (∑[3] + lambda * ∑[5] + L2)) + ∑[2]^2 / max(ϵ, (∑[4] + lambda * ∑[5] + L2))) / 2
+    gain = (∑L[1]^2 / max(ϵ, (∑L[3] + lambda * ∑L[5] + L2)) + ∑L[2]^2 / max(ϵ, (∑L[4] + lambda * ∑L[5] + L2))) / 2 +
+           (∑R[1]^2 / max(ϵ, (∑R[3] + lambda * ∑R[5] + L2)) + ∑R[2]^2 / max(ϵ, (∑R[4] + lambda * ∑R[5] + L2))) / 2 -
+           (∑[1]^2 / max(ϵ, (∑[3] + lambda * ∑[5] + L2)) + ∑[2]^2 / max(ϵ, (∑[4] + lambda * ∑[5] + L2))) / 2
+    return gain
 end
 
 # MultiClassRegression
-function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:MLogLoss,T}
+function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:MLogLoss,T,V<:AbstractVector}
     ϵ = eps(T)
     lambda = params.lambda
     L2 = params.L2
     gain = zero(T)
     K = (length(∑) - 1) ÷ 2
     @inbounds for k = 1:K
-        gain += ∑[k]^2 / max(ϵ, (∑[k+K] + lambda * ∑[end] + L2)) / 2
+        gain += ∑L[k]^2 / max(ϵ, (∑L[k+K] + lambda * ∑L[end] + L2)) / 2
+        gain += ∑R[k]^2 / max(ϵ, (∑R[k+K] + lambda * ∑R[end] + L2)) / 2
+        gain -= ∑[k]^2 / max(ϵ, (∑[k+K] + lambda * ∑[end] + L2)) / 2
     end
     return gain
 end
 
 # MAE
-function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:MAE,T}
+function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:MAE,T,V<:AbstractVector}
     ϵ = eps(T)
-    abs(∑[1]) / max(ϵ, (1 + params.lambda + params.L2 / ∑[3]))
+    gain = abs(∑L[1] / ∑L[3] - ∑[1] / ∑[3]) * ∑L[3] / max(ϵ, (1 + params.lambda + params.L2 / ∑L[3])) +
+           abs(∑R[1] / ∑R[3] - ∑[1] / ∑[3]) * ∑R[3] / max(ϵ, (1 + params.lambda + params.L2 / ∑R[3]))
+    return gain
 end
 
 # Quantile
-function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Quantile,T}
+function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:Quantile,T,V<:AbstractVector}
     ϵ = eps(T)
-    abs(∑[1]) / max(ϵ, (1 + params.lambda + params.L2 / ∑[3]))
+    gain = abs(∑L[1] / ∑L[3] - ∑[1] / ∑[3]) * ∑L[3] / max(ϵ, (1 + params.lambda + params.L2 / ∑L[3])) +
+           abs(∑R[1] / ∑R[3] - ∑[1] / ∑[3]) * ∑R[3] / max(ϵ, (1 + params.lambda + params.L2 / ∑R[3]))
+    return gain
 end
 
 # CredVar: ratio of variance
@@ -245,8 +240,8 @@ end
 @inline function _get_cred(::Type{CredVar}, params::EvoTypes, ∑::AbstractVector{T}) where {T}
     ϵ = eps(eltype(∑))
     VHM = (∑[1] / ∑[3])^2
-    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM) / (1 + params.lambda * ∑[3]))
-    return VHM / (VHM + EVPV + params.L2 / ∑[3])
+    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM))
+    return VHM / (VHM + EVPV)
 end
 
 # CredStd: ratio of std dev 
@@ -255,12 +250,22 @@ end
 @inline function _get_cred(::Type{CredStd}, params::EvoTypes, ∑::AbstractVector{T}) where {T}
     ϵ = eps(eltype(∑))
     VHM = (∑[1] / ∑[3])^2
-    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM) / (1 + params.lambda * ∑[3]))
-    return sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV) + sqrt(params.L2 / ∑[3]))
+    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM))
+    return sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV))
 end
 
 # gain for Cred
 function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Cred,T}
     Z = _get_cred(L, params, ∑)
-    return Z * abs(∑[1])
+    return Z * abs(∑[1]) / (1 + params.L2 / ∑[3])
+end
+# gain for Cred
+function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:Cred,T,V<:AbstractVector}
+    Z = _get_cred(L, params, ∑)
+    ZL = _get_cred(L, params, ∑L)
+    ZR = _get_cred(L, params, ∑R)
+    gain = ZL * abs(∑L[1]) / (1 + params.L2 / ∑L[3]) +
+           ZR * abs(∑R[1]) / (1 + params.L2 / ∑R[3]) -
+           Z * abs(∑[1]) / (1 + params.L2 / ∑[3])
+    return gain
 end

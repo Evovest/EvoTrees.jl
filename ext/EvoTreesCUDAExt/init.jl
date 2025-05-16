@@ -10,7 +10,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
 
     target_levels = nothing
     target_isordered = false
-    if L == EvoTrees.Logistic
+    if L == EvoTrees.LogLoss
         @assert eltype(y_train) <: Real && minimum(y_train) >= 0 && maximum(y_train) <= 1
         K = 1
         y = T.(y_train)

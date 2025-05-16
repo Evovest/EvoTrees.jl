@@ -10,7 +10,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
 
     target_levels = nothing
     target_isordered = false
-    if L == Logistic
+    if L == LogLoss
         @assert eltype(y_train) <: Real && minimum(y_train) >= 0 && maximum(y_train) <= 1
         K = 1
         y = T.(y_train)

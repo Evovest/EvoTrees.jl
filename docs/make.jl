@@ -13,6 +13,7 @@ pages = [
         "Logistic Regression - Titanic" => "tutorials/logistic-regression-titanic.md",
         "Classification - IRIS" => "tutorials/classification-iris.md",
         "Ranking - Yahoo! LTRC" => "tutorials/ranking-LTRC.md",
+        "Credibility-based loss" => "tutorials/cred-loss.md",
         "Internal API" => "tutorials/examples-API.md",
         "MLJ API" => "tutorials/examples-MLJ.md"]
 ]

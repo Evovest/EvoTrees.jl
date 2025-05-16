@@ -13,7 +13,7 @@ using Statistics
 using StatsBase: sample, sample!, quantile, proportions
 using Random
 using Random: seed!, AbstractRNG
-using Distributions
+import Distributions
 using Tables
 using CategoricalArrays
 using Tables

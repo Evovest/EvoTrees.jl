@@ -402,7 +402,7 @@ function get_best_split(
     nbins = size(h, 2)
     hL .= h
 
-    best_gain = node.gain + params.gamma
+    best_gain = params.gamma
     best_feat = zero(Int)
     best_bin = zero(Int)
 
@@ -424,9 +424,7 @@ function get_best_split(
                    (constraint == -1 && predL > predR) ||
                    (constraint == 1 && predL < predR)
 
-                    gain =
-                        get_gain(L, params, view(hL, :, bin, j)) +
-                        get_gain(L, params, view(hR, :, bin, j))
+                    gain = get_gain(L, params, ∑, view(hL, :, bin, j), view(hR, :, bin, j))
 
                     if gain > best_gain
                         best_gain = gain
@@ -491,9 +489,8 @@ function update_gains!(
                    (constraint == -1 && predL > predR) ||
                    (constraint == 1 && predL < predR)
 
-                    gains[bin, j] =
-                        get_gain(L, params, view(hL, :, bin, j)) +
-                        get_gain(L, params, view(hR, :, bin, j))
+                    gains[bin, j] = get_gain(L, params, ∑, view(hL, :, bin, j), view(hR, :, bin, j))
+
                 end
             end
         end
