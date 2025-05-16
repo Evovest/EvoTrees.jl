@@ -1,12 +1,12 @@
 ## package loading
 using EvoTrees
-using EvoTrees: _get_cred, _loss2type_dict, update_grads!, Cred
+using EvoTrees: _get_cred, _loss2type_dict, update_grads!, Cred, EvoTypes, GradientRegression
 using DataFrames
 using Distributions
 using Statistics: mean, std
 using CairoMakie
 
-function _get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:GradientRegression,T}
+function _get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L,T}
     ϵ = eps(T)
     lambda = params.lambda
     L2 = params.L2

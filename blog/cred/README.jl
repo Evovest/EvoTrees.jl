@@ -70,7 +70,7 @@ EVPV is estimated as the variance of the observations. This value can be derived
 =#
 
 #=
-## Credibility
+## Credibility-based losses in EvoTrees
 Two credibility-based losses are supported with `EvoTreeRegressor`:
  - **cred_var**: `VHM / (VHM + EVPV)`
  - **cred_std**: `sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV))`

@@ -15,9 +15,9 @@ Key observations:
 - **the gain scales quadratically with the spread**: moving from a spread of 1.0 to 0.1 between the 2nd and 3rd row results in a drop by 100x of the gain: from 50.0 to 0.5.
 
 
-| ![](assets/dist-mse-1A.png) | ![](assets/dist-mse-1B.png) |
+| ![](../assets/cred-loss/dist-mse-1A.png) | ![](../assets/cred-loss/dist-mse-1B.png) |
 |:----------------------:|:----------------------:|
-| ![](assets/dist-mse-2A.png) | ![](assets/dist-mse-3A.png) |
+| ![](../assets/cred-loss/dist-mse-2A.png) | ![](../assets/cred-loss/dist-mse-3A.png) |
 
 ## Credibility-based gains
 
@@ -51,9 +51,9 @@ Just like the gradient-based MSE error, the gain grows linearly with the number 
 However, a smaller volatility results in an increased gain, as shown in 2nd vs 1st row.
 
 
-| ![](assets/dist-cred_std-1A.png) | ![](assets/dist-cred_std-1B.png) |
+| ![](../assets/cred-loss/dist-cred_std-1A.png) | ![](../assets/cred-loss/dist-cred_std-1B.png) |
 |:----------------------:|:----------------------:|
-| ![](assets/dist-cred_std-2A.png) | ![](assets/dist-cred_std-3A.png) |
+| ![](../assets/cred-loss/dist-cred_std-2A.png) | ![](../assets/cred-loss/dist-cred_std-3A.png) |
 
 ### Simulation grid
 
@@ -65,8 +65,9 @@ sd_list = [0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5]
 spread_list = [0.01, 0.05, 0.1, 0.2, 0.5, 1]
 ````
 
-| ![](assets/heatmap-cred-cred_std.png) | ![](assets/heatmap-gain-cred_std.png) |
+| ![](../assets/cred-loss/heatmap-cred-cred_std.png) | ![](../assets/cred-loss/heatmap-gain-cred_std.png) |
 |:----------------------:|:----------------------:|
+|  |  |
 
 ### Illustration of different cred-based decision between `cred_std` to `MSE`
 
@@ -74,8 +75,9 @@ Despite both `mse` and `cred_std` resulting in the same prediction, which matche
 
 The following illustrates a minimal scenario of 2 features, each with only 2 levels.
 
-| ![](assets/dist-mse-cred-x1.png) | ![](assets/dist-mse-cred-x2.png) |
+| ![](../assets/cred-loss/dist-mse-cred-x1.png) | ![](../assets/cred-loss/dist-mse-cred-x2.png) |
 |:----------------------:|:----------------------:|
+|  |  |
 
 ```julia
 config = EvoTreeRegressor(loss=:mse, nrounds=1, max_depth=2)
@@ -115,4 +117,3 @@ From [MLBenchmarks.jl](https://github.com/Evovest/MLBenchmarks.jl).
 | msrank    | ndcg       | 0.511   | 0.509        | 0.51         |
 | yahoo     | mse        | 0.565   | 0.589        | 0.568        |
 | yahoo     | ndcg       | 0.795   | 0.787        | 0.794        |
-
