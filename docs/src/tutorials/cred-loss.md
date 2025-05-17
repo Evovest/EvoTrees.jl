@@ -11,7 +11,7 @@ The 2 colors represent the observations belonging to the left and right children
 Key observations:
 - **the gain is invariant to the volatility**: the top vs bottom figures differ only by the std dev of the observations.
     The associated gain is identical, which is aligned with the gradient-based approach to gain: the gain matches the reduction in the MSE, which is identical regardless of the dispersion. It's strictly driven by their mean.
-- **the gain scales linearly with the number of observations**: the right vs left figures contrasts different number of observations (100 vs 10k), and show that gain is directly proportional.
+- **the gain scales linearly with the number of observations**: the right vs left figures contrast different number of observations (100 vs 10k), and show that gain is directly proportional.
 - **the gain scales quadratically with the spread**: moving from a spread of 1.0 to 0.1 between the 2nd and 3rd row results in a drop by 100x of the gain: from 50.0 to 0.5.
 
 
