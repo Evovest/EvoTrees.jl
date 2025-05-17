@@ -1,15 +1,15 @@
 # Exploring a credibility-based approach for tree-gain estimation
 
 
-> The motivation for this experiment was to explore an alternative to gradient-based gain measure by integrating the volatility of split candidates to identity the best node split.
+> The motivation for this experiment was to explore an alternative to gradient-based gain measure by integrating the volatility of split candidates to identify the best node split.
 
 ## Review of key gradient-based MSE characteristics
 
-The figures below illustrate the behavior of vanilla gradient-based approach using a mean-squarred error (MSE) loss.
+The figures below illustrate the behavior of vanilla gradient-based approach using a mean-squared error (MSE) loss.
 The 2 colors represent the observations belonging to the left and right children.
 
 Key observations:
-- **the gain is invariant to the volatility**: the top vs bottom figures differs only by the std dev of the observations.
+- **the gain is invariant to the volatility**: the top vs bottom figures differ only by the std dev of the observations.
     The associated gain is identical, which is aligned with the gradient-based approach to gain: the gain matches the reduction in the MSE, which is identical regardless of the dispersion. It's strictly driven by their mean.
 - **the gain scales linearly with the number of observations**: the right vs left figures contrasts different number of observations (100 vs 10k), and show that gain is directly proportional.
 - **the gain scales quadratically with the spread**: moving from a spread of 1.0 to 0.1 between the 2nd and 3rd row results in a drop by 100x of the gain: from 50.0 to 0.5.
@@ -23,7 +23,7 @@ Key observations:
 
 The idea is for *gain* to reflect varying uncertainty levels for observations associated to each of the tree-split candidates.
 For tree-split candidates with an identical spread, the intuition is that candidates with a lower volatility, all other things being equal, should be preferred.
-The original inspiration comes from credibility theory, a foundational notion in actuarial science with direct connexion mixed effect models and bayesian theory.
+The original inspiration comes from credibility theory, a foundational notion in actuarial science with direct connection mixed effect models and bayesian theory.
 Key concept is that the credibility associated with a set of observations is driven by the relative effect of 2 components:
  - **Variance of the Hypothetical Means (VHM)**: if large differences between candidates means are expected, a greater credibility is assigned.
  - **Expected Value of the Process Variance (EVPV)**: if the data generation process of a given candidate has a large volatility, a smaller credibility is assigned.
@@ -31,8 +31,8 @@ The Buhlmann credibility states that the optimal linear posterior estimator of a
  - `Z * X̄ + (1 - Z) * μ`, where `X̄` is the group mean and `μ` the population mean.
 
 This approach results in a shift of perspective in how the gain is derived.
-Classical gradient based is about deriving a second-order approximation of the loss curve for a tre-split candidate.
-The gain corresponds to the reduction in this approximated loss by taking the prediciton that minimises the quadratic loss curve.
+Classical gradient-based is about deriving a second-order approximation of the loss curve for a tree-split candidate.
+The gain corresponds to the reduction in this approximated loss by taking the prediction that minimises the quadratic loss curve.
 The credibility-based takes a loss function agnostic approach, and view the gain as the total absolute change in the credibility-adjusted predicted value.
 Example, if a child has a mean residual of *2.0*, credibility of 0.5 and 100 observations, the resulting gain is: `2.0 * 0.5 * 100 = 100.0`, where `2.0 * 0.5` corresponds to the credibility adjusted prediction.
 
@@ -43,7 +43,7 @@ EVPV is estimated as the variance of the observations. This value can be derived
 - `EVPV = E[(x - μ)²] = E[X²] - E²[X]`
 
 ## Credibility-based losses in EvoTrees
-Two credibility-based losses are supported with `EvoTreeRegressor`:
+Two credibility-based losses are supported in `EvoTreeRegressor`:
  - **cred_var**: `VHM / (VHM + EVPV)`
  - **cred_std**: `sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV))`
 
