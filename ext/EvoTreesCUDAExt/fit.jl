@@ -2,31 +2,35 @@ function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, param
 
     # compute gradients
     EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, L, params)
-    # subsample rows
-    cache.nodes[1].is =
-        EvoTrees.subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, params.rng)
-    # subsample cols
-    EvoTrees.sample!(params.rng, UInt32(1):UInt32(length(cache.feattypes)), cache.js, replace=false, ordered=true)
 
-    # assign a root and grow tree
-    tree = EvoTrees.Tree{L,K}(params.max_depth)
-    grow! = params.tree_type == :oblivious ? grow_otree! : grow_tree!
-    grow!(
-        tree,
-        cache.nodes,
-        params,
-        cache.∇,
-        cache.js,
-        cache.is,
-        cache.left,
-        cache.right,
-        cache.h∇,
-        cache.x_bin,
-        cache.feattypes,
-        cache.monotone_constraints,
-    )
-    push!(m.trees, tree)
-    EvoTrees.predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
+    for _ in 1:params.bagging_size
+
+        # subsample rows
+        cache.nodes[1].is =
+            EvoTrees.subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, params.rng)
+        # subsample cols
+        EvoTrees.sample!(params.rng, UInt32(1):UInt32(length(cache.feattypes)), cache.js, replace=false, ordered=true)
+
+        # assign a root and grow tree
+        tree = EvoTrees.Tree{L,K}(params.max_depth)
+        grow! = params.tree_type == :oblivious ? grow_otree! : grow_tree!
+        grow!(
+            tree,
+            cache.nodes,
+            params,
+            cache.∇,
+            cache.js,
+            cache.is,
+            cache.left,
+            cache.right,
+            cache.h∇,
+            cache.x_bin,
+            cache.feattypes,
+            cache.monotone_constraints,
+        )
+        push!(m.trees, tree)
+        EvoTrees.predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
+    end
     m.info[:nrounds] += 1
     return nothing
 end
@@ -54,7 +58,6 @@ function grow_tree!(
 
     # initialize summary stats
     copyto!(nodes[1].∑, sum(Float64, view(∇, :, nodes[1].is), dims=2))
-    nodes[1].gain = get_gain(L, params, nodes[1].∑)
 
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
@@ -86,7 +89,7 @@ function grow_tree!(
             @threads for n ∈ n_current
                 best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
                 if best_bin != 0
-                    tree.gain[n] = best_gain - nodes[n].gain
+                    tree.gain[n] = best_gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
                     tree.split[n] = true
@@ -115,8 +118,6 @@ function grow_tree!(
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
                     nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
-                    nodes[n<<1].gain = get_gain(L, params, nodes[n<<1].∑)
-                    nodes[n<<1+1].gain = get_gain(L, params, nodes[n<<1+1].∑)
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
@@ -165,7 +166,6 @@ function grow_otree!(
 
     # initialize summary stats
     copyto!(nodes[1].∑, sum(Float64, view(∇, :, nodes[1].is), dims=2))
-    nodes[1].gain = get_gain(L, params, nodes[1].∑)
 
     # grow while there are remaining active nodes
     while length(n_current) > 0 && depth <= params.max_depth
@@ -218,9 +218,9 @@ function grow_otree!(
             best_gain = best[1]
             best_bin = best[2][1]
             best_feat = js[best[2][2]]
-            if best_gain > gain + params.gamma
+            if best_gain > params.gamma
                 for n in n_current
-                    tree.gain[n] = best_gain - nodes[n].gain
+                    tree.gain[n] = best_gain
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
                     tree.split[n] = best_bin != 0
@@ -241,8 +241,6 @@ function grow_otree!(
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
                     nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
                     nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
-                    nodes[n<<1].gain = get_gain(L, params, nodes[n<<1].∑)
-                    nodes[n<<1+1].gain = get_gain(L, params, nodes[n<<1+1].∑)
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
@@ -265,6 +263,5 @@ function grow_otree!(
         n_current = copy(n_next)
         depth += 1
     end # end of loop over current nodes for a given depth
-
     return nothing
 end

@@ -35,7 +35,7 @@ y_train, y_eval = Y[i_train], Y[i_eval]
 # mse
 config = EvoTreeRegressor(;
     nrounds=1,
-    bagging_size=1,
+    bagging_size=16,
     early_stopping_rounds=50,
     nbins=32,
     L2=0.0,
@@ -400,7 +400,7 @@ params1 = EvoTreeRegressor(;
     loss=:quantile,
     alpha=0.2,
     nrounds=1,
-    bagging_size=1,
+    bagging_size=16,
     nbins=32,
     eta=1.0,
     L2=0.0,

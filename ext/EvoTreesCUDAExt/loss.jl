@@ -49,6 +49,31 @@ function EvoTrees.update_grads!(
     return
 end
 
+#####################
+# Credibility
+#####################
+function kernel_cred_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= length(y)
+        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
+        @inbounds ∇[2, i] = (y[i] - p[1, i])^2 * ∇[3, i]
+    end
+    return
+end
+function EvoTrees.update_grads!(
+    ∇::CuMatrix,
+    p::CuMatrix,
+    y::CuVector,
+    ::Type{<:EvoTrees.Cred},
+    params::EvoTrees.EvoTypes;
+    MAX_THREADS=1024
+)
+    threads = min(MAX_THREADS, length(y))
+    blocks = cld(length(y), threads)
+    @cuda blocks = blocks threads = threads kernel_cred_∇!(∇, p, y)
+    CUDA.synchronize()
+    return
+end
 
 #####################
 # Quantile

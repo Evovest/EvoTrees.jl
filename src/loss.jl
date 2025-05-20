@@ -31,14 +31,6 @@ const _loss2type_dict = Dict(
     :cred_std => CredStd
 )
 
-# Credibility-based
-function update_grads!(∇::Matrix, p::Matrix{T}, y::Vector{T}, ::Type{<:Cred}, params::EvoTypes) where {T}
-    @threads for i in eachindex(y)
-        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
-        @inbounds ∇[2, i] = (y[i] - p[1, i])^2 * ∇[3, i]
-    end
-end
-
 # MSE
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MSE}, params::EvoTypes) where {T}
     @threads for i in eachindex(y)
@@ -125,6 +117,14 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{Quanti
     end
 end
 
+# Credibility-based
+function update_grads!(∇::Matrix, p::Matrix{T}, y::Vector{T}, ::Type{<:Cred}, params::EvoTypes) where {T}
+    @threads for i in eachindex(y)
+        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
+        @inbounds ∇[2, i] = (y[i] - p[1, i])^2 * ∇[3, i]
+    end
+end
+
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
@@ -186,12 +186,6 @@ end
 # get the gain metric
 ##############################
 # GradientRegression
-function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:GradientRegression,T}
-    ϵ = eps(T)
-    lambda = params.lambda
-    L2 = params.L2
-    ∑[1]^2 / max(ϵ, (∑[2] + lambda * ∑[3] + L2)) / 2
-end
 function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:GradientRegression,T,V<:AbstractVector}
     ϵ = eps(T)
     lambda = params.lambda

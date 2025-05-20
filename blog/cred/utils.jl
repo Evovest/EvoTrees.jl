@@ -1,10 +1,17 @@
 ## package loading
 using EvoTrees
-using EvoTrees: get_gain, _get_cred, _loss2type_dict, update_grads!, Cred
+using EvoTrees: _get_cred, _loss2type_dict, update_grads!, Cred, EvoTypes, GradientRegression
 using DataFrames
 using Distributions
 using Statistics: mean, std
 using CairoMakie
+
+function _get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L,T}
+    ϵ = eps(T)
+    lambda = params.lambda
+    L2 = params.L2
+    ∑[1]^2 / max(ϵ, (∑[2] + lambda * ∑[3] + L2)) / 2
+end
 
 function get_∑(p::Matrix{T}, y::Vector{T}, L, config) where {T}
     ∇ = Matrix{T}(undef, 3, length(y))
@@ -27,7 +34,7 @@ function get_simul_metric(metric_name="cred"; nobs, loss, spread=1.0, sd=1.0)
     if metric_name == "cred"
         metric = _get_cred(L, config, ∑)
     elseif metric_name == "gain"
-        metric = get_gain(L, config, ∑)
+        metric = _get_gain(L, config, ∑)
     else
         error("metric_name must be either 'cred' or 'cred_std'")
     end
@@ -55,9 +62,9 @@ function get_data(; loss, nobs, spread=1.0, sd=1.0)
     ∑T = get_∑(pT, yT, L, config)
     ∑L = get_∑(pL, yL, L, config)
     ∑R = get_∑(pR, yR, L, config)
-    data[:gP] = get_gain(L, config, ∑T)
-    data[:gL] = get_gain(L, config, ∑L)
-    data[:gR] = get_gain(L, config, ∑R)
+    data[:gP] = _get_gain(L, config, ∑T)
+    data[:gL] = _get_gain(L, config, ∑L)
+    data[:gR] = _get_gain(L, config, ∑R)
     data[:gC] = data[:gL] + data[:gR]
 
     if L <: Cred
