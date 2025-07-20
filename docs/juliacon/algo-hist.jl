@@ -86,4 +86,41 @@ scatter!(
     color="#5891d5"
 )
 f
-save("algo-hist.png", f)
+save(joinpath(@__DIR__, "algo-hist.png"), f)
+
+###########################################
+# plot-cred
+###########################################
+x_perm = sortperm(x_train[:, 1])
+f = Figure(; size=(900, 300))
+ax = Axis(
+    f[1, 1],
+    xticks=0:2:12,       # show 1,3,5,7,9
+    xlabel="feature",
+    xlabelsize=18,
+    ylabel="target",
+    ylabelsize=18,
+    xticklabelsize=18,
+    yticklabelsize=18,
+    title="Binned split candidates",
+    titlesize=20
+)
+
+left_idx = x_bin[:, 1] .<= 3
+right_idx = .!left_idx
+scatter!(
+    ax,
+    x_bin[left_idx, 1],
+    y_train[left_idx],
+    markersize=6,
+    color="#4571a5"
+)
+scatter!(
+    ax,
+    x_bin[right_idx, 1],
+    y_train[right_idx],
+    markersize=6,
+    color="#26a671"
+)
+f
+save(joinpath(@__DIR__, "algo-hist-cred.png"), f)

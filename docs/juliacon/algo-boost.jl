@@ -53,7 +53,7 @@ ax = Axis(f[1, 1], xlabel="feature", ylabel="target")
 scatter!(ax,
     x_train[x_perm, 1],
     y_train[x_perm],
-    color="#5891d5",
+    color="#c9ccd1",
     markersize=6)
 lines!(ax,
     x_train[x_perm, 1],
@@ -63,7 +63,7 @@ lines!(ax,
     label="mse",
 )
 f
-record(f, "boost-anim.gif", iters; framerate=framerate) do iter
+record(f, joinpath(@__DIR__, "boost-anim.gif"), iters; framerate=framerate) do iter
     itr[] = iter
 end
 
