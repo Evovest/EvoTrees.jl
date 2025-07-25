@@ -34,6 +34,18 @@ save(joinpath(@__DIR__, "assets", "dist-mse-3A.png"), f)#hide
 f = get_dist_figure(; loss, nobs=1_000, spread=0.1, sd=0.1)#hide
 save(joinpath(@__DIR__, "assets", "dist-mse-3B.png"), f);#hide
 
+
+loss = :mse#hide
+f = get_dist_figure_juliacon(; loss, nobs=1000, spread=1.0, sd=1.0)#hide
+save(joinpath(@__DIR__, "assets", "gain-mse-large-std.png"), f);#hide
+f = get_dist_figure_juliacon(; loss, nobs=1000, spread=1.0, sd=0.1)#hide
+save(joinpath(@__DIR__, "assets", "gain-mse-small-std.png"), f);#hide
+loss = :cred_std#hide
+f = get_dist_figure_juliacon(; loss, nobs=1000, spread=1.0, sd=1.0)#hide
+save(joinpath(@__DIR__, "assets", "gain-cred-large-std.png"), f);#hide
+f = get_dist_figure_juliacon(; loss, nobs=1000, spread=1.0, sd=0.1)#hide
+save(joinpath(@__DIR__, "assets", "gain-cred-small-std.png"), f);#hide
+
 #=
 | ![](assets/dist-mse-1A.png) | ![](assets/dist-mse-1B.png) |
 |:----------------------:|:----------------------:|

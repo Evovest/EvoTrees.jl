@@ -23,7 +23,7 @@ f = Figure()
 ax = Axis(
     f[1, 1],
     xticks=-8:2:3,       # show 1,3,5,7,9
-    xlabel="target",
+    xlabel="prediction",
     xlabelsize=18,
     ylabel="loss",
     ylabelsize=18,
@@ -56,6 +56,8 @@ lines!(
     linewidth=3,
     color="#26a671"
 )
+vlines!(ax, [0]; color="black", linestyle=:dash) #hide
+text!(ax, -0.2, 100; text="current\nprediction", fontsize=16, align=(:right, :center)) #hide
 f
 save(joinpath(@__DIR__, "mse-loss.png"), f)
 
@@ -71,7 +73,7 @@ f = Figure()
 ax = Axis(
     f[1, 1],
     xticks=-8:2:3,       # show 1,3,5,7,9
-    xlabel="target",
+    xlabel="prediction",
     xlabelsize=18,
     ylabel="loss",
     ylabelsize=18,
@@ -104,5 +106,36 @@ lines!(
     linewidth=3,
     color="#e5616c"
 )
+vlines!(ax, [0]; color="black", linestyle=:dash) #hide
+text!(ax, -0.2, 15; text="current\nprediction", fontsize=16, align=(:right, :center)) #hide
 f
 save(joinpath(@__DIR__, "mae-loss.png"), f)
+
+
+
+
+f = Figure()
+ax = Axis(
+    f[1, 1],
+    # xticks=-8:2:3,       # show 1,3,5,7,9
+    xlabel="iteration",
+    xlabelsize=18,
+    ylabel="metric",
+    ylabelsize=18,
+    xticklabelsize=18,
+    yticklabelsize=18,
+    title="Eval metric through iterations",
+    titlesize=20
+)
+lines!(
+    ax,
+    model.info[:logger][:iter],
+    model.info[:logger][:metrics],
+    # label="raw",
+    linewidth=4,
+    color="#5891d5"
+)
+vlines!(ax, [99]; color="black", linestyle=:dash) #hide
+text!(ax, 94, 0.6; text="best\nnrounds", fontsize=16, align=(:right, :center)) #hide
+f
+save(joinpath(@__DIR__, "best-nrounds.png"), f)
