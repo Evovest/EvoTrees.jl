@@ -48,8 +48,8 @@ x_train, x_eval = Matrix(x_tot[train_idx, :]), Matrix(x_tot[eval_idx, :])
 y_train, y_eval = y_tot[train_idx], y_tot[eval_idx]
 
 config = EvoTreeRegressor(
-    nrounds=3000,
-    loss=:cred_std,
+    nrounds=500,
+    loss=:mae,
     metric=:mse,
     eta=0.1,
     nbins=32,

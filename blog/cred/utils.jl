@@ -101,6 +101,36 @@ function get_dist_figure(; loss, nobs, spread=1.0, sd=1.0)
     return f
 end
 
+function get_dist_figure_juliacon(; loss, nobs, spread=1.0, sd=1.0)
+
+    data = get_data(; loss, nobs, spread, sd)
+
+    gP = round(data[:gP]; digits=3)
+    gC = round(data[:gC]; sigdigits=4)
+    gL = round(data[:gL]; sigdigits=4)
+    gR = round(data[:gR]; sigdigits=4)
+    ZR = round(data[:ZR]; sigdigits=4)
+
+    f = Figure()
+    ax1 = Axis(f[1, 1];
+        title="nobs=$nobs | spread=$spread | sd=$sd",
+        subtitle=
+        """
+        gainL=$gL | gainR=$gR
+        """,
+        titlesize=18,
+        subtitlesize=18,
+        xlabelsize=18,
+        ylabelsize=18,
+        xticklabelsize=18,
+        yticklabelsize=18,
+    )
+    density!(ax1, data[:yL]; color="#4571a5CC", label="left")
+    density!(ax1, data[:yR]; color="#26a671CC", label="right")
+    Legend(f[2, 1], ax1, orientation=:horizontal, labelsize=18)
+    return f
+end
+
 function get_cred_figure(;
     metric_name="cred",
     loss,

@@ -66,7 +66,6 @@ config = EvoTreeRegressor(
   nrounds=200, 
   early_stopping_rounds=10,
   eta=0.05, 
-  nbins=128, 
   max_depth=5, 
   rowsample=0.5, 
   colsample=0.9)
