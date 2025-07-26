@@ -320,6 +320,30 @@ function update_hist!(
     return nothing
 end
 
+
+"""
+    update_hist!
+        GradientRegression
+"""
+function update_hist!(
+    ::Type{L},
+    hist::Array,
+    ∇::Matrix,
+    x_bin::Matrix,
+    is::AbstractVector,
+    js::AbstractVector,
+) where {L<:MAE}
+    hist .= 0
+    @threads for j in js
+        @inbounds @simd for i in is
+            bin = x_bin[i, j]
+            hist[1, bin, j] += ∇[1, i]
+            hist[3, bin, j] += ∇[3, i]
+        end
+    end
+    return nothing
+end
+
 """
     update_hist!
         MLE2P
@@ -363,7 +387,7 @@ function update_hist!(
     @threads for j in js
         @inbounds for i in is
             bin = x_bin[i, j]
-            @inbounds @simd for k in axes(∇, 1)
+            @simd for k in 1:size(∇, 1)
                 hist[k, bin, j] += ∇[k, i]
             end
         end

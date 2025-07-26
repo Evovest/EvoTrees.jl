@@ -8,8 +8,8 @@ using BenchmarkTools
 using Random: seed!
 import CUDA
 
-nobs = Int(1e5)
-num_feat = Int(10)
+nobs = Int(1e6)
+num_feat = Int(100)
 nrounds = 200
 T = Float64
 nthread = Base.Threads.nthreads()
@@ -60,20 +60,20 @@ target_name = "y"
 verbosity = 0
 
 params_evo = EvoTreeRegressor(;
-    loss=loss_evo,
+    loss=:mae,
     metric=metric_evo,
     nrounds=nrounds,
     alpha=0.5,
     lambda=0.0,
     gamma=0.0,
-    eta=0.05,
-    max_depth=6,
+    eta=0.001,
+    max_depth=4,
     min_weight=1.0,
     rowsample=0.5,
     colsample=0.5,
     nbins=64,
     rng=123,
-    device=:gpu
+    device=:cpu
 )
 @info "EvoTrees CPU"
 params_evo.device = :cpu
@@ -86,8 +86,8 @@ params_evo.device = :cpu
 # @time m_evo_df = fit_evotree(params_evo, dtrain; target_name, device, verbosity, print_every_n=100);
 
 @info "train - eval"
-@time m_evo = EvoTrees.fit_evotree(params_evo, dtrain; target_name, deval=dtrain, verbosity, print_every_n=100);
-@time m_evo = fit_evotree(params_evo, dtrain; target_name, deval=dtrain, verbosity, print_every_n=100);
+@time m_evo = EvoTrees.fit(params_evo, dtrain; target_name, deval=dtrain, verbosity, print_every_n=100);
+@time m_evo = EvoTrees.fit(params_evo, dtrain; target_name, deval=dtrain, verbosity, print_every_n=100);
 # @time m_evo = fit_evotree(params_evo, dtrain; target_name, device);
 # @btime fit_evotree($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
 @info "predict"

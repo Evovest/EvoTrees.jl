@@ -3,6 +3,7 @@ using StatsBase: sample
 using BenchmarkTools
 using Base.Threads: @threads
 using StatsBase: sample!
+using FHist
 
 function hist_cpu_array!(
     hist::Array{Float64,3},
@@ -35,24 +36,17 @@ h∇ = zeros(Float64, 3, nbins, nfeats)
 # vector
 ####################################################
 is = sample(1:nobs, Int(round(rowsample * nobs)), replace=false, ordered=true)
-
-# laptop: 949.700 μs (41 allocations: 5.11 KiB)
-# desktop: 614.685 μs (61 allocations: 6.52 KiB)
-colsample = 0.01
-js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
+# laptop: 18.576 ms (41 allocations: 5.11 KiB)
+js = 1:nfeats
 @time hist_cpu_array!(h∇, ∇, x_bin, is, js)
 @btime hist_cpu_array!($h∇, $∇, $x_bin, $is, $js)
 
-# 2.788 ms (41 allocations: 5.11 KiB)
-# desktop: 691.058 μs (61 allocations: 6.52 KiB)
-colsample = 0.1
-js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
-@time hist_cpu_array!(h∇, ∇, x_bin, is, js)
-@btime hist_cpu_array!($h∇, $∇, $x_bin, $is, $js)
+####################################################
+# FHist
+####################################################
+binedges = collect((0:(nbins)) ./ (nbins))
+feats = rand(nobs)[is]
+# laptop: 20.394 ms (14 allocations: 1.97 KiB)
+@time bins = Hist1D(feats; binedges, overflow=true)
+@btime Hist1D($feats; binedges=$binedges, overflow=true)
 
-# laptop: 17.753 ms (41 allocations: 5.11 KiB)
-# desktop: 6.301 ms (61 allocations: 6.52 KiB)
-colsample = 1
-js = sample(1:nfeats, Int(round(colsample * nfeats)), replace=false, ordered=true)
-@time hist_cpu_array!(h∇, ∇, x_bin, is, js)
-@btime hist_cpu_array!($h∇, $∇, $x_bin, $is, $js)
