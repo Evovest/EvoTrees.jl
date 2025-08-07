@@ -50,7 +50,6 @@ function update_hist_gpu_single!(h∇, ∇, x_bin, is, js, ns)
     return nothing
 end
 
-
 """
     update_gains_gpu!(gains, h∇L_gpu, h∇R_gpu, h∇_gpu, lambda)
 """
@@ -71,7 +70,6 @@ end
 
 const ϵ::Float32 = eps(eltype(Float32))
 get_gain(∇1, ∇2, w, lambda) = ∇1^2 / max(ϵ, (∇2 + lambda * w)) / 2
-
 
 """
     update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
@@ -122,7 +120,6 @@ end
 - cond_bins: vector of Float indicating the value for splitting a feature. Length == #nodes
 - feattypes: vector of Bool indicating whether the feature is ordinal
 
-
 """
 function update_nodes_idx_gpu!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
     kernel = @cuda launch = false update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
@@ -138,3 +135,102 @@ function update_nodes_idx_gpu!(nidx, is, x_bin, cond_feats, cond_bins, feattypes
     # @info "update idx complete"
     return nothing
 end
+
+# ===== MINIMAL OPTIMIZED FUNCTIONS =====
+
+@kernel function hist_kernel_ka!(
+    h∇::AbstractArray{T,4},
+    @Const(∇),
+    @Const(x_bin),
+    @Const(nidx),
+    @Const(js)
+) where {T}
+    i, j = @index(Global, NTuple)
+    
+    @inbounds if i <= size(x_bin, 1) && j <= length(js)
+        node = nidx[i]
+        if node > 0
+            jdx = js[j]
+            bin = x_bin[i, jdx]
+            if bin > 0 && bin <= size(h∇, 2)
+                Atomix.@atomic h∇[1, bin, jdx, node] += ∇[1, i]
+                Atomix.@atomic h∇[2, bin, jdx, node] += ∇[2, i]
+                Atomix.@atomic h∇[3, bin, jdx, node] += ∇[3, i]
+            end
+        end
+    end
+end
+
+function apply_hist_subtraction!(h∇, dnodes)
+    for n in dnodes
+        if n % 2 == 0  # left child
+            parent = n >> 1
+            right = n + 1
+            if right in dnodes
+                @inbounds h∇[:, :, :, right] = h∇[:, :, :, parent] .- h∇[:, :, :, n]
+            end
+        end
+    end
+end
+
+function update_hist_gpu_optimized!(h∇, ∇, x_bin, is, js, nidx, depth, anodes)
+    backend = KernelAbstractions.get_backend(h∇)
+    dnodes = 2^(depth-1):2^depth-1
+    
+    @inbounds for node in dnodes
+        h∇[:, :, :, node] .= 0
+    end
+    
+    js_dev = KernelAbstractions.adapt(backend, js)
+    kernel! = hist_kernel_ka!(backend)
+    kernel!(h∇, ∇, x_bin, nidx, js_dev; ndrange=(size(x_bin, 1), length(js)))
+    KernelAbstractions.synchronize(backend)
+    
+    if depth > 1
+        apply_hist_subtraction!(h∇, dnodes)
+    end
+    return nothing
+end
+
+@kernel function compute_gains_kernel!(
+    gains::AbstractArray{T,3},
+    @Const(h∇),
+    @Const(active_nodes),
+    lambda::T,
+    min_weight::T
+) where {T}
+    n_idx, feat = @index(Global, NTuple)
+    
+    @inbounds if n_idx <= length(active_nodes) && feat <= size(h∇, 3)
+        n = active_nodes[n_idx]
+        nbins = size(h∇, 2)
+        # parent stats
+        p_g1 = zero(T); p_g2 = zero(T); p_w = zero(T)
+        @inbounds for bin in 1:nbins
+            p_g1 += h∇[1, bin, feat, n]
+            p_g2 += h∇[2, bin, feat, n]
+            p_w  += h∇[3, bin, feat, n]
+        end
+        # cumulative left stats
+        l_g1 = zero(T); l_g2 = zero(T); l_w = zero(T)
+        @inbounds for bin in 1:(nbins-1)
+            l_g1 += h∇[1, bin, feat, n]
+            l_g2 += h∇[2, bin, feat, n]
+            l_w  += h∇[3, bin, feat, n]
+            r_w  = p_w - l_w
+            if l_w >= min_weight && r_w >= min_weight
+                r_g1 = p_g1 - l_g1
+                r_g2 = p_g2 - l_g2
+                gain_l = l_g1^2 / (l_g2 + lambda)
+                gain_r = r_g1^2 / (r_g2 + lambda)
+                gain_p = p_g1^2 / (p_g2 + lambda)
+                gains[bin, feat, n] = (gain_l + gain_r - gain_p) / T(2)
+            else
+                gains[bin, feat, n] = T(0)
+            end
+        end
+        # last bin cannot split
+        gains[nbins, feat, n] = T(0)
+    end
+end
+

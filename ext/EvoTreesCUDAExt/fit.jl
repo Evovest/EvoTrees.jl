@@ -83,15 +83,19 @@ function grow_tree!(
         offset = 2^(depth - 1) - 1 # identifies breakpoint for each node set within a depth
 
         if depth < params.max_depth
-            update_hist_gpu_single!(h∇, ∇, x_bin, is, js_gpu, nidx)
-            # TODO: integrate monotone constraints
-            # TODO: view on js_gpu
-            update_gains_gpu!(
-                view(gains, :, :, dnodes),
-                view(h∇L, :, :, :, dnodes),
-                view(h∇R, :, :, :, dnodes),
-                view(h∇, :, :, :, dnodes),
-                params.lambda)
+            update_hist_gpu_optimized!(h∇, ∇, x_bin, is, js, nidx, depth, anodes)
+            # Compute gains on GPU
+            backend = KernelAbstractions.get_backend(gains)
+            active_nodes = CuArray(Int32.(collect(dnodes)))
+            kernel! = compute_gains_kernel!(backend)
+            kernel!(gains, h∇, active_nodes, eltype(gains)(params.lambda), eltype(gains)(params.min_weight);
+                    ndrange=(length(active_nodes), size(h∇, 3)))
+            KernelAbstractions.synchronize(backend)
+            # update cumulative histograms for child stats
+            cumsum!(h∇L, h∇; dims=2)
+            h∇R .= h∇L
+            reverse!(h∇R; dims=2)
+            h∇R .= view(h∇R, :, 1:1, :, :) .- h∇L
 
             best = findmax(view(gains, :, :, dnodes); dims=(1, 2))
             best_gains = Vector(reshape(best[1], :))
@@ -134,7 +138,6 @@ function grow_tree!(
 
     return nothing
 end
-
 
 # grow a single oblivious tree - grow through all depth
 function grow_otree!(
@@ -284,3 +287,4 @@ function grow_otree!(
 
     return nothing
 end
+
