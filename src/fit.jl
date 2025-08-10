@@ -114,7 +114,7 @@ function grow_tree!(
                     nodes[n<<1].gain = EvoTrees.get_gain(params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = EvoTrees.get_gain(params, nodes[n<<1+1].∑)
                     push!(n_next, n << 1)
-                    push!(n_next, n << 1 + 1)
+                    push!(n_next, (n << 1) + 1)
                 else
                     EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params)
                 end
@@ -262,9 +262,9 @@ function grow_otree!(
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
-                        push!(n_next, n << 1 + 1)
+                        push!(n_next, (n << 1) + 1)
                     else
-                        push!(n_next, n << 1 + 1)
+                        push!(n_next, (n << 1) + 1)
                         push!(n_next, n << 1)
                     end
                 end

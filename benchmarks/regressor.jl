@@ -91,8 +91,6 @@ for device in device_list
                         device
                     )
 
-
-
                     _df = hcat(_df, DataFrame(
                         :train_evo => t_train_evo,
                         :infer_evo => t_infer_evo)
@@ -148,3 +146,4 @@ for device in device_list
     path = joinpath(@__DIR__, "results", "regressor-$device.csv")
     CSV.write(path, df)
 end
+

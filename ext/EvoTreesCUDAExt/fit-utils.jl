@@ -1,111 +1,35 @@
 """
-    hist_kernel!
-
-Perform a single GPU hist per depth.
-Use a vector of node indices. 
-"""
-function hist_kernel_single_v1!(h∇::CuDeviceArray{T,4}, ∇::CuDeviceMatrix{S}, x_bin, is, js, ns) where {T,S}
-    tix, tiy, k = threadIdx().z, threadIdx().y, threadIdx().x
-    bdx, bdy = blockDim().z, blockDim().y
-    bix, biy = blockIdx().z, blockIdx().y
-    gdx = gridDim().z
-
-    j = tiy + bdy * (biy - 1)
-    if j <= length(js)
-        jdx = js[j]
-        i_max = length(is)
-        niter = cld(i_max, bdx * gdx)
-        @inbounds for iter in 1:niter
-            i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
-            if i <= i_max
-                @inbounds idx = is[i]
-                @inbounds ndx = ns[idx]
-                if ndx != 0
-                    @inbounds bin = x_bin[idx, jdx]
-                    hid = Base._to_linear_index(h∇, k, bin, jdx, ndx)
-                    CUDA.atomic_add!(pointer(h∇, hid), T(∇[k, idx]))
-                end
-            end
-        end
-    end
-    sync_threads()
-    return nothing
-end
-
-function update_hist_gpu_single!(h∇, ∇, x_bin, is, js, ns)
-    kernel = @cuda launch = false hist_kernel_single_v1!(h∇, ∇, x_bin, is, js, ns)
-    config = launch_configuration(kernel.fun)
-    max_threads = config.threads
-    max_blocks = config.blocks
-    k = size(h∇, 1)
-    ty = max(1, min(length(js), fld(max_threads, k)))
-    tx = min(64, max(1, min(length(is), fld(max_threads, k * ty))))
-    threads = (k, ty, tx)
-    max_blocks = min(65535, max_blocks * fld(max_threads, prod(threads)))
-    by = cld(length(js), ty)
-    bx = min(cld(max_blocks, by), cld(length(is), tx))
-    blocks = (1, by, bx)
-    kernel(h∇, ∇, x_bin, is, js, ns; threads, blocks)
-    CUDA.synchronize()
-    return nothing
-end
-
-"""
-    update_gains_gpu!(gains, h∇L_gpu, h∇R_gpu, h∇_gpu, lambda)
-"""
-function update_gains_gpu!(gains, h∇L_gpu, h∇R_gpu, h∇_gpu, lambda)
-    cumsum!(h∇L_gpu, h∇_gpu; dims=2)
-    h∇R_gpu .= h∇L_gpu
-    reverse!(h∇R_gpu; dims=2)
-    h∇R_gpu .= view(h∇R_gpu, :, 1:1, :, :) .- h∇L_gpu
-    gains .= get_gain.(view(h∇L_gpu, 1, :, :, :), view(h∇L_gpu, 2, :, :, :), view(h∇L_gpu, 3, :, :, :), lambda) .+
-             get_gain.(view(h∇R_gpu, 1, :, :, :), view(h∇R_gpu, 2, :, :, :), view(h∇R_gpu, 3, :, :, :), lambda)
-
-    gains .*= view(h∇_gpu, 3, :, :, :) .> 1
-    gains .*= view(h∇L_gpu, 3, :, :, :) .> 1
-    gains .*= view(h∇R_gpu, 3, :, :, :) .> 1
-
-    return nothing
-end
-
-const ϵ::Float32 = eps(eltype(Float32))
-get_gain(∇1, ∇2, w, lambda) = ∇1^2 / max(ϵ, (∇2 + lambda * w)) / 2
-
-"""
     update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
 """
-function update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
-    tix = threadIdx().x
-    bdx = blockDim().x
-    bix = blockIdx().x
-    gdx = gridDim().x
+@kernel function update_nodes_idx_kernel_ka!(
+    nidx::AbstractVector{T},
+    @Const(is),
+    @Const(x_bin),
+    @Const(cond_feats),
+    @Const(cond_bins),
+    @Const(feattypes)
+) where {T}
+    gidx = @index(Global)
 
-    i_max = length(is)
-    niter = cld(i_max, bdx * gdx)
-    i_ini = niter * (tix - 1) + niter * bdx * (bix - 1)
+    @inbounds if gidx <= length(is)
+        obs  = is[gidx]
+        node = nidx[obs]
 
-    @inbounds for iter in 1:niter
-        i = i_ini + iter
-        if i <= i_max
-            idx = is[i]
-            n = nidx[idx]
-            if n == 0
-                nidx[idx] = 0
+        if node != 0
+            feat = cond_feats[node]
+            bin  = cond_bins[node]
+
+            if bin == 0
+                nidx[obs] = zero(T)
             else
-                feat = cond_feats[n]
-                bin = cond_bins[n]
-                if bin == 0
-                    nidx[idx] = 0
-                else
-                    feattype = feattypes[feat]
-                    is_left = feattype ? x_bin[idx, feat] <= bin : x_bin[idx, feat] == bin
-                    nidx[idx] = n << 1 + !is_left
-                end
+                feattype = feattypes[feat]
+                is_left  = feattype ? x_bin[obs, feat] <= bin : x_bin[obs, feat] == bin
+                nidx[obs] = T((node << 1) + Int32(!is_left))
             end
+        else
+            nidx[obs] = zero(T)
         end
     end
-    sync_threads()
-    return nothing
 end
 
 """
@@ -122,17 +46,12 @@ end
 
 """
 function update_nodes_idx_gpu!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
-    kernel = @cuda launch = false update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
-    config = launch_configuration(kernel.fun)
-    max_threads = config.threads
-    max_blocks = config.blocks
-    threads = min(max_threads, length(is))
-    blocks = min(max_blocks, cld(length(is), threads))
-    # @info "threads blocks" threads blocks
-    # @info "min/max nidx[is]" Int(minimum(nidx[is])) Int(maximum(nidx[is]))
-    kernel(nidx, is, x_bin, cond_feats, cond_bins, feattypes; threads, blocks)
-    CUDA.synchronize()
-    # @info "update idx complete"
+    backend = KernelAbstractions.get_backend(nidx)
+
+    kernel! = update_nodes_idx_kernel_ka!(backend)
+
+    kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes; ndrange = length(is))
+    KernelAbstractions.synchronize(backend)
     return nothing
 end
 
@@ -177,13 +96,11 @@ function update_hist_gpu_optimized!(h∇, ∇, x_bin, is, js, nidx, depth, anode
     backend = KernelAbstractions.get_backend(h∇)
     dnodes = 2^(depth-1):2^depth-1
     
-    @inbounds for node in dnodes
-        h∇[:, :, :, node] .= 0
-    end
+    # Single broadcast kernel instead of one memset per node
+    @inbounds h∇[:, :, :, dnodes] .= 0
     
-    js_dev = KernelAbstractions.adapt(backend, js)
     kernel! = hist_kernel_ka!(backend)
-    kernel!(h∇, ∇, x_bin, nidx, js_dev; ndrange=(size(x_bin, 1), length(js)))
+    kernel!(h∇, ∇, x_bin, nidx, js; ndrange=(size(x_bin, 1), length(js)))
     KernelAbstractions.synchronize(backend)
     
     if depth > 1
@@ -231,6 +148,41 @@ end
         end
         # last bin cannot split
         gains[nbins, feat, n] = T(0)
+    end
+end
+
+@kernel function best_split_kernel!(
+    best_gain::AbstractArray{T,1},
+    best_bin::AbstractVector{Int32},
+    best_feat::AbstractVector{Int32},
+    @Const(gains),
+    @Const(active_nodes)
+) where {T}
+    n_idx = @index(Global)
+
+    @inbounds if n_idx <= length(active_nodes)
+        node = active_nodes[n_idx]
+        nbins = size(gains, 1)
+        nfeats = size(gains, 2)
+
+        g_best = T(-Inf)
+        b_best = Int32(0)
+        f_best = Int32(0)
+
+        @inbounds for f in 1:nfeats
+            @inbounds for b in 1:nbins
+                g = gains[b, f, node]
+                if g > g_best
+                    g_best = g
+                    b_best = Int32(b)
+                    f_best = Int32(f)
+                end
+            end
+        end
+
+        best_gain[n_idx] = g_best
+        best_bin[n_idx]  = b_best
+        best_feat[n_idx] = f_best
     end
 end
 

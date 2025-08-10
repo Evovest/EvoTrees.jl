@@ -56,7 +56,11 @@ function grow_tree!(
     monotone_constraints_gpu,
 ) where {L,K,N}
 
-    js_gpu = CuVector(js)
+    backend = KernelAbstractions.get_backend(x_bin)
+
+    js_gpu = KernelAbstractions.adapt(backend, js)
+    is_gpu = KernelAbstractions.adapt(backend, is)
+
     # reset nodes
     nidx .= 1
     gains .= 0
@@ -72,6 +76,14 @@ function grow_tree!(
     anodes = [1]
     depth = 1
 
+    # Pre-allocate backend-specific buffers (reuse every depth)
+    max_nodes = Int32(2^(params.max_depth - 1))
+    best_gain_gpu  = KernelAbstractions.zeros(backend, eltype(gains), max_nodes)
+    best_bin_gpu   = KernelAbstractions.zeros(backend, Int32, max_nodes)
+    best_feat_gpu  = KernelAbstractions.zeros(backend, Int32, max_nodes)
+
+    active_nodes_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes)
+
     # initialize summary stats
     nodes[1].∑ .= Vector(vec(sum(∇[:, is], dims=2)))
     nodes[1].gain = EvoTrees.get_gain(params, nodes[1].∑)
@@ -83,13 +95,15 @@ function grow_tree!(
         offset = 2^(depth - 1) - 1 # identifies breakpoint for each node set within a depth
 
         if depth < params.max_depth
-            update_hist_gpu_optimized!(h∇, ∇, x_bin, is, js, nidx, depth, anodes)
+            update_hist_gpu_optimized!(h∇, ∇, x_bin, is_gpu, js_gpu, nidx, depth, anodes)
             # Compute gains on GPU
-            backend = KernelAbstractions.get_backend(gains)
-            active_nodes = CuArray(Int32.(collect(dnodes)))
+            n_active = length(dnodes)
+            active_nodes = view(active_nodes_gpu, 1:n_active)
+            # copy dnodes (range) into device slice
+            copyto!(active_nodes, Int32.(dnodes))
             kernel! = compute_gains_kernel!(backend)
             kernel!(gains, h∇, active_nodes, eltype(gains)(params.lambda), eltype(gains)(params.min_weight);
-                    ndrange=(length(active_nodes), size(h∇, 3)))
+                    ndrange=(n_active, size(h∇, 3)))
             KernelAbstractions.synchronize(backend)
             # update cumulative histograms for child stats
             cumsum!(h∇L, h∇; dims=2)
@@ -97,14 +111,24 @@ function grow_tree!(
             reverse!(h∇R; dims=2)
             h∇R .= view(h∇R, :, 1:1, :, :) .- h∇L
 
-            best = findmax(view(gains, :, :, dnodes); dims=(1, 2))
-            best_gains = Vector(reshape(best[1], :))
-            best_idx = Vector(reshape(best[2], :))
+            # Compute best split per node on GPU to avoid large host transfer
+            # Use pre-allocated buffers (first length(active_nodes) elements)
+            view_gain = view(best_gain_gpu, 1:n_active)
+            view_bin  = view(best_bin_gpu,  1:n_active)
+            view_feat = view(best_feat_gpu, 1:n_active)
+
+            kernel_split! = best_split_kernel!(backend)
+            kernel_split!(view_gain, view_bin, view_feat, gains, active_nodes; ndrange=n_active)
+            KernelAbstractions.synchronize(backend)
+
+            best_gains = Vector(view_gain)
+            best_bins  = Vector(view_bin)
+            best_feats = Vector(view_feat)
 
             for n in anodes
                 best_gain = best_gains[n-offset]
-                best_bin = best_idx[n-offset][1]
-                best_feat = best_idx[n-offset][2]
+                best_bin  = best_bins[n-offset]
+                best_feat = best_feats[n-offset]
                 # @info "node: $n | best_gain: $best_gain | best_bin: $best_bin | nodegain: $(nodes[n].gain)"
                 if best_gain > nodes[n].gain + params.gamma
                     tree.gain[n] = best_gain - nodes[n].gain
@@ -118,7 +142,7 @@ function grow_tree!(
                     nodes[n<<1].gain = EvoTrees.get_gain(params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = EvoTrees.get_gain(params, nodes[n<<1+1].∑)
                     push!(n_next, n << 1)
-                    push!(n_next, n << 1 + 1)
+                    push!(n_next, (n << 1) + 1)
                 else
                     EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params)
                 end
@@ -126,7 +150,7 @@ function grow_tree!(
             copyto!(view(cond_feats_gpu, dnodes), tree.feat[dnodes])
             copyto!(view(cond_bins_gpu, dnodes), tree.cond_bin[dnodes])
             # @info "cond_bins_gpu[dnodes]" Int(minimum(cond_bins_gpu[dnodes]))
-            update_nodes_idx_gpu!(nidx, is, x_bin, cond_feats_gpu, cond_bins_gpu, feattypes_gpu)
+            update_nodes_idx_gpu!(nidx, is_gpu, x_bin, cond_feats_gpu, cond_bins_gpu, feattypes_gpu)
         else
             for n in anodes
                 EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params)
@@ -157,7 +181,8 @@ function grow_otree!(
     monotone_constraints,
 ) where {L,K,N}
 
-    jsg = CuVector(js)
+    backend = KernelAbstractions.get_backend(x_bin)
+    jsg = KernelAbstractions.adapt(backend, js)
     # reset nodes
     for n in nodes
         n.∑ .= 0
@@ -269,9 +294,9 @@ function grow_otree!(
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
-                        push!(n_next, n << 1 + 1)
+                        push!(n_next, (n << 1) + 1)
                     else
-                        push!(n_next, n << 1 + 1)
+                        push!(n_next, (n << 1) + 1)
                         push!(n_next, n << 1)
                     end
                 end
