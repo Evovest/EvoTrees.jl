@@ -109,80 +109,132 @@ function update_hist_gpu_optimized!(h∇, ∇, x_bin, is, js, nidx, depth, anode
     return nothing
 end
 
-@kernel function compute_gains_kernel!(
-    gains::AbstractArray{T,3},
-    @Const(h∇),
-    @Const(active_nodes),
-    lambda::T,
-    min_weight::T
-) where {T}
-    n_idx, feat = @index(Global, NTuple)
-    
-    @inbounds if n_idx <= length(active_nodes) && feat <= size(h∇, 3)
-        n = active_nodes[n_idx]
-        nbins = size(h∇, 2)
-        # parent stats
-        p_g1 = zero(T); p_g2 = zero(T); p_w = zero(T)
-        @inbounds for bin in 1:nbins
-            p_g1 += h∇[1, bin, feat, n]
-            p_g2 += h∇[2, bin, feat, n]
-            p_w  += h∇[3, bin, feat, n]
-        end
-        # cumulative left stats
-        l_g1 = zero(T); l_g2 = zero(T); l_w = zero(T)
-        @inbounds for bin in 1:(nbins-1)
-            l_g1 += h∇[1, bin, feat, n]
-            l_g2 += h∇[2, bin, feat, n]
-            l_w  += h∇[3, bin, feat, n]
-            r_w  = p_w - l_w
-            if l_w >= min_weight && r_w >= min_weight
-                r_g1 = p_g1 - l_g1
-                r_g2 = p_g2 - l_g2
-                gain_l = l_g1^2 / (l_g2 + lambda)
-                gain_r = r_g1^2 / (r_g2 + lambda)
-                gain_p = p_g1^2 / (p_g2 + lambda)
-                gains[bin, feat, n] = (gain_l + gain_r - gain_p) / T(2)
-            else
-                gains[bin, feat, n] = T(0)
-            end
-        end
-        # last bin cannot split
-        gains[nbins, feat, n] = T(0)
+# === New helper kernel: build the list of active node ids directly on device ===
+@kernel function fill_active_nodes_kernel!(active_nodes::AbstractVector{Int32}, offset::Int32)
+    idx = @index(Global)
+    @inbounds if idx <= length(active_nodes)
+        # Node ids for the current depth start at `1 + offset`
+        active_nodes[idx] = Int32(idx + offset)
     end
 end
 
-@kernel function best_split_kernel!(
-    best_gain::AbstractArray{T,1},
+function fill_active_nodes_gpu!(active_nodes, offset::Int32, backend)
+    kernel! = fill_active_nodes_kernel!(backend)
+    kernel!(active_nodes, offset; ndrange = length(active_nodes))
+    KernelAbstractions.synchronize(backend)
+    return nothing
+end
+
+# === New kernel: compute best split directly from histograms (one thread per node) ===
+@kernel function best_split_hist_kernel!(
+    best_gain::AbstractVector{T},
     best_bin::AbstractVector{Int32},
     best_feat::AbstractVector{Int32},
-    @Const(gains),
-    @Const(active_nodes)
+    @Const(h∇),
+    @Const(active_nodes),
+    lambda::T,
+    min_weight::T,
 ) where {T}
     n_idx = @index(Global)
-
     @inbounds if n_idx <= length(active_nodes)
         node = active_nodes[n_idx]
-        nbins = size(gains, 1)
-        nfeats = size(gains, 2)
+        nbins  = size(h∇, 2)
+        nfeats = size(h∇, 3)
 
         g_best = T(-Inf)
         b_best = Int32(0)
         f_best = Int32(0)
 
-        @inbounds for f in 1:nfeats
+        # iterate feature → bins
+        for f in 1:nfeats
+            # parent stats (aggregate over all bins once per feature)
+            p_g1 = zero(T); p_g2 = zero(T); p_w = zero(T)
             @inbounds for b in 1:nbins
-                g = gains[b, f, node]
-                if g > g_best
-                    g_best = g
-                    b_best = Int32(b)
-                    f_best = Int32(f)
+                p_g1 += h∇[1, b, f, node]
+                p_g2 += h∇[2, b, f, node]
+                p_w  += h∇[3, b, f, node]
+            end
+            # cumulative left stats
+            l_g1 = zero(T); l_g2 = zero(T); l_w = zero(T)
+            @inbounds for b in 1:(nbins - 1)
+                l_g1 += h∇[1, b, f, node]
+                l_g2 += h∇[2, b, f, node]
+                l_w  += h∇[3, b, f, node]
+                r_w = p_w - l_w
+                if l_w >= min_weight && r_w >= min_weight
+                    r_g1 = p_g1 - l_g1
+                    r_g2 = p_g2 - l_g2
+                    gain_l = l_g1^2 / (l_g2 + lambda)
+                    gain_r = r_g1^2 / (r_g2 + lambda)
+                    gain_p = p_g1^2 / (p_g2 + lambda)
+                    g = (gain_l + gain_r - gain_p) / T(2)
+                    if g > g_best
+                        g_best = g
+                        b_best = Int32(b)
+                        f_best = Int32(f)
+                    end
                 end
             end
         end
-
         best_gain[n_idx] = g_best
         best_bin[n_idx]  = b_best
         best_feat[n_idx] = f_best
     end
+end
+
+# === New kernel: build left (prefix) and right (suffix) cumulative histograms in a single pass ===
+@kernel function prefix_suffix_kernel!(
+    hL::AbstractArray{T,4},
+    hR::AbstractArray{T,4},
+    @Const(h∇),
+    @Const(active_nodes)
+) where {T}
+    n_idx, feat = @index(Global, NTuple)
+    @inbounds if n_idx <= length(active_nodes) && feat <= size(h∇, 3)
+        node   = active_nodes[n_idx]
+        nbins  = size(h∇, 2)
+        nstats = size(h∇, 1)   # 3 for most losses, 5 for MLE
+
+        if nstats == 3
+            # ---- unrolled 3-stat path (g1, g2, w) ----
+            tot1 = zero(T); tot2 = zero(T); tot3 = zero(T)
+            @inbounds for b in 1:nbins
+                tot1 += h∇[1, b, feat, node]
+                tot2 += h∇[2, b, feat, node]
+                tot3 += h∇[3, b, feat, node]
+            end
+            run1 = zero(T); run2 = zero(T); run3 = zero(T)
+            @inbounds for b in 1:nbins
+                run1 += h∇[1, b, feat, node]; hL[1, b, feat, node] = run1; hR[1, b, feat, node] = tot1 - run1
+                run2 += h∇[2, b, feat, node]; hL[2, b, feat, node] = run2; hR[2, b, feat, node] = tot2 - run2
+                run3 += h∇[3, b, feat, node]; hL[3, b, feat, node] = run3; hR[3, b, feat, node] = tot3 - run3
+            end
+        else
+            # ---- unrolled 5-stat path (MLE losses) ----
+            tot1 = zero(T); tot2 = zero(T); tot3 = zero(T); tot4 = zero(T); tot5 = zero(T)
+            @inbounds for b in 1:nbins
+                tot1 += h∇[1, b, feat, node]
+                tot2 += h∇[2, b, feat, node]
+                tot3 += h∇[3, b, feat, node]
+                tot4 += h∇[4, b, feat, node]
+                tot5 += h∇[5, b, feat, node]
+            end
+            run1 = zero(T); run2 = zero(T); run3 = zero(T); run4 = zero(T); run5 = zero(T)
+            @inbounds for b in 1:nbins
+                run1 += h∇[1, b, feat, node]; hL[1, b, feat, node] = run1; hR[1, b, feat, node] = tot1 - run1
+                run2 += h∇[2, b, feat, node]; hL[2, b, feat, node] = run2; hR[2, b, feat, node] = tot2 - run2
+                run3 += h∇[3, b, feat, node]; hL[3, b, feat, node] = run3; hR[3, b, feat, node] = tot3 - run3
+                run4 += h∇[4, b, feat, node]; hL[4, b, feat, node] = run4; hR[4, b, feat, node] = tot4 - run4
+                run5 += h∇[5, b, feat, node]; hL[5, b, feat, node] = run5; hR[5, b, feat, node] = tot5 - run5
+            end
+        end
+    end
+end
+
+function compute_lr_gpu!(hL, hR, h∇, active_nodes, backend)
+    kernel! = prefix_suffix_kernel!(backend)
+    kernel!(hL, hR, h∇, active_nodes; ndrange=(length(active_nodes), size(h∇, 3)))
+    KernelAbstractions.synchronize(backend)
+    return nothing
 end
 

@@ -7,6 +7,7 @@ version = "0.16.4"
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 Atomix = "a9b6321e-bd34-4604-b9c9-b65b8de01458"
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
@@ -51,4 +52,3 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 [targets]
 docs = ["Documenter"]
 test = ["CUDA", "DataFrames", "Test", "MLJBase", "MLJTestInterface"]
-

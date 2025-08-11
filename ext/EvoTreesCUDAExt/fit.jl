@@ -22,7 +22,6 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.E
         cache.h∇,
         cache.h∇L,
         cache.h∇R,
-        cache.gains,
         cache.x_bin,
         cache.cond_feats_gpu,
         cache.cond_bins_gpu,
@@ -48,7 +47,6 @@ function grow_tree!(
     h∇,
     h∇L,
     h∇R,
-    gains,
     x_bin::CuMatrix,
     cond_feats_gpu,
     cond_bins_gpu,
@@ -63,7 +61,6 @@ function grow_tree!(
 
     # reset nodes
     nidx .= 1
-    gains .= 0
     for n in nodes
         n.∑ .= 0
         n.gain = 0.0
@@ -78,7 +75,7 @@ function grow_tree!(
 
     # Pre-allocate backend-specific buffers (reuse every depth)
     max_nodes = Int32(2^(params.max_depth - 1))
-    best_gain_gpu  = KernelAbstractions.zeros(backend, eltype(gains), max_nodes)
+    best_gain_gpu  = KernelAbstractions.zeros(backend, eltype(h∇), max_nodes)
     best_bin_gpu   = KernelAbstractions.zeros(backend, Int32, max_nodes)
     best_feat_gpu  = KernelAbstractions.zeros(backend, Int32, max_nodes)
 
@@ -96,31 +93,25 @@ function grow_tree!(
 
         if depth < params.max_depth
             update_hist_gpu_optimized!(h∇, ∇, x_bin, is_gpu, js_gpu, nidx, depth, anodes)
-            # Compute gains on GPU
+            # Compute gains and best split on GPU in a single pass
             n_active = length(dnodes)
             active_nodes = view(active_nodes_gpu, 1:n_active)
-            # copy dnodes (range) into device slice
-            copyto!(active_nodes, Int32.(dnodes))
-            kernel! = compute_gains_kernel!(backend)
-            kernel!(gains, h∇, active_nodes, eltype(gains)(params.lambda), eltype(gains)(params.min_weight);
-                    ndrange=(n_active, size(h∇, 3)))
-            KernelAbstractions.synchronize(backend)
-            # update cumulative histograms for child stats
-            cumsum!(h∇L, h∇; dims=2)
-            h∇R .= h∇L
-            reverse!(h∇R; dims=2)
-            h∇R .= view(h∇R, :, 1:1, :, :) .- h∇L
+            # Fill device array with the current depth's node ids
+            fill_active_nodes_gpu!(active_nodes, Int32(offset), backend)
 
-            # Compute best split per node on GPU to avoid large host transfer
-            # Use pre-allocated buffers (first length(active_nodes) elements)
+            # Use pre-allocated buffers (first n_active elements)
             view_gain = view(best_gain_gpu, 1:n_active)
             view_bin  = view(best_bin_gpu,  1:n_active)
             view_feat = view(best_feat_gpu, 1:n_active)
 
-            kernel_split! = best_split_kernel!(backend)
-            kernel_split!(view_gain, view_bin, view_feat, gains, active_nodes; ndrange=n_active)
+            kernel_split! = best_split_hist_kernel!(backend)
+            kernel_split!(view_gain, view_bin, view_feat, h∇, active_nodes, eltype(view_gain)(params.lambda), eltype(view_gain)(params.min_weight); ndrange=n_active)
             KernelAbstractions.synchronize(backend)
 
+            # compute left and right cumulative histograms in one device pass
+            compute_lr_gpu!(h∇L, h∇R, h∇, active_nodes, backend)
+
+            # Retrieve best splits to host
             best_gains = Vector(view_gain)
             best_bins  = Vector(view_bin)
             best_feats = Vector(view_feat)
