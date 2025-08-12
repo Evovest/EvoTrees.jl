@@ -2,6 +2,10 @@ module EvoTreesCUDAExt
 
 using EvoTrees
 using CUDA
+using KernelAbstractions
+using Atomix
+using Adapt
+using KernelAbstractions: get_backend
 
 # This should be different on CPUs and GPUs
 EvoTrees.device_ones(::Type{<:EvoTrees.GPU}, ::Type{T}, n::Int) where {T} = CUDA.ones(T, n)
@@ -20,3 +24,4 @@ include("fit-utils.jl")
 include("fit.jl")
 
 end # module
+

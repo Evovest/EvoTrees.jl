@@ -4,9 +4,13 @@ authors = ["jeremiedb <jeremie.db@evovest.com>"]
 version = "0.16.4"
 
 [deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+Atomix = "a9b6321e-bd34-4604-b9c9-b65b8de01458"
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 MLJModelInterface = "e80e1ace-859a-464e-9ed9-23947d8ae3ea"
 NetworkLayout = "46757867-2c16-5918-afeb-47bfcb05e46a"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -22,15 +26,17 @@ CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 EvoTreesCUDAExt = "CUDA"
 
 [compat]
+Adapt = "4"
 BSON = "0.3"
-CUDA = "3.0, 4.0, 5.0"
-CategoricalArrays = "0.9, 0.10"
-Distributions = "0.24, 0.25"
-MLJModelInterface = "0.3, 0.4, 1.0"
+CUDA = "3.0, 4.0, 5.0, 5.4"
+CategoricalArrays = "0.10"
+Distributions = "0.25"
+MLJModelInterface = "1"
 NetworkLayout = "0.4"
 RecipesBase = "1"
-StatsBase = "0.32, 0.33, 0.34"
-Tables = "1.9"
+Statistics = "1"
+StatsBase = "0.34"
+Tables = "1"
 julia = "1.6"
 
 [extras]
