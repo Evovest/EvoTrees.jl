@@ -101,20 +101,17 @@ function grow_tree!(
             active_nodes_act = view(active_nodes_full, 1:n_active)
             active_cpu = Array(active_nodes_act)
             
-            # Main branch strategy: Build histograms for odd-indexed active nodes only
-            # Even-indexed nodes computed by subtraction: parent - sibling
             build_nodes = Int32[]
             subtract_nodes = Int32[]
             
             for i in 1:n_active
-                if i % 2 == 1  # Odd positions in active list
+                if i % 2 == 1  
                     push!(build_nodes, active_cpu[i])
-                else  # Even positions in active list  
+                else  
                     push!(subtract_nodes, active_cpu[i])
                 end
             end
             
-            # Build histograms only for odd-indexed nodes (50% reduction)
             if !isempty(build_nodes)
                 build_nodes_gpu = KernelAbstractions.adapt(backend, build_nodes)
                 update_hist_gpu!(
@@ -125,20 +122,19 @@ function grow_tree!(
                 )
             end
             
-            # Compute histograms for even-indexed nodes by subtraction
             if !isempty(subtract_nodes)
                 for node in subtract_nodes
                     parent = node >> 1
                     sibling = node ⊻ 1
                     
                     if (parent <= size(h∇, 4) && sibling <= size(h∇, 4) && node <= size(h∇, 4))
-                        # Do subtraction directly on GPU using broadcasting
+                        
                         @views h∇[:, :, :, node] .= h∇[:, :, :, parent] .- h∇[:, :, :, sibling]
                     end
                 end
-                CUDA.synchronize()  # Make sure GPU operations complete
+                CUDA.synchronize()  
             end
-            # Find best splits for all active nodes
+            
             find_split! = find_best_split_from_hist_kernel!(backend)
             find_split!(view_gain, view_bin, view_feat, h∇, nodes_sum_gpu, active_nodes_act, js_gpu,
                        Float32(params.lambda), Float32(params.min_weight); ndrange = n_active)
