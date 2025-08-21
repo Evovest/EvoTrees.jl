@@ -160,8 +160,8 @@ function update_hist_gpu!(
     h∇ .= 0
     
     num_threads = div(length(is), 8) + 1
-    hist_kernel! = hist_kernel!(backend)
-    hist_kernel!(h∇, ∇, x_bin, nidx, js, is; ndrange = num_threads)
+    hist_kernel_f! = hist_kernel!(backend)
+    hist_kernel_f!(h∇, ∇, x_bin, nidx, js, is; ndrange = num_threads)
     
     find_split! = find_best_split_from_hist_kernel!(backend)
     find_split!(gains, bins, feats, h∇, nodes_sum_gpu, active_nodes, js,
