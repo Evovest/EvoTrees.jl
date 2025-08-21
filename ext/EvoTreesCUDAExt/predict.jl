@@ -15,7 +15,7 @@ function predict_kernel!(
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
-            nid = nid << 1 + !cond
+            nid = (nid << 1) + Int(!cond)
         end
         @inbounds for k = 1:K
             pred[k, i] += leaf_pred[k, nid]
@@ -42,7 +42,7 @@ function predict_kernel!(
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
-            nid = nid << 1 + !cond
+            nid = (nid << 1) + Int(!cond)
         end
         pred[1, i] += leaf_pred[1, nid]
     end
@@ -67,7 +67,7 @@ function predict_kernel!(
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
-            nid = nid << 1 + !cond
+            nid = (nid << 1) + Int(!cond)
         end
         pred[1, i] = min(T(15), max(T(-15), pred[1, i] + leaf_pred[1, nid]))
     end
@@ -92,7 +92,7 @@ function predict_kernel!(
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
-            nid = nid << 1 + !cond
+            nid = (nid << 1) + Int(!cond)
         end
         pred[1, i] += leaf_pred[1, nid]
         pred[2, i] = max(T(-15), pred[2, i] + leaf_pred[2, nid])
@@ -201,3 +201,4 @@ function EvoTrees.softmax!(p::CuMatrix{T}; MAX_THREADS=1024) where {T}
     CUDA.synchronize()
     return nothing
 end
+

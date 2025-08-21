@@ -22,7 +22,11 @@ function grow_evotree!(m::EvoTree{L,K}, cache, params::EvoTypes{L}, ::Type{<:Dev
         params,
         cache.∇,
         cache.edges,
+<<<<<<< HEAD
         cache.ns,
+=======
+        cache.nidx,
+>>>>>>> 1f02d92 (Implement GPU histogram training)
         is,
         cache.js,
         cache.h∇,
@@ -114,7 +118,11 @@ function grow_tree!(
                     nodes[n<<1].gain = EvoTrees.get_gain(params, nodes[n<<1].∑)
                     nodes[n<<1+1].gain = EvoTrees.get_gain(params, nodes[n<<1+1].∑)
                     push!(n_next, n << 1)
+<<<<<<< HEAD
                     push!(n_next, n << 1 + 1)
+=======
+                    push!(n_next, (n << 1) + 1)
+>>>>>>> 1f02d92 (Implement GPU histogram training)
                 else
                     EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params)
                 end
@@ -133,7 +141,6 @@ function grow_tree!(
 
     return nothing
 end
-
 
 # grow a single oblivious tree
 function grow_otree!(
@@ -262,9 +269,9 @@ function grow_otree!(
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
-                        push!(n_next, n << 1 + 1)
+                        push!(n_next, (n << 1) + 1)
                     else
-                        push!(n_next, n << 1 + 1)
+                        push!(n_next, (n << 1) + 1)
                         push!(n_next, n << 1)
                     end
                 end
@@ -279,7 +286,6 @@ function grow_otree!(
     end # end of loop over current nodes for a given depth
     return nothing
 end
-
 
 """
     fit_evotree(
@@ -510,3 +516,4 @@ function fit_evotree(
         return m
     end
 end
+

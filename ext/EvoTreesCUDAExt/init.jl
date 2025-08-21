@@ -64,10 +64,9 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
 
     # initialize gradients
     ∇ = CUDA.zeros(T, 2 * K + 1, nobs)
-    h∇ = CUDA.zeros(Float32, 2 * K + 1, maximum(featbins), length(featbins), 2^(params.max_depth - 1) - 1)
+    h∇ = CUDA.zeros(Float32, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
     h∇L = CUDA.zero(h∇)
     h∇R = CUDA.zero(h∇)
-    gains = CUDA.zeros(maximum(featbins), nfeats, 2^(params.max_depth - 1) - 1)
     @assert (length(y) == length(w) && minimum(w) > 0)
     ∇[end, :] .= w
 
@@ -106,7 +105,12 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
     feattypes_gpu = CuArray(feattypes)
     monotone_constraints_gpu = CuArray(monotone_constraints)
 
-    # build cache
+    # preallocate buffers used across depths
+    max_nodes_level = 2^params.max_depth
+    left_nodes_buf = CUDA.zeros(Int32, max_nodes_level)
+    right_nodes_buf = CUDA.zeros(Int32, max_nodes_level)
+    target_mask_buf = CUDA.zeros(UInt8, 2^(params.max_depth + 1))
+
     cache = (
         info=Dict(:nrounds => 0),
         x_bin=x_bin,
@@ -125,7 +129,6 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
         h∇=h∇,
         h∇L=h∇L,
         h∇R=h∇R,
-        gains=gains,
         fnames=fnames,
         edges=edges,
         featbins=featbins,
@@ -135,6 +138,10 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
         cond_bins=cond_bins,
         cond_bins_gpu=cond_bins_gpu,
         monotone_constraints_gpu=monotone_constraints_gpu,
+        left_nodes_buf=left_nodes_buf,
+        right_nodes_buf=right_nodes_buf,
+        target_mask_buf=target_mask_buf,
     )
     return m, cache
 end
+

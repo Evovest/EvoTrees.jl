@@ -1,0 +1,69 @@
+ASUS@LAPTOP-97J1INRD MINGW64 ~/EvoTrees.jl (gpu-hist)
+$ julia -g2 --project=. --threads auto benchmarks/regressor.jl | cat
+[ Info: device: gpu | nobs: 1000000 | nfeats: 100 | max_depth : 6 | nthreads: 20
+[ Info: EvoTrees
+[ Info: warmup
+┌ Info: EvoTreeRegressor{EvoTrees.MSE}
+│  - nrounds: 200
+│  - lambda: 0.0
+│  - gamma: 0.0
+│  - eta: 0.05
+│  - max_depth: 6
+│  - min_weight: 1.0
+│  - rowsample: 0.5
+│  - colsample: 0.5
+│  - nbins: 64
+│  - alpha: 0.5
+│  - monotone_constraints: Dict{Int64, Int64}()
+│  - tree_type: binary
+└  - rng: Random.MersenneTwister(123)
+┌ Info: initialization
+└   metric = 0.08338162302970886
+ERROR: a undefined variable error was thrown during kernel execution on thread (33, 1, 1) in block (1, 1, 1).
+Stacktrace:
+ [1] gpu_scan_hist_kernel! at C:\Users\ASUS\.julia\packages\KernelAbstractions\lGrz7\src\macros.jl:324
+ [2] gpu_scan_hist_kernel! at .\none:0
+
+ERROR: LoadError: KernelException: exception thrown during kernel execution on device NVIDIA GeForce RTX 3050 Ti Laptop GPU
+Stacktrace:
+  [1] check_exceptions()
+    @ CUDA C:\Users\ASUS\.julia\packages\CUDA\Wfi8S\src\compiler\exceptions.jl:39
+  [2] device_synchronize(; blocking::Bool, spin::Bool)
+    @ CUDA C:\Users\ASUS\.julia\packages\CUDA\Wfi8S\lib\cudadrv\synchronization.jl:191
+  [3] device_synchronize
+    @ C:\Users\ASUS\.julia\packages\CUDA\Wfi8S\lib\cudadrv\synchronization.jl:178 [inlined]
+  [4] checked_cuModuleLoadDataEx(_module::Base.RefValue{Ptr{CUDA.CUmod_st}}, image::Ptr{UInt8}, numOptions::Int64, options::Vector{CUDA.CUjit_option_enum}, optionValues::Vector{Ptr{Nothing}})
+    @ CUDA C:\Users\ASUS\.julia\packages\CUDA\Wfi8S\lib\cudadrv\module.jl:18
+  [5] CuModule(data::Vector{UInt8}, options::Dict{CUDA.CUjit_option_enum, Any})
+    @ CUDA C:\Users\ASUS\.julia\packages\CUDA\Wfi8S\lib\cudadrv\module.jl:60
+  [6] CuModule
+    @ C:\Users\ASUS\.julia\packages\CUDA\Wfi8S\lib\cudadrv\module.jl:49 [inlined]
+  [7] link(job::GPUCompiler.CompilerJob, compiled::@NamedTuple{image::Vector{UInt8}, entry::String})
+    @ CUDA C:\Users\ASUS\.julia\packages\CUDA\Wfi8S\src\compiler\compilation.jl:409
+  [8] actual_compilation(cache::Dict{Any, CuFunction}, src::Core.MethodInstance, world::UInt64, cfg::GPUCompiler.CompilerConfig{GPUCompiler.PTXCompilerTarget, CUDA.CUDACompilerParams}, compiler::typeof(CUDA.compile), linker::typeof(CUDA.link))
+    @ GPUCompiler C:\Users\ASUS\.julia\packages\GPUCompiler\Ecaql\src\execution.jl:270
+  [9] cached_compilation(cache::Dict{Any, CuFunction}, src::Core.MethodInstance, cfg::GPUCompiler.CompilerConfig{GPUCompiler.PTXCompilerTarget, CUDA.CUDACompilerParams}, compiler::Function, linker::Function)
+    @ GPUCompiler C:\Users\ASUS\.julia\packages\GPUCompiler\Ecaql\src\execution.jl:159
+ [10] macro expansion
+    @ C:\Users\ASUS\.julia\packages\CUDA\Wfi8S\src\compiler\execution.jl:373 [inlined]
+ [11] macro expansion
+    @ .\lock.jl:273 [inlined]
+ [12] cufunction(f::typeof(EvoTreesCUDAExt.gpu_find_best_split_kernel_parallel!), tt::Type{Tuple{KernelAbstractions.CompilerMetadata{KernelAbstractions.NDIteration.DynamicSize, KernelAbstractions.NDIteration.DynamicCheck, Nothing, CartesianIndices{2, Tuple{Base.OneTo{Int64}, Base.OneTo{Int64}}}, KernelAbstractions.NDIteration.NDRange{2, KernelAbstractions.NDIteration.DynamicSize, KernelAbstractions.NDIteration.StaticSize{(32, 1)}, CartesianIndices{2, Tuple{Base.OneTo{Int64}, Base.OneTo{Int64}}}, Nothing}}, CuDeviceVector{Float64, 1}, CuDeviceVector{Int32, 1}, CuDeviceVector{Int32, 1}, CuDeviceArray{Float32, 4, 1}, CuDeviceArray{Float32, 4, 1}, CuDeviceMatrix{Float64, 1}, CuDeviceVector{Int32, 1}, Float64, Float64}}; kwargs::@Kwargs{always_inline::Bool, maxthreads::Int64})
+    @ CUDA C:\Users\ASUS\.julia\packages\CUDA\Wfi8S\src\compiler\execution.jl:368
+ [13] macro expansion
+    @ C:\Users\ASUS\.julia\packages\CUDA\Wfi8S\src\compiler\execution.jl:112 [inlined]
+ [14] (::KernelAbstractions.Kernel{CUDABackend, KernelAbstractions.NDIteration.StaticSize{(32,)}, KernelAbstractions.NDIteration.DynamicSize, typeof(EvoTreesCUDAExt.gpu_find_best_split_kernel_parallel!)})(::CuArray{Float64, 1, CUDA.DeviceMemory}, ::Vararg{Any}; ndrange::Tuple{Int64, Int64}, workgroupsize::Nothing)
+    @ CUDA.CUDAKernels C:\Users\ASUS\.julia\packages\CUDA\Wfi8S\src\CUDAKernels.jl:124
+ [15] Kernel
+    @ C:\Users\ASUS\.julia\packages\CUDA\Wfi8S\src\CUDAKernels.jl:110 [inlined]
+ [16] update_hist_gpu!(h∇::CuArray{Float32, 4, CUDA.DeviceMemory}, hL::CuArray{Float32, 4, CUDA.DeviceMemory}, hR::CuArray{Float32, 4, CUDA.DeviceMemory}, gains::CuArray{Float64, 1, CUDA.DeviceMemory}, bins::CuArray{Int32, 1, CUDA.DeviceMemory}, feats::CuArray{Int32, 1, CUDA.DeviceMemory}, ∇::CuArray{Float32, 2, CUDA.DeviceMemory}, x_bin::CuArray{UInt8, 2, CUDA.DeviceMemory}, nidx::CuArray{UInt32, 1, CUDA.DeviceMemory}, js::CuArray{UInt32, 1, CUDA.DeviceMemory}, depth::Int64, active_nodes_gpu::CuArray{Int32, 1, CUDA.DeviceMemory}, nodes_sum_gpu::CuArray{Float64, 2, CUDA.DeviceMemory}, params::EvoTreeRegressor{EvoTrees.MSE})
+    @ EvoTreesCUDAExt C:\Users\ASUS\EvoTrees.jl\ext\EvoTreesCUDAExt\fit-utils.jl:271
+ [17] grow_tree!(tree::EvoTrees.Tree{EvoTrees.MSE, 1}, params::EvoTreeRegressor{EvoTrees.MSE}, ∇::CuArray{Float32, 2, CUDA.DeviceMemory}, edges::Vector{Vector{Float64}}, nidx::CuArray{UInt32, 1, CUDA.DeviceMemory}, is::CuArray{UInt32, 1, CUDA.DeviceMemory}, js::Vector{UInt32}, h∇::CuArray{Float32, 4, CUDA.DeviceMemory}, h∇L::CuArray{Float32, 4, CUDA.DeviceMemory}, h∇R::CuArray{Float32, 4, CUDA.DeviceMemory}, x_bin::CuArray{UInt8, 2, CUDA.DeviceMemory})
+    @ EvoTreesCUDAExt C:\Users\ASUS\EvoTrees.jl\ext\EvoTreesCUDAExt\fit.jl:87
+ [18] grow_evotree!(evotree::EvoTree{EvoTrees.MSE, 1}, cache::@NamedTuple{info::Dict{Symbol, Int64}, x_bin::CuArray{UInt8, 2, CUDA.DeviceMemory}, y::CuArray{Float32, 1, CUDA.DeviceMemory}, w::CuArray{Float32, 1, CUDA.DeviceMemory}, K::Int64, nodes::Vector{EvoTrees.TrainNode{Vector{Float64}, Matrix{Float64}}}, pred::CuArray{Float32, 2, CUDA.DeviceMemory}, nidx::CuArray{UInt32, 1, CUDA.DeviceMemory}, is_in::CuArray{UInt32, 1, CUDA.DeviceMemory}, is_out::CuArray{UInt32, 1, CUDA.DeviceMemory}, mask::CuArray{UInt8, 1, CUDA.DeviceMemory}, js_::Vector{UInt32}, js::Vector{UInt32}, ∇::CuArray{Float32, 2, CUDA.DeviceMemory}, h∇::CuArray{Float32, 4, CUDA.DeviceMemory}, h∇L::CuArray{Float32, 4, CUDA.DeviceMemory}, h∇R::CuArray{Float32, 4, CUDA.DeviceMemory}, fnames::Vector{Symbol}, edges::Vector{Vector{Float64}}, featbins::Vector{UInt8}, feattypes_gpu::CuArray{Bool, 1, CUDA.DeviceMemory}, cond_feats::Vector{Int64}, cond_feats_gpu::CuArray{Int64, 1, CUDA.DeviceMemory}, cond_bins::Vector{UInt8}, cond_bins_gpu::CuArray{UInt8, 1, CUDA.DeviceMemory}, monotone_constraints_gpu::CuArray{Int32, 1, CUDA.DeviceMemory}}, params::EvoTreeRegressor{EvoTrees.MSE}, ::Type{EvoTrees.GPU})
+    @ EvoTreesCUDAExt C:\Users\ASUS\EvoTrees.jl\ext\EvoTreesCUDAExt\fit.jl:8
+ [19] fit_evotree(params::EvoTreeRegressor{EvoTrees.MSE}; x_train::Matrix{Float64}, y_train::Vector{Float64}, w_train::Nothing, offset_train::Nothing, x_eval::Matrix{Float64}, y_eval::Vector{Float64}, w_eval::Nothing, offset_eval::Nothing, metric::Symbol, early_stopping_rounds::Int64, print_every_n::Int64, verbosity::Int64, fnames::Nothing, return_logger::Bool, device::Symbol)     
+    @ EvoTrees C:\Users\ASUS\EvoTrees.jl\src\fit.jl:496
+ [20] top-level scope
+    @ C:\Users\ASUS\EvoTrees.jl\benchmarks\regressor.jl:70
+in expression starting at C:\Users\ASUS\EvoTrees.jl\benchmarks\regressor.jl:32

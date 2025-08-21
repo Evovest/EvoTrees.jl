@@ -4,7 +4,7 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, featty
         @inbounds while tree.split[nid]
             feat = tree.feat[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
-            nid = nid << 1 + !cond
+            nid = (nid << 1) + Int(!cond)
         end
         @inbounds pred[1, i] += tree.pred[1, nid]
     end
@@ -17,7 +17,7 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, featty
         @inbounds while tree.split[nid]
             feat = tree.feat[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
-            nid = nid << 1 + !cond
+            nid = (nid << 1) + Int(!cond)
         end
         @inbounds pred[1, i] = clamp(pred[1, i] + tree.pred[1, nid], T(-15), T(15))
     end
@@ -30,7 +30,7 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, featty
         @inbounds while tree.split[nid]
             feat = tree.feat[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
-            nid = nid << 1 + !cond
+            nid = (nid << 1) + Int(!cond)
         end
         @inbounds pred[1, i] += tree.pred[1, nid]
         @inbounds pred[2, i] = max(T(-15), pred[2, i] + tree.pred[2, nid])
@@ -44,7 +44,7 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, featty
         @inbounds while tree.split[nid]
             feat = tree.feat[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
-            nid = nid << 1 + !cond
+            nid = (nid << 1) + Int(!cond)
         end
         @inbounds for k = 1:K
             pred[k, i] += tree.pred[k, nid]
@@ -65,7 +65,7 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, featty
         @inbounds while tree.split[nid]
             feat = tree.feat[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
-            nid = nid << 1 + !cond
+            nid = (nid << 1) + Int(!cond)
         end
         @inbounds for k = 1:K
             pred[k, i] += tree.pred[k, nid]
@@ -160,3 +160,4 @@ function pred_scalar(∑::AbstractVector, params::EvoTypes{L1})
     ϵ = eps(T)
     params.eta * ∑[1] / max(ϵ, (∑[3] * (1 + params.lambda)))
 end
+
