@@ -22,7 +22,7 @@ function grow_evotree!(m::EvoTree{L,K}, cache, params::EvoTypes{L}, ::Type{<:Dev
         params,
         cache.∇,
         cache.edges,
-        cache.ns,
+        cache.nidx,
         is,
         cache.js,
         cache.h∇,
@@ -133,7 +133,6 @@ function grow_tree!(
 
     return nothing
 end
-
 
 # grow a single oblivious tree
 function grow_otree!(
@@ -279,7 +278,6 @@ function grow_otree!(
     end # end of loop over current nodes for a given depth
     return nothing
 end
-
 
 """
     fit_evotree(
@@ -510,3 +508,4 @@ function fit_evotree(
         return m
     end
 end
+

@@ -129,7 +129,6 @@ function EvoTrees.update_grads!(
     return
 end
 
-
 #####################
 # Softmax
 #####################
@@ -168,7 +167,6 @@ function EvoTrees.update_grads!(
     return
 end
 
-
 ################################################################################
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
@@ -200,3 +198,4 @@ function EvoTrees.update_grads!(
     CUDA.synchronize()
     return
 end
+

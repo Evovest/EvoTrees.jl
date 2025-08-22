@@ -17,6 +17,10 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.E
         cache.h∇L,
         cache.h∇R,
         cache.x_bin,
+        cache.feattypes_gpu,
+        cache.left_nodes_buf,
+        cache.right_nodes_buf,
+        cache.target_mask_buf,
     )
     push!(evotree.trees, tree)
     EvoTrees.predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
@@ -36,6 +40,10 @@ function grow_tree!(
     h∇L::CuArray,
     h∇R::CuArray,
     x_bin::CuMatrix,
+    feattypes_gpu::CuVector{Bool},
+    left_nodes_buf::CuArray{Int32},
+    right_nodes_buf::CuArray{Int32},
+    target_mask_buf::CuArray{UInt8},
 ) where {L,K}
 
     backend = KernelAbstractions.get_backend(x_bin)
@@ -43,54 +51,110 @@ function grow_tree!(
     is_gpu = KernelAbstractions.adapt(backend, is)
 
     tree_split_gpu = KernelAbstractions.zeros(backend, Bool, length(tree.split))
-    tree_cond_bin_gpu = KernelAbstractions.zeros(backend, UInt32, length(tree.cond_bin))
+    tree_cond_bin_gpu = KernelAbstractions.zeros(backend, UInt8, length(tree.cond_bin))
     tree_feat_gpu = KernelAbstractions.zeros(backend, Int32, length(tree.feat))
-    tree_gain_gpu = KernelAbstractions.zeros(backend, K, length(tree.gain))
-    tree_pred_gpu = KernelAbstractions.zeros(backend, K, length(tree.pred))
+    tree_gain_gpu = KernelAbstractions.zeros(backend, Float64, length(tree.gain))
+    tree_pred_gpu = KernelAbstractions.zeros(backend, Float32, size(tree.pred, 1), size(tree.pred, 2))
 
     max_nodes_total = 2^(params.max_depth + 1)
-    nodes_sum_gpu = KernelAbstractions.zeros(backend, K, 3, max_nodes_total)
-    nodes_gain_gpu = KernelAbstractions.zeros(backend, K, max_nodes_total)
+    nodes_sum_gpu = KernelAbstractions.zeros(backend, Float32, 3, max_nodes_total)
+    nodes_gain_gpu = KernelAbstractions.zeros(backend, Float32, max_nodes_total)
 
     max_nodes_level = 2^params.max_depth
     anodes_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
     n_next_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level * 2)
-    n_next_active_gpu = CuArray([0])
+    n_next_active_gpu = KernelAbstractions.zeros(backend, Int32, 1)
 
-    best_gain_gpu = KernelAbstractions.zeros(backend, K, max_nodes_level)
+    best_gain_gpu = KernelAbstractions.zeros(backend, Float32, max_nodes_level)
     best_bin_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
     best_feat_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
     
     nidx .= 1
-    CUDA.mapreducedim!(x -> (x[1], x[2], K(1.0)), +, view(nodes_sum_gpu, :, 1:1), view(∇, :, is_gpu), dims=2)
-    get_gain_gpu!(backend)(nodes_gain_gpu, nodes_sum_gpu, [1], params.lambda; ndrange=1)
-    anodes_gpu[1] = 1
+    
+    nsamples = Float32(length(is_gpu))
+    view(anodes_gpu, 1:1) .= 1
+    update_hist_gpu!(
+        h∇, best_gain_gpu, best_bin_gpu, best_feat_gpu,
+        ∇, x_bin, nidx, js_gpu, is_gpu,
+        1, view(anodes_gpu, 1:1), nodes_sum_gpu, params,
+        left_nodes_buf, right_nodes_buf, target_mask_buf
+    )
+    get_gain_gpu!(backend)(nodes_gain_gpu, nodes_sum_gpu, view(anodes_gpu, 1:1), Float32(params.lambda); ndrange=1)
+
     n_active = 1
 
     for depth in 1:params.max_depth
         !iszero(n_active) || break
         
-        active_nodes = view(anodes_gpu, 1:n_active)
-        view_gain = view(best_gain_gpu, 1:n_active)
-        view_bin = view(best_bin_gpu, 1:n_active)
-        view_feat = view(best_feat_gpu, 1:n_active)
+        n_nodes_level = 2^(depth - 1)
+        active_nodes_full = view(anodes_gpu, 1:n_nodes_level)
         
-        update_hist_gpu!(
-            h∇, h∇L, h∇R,
-            view_gain, view_bin, view_feat,
-            ∇, x_bin, nidx, js_gpu,
-            depth, active_nodes, params
-        )
+        if n_active < n_nodes_level
+            view(anodes_gpu, n_active+1:n_nodes_level) .= 0
+        end
+
+        view_gain = view(best_gain_gpu, 1:n_nodes_level)
+        view_bin  = view(best_bin_gpu, 1:n_nodes_level)
+        view_feat = view(best_feat_gpu, 1:n_nodes_level)
+        
+        if depth > 1
+            active_nodes_act = view(active_nodes_full, 1:n_active)
+            active_cpu = Array(active_nodes_act)
+            
+            build_nodes = Int32[]
+            subtract_nodes = Int32[]
+            
+            for i in 1:n_active
+                if i % 2 == 1  
+                    push!(build_nodes, active_cpu[i])
+                else  
+                    push!(subtract_nodes, active_cpu[i])
+                end
+            end
+            
+            if !isempty(build_nodes)
+                build_nodes_gpu = KernelAbstractions.adapt(backend, build_nodes)
+                update_hist_gpu!(
+                    h∇, view_gain, view_bin, view_feat,
+                    ∇, x_bin, nidx, js_gpu, is_gpu,
+                    depth, build_nodes_gpu, nodes_sum_gpu, params,
+                    left_nodes_buf, right_nodes_buf, target_mask_buf
+                )
+            end
+            
+            if !isempty(subtract_nodes)
+                for node in subtract_nodes
+                    parent = node >> 1
+                    sibling = node ⊻ 1
+                    
+                    if (parent <= size(h∇, 4) && sibling <= size(h∇, 4) && node <= size(h∇, 4))
+                        
+                        @views h∇[:, :, :, node] .= h∇[:, :, :, parent] .- h∇[:, :, :, sibling]
+                    end
+                end
+                CUDA.synchronize()  
+            end
+            
+            find_split! = find_best_split_from_hist_kernel!(backend)
+            find_split!(view_gain, view_bin, view_feat, h∇, nodes_sum_gpu, active_nodes_act, js_gpu,
+                       Float32(params.lambda), Float32(params.min_weight); ndrange = n_active)
+        end
 
         n_next_active_gpu .= 0
+        view_gain_act  = view(view_gain, 1:n_active)
+        view_bin_act   = view(view_bin, 1:n_active)
+        view_feat_act  = view(view_feat, 1:n_active)
+
+        active_nodes_act = view(active_nodes_full, 1:n_active)
+
         apply_splits_kernel!(backend)(
             tree_split_gpu, tree_cond_bin_gpu, tree_feat_gpu, tree_gain_gpu, tree_pred_gpu,
             nodes_sum_gpu, nodes_gain_gpu,
             n_next_gpu, n_next_active_gpu,
-            view_gain, view_bin, view_feat,
-            h∇L,
-            active_nodes,
-            depth, params.max_depth, params.lambda, params.gamma;
+            view_gain_act, view_bin_act, view_feat_act,
+            h∇,
+            active_nodes_act,
+            depth, params.max_depth, Float32(params.lambda), Float32(params.gamma);
             ndrange = n_active
         )
         
@@ -101,17 +165,21 @@ function grow_tree!(
 
         if depth < params.max_depth && n_active > 0
             update_nodes_idx_kernel!(backend)(
-                nidx, is_gpu, x_bin, tree_feat_gpu, tree_cond_bin_gpu, params.feattypes_gpu;
+                nidx, is_gpu, x_bin, tree_feat_gpu, tree_cond_bin_gpu, feattypes_gpu;
                 ndrange = length(is_gpu)
             )
         end
     end
+    h∇ .= 0
+    h∇L .= 0
+    h∇R .= 0
 
     copyto!(tree.split, Array(tree_split_gpu))
     copyto!(tree.cond_bin, Array(tree_cond_bin_gpu))
     copyto!(tree.feat, Array(tree_feat_gpu))
     copyto!(tree.gain, Array(tree_gain_gpu))
-    copyto!(tree.pred, Array(tree_pred_gpu))
+
+    copyto!(tree.pred, Array(tree_pred_gpu .* Float32(params.eta)))
     
     for i in eachindex(tree.split)
         if tree.split[i]
@@ -127,14 +195,16 @@ end
     nodes_sum, nodes_gain,
     n_next, n_next_active,
     best_gain, best_bin, best_feat,
-    h∇L,
+    h∇,
     active_nodes,
     depth, max_depth, lambda, gamma
 )
     n_idx = @index(Global)
     node = active_nodes[n_idx]
 
-    @inbounds if depth < max_depth && best_gain[n_idx] > nodes_gain[node] + gamma
+    epsv = eltype(tree_pred)(1e-8)
+
+    @inbounds if depth < max_depth && best_gain[n_idx] > gamma
         tree_split[node] = true
         tree_cond_bin[node] = best_bin[n_idx]
         tree_feat[node] = best_feat[n_idx]
@@ -143,110 +213,47 @@ end
         child_l, child_r = node << 1, (node << 1) + 1
         feat, bin = Int(tree_feat[node]), Int(tree_cond_bin[node])
 
-        nodes_sum[1, child_l] = h∇L[1, bin, feat, node]
-        nodes_sum[2, child_l] = h∇L[2, bin, feat, node]
-        nodes_sum[3, child_l] = h∇L[3, bin, feat, node]
+        s1 = zero(eltype(nodes_sum)); s2 = zero(eltype(nodes_sum)); s3 = zero(eltype(nodes_sum))
+        @inbounds for b in 1:bin
+            s1 += h∇[1, b, feat, node]
+            s2 += h∇[2, b, feat, node]
+            s3 += h∇[3, b, feat, node]
+        end
+        nodes_sum[1, child_l] = s1
+        nodes_sum[2, child_l] = s2
+        nodes_sum[3, child_l] = s3
         
         nodes_sum[1, child_r] = nodes_sum[1, node] - nodes_sum[1, child_l]
         nodes_sum[2, child_r] = nodes_sum[2, node] - nodes_sum[2, child_l]
         nodes_sum[3, child_r] = nodes_sum[3, node] - nodes_sum[3, child_l]
 
-        p1_l, p2_l = nodes_sum[1, child_l], nodes_sum[2, child_l]
-        nodes_gain[child_l] = p1_l^2 / (p2_l + lambda)
-        p1_r, p2_r = nodes_sum[1, child_r], nodes_sum[2, child_r]
-        nodes_gain[child_r] = p1_r^2 / (p2_r + lambda)
+        p1_l, p2_l, w_l = nodes_sum[1, child_l], nodes_sum[2, child_l], nodes_sum[3, child_l]
+        nodes_gain[child_l] = p1_l^2 / (p2_l + lambda * w_l + epsv)
+        p1_r, p2_r, w_r = nodes_sum[1, child_r], nodes_sum[2, child_r], nodes_sum[3, child_r]
+        nodes_gain[child_r] = p1_r^2 / (p2_r + lambda * w_r + epsv)
         
         idx_base = Atomix.@atomic n_next_active[1] += 2
         n_next[idx_base - 1] = child_l
         n_next[idx_base] = child_r
+
+        tree_pred[1, child_l] = - (nodes_sum[1, child_l]) / (nodes_sum[2, child_l] + lambda * nodes_sum[3, child_l] + epsv)
+        tree_pred[1, child_r] = - (nodes_sum[1, child_r]) / (nodes_sum[2, child_r] + lambda * nodes_sum[3, child_r] + epsv)
     else
         g, h, w = nodes_sum[1, node], nodes_sum[2, node], nodes_sum[3, node]
-        tree_pred[node] = -g / (h + lambda)
+        if w <= zero(w) || h + lambda * w <= zero(h)
+            tree_pred[1, node] = 0.0f0
+        else
+            tree_pred[1, node] = -g / (h + lambda * w + epsv)
+        end
     end
 end
 
-@kernel function get_gain_gpu!(nodes_gain, nodes_sum, nodes, lambda)
+@kernel function get_gain_gpu!(nodes_gain::AbstractVector{T}, nodes_sum::AbstractArray{T,2}, nodes, lambda::T) where {T}
     n_idx = @index(Global)
     node = nodes[n_idx]
     @inbounds p1 = nodes_sum[1, node]
     @inbounds p2 = nodes_sum[2, node]
-    @inbounds nodes_gain[node] = p1^2 / (p2 + lambda)
-end
-
-function grow_otree!(
-    tree::EvoTrees.Tree{L,K}, nodes::Vector{N}, params::EvoTrees.EvoTypes{L}, ∇::CuMatrix, edges, js,
-    out, left, right, h∇_cpu::Array{Float64,3}, h∇::CuArray{Float64,3}, x_bin::CuMatrix,
-    feattypes::Vector{Bool}, monotone_constraints
-) where {L,K,N}
-    backend = KernelAbstractions.get_backend(x_bin)
-    jsg = KernelAbstractions.adapt(backend, js)
-    for n in nodes
-        n.∑ .= 0; n.gain = 0.0
-        @inbounds for i in eachindex(n.h)
-            n.h[i] .= 0; n.gains[i] .= 0
-        end
-    end
-    n_current = [1]; depth = 1
-    nodes[1].∑ .= Vector(vec(sum(∇[:, nodes[1].is], dims=2)))
-    nodes[1].gain = EvoTrees.get_gain(params, nodes[1].∑)
-    while length(n_current) > 0 && depth <= params.max_depth
-        offset = 0; n_next = Int[]
-        min_weight_flag = false
-        for n in n_current
-            nodes[n].∑[end] <= params.min_weight ? min_weight_flag = true : nothing
-        end
-        if depth == params.max_depth || min_weight_flag
-            for n in n_current
-                EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params)
-            end
-        else
-            for n_id in eachindex(n_current)
-                n = n_current[n_id]
-                if n_id % 2 == 0
-                    if n % 2 == 0; @inbounds for j in js; nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n+1].h[j] end
-                    else; @inbounds for j in js; nodes[n].h[j] .= nodes[n>>1].h[j] .- nodes[n-1].h[j] end
-                    end
-                else
-                    update_hist_gpu!(nodes[n].h, h∇_cpu, h∇, ∇, x_bin, nodes[n].is, jsg, js)
-                end
-            end
-            Threads.@threads for n ∈ n_current
-                EvoTrees.update_gains!(nodes[n], js, params, feattypes, monotone_constraints)
-            end
-            if depth > 1; @inbounds for j in js; nodes[1].gains[j] .= 0 end; end
-            gain = 0
-            for n ∈ sort(n_current)
-                if n > 1; for j in js; nodes[1].gains[j] .+= nodes[n].gains[j] end; end
-                gain += nodes[n].gain
-            end
-            for n ∈ sort(n_current)
-                if n > 1; for j in js; nodes[1].gains[j] .*= nodes[n].gains[j] .> 0 end; end
-            end
-            best = findmax(findmax.(nodes[1].gains)); best_gain = best[1][1]; best_bin = best[1][2]; best_feat = best[2]
-            if best_gain > gain + params.gamma
-                for n in sort(n_current)
-                    tree.gain[n] = best_gain - nodes[n].gain; tree.cond_bin[n] = best_bin
-                    tree.feat[n] = best_feat; tree.cond_float[n] = edges[best_feat][best_bin]
-                    tree.split[n] = best_bin != 0
-                    _left, _right = split_set_threads_gpu!(out,left,right,nodes[n].is,x_bin,tree.feat[n],tree.cond_bin[n],feattypes[best_feat],offset)
-                    offset += length(nodes[n].is)
-                    nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    nodes[n<<1].∑ .= nodes[n].hL[best_feat][:, best_bin]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[best_feat][:, best_bin]
-                    nodes[n<<1].gain = EvoTrees.get_gain(params, nodes[n<<1].∑)
-                    nodes[n<<1+1].gain = EvoTrees.get_gain(params, nodes[n<<1+1].∑)
-                    if length(_right) >= length(_left); push!(n_next, n << 1); push!(n_next, (n << 1) + 1)
-                    else; push!(n_next, (n << 1) + 1); push!(n_next, n << 1)
-                    end
-                end
-            else
-                for n in n_current
-                    EvoTrees.pred_leaf_cpu!(tree.pred, n, nodes[n].∑, params)
-                end
-            end
-        end
-        n_current = copy(n_next); depth += 1
-    end
-    return nothing
+    @inbounds w = nodes_sum[3, node]
+    @inbounds nodes_gain[node] = p1^2 / (p2 + lambda * w + T(1e-8))
 end
 

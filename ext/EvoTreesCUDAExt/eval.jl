@@ -59,7 +59,6 @@ function EvoTrees.logloss(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::
     return sum(eval) / sum(w)
 end
 
-
 ########################
 # Gaussian
 ########################
@@ -141,7 +140,6 @@ function EvoTrees.tweedie(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::
     return sum(eval) / sum(w)
 end
 
-
 ########################
 # mlogloss
 ########################
@@ -165,3 +163,4 @@ function EvoTrees.mlogloss(p::CuMatrix{T}, y::CuVector, w::CuVector{T}, eval::Cu
     CUDA.synchronize()
     return sum(eval) / sum(w)
 end
+

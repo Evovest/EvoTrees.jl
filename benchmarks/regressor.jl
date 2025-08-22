@@ -3,7 +3,6 @@ using DataFrames
 using CSV
 using Statistics
 using StatsBase: sample
-using XGBoost
 using EvoTrees
 using BenchmarkTools
 using Random: seed!
@@ -17,17 +16,17 @@ tree_type = "binary"
 T = Float64
 nthreads = Base.Threads.nthreads()
 
-# device_list = [:cpu, :gpu]
-device_list = [:gpu]
+device_list = [:cpu, :gpu]
+# device_list = [:gpu]
 
 # nobs_list = Int.([1e5, 1e6, 1e7])
 nobs_list = Int.([1e6])
 
-# nfeats_list = [10, 100]
-nfeats_list = [100]
+nfeats_list = [10, 100]
+# nfeats_list = [100]
 
-# max_depth_list = [6, 11]
-max_depth_list = [6]
+max_depth_list = [6, 11]
+# max_depth_list = [6]
 
 for device in device_list
     df = DataFrame()
@@ -70,26 +69,12 @@ for device in device_list
                         _m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=loss, device, print_every_n=100)
                         _m_evo(x_train; device)
                     end
+
                     t_train_evo = @elapsed m_evo = fit_evotree(params_evo; x_train, y_train, x_eval=x_train, y_eval=y_train, metric=loss, device, print_every_n=100)
+
                     @info "train" t_train_evo
                     t_infer_evo = @elapsed pred_evo = m_evo(x_train; device)
                     @info "predict" t_infer_evo
-
-                    params_evo = EvoTreeRegressor(;
-                        loss,
-                        nrounds,
-                        max_depth,
-                        lambda=0.0,
-                        gamma=0.0,
-                        eta=0.05,
-                        min_weight=1.0,
-                        rowsample=0.5,
-                        colsample=0.5,
-                        nbins=64,
-                        tree_type,
-                        rng=123,
-                        device
-                    )
 
                     _df = hcat(_df, DataFrame(
                         :train_evo => t_train_evo,
