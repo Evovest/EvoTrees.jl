@@ -79,9 +79,10 @@ function EvoTrees.subsample(is_in::CuVector, is_out::CuVector, mask::CuVector, r
     )
     CUDA.synchronize()
     counts_sum = sum(counts)
-    if counts_cum == 0
+    if counts_sum == 0
         @error "no subsample observation - choose larger rowsample"
     else
         return view(is_out, 1:counts_sum)
     end
 end
+
