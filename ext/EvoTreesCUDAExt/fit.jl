@@ -1,7 +1,10 @@
 function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}) where {L,K}
     EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, params)
     is = EvoTrees.subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, params.rng)
-    EvoTrees.sample!(params.rng, cache.js_, cache.js, replace=false, ordered=true)
+    
+    js_cpu = Vector{eltype(cache.js)}(undef, length(cache.js))
+    EvoTrees.sample!(params.rng, cache.js_, js_cpu, replace=false, ordered=true)
+    copyto!(cache.js, js_cpu)
 
     tree = EvoTrees.Tree{L,K}(params.max_depth)
     grow! = params.tree_type == "oblivious" ? grow_otree! : grow_tree!
@@ -14,8 +17,6 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.E
         is,
         cache.js,
         cache.h∇,
-        cache.h∇L,
-        cache.h∇R,
         cache.x_bin,
         cache.feattypes_gpu,
         cache.left_nodes_buf,
@@ -34,11 +35,9 @@ function grow_tree!(
     ∇::CuMatrix,
     edges,
     nidx::CuVector,
-    is,
-    js,
+    is::CuVector,
+    js::CuVector,
     h∇::CuArray,
-    h∇L::CuArray,
-    h∇R::CuArray,
     x_bin::CuMatrix,
     feattypes_gpu::CuVector{Bool},
     left_nodes_buf::CuArray{Int32},
@@ -47,8 +46,6 @@ function grow_tree!(
 ) where {L,K}
 
     backend = KernelAbstractions.get_backend(x_bin)
-    js_gpu = KernelAbstractions.adapt(backend, js)
-    is_gpu = KernelAbstractions.adapt(backend, is)
 
     tree_split_gpu = KernelAbstractions.zeros(backend, Bool, length(tree.split))
     tree_cond_bin_gpu = KernelAbstractions.zeros(backend, UInt8, length(tree.cond_bin))
@@ -71,11 +68,10 @@ function grow_tree!(
     
     nidx .= 1
     
-    nsamples = Float32(length(is_gpu))
     view(anodes_gpu, 1:1) .= 1
     update_hist_gpu!(
         h∇, best_gain_gpu, best_bin_gpu, best_feat_gpu,
-        ∇, x_bin, nidx, js_gpu, is_gpu,
+        ∇, x_bin, nidx, js, is,
         1, view(anodes_gpu, 1:1), nodes_sum_gpu, params,
         left_nodes_buf, right_nodes_buf, target_mask_buf
     )
@@ -98,46 +94,40 @@ function grow_tree!(
         view_feat = view(best_feat_gpu, 1:n_nodes_level)
         
         if depth > 1
-            active_nodes_act = view(active_nodes_full, 1:n_active)
-            active_cpu = Array(active_nodes_act)
+            active_nodes_act = view(active_nodes_full, 1:n_active)  # Define this first
+
+            build_nodes_gpu = KernelAbstractions.zeros(backend, Int32, n_active)
+            subtract_nodes_gpu = KernelAbstractions.zeros(backend, Int32, n_active)
+            build_count = KernelAbstractions.zeros(backend, Int32, 1)
+            subtract_count = KernelAbstractions.zeros(backend, Int32, 1)
+
+            separate_kernel! = separate_nodes_kernel!(backend)
+            separate_kernel!(
+                build_nodes_gpu, build_count,
+                subtract_nodes_gpu, subtract_count,
+                active_nodes_act;  # Now it's defined
+                ndrange=n_active
+            )
             
-            build_nodes = Int32[]
-            subtract_nodes = Int32[]
+            # Remove the scalar reads - just launch both kernels unconditionally
+            build_nodes_view = view(build_nodes_gpu, 1:n_active)
+            update_hist_gpu!(
+                h∇, view_gain, view_bin, view_feat,
+                ∇, x_bin, nidx, js, is,
+                depth, build_nodes_view, nodes_sum_gpu, params,
+                left_nodes_buf, right_nodes_buf, target_mask_buf
+            )
             
-            for i in 1:n_active
-                if i % 2 == 1  
-                    push!(build_nodes, active_cpu[i])
-                else  
-                    push!(subtract_nodes, active_cpu[i])
-                end
-            end
+            subtract_nodes_view = view(subtract_nodes_gpu, 1:n_active)
+            subtract_kernel! = subtract_hist_kernel!(backend)
+            n_work = n_active * size(h∇, 1) * size(h∇, 2) * size(h∇, 3)
+            subtract_kernel!(h∇, subtract_nodes_view; ndrange = n_work)
             
-            if !isempty(build_nodes)
-                build_nodes_gpu = KernelAbstractions.adapt(backend, build_nodes)
-                update_hist_gpu!(
-                    h∇, view_gain, view_bin, view_feat,
-                    ∇, x_bin, nidx, js_gpu, is_gpu,
-                    depth, build_nodes_gpu, nodes_sum_gpu, params,
-                    left_nodes_buf, right_nodes_buf, target_mask_buf
-                )
-            end
-            
-            if !isempty(subtract_nodes)
-                for node in subtract_nodes
-                    parent = node >> 1
-                    sibling = node ⊻ 1
-                    
-                    if (parent <= size(h∇, 4) && sibling <= size(h∇, 4) && node <= size(h∇, 4))
-                        
-                        @views h∇[:, :, :, node] .= h∇[:, :, :, parent] .- h∇[:, :, :, sibling]
-                    end
-                end
-                CUDA.synchronize()  
-            end
+            KernelAbstractions.synchronize(backend)
             
             find_split! = find_best_split_from_hist_kernel!(backend)
-            find_split!(view_gain, view_bin, view_feat, h∇, nodes_sum_gpu, active_nodes_act, js_gpu,
-                       Float32(params.lambda), Float32(params.min_weight); ndrange = n_active)
+            find_split!(view_gain, view_bin, view_feat, h∇, nodes_sum_gpu, active_nodes_act, js,
+                      Float32(params.lambda), Float32(params.min_weight); ndrange = n_active)
         end
 
         n_next_active_gpu .= 0
@@ -158,27 +148,23 @@ function grow_tree!(
             ndrange = n_active
         )
         
-        n_active = Int(Array(n_next_active_gpu)[1])
+        n_active = min(2 * n_active, 2^depth)
         if n_active > 0
             copyto!(view(anodes_gpu, 1:n_active), view(n_next_gpu, 1:n_active))
         end
 
         if depth < params.max_depth && n_active > 0
             update_nodes_idx_kernel!(backend)(
-                nidx, is_gpu, x_bin, tree_feat_gpu, tree_cond_bin_gpu, feattypes_gpu;
-                ndrange = length(is_gpu)
+                nidx, is, x_bin, tree_feat_gpu, tree_cond_bin_gpu, feattypes_gpu;
+                ndrange = length(is)
             )
         end
     end
-    h∇ .= 0
-    h∇L .= 0
-    h∇R .= 0
 
     copyto!(tree.split, Array(tree_split_gpu))
     copyto!(tree.cond_bin, Array(tree_cond_bin_gpu))
     copyto!(tree.feat, Array(tree_feat_gpu))
     copyto!(tree.gain, Array(tree_gain_gpu))
-
     copyto!(tree.pred, Array(tree_pred_gpu .* Float32(params.eta)))
     
     for i in eachindex(tree.split)
@@ -256,4 +242,3 @@ end
     @inbounds w = nodes_sum[3, node]
     @inbounds nodes_gain[node] = p1^2 / (p2 + lambda * w + T(1e-8))
 end
-
