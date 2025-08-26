@@ -9,7 +9,7 @@ using BenchmarkTools
 using Random: seed!
 
 run_evo = true
-run_xgb = false
+run_xgb = true
 nrounds = 200
 
 loss = :mse
@@ -21,13 +21,13 @@ device_list = [:cpu, :gpu]
 # device_list = [:gpu]
 
 nobs_list = Int.([1e5, 1e6, 1e7])
-# nobs_list = Int.([1e6])
+# nobs_list = Int.([1e5])
 
 nfeats_list = [10, 100]
 # nfeats_list = [100]
 
 max_depth_list = [6, 11]
-# max_depth_list = [6]
+# max_depth_list = [11]
 
 for device in device_list
     df = DataFrame()
@@ -112,16 +112,17 @@ for device in device_list
                     @info "warmup"
                     if nobs == first(nobs_list) && nfeats == first(nfeats_list) && max_depth == first(max_depth_list)
                         _m_xgb = xgboost(dtrain; watchlist, nthread=nthreads, verbosity=0, eval_metric=metric_xgb, params_xgb...)
-                        XGBoost.predict(_m_xgb, x_train)
+                        # XGBoost.predict(_m_xgb, x_train)
                     end
                     t_train_xgb = @elapsed m_xgb = xgboost(dtrain; watchlist, nthread=nthreads, verbosity=0, eval_metric=metric_xgb, params_xgb...)
                     @info "train" t_train_xgb
-                    t_infer_xgb = @elapsed pred_xgb = XGBoost.predict(m_xgb, x_train)
-                    @info "predict" t_infer_xgb
+                    # t_infer_xgb = @elapsed pred_xgb = XGBoost.predict(m_xgb, x_train)
+                    # @info "predict" t_infer_xgb
 
                     _df = hcat(_df, DataFrame(
                         :train_xgb => t_train_xgb,
-                        :infer_xgb => t_infer_xgb)
+                        # :infer_xgb => t_infer_xgb
+                    )
                     )
                 end
                 append!(df, _df)
