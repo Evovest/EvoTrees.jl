@@ -4,13 +4,7 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.E
     
     js_cpu = Vector{eltype(cache.js)}(undef, length(cache.js))
     EvoTrees.sample!(params.rng, cache.js_, js_cpu, replace=false, ordered=true)
-    
-    if isa(cache.js, CuArray)
-        copyto!(cache.js, js_cpu)
-        js_gpu = cache.js
-    else
-        js_gpu = CuArray(js_cpu)
-    end
+    copyto!(cache.js, js_cpu)  
 
     tree = EvoTrees.Tree{L,K}(params.max_depth)
     grow! = params.tree_type == "oblivious" ? grow_otree! : grow_tree!
@@ -21,7 +15,7 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache, params::EvoTrees.E
         cache.edges,
         cache.nidx,
         is,
-        js_gpu, 
+        cache.js,  
         cache.h∇,
         cache.x_bin,
         cache.feattypes_gpu,

@@ -76,7 +76,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes{L}, ::Type{<:EvoTrees.GPU}
     is_out = CUDA.zeros(UInt32, nobs)
     mask = CUDA.zeros(UInt8, nobs)
     js_ = UInt32.(collect(1:nfeats))
-    js = zeros(eltype(js_), ceil(Int, params.colsample * nfeats))
+    js = CUDA.zeros(UInt32, ceil(Int, params.colsample * nfeats))
 
     # assign monotone contraints in constraints vector
     monotone_constraints = zeros(Int32, nfeats)
