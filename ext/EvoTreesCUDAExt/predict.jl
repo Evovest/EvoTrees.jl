@@ -15,7 +15,7 @@ function predict_kernel!(
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
-            nid = nid << 1 + !cond
+            nid = (nid << 1) + Int(!cond)
         end
         @inbounds for k = 1:K
             pred[k, i] += leaf_pred[k, nid]
@@ -42,7 +42,7 @@ function predict_kernel!(
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
-            nid = nid << 1 + !cond
+            nid = (nid << 1) + Int(!cond)
         end
         pred[1, i] += leaf_pred[1, nid]
     end
@@ -67,7 +67,7 @@ function predict_kernel!(
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
-            nid = nid << 1 + !cond
+            nid = (nid << 1) + Int(!cond)
         end
         pred[1, i] = min(T(15), max(T(-15), pred[1, i] + leaf_pred[1, nid]))
     end
@@ -92,7 +92,7 @@ function predict_kernel!(
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
-            nid = nid << 1 + !cond
+            nid = (nid << 1) + Int(!cond)
         end
         pred[1, i] += leaf_pred[1, nid]
         pred[2, i] = max(T(-15), pred[2, i] + leaf_pred[2, nid])
@@ -151,21 +151,23 @@ end
 
 # prediction for EvoTree model
 function EvoTrees._predict(
-    m::EvoTrees.EvoTree{L,K},
+    m::EvoTrees.EvoTree,
     data,
     ::Type{<:EvoTrees.GPU};
-    ntree_limit=length(m.trees)) where {L,K}
+    ntree_limit=length(m.trees))
 
-    EvoTrees.Tables.istable(data) ? data = EvoTrees.Tables.columntable(data) : nothing
+    K = m.K
+    pred = CUDA.zeros(K, size(data, 1))
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
     x_bin = CuArray(EvoTrees.binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges]))
-    nobs = size(x_bin, 1)
-    pred = CUDA.zeros(K, nobs)
     feattypes = CuArray(m.info[:feattypes])
     for i = 1:ntree_limit
         EvoTrees.predict!(pred, m.trees[i], x_bin, feattypes)
     end
+    
+    # Apply loss-specific transformations
+    L = m.loss_type
     if L == EvoTrees.LogLoss
         pred .= EvoTrees.sigmoid.(pred)
     elseif L ∈ [EvoTrees.Poisson, EvoTrees.Gamma, EvoTrees.Tweedie]
@@ -204,14 +206,3 @@ function EvoTrees.softmax!(p::CuMatrix{T}; MAX_THREADS=1024) where {T}
     return nothing
 end
 
-# Quantile - special case where ∇ is passed as argument
-function quantile_gpu(x::AnyCuVector, alpha)
-    x_sort = sort(x)
-    idx = ceil(Int, alpha * length(x_sort))
-    return CUDA.@allowscalar x_sort[idx]
-end
-
-function EvoTrees.pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTrees.EvoTypes, ∇::CuMatrix, is) where {L<:EvoTrees.Quantile,T}
-    ϵ = eps(T)
-    p[1, n] = params.eta * quantile_gpu(view(∇, 2, is), params.alpha) / (1 + params.lambda + params.L2 / ∑[3])
-end
