@@ -67,6 +67,7 @@ end
             if node > 0 && node <= size(h∇, 4)
                 bin = x_bin[obs, feat]
                 if bin > 0 && bin <= size(h∇, 2)
+                    
                     for k in 1:(2*K+1)
                         grad = ∇[k, obs]
                         Atomix.@atomic h∇[k, bin, feat, node] += grad
@@ -102,21 +103,30 @@ end
         else
             nbins = size(h∇, 2)
             
-            p_g1, p_g2, p_w = zero(T), zero(T), zero(T)
-            for j_idx in 1:length(js)
-                f = js[j_idx]
-                for b in 1:nbins
-                    p_g1 += h∇[1, b, f, node]
-                    p_g2 += h∇[2, b, f, node]
-                    p_w += h∇[2*K+1, b, f, node]
+            for k in 1:(2*K+1)
+                sum_val = zero(T)
+                for j_idx in 1:length(js)
+                    f = js[j_idx]
+                    for b in 1:nbins
+                        sum_val += h∇[k, b, j_idx, node]
+                    end
                 end
+                nodes_sum[k, node] = sum_val
             end
             
-            nodes_sum[1, node] = p_g1
-            nodes_sum[2, node] = p_g2
-            nodes_sum[2*K+1, node] = p_w
-            
-            gain_p = p_g1^2 / (p_g2 + lambda * p_w + T(1e-8))
+            gain_p = zero(T)
+            w_p = nodes_sum[2*K+1, node]
+            if K == 1
+                g_p = nodes_sum[1, node]
+                h_p = nodes_sum[2, node]
+                gain_p = g_p^2 / (h_p + lambda * w_p + T(1e-8))
+            else
+                for k in 1:K
+                    g_p = nodes_sum[k, node]
+                    h_p = nodes_sum[K+k, node]
+                    gain_p += g_p^2 / (h_p + lambda * w_p / K + T(1e-8))
+                end
+            end
             
             g_best, b_best, f_best = T(-Inf), Int32(0), Int32(0)
             
@@ -125,28 +135,28 @@ end
                 is_numeric = feattypes[f]
                 constraint = monotone_constraints[f]
                 
-                if is_numeric
+                if is_numeric  
                     s1, s2, s3 = zero(T), zero(T), zero(T)
                     for b in 1:(nbins - 1)
-                        s1 += h∇[1, b, f, node]
-                        s2 += h∇[2, b, f, node]
-                        s3 += h∇[2*K+1, b, f, node]
+                        s1 += h∇[1, b, j_idx, node]
+                        s2 += h∇[2, b, j_idx, node]  
+                        s3 += h∇[2*K+1, b, j_idx, node]
                         
-                        if s3 >= min_weight && (p_w - s3) >= min_weight
+                        if s3 >= min_weight && (w_p - s3) >= min_weight
                             l_g1, l_g2 = s1, s2
-                            r_g1, r_g2 = p_g1 - l_g1, p_g2 - l_g2
+                            r_g1, r_g2 = nodes_sum[1, node] - l_g1, nodes_sum[2, node] - l_g2
                             
                             if constraint != 0
                                 predL = -l_g1 / (l_g2 + lambda * s3 + T(1e-8))
-                                predR = -r_g1 / (r_g2 + lambda * (p_w - s3) + T(1e-8))
+                                predR = -r_g1 / (r_g2 + lambda * (w_p - s3) + T(1e-8))
                                 
-                                if (constraint == -1 && predL <= predR) || (constraint == 1 && predL >= predR)
+                                if !((constraint == 0) || (constraint == -1 && predL > predR) || (constraint == 1 && predL < predR))
                                     continue
                                 end
                             end
                             
                             gain_l = l_g1^2 / (s3 * lambda + l_g2 + T(1e-8))
-                            gain_r = r_g1^2 / ((p_w - s3) * lambda + r_g2 + T(1e-8))
+                            gain_r = r_g1^2 / ((w_p - s3) * lambda + r_g2 + T(1e-8))
                             
                             g = gain_l + gain_r - gain_p
                             if g > g_best
@@ -156,22 +166,22 @@ end
                             end
                         end
                     end
-                else
+                else  
                     for b in 1:(nbins - 1)
-                        l_g1 = h∇[1, b, f, node]
-                        l_g2 = h∇[2, b, f, node]
-                        l_w = h∇[2*K+1, b, f, node]
+                        l_g1 = h∇[1, b, j_idx, node]
+                        l_g2 = h∇[2, b, j_idx, node]
+                        l_w = h∇[2*K+1, b, j_idx, node]
                         
-                        r_g1 = p_g1 - l_g1
-                        r_g2 = p_g2 - l_g2
-                        r_w = p_w - l_w
+                        r_g1 = nodes_sum[1, node] - l_g1
+                        r_g2 = nodes_sum[2, node] - l_g2
+                        r_w = w_p - l_w
                         
                         if l_w >= min_weight && r_w >= min_weight
                             if constraint != 0
                                 predL = -l_g1 / (l_g2 + lambda * l_w + T(1e-8))
                                 predR = -r_g1 / (r_g2 + lambda * r_w + T(1e-8))
                                 
-                                if (constraint == -1 && predL <= predR) || (constraint == 1 && predL >= predR)
+                                if !((constraint == 0) || (constraint == -1 && predL > predR) || (constraint == 1 && predL < predR))
                                     continue
                                 end
                             end
