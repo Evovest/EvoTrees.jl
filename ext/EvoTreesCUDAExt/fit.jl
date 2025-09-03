@@ -184,38 +184,70 @@ end
         child_l, child_r = node << 1, (node << 1) + 1
         feat, bin = Int(tree_feat[node]), Int(tree_cond_bin[node])
 
-        s1, s2, s3 = zero(eltype(nodes_sum)), zero(eltype(nodes_sum)), zero(eltype(nodes_sum))
+        # compute left child cumulative sums up to bin for all K and weight
+        w_l = zero(eltype(nodes_sum))
         @inbounds for b in 1:bin
-            s1 += h∇[1, b, feat, node]
-            s2 += h∇[2, b, feat, node]
-            s3 += h∇[2*K+1, b, feat, node]
+            w_l += h∇[2*K+1, b, feat, node]
         end
+        @inbounds for kk in 1:K
+            g_l = zero(eltype(nodes_sum))
+            h_l = zero(eltype(nodes_sum))
+            @inbounds for b in 1:bin
+                g_l += h∇[kk, b, feat, node]
+                h_l += h∇[K+kk, b, feat, node]
+            end
+            nodes_sum[kk, child_l] = g_l
+            nodes_sum[K+kk, child_l] = h_l
+        end
+        nodes_sum[2*K+1, child_l] = w_l
         
-        nodes_sum[1, child_l] = s1
-        nodes_sum[2, child_l] = s2
-        nodes_sum[2*K+1, child_l] = s3
-        
-        nodes_sum[1, child_r] = nodes_sum[1, node] - nodes_sum[1, child_l]
-        nodes_sum[2, child_r] = nodes_sum[2, node] - nodes_sum[2, child_l]
+        # right child is parent minus left
+        @inbounds for kk in 1:K
+            nodes_sum[kk, child_r] = nodes_sum[kk, node] - nodes_sum[kk, child_l]
+            nodes_sum[K+kk, child_r] = nodes_sum[K+kk, node] - nodes_sum[K+kk, child_l]
+        end
         nodes_sum[2*K+1, child_r] = nodes_sum[2*K+1, node] - nodes_sum[2*K+1, child_l]
 
-        p1_l, p2_l, w_l = nodes_sum[1, child_l], nodes_sum[2, child_l], nodes_sum[2*K+1, child_l]
-        nodes_gain[child_l] = p1_l^2 / (p2_l + lambda * w_l + epsv)
-        p1_r, p2_r, w_r = nodes_sum[1, child_r], nodes_sum[2, child_r], nodes_sum[2*K+1, child_r]
-        nodes_gain[child_r] = p1_r^2 / (p2_r + lambda * w_r + epsv)
+        # aggregate node gains over K with lambda sharing by K
+        w_r = nodes_sum[2*K+1, child_r]
+        gain_l = zero(eltype(nodes_sum))
+        gain_r = zero(eltype(nodes_sum))
+        @inbounds for kk in 1:K
+            g_l = nodes_sum[kk, child_l]
+            h_l = nodes_sum[K+kk, child_l]
+            g_r = nodes_sum[kk, child_r]
+            h_r = nodes_sum[K+kk, child_r]
+            gain_l += g_l^2 / (h_l + lambda * (w_l / K) + epsv)
+            gain_r += g_r^2 / (h_r + lambda * (w_r / K) + epsv)
+        end
+        nodes_gain[child_l] = gain_l
+        nodes_gain[child_r] = gain_r
         
         idx_base = Atomix.@atomic n_next_active[1] += 2
         n_next[idx_base - 1] = child_l
         n_next[idx_base] = child_r
 
-        tree_pred[1, child_l] = - (nodes_sum[1, child_l]) / (nodes_sum[2, child_l] + lambda * nodes_sum[2*K+1, child_l] + epsv)
-        tree_pred[1, child_r] = - (nodes_sum[1, child_r]) / (nodes_sum[2, child_r] + lambda * nodes_sum[2*K+1, child_r] + epsv)
+        # per-parameter leaf predictions pre-eta scaling
+        @inbounds for kk in 1:K
+            tree_pred[kk, child_l] = - nodes_sum[kk, child_l] / (nodes_sum[K+kk, child_l] + lambda * nodes_sum[2*K+1, child_l] + epsv)
+            tree_pred[kk, child_r] = - nodes_sum[kk, child_r] / (nodes_sum[K+kk, child_r] + lambda * nodes_sum[2*K+1, child_r] + epsv)
+        end
     else
-        g, h, w = nodes_sum[1, node], nodes_sum[2, node], nodes_sum[2*K+1, node]
-        if w <= zero(w) || h + lambda * w <= zero(h)
-            tree_pred[1, node] = 0.0f0
+        w = nodes_sum[2*K+1, node]
+        if w <= zero(w)
+            @inbounds for kk in 1:K
+                tree_pred[kk, node] = zero(eltype(tree_pred))
+            end
         else
-            tree_pred[1, node] = -g / (h + lambda * w + epsv)
+            @inbounds for kk in 1:K
+                gk = nodes_sum[kk, node]
+                hk = nodes_sum[K+kk, node]
+                if hk + lambda * w <= zero(hk)
+                    tree_pred[kk, node] = zero(eltype(tree_pred))
+                else
+                    tree_pred[kk, node] = -gk / (hk + lambda * w + epsv)
+                end
+            end
         end
     end
 end
@@ -223,9 +255,13 @@ end
 @kernel function get_gain_gpu!(nodes_gain::AbstractVector{T}, nodes_sum::AbstractArray{T,2}, nodes, lambda::T, K::Int) where {T}
     n_idx = @index(Global)
     node = nodes[n_idx]
-    @inbounds p1 = nodes_sum[1, node]
-    @inbounds p2 = nodes_sum[2, node]
     @inbounds w = nodes_sum[2*K+1, node]
-    @inbounds nodes_gain[node] = p1^2 / (p2 + lambda * w + T(1e-8))
+    gain = zero(T)
+    @inbounds for kk in 1:K
+        p1 = nodes_sum[kk, node]
+        p2 = nodes_sum[K+kk, node]
+        gain += p1^2 / (p2 + lambda * (w / K) + T(1e-8))
+    end
+    @inbounds nodes_gain[node] = gain
 end
 

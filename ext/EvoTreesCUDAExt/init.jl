@@ -1,12 +1,14 @@
 function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, data, fnames, y_train, w, offset)
 
     edges, featbins, feattypes = EvoTrees.get_edges(data; feature_names=fnames, nbins=params.nbins, rng=params.rng)
-    x_bin = CuArray(EvoTrees.binarize(data; feature_names=fnames, edges))
+    xb = EvoTrees.binarize(data; feature_names=fnames, edges)
+    x_bin = CuArray(xb)
     nobs, nfeats = size(x_bin)
     T = Float32
     L = EvoTrees._loss2type_dict[params.loss]
 
     target_levels = nothing
+    target_isordered = false
     if L == EvoTrees.LogLoss
         @assert eltype(y_train) <: Real && minimum(y_train) >= 0 && maximum(y_train) <= 1
         K = 1
@@ -22,9 +24,11 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     elseif L == EvoTrees.MLogLoss
         if eltype(y_train) <: EvoTrees.CategoricalValue
             target_levels = EvoTrees.CategoricalArrays.levels(y_train)
+            target_isordered = EvoTrees.isordered(y_train)
             y = UInt32.(EvoTrees.CategoricalArrays.levelcode.(y_train))
         elseif eltype(y_train) <: Integer || eltype(y_train) <: Bool || eltype(y_train) <: String || eltype(y_train) <: Char
             target_levels = sort(unique(y_train))
+            target_isordered = false
             yc = EvoTrees.CategoricalVector(y_train, levels=target_levels)
             y = UInt32.(EvoTrees.CategoricalArrays.levelcode.(yc))
         else
@@ -58,8 +62,15 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
 
     backend = KernelAbstractions.get_backend(x_bin)
     pred = KernelAbstractions.zeros(backend, T, K, nobs)
-    pred .= CuArray(μ)
-    !isnothing(offset) && (pred .+= CuArray(offset'))
+    mu_dev = KernelAbstractions.zeros(backend, T, K, 1)
+    copyto!(mu_dev, reshape(T.(μ), K, 1))
+    pred .= mu_dev
+    if !isnothing(offset)
+        offT = T.(offset')
+        off_dev = KernelAbstractions.zeros(backend, T, size(offT, 1), size(offT, 2))
+        copyto!(off_dev, offT)
+        pred .+= off_dev
+    end
 
     ∇ = KernelAbstractions.zeros(backend, T, 2 * K + 1, nobs)
     h∇ = KernelAbstractions.zeros(backend, Float32, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
@@ -84,7 +95,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         :nrounds => 0,
         :feature_names => fnames,
         :target_levels => target_levels,
-        :target_isordered => false,
+        :target_isordered => target_isordered,
         :edges => edges,
         :featbins => featbins,
         :feattypes => feattypes,
@@ -96,10 +107,14 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
 
     cond_feats = zeros(Int, 2^(params.max_depth - 1) - 1)
     cond_bins = zeros(UInt8, 2^(params.max_depth - 1) - 1)
-    cond_feats_gpu = CuArray(cond_feats)
-    cond_bins_gpu = CuArray(cond_bins)
-    feattypes_gpu = CuArray(feattypes)
-    monotone_constraints_gpu = CuArray(monotone_constraints)
+    cond_feats_gpu = KernelAbstractions.zeros(backend, Int, length(cond_feats))
+    copyto!(cond_feats_gpu, cond_feats)
+    cond_bins_gpu = KernelAbstractions.zeros(backend, UInt8, length(cond_bins))
+    copyto!(cond_bins_gpu, cond_bins)
+    feattypes_gpu = KernelAbstractions.zeros(backend, Bool, length(feattypes))
+    copyto!(feattypes_gpu, feattypes)
+    monotone_constraints_gpu = KernelAbstractions.zeros(backend, Int32, length(monotone_constraints))
+    copyto!(monotone_constraints_gpu, monotone_constraints)
 
     max_nodes_level = 2^params.max_depth
     left_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_nodes_level)

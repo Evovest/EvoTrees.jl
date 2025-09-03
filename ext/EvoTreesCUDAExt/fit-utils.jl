@@ -108,7 +108,7 @@ end
                 for j_idx in 1:length(js)
                     f = js[j_idx]
                     for b in 1:nbins
-                        sum_val += h∇[k, b, j_idx, node]
+                        sum_val += h∇[k, b, f, node]
                     end
                 end
                 nodes_sum[k, node] = sum_val
@@ -136,28 +136,52 @@ end
                 constraint = monotone_constraints[f]
                 
                 if is_numeric  
-                    s1, s2, s3 = zero(T), zero(T), zero(T)
                     for b in 1:(nbins - 1)
-                        s1 += h∇[1, b, j_idx, node]
-                        s2 += h∇[2, b, j_idx, node]  
-                        s3 += h∇[2*K+1, b, j_idx, node]
-                        
-                        if s3 >= min_weight && (w_p - s3) >= min_weight
-                            l_g1, l_g2 = s1, s2
-                            r_g1, r_g2 = nodes_sum[1, node] - l_g1, nodes_sum[2, node] - l_g2
-                            
+                        s_w = zero(T)
+                        gain_l = zero(T)
+                        gain_r = zero(T)
+                        predL = zero(T)
+                        predR = zero(T)
+                        @inbounds for kk in 1:K
+                            # cumulative sums up to bin b for numeric features
+                            l_g = zero(T)
+                            l_h = zero(T)
+                            @inbounds for bb in 1:b
+                                l_g += h∇[kk, bb, f, node]
+                                l_h += h∇[K+kk, bb, f, node]
+                            end
+                            # weight cumulative
+                            # compute once outside kk loop; but safe to accumulate here
+                            # will be overwritten by final value after kk loop
+                        end
+                        # compute weight cumulative once
+                        @inbounds for bb in 1:b
+                            s_w += h∇[2*K+1, bb, f, node]
+                        end
+                        if s_w >= min_weight && (w_p - s_w) >= min_weight
+                            @inbounds for kk in 1:K
+                                l_g = zero(T)
+                                l_h = zero(T)
+                                @inbounds for bb in 1:b
+                                    l_g += h∇[kk, bb, f, node]
+                                    l_h += h∇[K+kk, bb, f, node]
+                                end
+                                r_g = nodes_sum[kk, node] - l_g
+                                r_h = nodes_sum[K+kk, node] - l_h
+                                denomL = l_h + lambda * (s_w / K) + T(1e-8)
+                                denomR = r_h + lambda * ((w_p - s_w) / K) + T(1e-8)
+                                gain_l += l_g^2 / denomL
+                                gain_r += r_g^2 / denomR
+                                if constraint != 0
+                                    predL += -l_g / denomL
+                                    predR += -r_g / denomR
+                                end
+                            end
                             if constraint != 0
-                                predL = -l_g1 / (l_g2 + lambda * s3 + T(1e-8))
-                                predR = -r_g1 / (r_g2 + lambda * (w_p - s3) + T(1e-8))
-                                
                                 if !((constraint == 0) || (constraint == -1 && predL > predR) || (constraint == 1 && predL < predR))
                                     continue
                                 end
                             end
-                            
-                            gain_l = l_g1^2 / (s3 * lambda + l_g2 + T(1e-8))
-                            gain_r = r_g1^2 / ((w_p - s3) * lambda + r_g2 + T(1e-8))
-                            
                             g = gain_l + gain_r - gain_p
                             if g > g_best
                                 g_best = g
@@ -168,27 +192,33 @@ end
                     end
                 else  
                     for b in 1:(nbins - 1)
-                        l_g1 = h∇[1, b, j_idx, node]
-                        l_g2 = h∇[2, b, j_idx, node]
-                        l_w = h∇[2*K+1, b, j_idx, node]
-                        
-                        r_g1 = nodes_sum[1, node] - l_g1
-                        r_g2 = nodes_sum[2, node] - l_g2
+                        l_w = h∇[2*K+1, b, f, node]
                         r_w = w_p - l_w
                         
                         if l_w >= min_weight && r_w >= min_weight
+                            gain_l = zero(T)
+                            gain_r = zero(T)
+                            predL = zero(T)
+                            predR = zero(T)
+                            @inbounds for kk in 1:K
+                                l_g = h∇[kk, b, f, node]
+                                l_h = h∇[K+kk, b, f, node]
+                                r_g = nodes_sum[kk, node] - l_g
+                                r_h = nodes_sum[K+kk, node] - l_h
+                                denomL = l_h + lambda * (l_w / K) + T(1e-8)
+                                denomR = r_h + lambda * (r_w / K) + T(1e-8)
+                                gain_l += l_g^2 / denomL
+                                gain_r += r_g^2 / denomR
+                                if constraint != 0
+                                    predL += -l_g / denomL
+                                    predR += -r_g / denomR
+                                end
+                            end
                             if constraint != 0
-                                predL = -l_g1 / (l_g2 + lambda * l_w + T(1e-8))
-                                predR = -r_g1 / (r_g2 + lambda * r_w + T(1e-8))
-                                
                                 if !((constraint == 0) || (constraint == -1 && predL > predR) || (constraint == 1 && predL < predR))
                                     continue
                                 end
                             end
-                            
-                            gain_l = l_g1^2 / (l_w * lambda + l_g2 + T(1e-8))
-                            gain_r = r_g1^2 / (r_w * lambda + r_g2 + T(1e-8))
-                            
                             g = gain_l + gain_r - gain_p
                             if g > g_best
                                 g_best = g

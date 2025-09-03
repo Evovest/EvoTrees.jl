@@ -1,10 +1,10 @@
 #####################
 # MSE
 #####################
-function kernel_mse_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+@kernel function kernel_mse_∇!(∇, p, y)
+    i = @index(Global)
     if i <= length(y)
-        @inbounds ∇[1, i] = 2 * (p[i] - y[i]) * ∇[3, i]
+        @inbounds ∇[1, i] = 2 * (p[1, i] - y[i]) * ∇[3, i]
         @inbounds ∇[2, i] = 2 * ∇[3, i]
     end
     return
@@ -17,18 +17,19 @@ function EvoTrees.update_grads!(
     params::EvoTrees.EvoTypes;
     MAX_THREADS=1024
 )
-    threads = min(MAX_THREADS, length(y))
-    blocks = cld(length(y), threads)
-    @cuda blocks = blocks threads = threads kernel_mse_∇!(∇, p, y)
-    CUDA.synchronize()
+    backend = KernelAbstractions.get_backend(p)
+    n = length(y)
+    workgroupsize = min(256, n)
+    kernel_mse_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
+    KernelAbstractions.synchronize(backend)
     return
 end
 
 #####################
 # LogLoss
 #####################
-function kernel_logloss_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+@kernel function kernel_logloss_∇!(∇, p, y)
+    i = @index(Global)
     if i <= length(y)
         @inbounds pred = EvoTrees.sigmoid(p[1, i])
         @inbounds ∇[1, i] = (pred - y[i]) * ∇[3, i]
@@ -44,18 +45,19 @@ function EvoTrees.update_grads!(
     params::EvoTrees.EvoTypes;
     MAX_THREADS=1024
 )
-    threads = min(MAX_THREADS, length(y))
-    blocks = cld(length(y), threads)
-    @cuda blocks = blocks threads = threads kernel_logloss_∇!(∇, p, y)
-    CUDA.synchronize()
+    backend = KernelAbstractions.get_backend(p)
+    n = length(y)
+    workgroupsize = min(256, n)
+    kernel_logloss_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
+    KernelAbstractions.synchronize(backend)
     return
 end
 
 #####################
 # Poisson
 #####################
-function kernel_poisson_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+@kernel function kernel_poisson_∇!(∇, p, y)
+    i = @index(Global)
     if i <= length(y)
         @inbounds pred = exp(p[1, i])
         @inbounds ∇[1, i] = (pred - y[i]) * ∇[3, i]
@@ -71,18 +73,19 @@ function EvoTrees.update_grads!(
     params::EvoTrees.EvoTypes;
     MAX_THREADS=1024
 )
-    threads = min(MAX_THREADS, length(y))
-    blocks = cld(length(y), threads)
-    @cuda blocks = blocks threads = threads kernel_poisson_∇!(∇, p, y)
-    CUDA.synchronize()
+    backend = KernelAbstractions.get_backend(p)
+    n = length(y)
+    workgroupsize = min(256, n)
+    kernel_poisson_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
+    KernelAbstractions.synchronize(backend)
     return
 end
 
 #####################
 # Gamma
 #####################
-function kernel_gamma_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+@kernel function kernel_gamma_∇!(∇, p, y)
+    i = @index(Global)
     if i <= length(y)
         pred = exp(p[1, i])
         @inbounds ∇[1, i] = 2 * (1 - y[i] / pred) * ∇[3, i]
@@ -98,18 +101,19 @@ function EvoTrees.update_grads!(
     params::EvoTrees.EvoTypes;
     MAX_THREADS=1024
 )
-    threads = min(MAX_THREADS, length(y))
-    blocks = cld(length(y), threads)
-    @cuda blocks = blocks threads = threads kernel_gamma_∇!(∇, p, y)
-    CUDA.synchronize()
+    backend = KernelAbstractions.get_backend(p)
+    n = length(y)
+    workgroupsize = min(256, n)
+    kernel_gamma_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
+    KernelAbstractions.synchronize(backend)
     return
 end
 
 #####################
 # Tweedie
 #####################
-function kernel_tweedie_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+@kernel function kernel_tweedie_∇!(∇, p, y)
+    i = @index(Global)
     rho = eltype(p)(1.5)
     if i <= length(y)
         @inbounds pred = exp(p[1, i])
@@ -127,21 +131,22 @@ function EvoTrees.update_grads!(
     params::EvoTrees.EvoTypes;
     MAX_THREADS=1024
 )
-    threads = min(MAX_THREADS, length(y))
-    blocks = cld(length(y), threads)
-    @cuda blocks = blocks threads = threads kernel_tweedie_∇!(∇, p, y)
-    CUDA.synchronize()
+    backend = KernelAbstractions.get_backend(p)
+    n = length(y)
+    workgroupsize = min(256, n)
+    kernel_tweedie_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
+    KernelAbstractions.synchronize(backend)
     return
 end
 
 #####################
 # Softmax
 #####################
-function kernel_mlogloss_∇!(∇::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector) where {T}
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+@kernel function kernel_mlogloss_∇!(∇, p, y)
+    i = @index(Global)
     K = size(p, 1)
     if i <= length(y)
-        isum = zero(T)
+        isum = zero(eltype(p))
         @inbounds for k in 1:K
             isum += exp(p[k, i])
         end
@@ -166,10 +171,11 @@ function EvoTrees.update_grads!(
     params::EvoTrees.EvoTypes;
     MAX_THREADS=1024
 )
-    threads = min(MAX_THREADS, length(y))
-    blocks = cld(length(y), threads)
-    @cuda blocks = blocks threads = threads kernel_mlogloss_∇!(∇, p, y)
-    CUDA.synchronize()
+    backend = KernelAbstractions.get_backend(p)
+    n = length(y)
+    workgroupsize = min(256, n)
+    kernel_mlogloss_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
+    KernelAbstractions.synchronize(backend)
     return
 end
 
@@ -178,8 +184,8 @@ end
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
 ################################################################################
-function kernel_gauss_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+@kernel function kernel_gauss_∇!(∇, p, y)
+    i = @index(Global)
     @inbounds if i <= length(y)
         # first order gradients
         ∇[1, i] = (p[1, i] - y[i]) / exp(2 * p[2, i]) * ∇[5, i]
@@ -199,10 +205,92 @@ function EvoTrees.update_grads!(
     params::EvoTrees.EvoTypes;
     MAX_THREADS=1024
 )
-    threads = min(MAX_THREADS, length(y))
-    blocks = cld(length(y), threads)
-    @cuda blocks = blocks threads = threads kernel_gauss_∇!(∇, p, y)
-    CUDA.synchronize()
+    backend = KernelAbstractions.get_backend(p)
+    n = length(y)
+    workgroupsize = min(256, n)
+    kernel_gauss_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
+    KernelAbstractions.synchronize(backend)
+    return
+end
+
+#####################
+# MAE
+#####################
+@kernel function kernel_mae_∇!(∇, p, y)
+    i = @index(Global)
+    if i <= length(y)
+        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
+    end
+    return
+end
+function EvoTrees.update_grads!(
+    ∇::CuMatrix,
+    p::CuMatrix,
+    y::CuVector,
+    ::Type{EvoTrees.MAE},
+    params::EvoTrees.EvoTypes;
+    MAX_THREADS=1024
+)
+    backend = KernelAbstractions.get_backend(p)
+    n = length(y)
+    workgroupsize = min(256, n)
+    kernel_mae_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
+    KernelAbstractions.synchronize(backend)
+    return
+end
+
+#####################
+# Credibility
+#####################
+@kernel function kernel_cred_∇!(∇, p, y)
+    i = @index(Global)
+    if i <= length(y)
+        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
+        @inbounds ∇[2, i] = (y[i] - p[1, i])^2 * ∇[3, i]
+    end
+    return
+end
+function EvoTrees.update_grads!(
+    ∇::CuMatrix,
+    p::CuMatrix,
+    y::CuVector,
+    ::Type{<:EvoTrees.Cred},
+    params::EvoTrees.EvoTypes;
+    MAX_THREADS=1024
+)
+    backend = KernelAbstractions.get_backend(p)
+    n = length(y)
+    workgroupsize = min(256, n)
+    kernel_cred_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
+    KernelAbstractions.synchronize(backend)
+    return
+end
+
+#####################
+# Quantile
+#####################
+@kernel function kernel_quantile_∇!(∇, p, y, alpha)
+    i = @index(Global)
+    if i <= length(y)
+        diff = (y[i] - p[1, i])
+        @inbounds ∇[1, i] = diff > 0 ? alpha * ∇[3, i] : (alpha - 1) * ∇[3, i]
+        @inbounds ∇[2, i] = diff
+    end
+    return
+end
+function EvoTrees.update_grads!(
+    ∇::CuMatrix{T},
+    p::CuMatrix{T},
+    y::CuVector{T},
+    ::Type{EvoTrees.Quantile},
+    params::EvoTrees.EvoTypes;
+    MAX_THREADS=1024
+) where {T<:AbstractFloat}
+    backend = KernelAbstractions.get_backend(p)
+    n = length(y)
+    workgroupsize = min(256, n)
+    kernel_quantile_∇!(backend)(∇, p, y, T(params.alpha); ndrange=n, workgroupsize=workgroupsize)
+    KernelAbstractions.synchronize(backend)
     return
 end
 
