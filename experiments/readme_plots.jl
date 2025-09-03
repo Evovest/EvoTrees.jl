@@ -11,7 +11,7 @@ using EvoTrees: fit, predict, sigmoid, logit
 # using ProfileView
 
 # prepare a dataset
-tree_type = :binary # binary/oblivious
+tree_type = :oblivious # binary/oblivious
 _device = :gpu
 
 Random.seed!(123)
@@ -182,16 +182,16 @@ config = EvoTreeRegressor(;
     device=_device
 )
 
-@time model = fit(
-    config;
-    x_train,
-    y_train,
-    x_eval,
-    y_eval,
-    print_every_n=25,
-);
-@time pred_train_mae = model(x_train; device=_device)
-sqrt(mean((pred_train_mae .- y_train) .^ 2))
+# @time model = fit(
+#     config;
+#     x_train,
+#     y_train,
+#     x_eval,
+#     y_eval,
+#     print_every_n=25,
+# );
+# @time pred_train_mae = model(x_train; device=_device)
+# sqrt(mean((pred_train_mae .- y_train) .^ 2))
 
 ###########################################
 # plot
