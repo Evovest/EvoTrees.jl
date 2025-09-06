@@ -57,6 +57,7 @@ end
 struct Tree{L,K}
     feat::Vector{Int}
     cond_bin::Vector{UInt8}
+    w::Vector{Float32}
     gain::Vector{Float32}
     pred::Matrix{Float32}
     split::Vector{Bool}
@@ -67,6 +68,7 @@ function Tree{L,K}(x::Vector) where {L,K}
         zeros(Int, 1),
         zeros(UInt8, 1),
         zeros(Float32, 1),
+        zeros(Float32, 1),
         reshape(x, :, 1),
         zeros(Bool, 1),
     )
@@ -76,6 +78,7 @@ function Tree{L,K}(depth::Int) where {L,K}
     Tree{L,K}(
         zeros(Int, 2^depth - 1),
         zeros(UInt8, 2^depth - 1),
+        zeros(Float32, 2^depth - 1),
         zeros(Float32, 2^depth - 1),
         zeros(Float32, K, 2^depth - 1),
         zeros(Bool, 2^depth - 1),

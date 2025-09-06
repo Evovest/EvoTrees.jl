@@ -69,6 +69,7 @@ function grow_tree!(
         # pred leafs if max depth is reached
         if depth == params.max_depth
             for n ∈ n_current
+                tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
                 if L <: Quantile
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
                 else
@@ -89,6 +90,7 @@ function grow_tree!(
             end
             sort!(n_current)
             @threads for n ∈ n_current
+                tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
                 best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
                 if best_bin != 0
                     tree.gain[n] = best_gain
@@ -173,6 +175,7 @@ function grow_otree!(
 
         if depth == params.max_depth
             for n in n_current
+                tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
                 if L <: Quantile
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
                 else
@@ -193,6 +196,7 @@ function grow_otree!(
             end
             sort!(n_current)
             @threads for n ∈ n_current
+                tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
                 update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
             end
 
