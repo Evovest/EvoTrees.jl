@@ -26,13 +26,11 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
             target_levels = EvoTrees.CategoricalArrays.levels(y_train)
             target_isordered = EvoTrees.isordered(y_train)
             y = UInt32.(EvoTrees.CategoricalArrays.levelcode.(y_train))
-        elseif eltype(y_train) <: Integer || eltype(y_train) <: Bool || eltype(y_train) <: String || eltype(y_train) <: Char
+        else
             target_levels = sort(unique(y_train))
             target_isordered = false
             yc = EvoTrees.CategoricalVector(y_train, levels=target_levels)
             y = UInt32.(EvoTrees.CategoricalArrays.levelcode.(yc))
-        else
-            @error "Invalid target eltype: $(eltype(y_train))"
         end
         K = length(target_levels)
         μ = T.(log.(EvoTrees.proportions(y, UInt32(1):UInt32(K))))
@@ -44,13 +42,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         y = T.(y_train)
         μ = [EvoTrees.mean(y), log(EvoTrees.std(y))]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
-    elseif L == EvoTrees.LogisticMLE
-        @assert eltype(y_train) <: Real
-        K = 2
-        y = T.(y_train)
-        μ = [EvoTrees.mean(y), log(EvoTrees.std(y) * sqrt(3) / π)]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
-    else
+    else 
         @assert eltype(y_train) <: Real
         K = 1
         y = T.(y_train)
@@ -73,9 +65,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     end
 
     ∇ = KernelAbstractions.zeros(backend, T, 2 * K + 1, nobs)
-    h∇ = KernelAbstractions.zeros(backend, Float32, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
-    h∇L = KernelAbstractions.zeros(backend, Float32, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
-    h∇R = KernelAbstractions.zeros(backend, Float32, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
+    h∇ = KernelAbstractions.zeros(backend, Float32, 2 * K + 1, params.nbins, nfeats, 2^params.max_depth - 1)
+    
     @assert (length(y) == length(w) && minimum(w) > 0)
     ∇[end, :] .= w
 
@@ -101,20 +92,10 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         :feattypes => feattypes,
     )
 
-    nodes = [EvoTrees.TrainNode(nfeats, params.nbins, K, view(zeros(UInt32, 0), 1:0)) for _ in 1:2^params.max_depth-1]
-    bias = [EvoTrees.Tree{L,K}(μ)]
-    m = EvoTree{L,K}(L, K, bias, info)
+    m = EvoTree{L,K}(L, K, [EvoTrees.Tree{L,K}(μ)], info)
 
-    cond_feats = zeros(Int, 2^(params.max_depth - 1) - 1)
-    cond_bins = zeros(UInt8, 2^(params.max_depth - 1) - 1)
-    cond_feats_gpu = KernelAbstractions.zeros(backend, Int, length(cond_feats))
-    copyto!(cond_feats_gpu, cond_feats)
-    cond_bins_gpu = KernelAbstractions.zeros(backend, UInt8, length(cond_bins))
-    copyto!(cond_bins_gpu, cond_bins)
-    feattypes_gpu = KernelAbstractions.zeros(backend, Bool, length(feattypes))
-    copyto!(feattypes_gpu, feattypes)
-    monotone_constraints_gpu = KernelAbstractions.zeros(backend, Int32, length(monotone_constraints))
-    copyto!(monotone_constraints_gpu, monotone_constraints)
+    feattypes_gpu = CuArray(feattypes)
+    monotone_constraints_gpu = CuArray(monotone_constraints)
 
     max_nodes_level = 2^params.max_depth
     left_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
@@ -127,9 +108,12 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     tree_feat_gpu = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
     tree_gain_gpu = KernelAbstractions.zeros(backend, Float64, max_tree_nodes)
     tree_pred_gpu = KernelAbstractions.zeros(backend, Float32, K, max_tree_nodes)
+    
     max_nodes_total = 2^(params.max_depth + 1)
+    
     nodes_sum_gpu = KernelAbstractions.zeros(backend, Float32, 2*K+1, max_nodes_total)
-    nodes_gain_gpu = KernelAbstractions.zeros(backend, Float32, 2^(params.max_depth + 1))
+    
+    nodes_gain_gpu = KernelAbstractions.zeros(backend, Float32, max_nodes_total)
     anodes_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
     n_next_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level * 2)
     n_next_active_gpu = KernelAbstractions.zeros(backend, Int32, 1)
@@ -140,56 +124,19 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     subtract_nodes_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
     build_count = KernelAbstractions.zeros(backend, Int32, 1)
     subtract_count = KernelAbstractions.zeros(backend, Int32, 1)
+    pre_leaf_gpu = KernelAbstractions.zeros(backend, Float32, max_nodes_total)
 
     cache = CacheGPU(
-        Dict(:nrounds => 0),
-        x_bin,
-        y,
-        w,
-        K,
-        nodes,
-        pred,
-        nidx,
-        is_in,
-        is_out,
-        mask,
-        js_,
-        js,
-        ∇,
-        h∇,
-        h∇L,
-        h∇R,
-        fnames,
-        edges,
-        featbins,
-        feattypes_gpu,
-        cond_feats,
-        cond_feats_gpu,
-        cond_bins,
-        cond_bins_gpu,
-        monotone_constraints_gpu,
-        left_nodes_buf,
-        right_nodes_buf,
-        target_mask_buf,
-        tree_split_gpu,
-        tree_cond_bin_gpu,
-        tree_feat_gpu,
-        tree_gain_gpu,
-        tree_pred_gpu,
-        nodes_sum_gpu,
-        nodes_gain_gpu,
-        anodes_gpu,
-        n_next_gpu,
-        n_next_active_gpu,
-        best_gain_gpu,
-        best_bin_gpu,
-        best_feat_gpu,
-        build_nodes_gpu,
-        subtract_nodes_gpu,
-        build_count,
-        subtract_count
+        info, x_bin, y, CuArray(w), K, nothing, pred, nidx, is_in, is_out, mask,
+        js_, js, ∇, h∇, nothing, nothing, fnames, edges, featbins, feattypes_gpu,
+        nothing, nothing, nothing, nothing, monotone_constraints_gpu,
+        left_nodes_buf, right_nodes_buf, target_mask_buf, tree_split_gpu,
+        tree_cond_bin_gpu, tree_feat_gpu, tree_gain_gpu, tree_pred_gpu,
+        nodes_sum_gpu, nodes_gain_gpu, anodes_gpu, n_next_gpu,
+        n_next_active_gpu, best_gain_gpu, best_bin_gpu, best_feat_gpu,
+        build_nodes_gpu, subtract_nodes_gpu, build_count, subtract_count,
+        pre_leaf_gpu
     )
     
     return m, cache
 end
-

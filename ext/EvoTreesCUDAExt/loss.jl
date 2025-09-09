@@ -1,3 +1,7 @@
+# loss.jl
+
+using KernelAbstractions
+
 #####################
 # MSE
 #####################
@@ -7,22 +11,56 @@
         @inbounds ∇[1, i] = 2 * (p[1, i] - y[i]) * ∇[3, i]
         @inbounds ∇[2, i] = 2 * ∇[3, i]
     end
-    return
 end
-function EvoTrees.update_grads!(
-    ∇::CuMatrix,
-    p::CuMatrix,
-    y::CuVector,
-    ::Type{EvoTrees.MSE},
-    params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
-)
-    backend = KernelAbstractions.get_backend(p)
+
+function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuVector, ::Type{EvoTrees.MSE}, params::EvoTrees.EvoTypes; kwargs...)
+    backend = get_backend(p)
     n = length(y)
     workgroupsize = min(256, n)
     kernel_mse_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
     KernelAbstractions.synchronize(backend)
-    return
+end
+
+#####################
+# MAE
+#####################
+@kernel function kernel_mae_∇!(∇, p, y)
+    i = @index(Global)
+    @inbounds if i <= length(y)
+        diff = y[i] - p[1, i]
+        ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
+        # Trick: Store the raw residual in the hessian slot, weighted
+        ∇[2, i] = diff * ∇[3, i]
+    end
+end
+
+function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuVector, ::Type{EvoTrees.MAE}, params::EvoTrees.EvoTypes; kwargs...)
+    backend = get_backend(p)
+    n = length(y)
+    workgroupsize = min(256, n)
+    kernel_mae_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
+    KernelAbstractions.synchronize(backend)
+end
+
+#####################
+# Quantile
+#####################
+@kernel function kernel_quantile_∇!(∇, p, y, alpha)
+    i = @index(Global)
+    @inbounds if i <= length(y)
+        diff = y[i] - p[1, i]
+        ∇[1, i] = (diff > 0 ? alpha : (alpha - 1)) * ∇[3, i]
+        # Store raw residual (unweighted) for quantile leaf computation
+        ∇[2, i] = diff
+    end
+end
+
+function EvoTrees.update_grads!(∇::CuMatrix{T}, p::CuMatrix{T}, y::CuVector{T}, ::Type{EvoTrees.Quantile}, params::EvoTrees.EvoTypes; kwargs...) where {T}
+    backend = get_backend(p)
+    n = length(y)
+    workgroupsize = min(256, n)
+    kernel_quantile_∇!(backend)(∇, p, y, T(params.alpha); ndrange=n, workgroupsize=workgroupsize)
+    KernelAbstractions.synchronize(backend)
 end
 
 #####################
@@ -30,27 +68,20 @@ end
 #####################
 @kernel function kernel_logloss_∇!(∇, p, y)
     i = @index(Global)
-    if i <= length(y)
-        @inbounds pred = EvoTrees.sigmoid(p[1, i])
-        @inbounds ∇[1, i] = (pred - y[i]) * ∇[3, i]
-        @inbounds ∇[2, i] = pred * (1 - pred) * ∇[3, i]
+    ϵ = eps(eltype(p))
+    @inbounds if i <= length(y)
+        pred = clamp(EvoTrees.sigmoid(p[1, i]), ϵ, 1 - ϵ)
+        ∇[1, i] = (pred - y[i]) * ∇[3, i]
+        ∇[2, i] = pred * (1 - pred) * ∇[3, i]
     end
-    return
 end
-function EvoTrees.update_grads!(
-    ∇::CuMatrix,
-    p::CuMatrix,
-    y::CuVector,
-    ::Type{EvoTrees.LogLoss},
-    params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
-)
-    backend = KernelAbstractions.get_backend(p)
+
+function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuVector, ::Type{EvoTrees.LogLoss}, params::EvoTrees.EvoTypes; kwargs...)
+    backend = get_backend(p)
     n = length(y)
     workgroupsize = min(256, n)
     kernel_logloss_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
     KernelAbstractions.synchronize(backend)
-    return
 end
 
 #####################
@@ -58,27 +89,19 @@ end
 #####################
 @kernel function kernel_poisson_∇!(∇, p, y)
     i = @index(Global)
-    if i <= length(y)
-        @inbounds pred = exp(p[1, i])
-        @inbounds ∇[1, i] = (pred - y[i]) * ∇[3, i]
-        @inbounds ∇[2, i] = pred * ∇[3, i]
+    @inbounds if i <= length(y)
+        pred = exp(p[1, i])
+        ∇[1, i] = (pred - y[i]) * ∇[3, i]
+        ∇[2, i] = pred * ∇[3, i]
     end
-    return
 end
-function EvoTrees.update_grads!(
-    ∇::CuMatrix,
-    p::CuMatrix,
-    y::CuVector,
-    ::Type{EvoTrees.Poisson},
-    params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
-)
-    backend = KernelAbstractions.get_backend(p)
+
+function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuVector, ::Type{EvoTrees.Poisson}, params::EvoTrees.EvoTypes; kwargs...)
+    backend = get_backend(p)
     n = length(y)
     workgroupsize = min(256, n)
     kernel_poisson_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
     KernelAbstractions.synchronize(backend)
-    return
 end
 
 #####################
@@ -87,12 +110,12 @@ end
 @kernel function kernel_gamma_∇!(∇, p, y)
     i = @index(Global)
     if i <= length(y)
-        pred = exp(p[1, i])
+        @inbounds pred = exp(p[1, i])
         @inbounds ∇[1, i] = 2 * (1 - y[i] / pred) * ∇[3, i]
         @inbounds ∇[2, i] = 2 * y[i] / pred * ∇[3, i]
     end
-    return
 end
+
 function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
@@ -118,11 +141,10 @@ end
     if i <= length(y)
         @inbounds pred = exp(p[1, i])
         @inbounds ∇[1, i] = 2 * (pred^(2 - rho) - y[i] * pred^(1 - rho)) * ∇[3, i]
-        @inbounds ∇[2, i] =
-            2 * ((2 - rho) * pred^(2 - rho) - (1 - rho) * y[i] * pred^(1 - rho)) * ∇[3, i]
+        @inbounds ∇[2, i] = 2 * ((2 - rho) * pred^(2 - rho) - (1 - rho) * y[i] * pred^(1 - rho)) * ∇[3, i]
     end
-    return
 end
+
 function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
@@ -160,7 +182,6 @@ end
             ∇[k+K, i] = 1 / isum * (1 - iexp / isum) * ∇[end, i]
         end
     end
-    return
 end
 
 function EvoTrees.update_grads!(
@@ -179,118 +200,86 @@ function EvoTrees.update_grads!(
     return
 end
 
-################################################################################
-# Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
-# pred[i][1] = μ
-# pred[i][2] = log(σ)
-################################################################################
+#####################
+# Gaussian
+#####################
 @kernel function kernel_gauss_∇!(∇, p, y)
     i = @index(Global)
     @inbounds if i <= length(y)
-        # first order gradients
-        ∇[1, i] = (p[1, i] - y[i]) / exp(2 * p[2, i]) * ∇[5, i]
-        ∇[2, i] = (1 - (p[1, i] - y[i])^2 / exp(2 * p[2, i])) * ∇[5, i]
-        # # second order gradients
-        ∇[3, i] = ∇[5, i] / exp(2 * p[2, i])
-        ∇[4, i] = 2 * ∇[5, i] / exp(2 * p[2, i]) * (p[1, i] - y[i])^2
+        sigma2 = exp(2 * p[2, i])
+        diff = p[1, i] - y[i]
+        
+        ∇[1, i] = diff / sigma2 * ∇[5, i]
+        ∇[2, i] = (1 - diff^2 / sigma2) * ∇[5, i]
+        ∇[3, i] = ∇[5, i] / sigma2
+        ∇[4, i] = 2 * ∇[5, i] * diff^2 / sigma2
     end
-    return
 end
 
-function EvoTrees.update_grads!(
-    ∇::CuMatrix,
-    p::CuMatrix,
-    y::CuVector,
-    ::Type{EvoTrees.GaussianMLE},
-    params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
-)
-    backend = KernelAbstractions.get_backend(p)
+function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuVector, ::Type{EvoTrees.GaussianMLE}, params::EvoTrees.EvoTypes; kwargs...)
+    backend = get_backend(p)
     n = length(y)
     workgroupsize = min(256, n)
     kernel_gauss_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
     KernelAbstractions.synchronize(backend)
-    return
 end
 
 #####################
-# MAE
+# Credibility Variance
 #####################
-@kernel function kernel_mae_∇!(∇, p, y)
+@kernel function kernel_cred_var_∇!(∇, p, y, lambda)
     i = @index(Global)
     if i <= length(y)
-        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
+        @inbounds ∇[1, i] = -2 * (y[i] - p[1, i]) * ∇[5, i]
+        @inbounds ∇[2, i] = lambda * ∇[5, i]
+        @inbounds ∇[3, i] = 2 * ∇[5, i]
+        @inbounds ∇[4, i] = zero(eltype(∇)) * ∇[5, i]
     end
-    return
-end
-function EvoTrees.update_grads!(
-    ∇::CuMatrix,
-    p::CuMatrix,
-    y::CuVector,
-    ::Type{EvoTrees.MAE},
-    params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
-)
-    backend = KernelAbstractions.get_backend(p)
-    n = length(y)
-    workgroupsize = min(256, n)
-    kernel_mae_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
-    KernelAbstractions.synchronize(backend)
-    return
 end
 
-#####################
-# Credibility
-#####################
-@kernel function kernel_cred_∇!(∇, p, y)
-    i = @index(Global)
-    if i <= length(y)
-        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
-        @inbounds ∇[2, i] = (y[i] - p[1, i])^2 * ∇[3, i]
-    end
-    return
-end
-function EvoTrees.update_grads!(
-    ∇::CuMatrix,
-    p::CuMatrix,
-    y::CuVector,
-    ::Type{<:EvoTrees.Cred},
-    params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
-)
-    backend = KernelAbstractions.get_backend(p)
-    n = length(y)
-    workgroupsize = min(256, n)
-    kernel_cred_∇!(backend)(∇, p, y; ndrange=n, workgroupsize=workgroupsize)
-    KernelAbstractions.synchronize(backend)
-    return
-end
-
-#####################
-# Quantile
-#####################
-@kernel function kernel_quantile_∇!(∇, p, y, alpha)
-    i = @index(Global)
-    if i <= length(y)
-        diff = (y[i] - p[1, i])
-        @inbounds ∇[1, i] = diff > 0 ? alpha * ∇[3, i] : (alpha - 1) * ∇[3, i]
-        @inbounds ∇[2, i] = diff
-    end
-    return
-end
 function EvoTrees.update_grads!(
     ∇::CuMatrix{T},
     p::CuMatrix{T},
     y::CuVector{T},
-    ::Type{EvoTrees.Quantile},
+    ::Type{EvoTrees.CredVar},
     params::EvoTrees.EvoTypes;
     MAX_THREADS=1024
 ) where {T<:AbstractFloat}
     backend = KernelAbstractions.get_backend(p)
     n = length(y)
     workgroupsize = min(256, n)
-    kernel_quantile_∇!(backend)(∇, p, y, T(params.alpha); ndrange=n, workgroupsize=workgroupsize)
+    kernel_cred_var_∇!(backend)(∇, p, y, T(params.lambda); ndrange=n, workgroupsize=workgroupsize)
     KernelAbstractions.synchronize(backend)
     return
 end
 
+#####################
+# Credibility Std
+#####################
+@kernel function kernel_cred_std_∇!(∇, p, y, lambda)
+    i = @index(Global)
+    if i <= length(y)
+        @inbounds sigma = exp(p[2, i])
+        @inbounds diff = y[i] - p[1, i]
+        @inbounds ∇[1, i] = -2 * diff / sigma * ∇[5, i]
+        @inbounds ∇[2, i] = (-diff^2 / sigma + lambda * sigma) * ∇[5, i]
+        @inbounds ∇[3, i] = 2 / sigma * ∇[5, i]
+        @inbounds ∇[4, i] = (2 * diff^2 / sigma + lambda * sigma) * ∇[5, i]
+    end
+end
+
+function EvoTrees.update_grads!(
+    ∇::CuMatrix{T},
+    p::CuMatrix{T},
+    y::CuVector{T},
+    ::Type{EvoTrees.CredStd},
+    params::EvoTrees.EvoTypes;
+    MAX_THREADS=1024
+) where {T<:AbstractFloat}
+    backend = KernelAbstractions.get_backend(p)
+    n = length(y)
+    workgroupsize = min(256, n)
+    kernel_cred_std_∇!(backend)(∇, p, y, T(params.lambda); ndrange=n, workgroupsize=workgroupsize)
+    KernelAbstractions.synchronize(backend)
+    return
+end

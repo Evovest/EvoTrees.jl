@@ -1,4 +1,5 @@
 using KernelAbstractions
+using Random
 
 @kernel function subsample_step_1_kernel!(is_in, mask, cond::UInt8, counts, chunk_size::Int)
     bid = @index(Global)
@@ -29,7 +30,6 @@ end
 function EvoTrees.subsample(is_in::CuVector, is_out::CuVector, mask::CuVector, rowsample::AbstractFloat, rng)
     backend = KernelAbstractions.get_backend(mask)
 
-    # Fill mask on host for portability, then copy to device
     mask_host = Vector{UInt8}(undef, length(mask))
     Random.rand!(rng, mask_host)
     cond = round(UInt8, 255 * rowsample)
