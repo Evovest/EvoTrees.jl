@@ -64,8 +64,17 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         pred .+= off_dev
     end
 
-    ∇ = KernelAbstractions.zeros(backend, T, 2 * K + 1, nobs)
-    h∇ = KernelAbstractions.zeros(backend, Float32, 2 * K + 1, params.nbins, nfeats, 2^params.max_depth - 1)
+    n_grad_hess = if L == EvoTrees.MLE2P
+        5
+    else
+        2 * K + 1
+    end
+    
+    ∇ = KernelAbstractions.zeros(backend, T, n_grad_hess, nobs)
+    
+    max_tree_nodes = 2^params.max_depth - 1
+    h∇ = KernelAbstractions.zeros(backend, T, n_grad_hess, params.nbins, nfeats, max_tree_nodes)
+    h∇_parent = KernelAbstractions.zeros(backend, T, n_grad_hess, params.nbins, nfeats, max_tree_nodes)
     
     @assert (length(y) == length(w) && minimum(w) > 0)
     ∇[end, :] .= w
@@ -102,40 +111,66 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     right_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
     target_mask_buf = KernelAbstractions.zeros(backend, UInt8, 2^(params.max_depth + 1))
 
-    max_tree_nodes = 2^params.max_depth - 1
     tree_split_gpu = KernelAbstractions.zeros(backend, Bool, max_tree_nodes)
     tree_cond_bin_gpu = KernelAbstractions.zeros(backend, UInt8, max_tree_nodes)
     tree_feat_gpu = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
-    tree_gain_gpu = KernelAbstractions.zeros(backend, Float64, max_tree_nodes)
-    tree_pred_gpu = KernelAbstractions.zeros(backend, Float32, K, max_tree_nodes)
+    tree_gain_gpu = KernelAbstractions.zeros(backend, T, max_tree_nodes)
+    tree_pred_gpu = KernelAbstractions.zeros(backend, T, K, max_tree_nodes)
     
     max_nodes_total = 2^(params.max_depth + 1)
     
-    nodes_sum_gpu = KernelAbstractions.zeros(backend, Float32, 2*K+1, max_nodes_total)
-    
-    nodes_gain_gpu = KernelAbstractions.zeros(backend, Float32, max_nodes_total)
+    nodes_sum_gpu = KernelAbstractions.zeros(backend, T, n_grad_hess, max_nodes_total)
+    nodes_gain_gpu = KernelAbstractions.zeros(backend, T, max_nodes_total)
     anodes_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
     n_next_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level * 2)
     n_next_active_gpu = KernelAbstractions.zeros(backend, Int32, 1)
-    best_gain_gpu = KernelAbstractions.zeros(backend, Float32, max_nodes_level)
+    best_gain_gpu = KernelAbstractions.zeros(backend, T, max_nodes_level)
     best_bin_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
     best_feat_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
-    build_nodes_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
-    subtract_nodes_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
-    build_count = KernelAbstractions.zeros(backend, Int32, 1)
-    subtract_count = KernelAbstractions.zeros(backend, Int32, 1)
-    pre_leaf_gpu = KernelAbstractions.zeros(backend, Float32, max_nodes_total)
+    
+    node_counts = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
+    build_mask = KernelAbstractions.zeros(backend, UInt8, max_tree_nodes)
 
     cache = CacheGPU(
-        info, x_bin, y, CuArray(w), K, nothing, pred, nidx, is_in, is_out, mask,
-        js_, js, ∇, h∇, nothing, nothing, fnames, edges, featbins, feattypes_gpu,
-        nothing, nothing, nothing, nothing, monotone_constraints_gpu,
-        left_nodes_buf, right_nodes_buf, target_mask_buf, tree_split_gpu,
-        tree_cond_bin_gpu, tree_feat_gpu, tree_gain_gpu, tree_pred_gpu,
-        nodes_sum_gpu, nodes_gain_gpu, anodes_gpu, n_next_gpu,
-        n_next_active_gpu, best_gain_gpu, best_bin_gpu, best_feat_gpu,
-        build_nodes_gpu, subtract_nodes_gpu, build_count, subtract_count,
-        pre_leaf_gpu
+        info,                        
+        x_bin,                       
+        y,                          
+        CuArray(w),                 
+        K,                          
+        nothing,                    
+        pred,                       
+        nidx,                       
+        is_in,                      
+        is_out,                     
+        mask,                       
+        js_,                        
+        js,                         
+        ∇,                          
+        h∇,                         
+        h∇_parent,                  
+        fnames,                     
+        edges,                      
+        featbins,                   
+        feattypes_gpu,              
+        monotone_constraints_gpu,   
+        left_nodes_buf,             
+        right_nodes_buf,            
+        target_mask_buf,            
+        tree_split_gpu,             
+        tree_cond_bin_gpu,          
+        tree_feat_gpu,              
+        tree_gain_gpu,              
+        tree_pred_gpu,              
+        nodes_sum_gpu,              
+        nodes_gain_gpu,             
+        anodes_gpu,                 
+        n_next_gpu,                 
+        n_next_active_gpu,          
+        best_gain_gpu,              
+        best_bin_gpu,               
+        best_feat_gpu,              
+        node_counts,                
+        build_mask                  
     )
     
     return m, cache

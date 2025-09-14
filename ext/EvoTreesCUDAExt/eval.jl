@@ -12,9 +12,8 @@ end
 
 function EvoTrees.mse(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     backend = KernelAbstractions.get_backend(p)
-    n = length(y)
-    workgroupsize = min(256, n)
-    eval_mse_kernel!(backend)(eval, p, y, w; ndrange=n, workgroupsize=workgroupsize)
+    threads = min(MAX_THREADS, length(y))
+    eval_mse_kernel!(backend)(eval, p, y, w; ndrange=length(y), workgroupsize=threads)
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
@@ -37,9 +36,29 @@ end
 
 function EvoTrees.mae(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     backend = KernelAbstractions.get_backend(p)
-    n = length(y)
-    workgroupsize = min(256, n)
-    eval_mae_kernel!(backend)(eval, p, y, w; ndrange=n, workgroupsize=workgroupsize)
+    threads = min(MAX_THREADS, length(y))
+    eval_mae_kernel!(backend)(eval, p, y, w; ndrange=length(y), workgroupsize=threads)
+    KernelAbstractions.synchronize(backend)
+    return sum(eval) / sum(w)
+end
+
+########################
+# WMAE
+########################
+@kernel function eval_wmae_kernel!(eval, p, y, w, alpha)
+    i = @index(Global)
+    if i <= length(y)
+        @inbounds eval[i] = w[i] * (
+            alpha * max(y[i] - p[1, i], zero(eltype(p))) +
+            (1 - alpha) * max(p[1, i] - y[i], zero(eltype(p)))
+        )
+    end
+end
+
+function EvoTrees.wmae(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, alpha=0.5, kwargs...) where {T<:AbstractFloat}
+    backend = KernelAbstractions.get_backend(p)
+    threads = min(MAX_THREADS, length(y))
+    eval_wmae_kernel!(backend)(eval, p, y, w, T(alpha); ndrange=length(y), workgroupsize=threads)
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
@@ -49,18 +68,16 @@ end
 ########################
 @kernel function eval_logloss_kernel!(eval, p, y, w)
     i = @index(Global)
-    ϵ = eps(eltype(p))
     if i <= length(y)
         @inbounds pred = EvoTrees.sigmoid(p[1, i])
-        @inbounds eval[i] = w[i] * (-y[i] * log(pred) - (1 - y[i]) * log(1 - pred))
+        @inbounds eval[i] = w[i] * (-y[i] * log(pred) + (y[i] - 1) * log(1 - pred))
     end
 end
 
 function EvoTrees.logloss(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     backend = KernelAbstractions.get_backend(p)
-    n = length(y)
-    workgroupsize = min(256, n)
-    eval_logloss_kernel!(backend)(eval, p, y, w; ndrange=n, workgroupsize=workgroupsize)
+    threads = min(MAX_THREADS, length(y))
+    eval_logloss_kernel!(backend)(eval, p, y, w; ndrange=length(y), workgroupsize=threads)
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
@@ -71,16 +88,14 @@ end
 @kernel function eval_gaussian_kernel!(eval, p, y, w)
     i = @index(Global)
     if i <= length(y)
-        @inbounds sigma2 = exp(2 * p[2, i])
-        @inbounds eval[i] = -w[i] * (p[2, i] + 0.5 * (y[i] - p[1, i])^2 / sigma2)
+        @inbounds eval[i] = -w[i] * (p[2, i] + (y[i] - p[1, i])^2 / (2 * exp(2 * p[2, i])))
     end
 end
 
 function EvoTrees.gaussian_mle(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     backend = KernelAbstractions.get_backend(p)
-    n = length(y)
-    workgroupsize = min(256, n)
-    eval_gaussian_kernel!(backend)(eval, p, y, w; ndrange=n, workgroupsize=workgroupsize)
+    threads = min(MAX_THREADS, length(y))
+    eval_gaussian_kernel!(backend)(eval, p, y, w; ndrange=length(y), workgroupsize=threads)
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
@@ -99,9 +114,8 @@ end
 
 function EvoTrees.poisson(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     backend = KernelAbstractions.get_backend(p)
-    n = length(y)
-    workgroupsize = min(256, n)
-    eval_poisson_kernel!(backend)(eval, p, y, w; ndrange=n, workgroupsize=workgroupsize)
+    threads = min(MAX_THREADS, length(y))
+    eval_poisson_kernel!(backend)(eval, p, y, w; ndrange=length(y), workgroupsize=threads)
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
@@ -119,9 +133,8 @@ end
 
 function EvoTrees.gamma(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     backend = KernelAbstractions.get_backend(p)
-    n = length(y)
-    workgroupsize = min(256, n)
-    eval_gamma_kernel!(backend)(eval, p, y, w; ndrange=n, workgroupsize=workgroupsize)
+    threads = min(MAX_THREADS, length(y))
+    eval_gamma_kernel!(backend)(eval, p, y, w; ndrange=length(y), workgroupsize=threads)
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
@@ -140,9 +153,8 @@ end
 
 function EvoTrees.tweedie(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     backend = KernelAbstractions.get_backend(p)
-    n = length(y)
-    workgroupsize = min(256, n)
-    eval_tweedie_kernel!(backend)(eval, p, y, w; ndrange=n, workgroupsize=workgroupsize)
+    threads = min(MAX_THREADS, length(y))
+    eval_tweedie_kernel!(backend)(eval, p, y, w; ndrange=length(y), workgroupsize=threads)
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
@@ -164,52 +176,8 @@ end
 
 function EvoTrees.mlogloss(p::CuMatrix{T}, y::CuVector, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
     backend = KernelAbstractions.get_backend(p)
-    n = length(y)
-    workgroupsize = min(256, n)
-    eval_mlogloss_kernel!(backend)(eval, p, y, w; ndrange=n, workgroupsize=workgroupsize)
+    threads = min(MAX_THREADS, length(y))
+    eval_mlogloss_kernel!(backend)(eval, p, y, w; ndrange=length(y), workgroupsize=threads)
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
-
-########################
-# Quantile
-########################
-@kernel function eval_quantile_kernel!(eval, p, y, w, alpha)
-    i = @index(Global)
-    @inbounds if i <= length(y)
-        diff = y[i] - p[1, i]
-        eval[i] = w[i] * (diff >= 0 ? alpha * diff : (1 - alpha) * -diff)
-    end
-end
-
-function EvoTrees.quantile(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; alpha=0.5, kwargs...) where {T}
-    backend = get_backend(p)
-    n = length(y)
-    workgroupsize = min(256, n)
-    eval_quantile_kernel!(backend)(eval, p, y, w, T(alpha); ndrange=n, workgroupsize=workgroupsize)
-    KernelAbstractions.synchronize(backend)
-    return sum(Float64, eval) / sum(Float64, w)
-end
-
-########################
-# Credibility
-########################
-function credibility_metric_gpu(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; kwargs...) where {T}
-    backend = get_backend(p)
-    n = length(y)
-    workgroupsize = min(256, n)
-    eval_gaussian_kernel!(backend)(eval, p, y, w; ndrange=n, workgroupsize=workgroupsize)
-    KernelAbstractions.synchronize(backend)
-    return sum(Float64, eval) / sum(Float64, w)
-end
-
-EvoTrees.wmae(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; kwargs...) where {T} = 
-    EvoTrees.quantile(p, y, w, eval; kwargs...)
-
-########################
-# Registration
-########################
-push!(EvoTrees.metric_dict, :cred_var => credibility_metric_gpu)
-push!(EvoTrees.metric_dict, :cred_std => credibility_metric_gpu)
-push!(EvoTrees.metric_dict, :quantile => EvoTrees.quantile)
-

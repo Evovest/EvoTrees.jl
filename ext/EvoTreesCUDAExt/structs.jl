@@ -14,16 +14,11 @@ struct CacheGPU
     js::CuVector{UInt32}
     ∇::CuMatrix
     h∇::CuArray
-    h∇L::Union{Nothing, CuArray}  
-    h∇R::Union{Nothing, CuArray}  
+    h∇_parent::CuArray  
     fnames::Vector{Symbol}  
     edges::Vector
     featbins::Vector
     feattypes_gpu::CuVector{Bool}
-    cond_feats::Union{Nothing, Vector{Int}}  
-    cond_feats_gpu::Union{Nothing, CuVector}  
-    cond_bins::Union{Nothing, Vector{UInt8}}  
-    cond_bins_gpu::Union{Nothing, CuVector}  
     monotone_constraints_gpu::CuVector{Int32}
     left_nodes_buf::CuVector{Int32}
     right_nodes_buf::CuVector{Int32}
@@ -32,7 +27,7 @@ struct CacheGPU
     tree_split_gpu::CuVector{Bool}
     tree_cond_bin_gpu::CuVector{UInt8}
     tree_feat_gpu::CuVector{Int32}
-    tree_gain_gpu::CuVector{Float64}
+    tree_gain_gpu::CuVector{Float32}
     tree_pred_gpu::CuMatrix{Float32}
     nodes_sum_gpu::CuArray{Float32,2}  
     nodes_gain_gpu::CuVector{Float32}
@@ -42,9 +37,7 @@ struct CacheGPU
     best_gain_gpu::CuVector{Float32}
     best_bin_gpu::CuVector{Int32}
     best_feat_gpu::CuVector{Int32}
-    build_nodes_gpu::CuVector{Int32}
-    subtract_nodes_gpu::CuVector{Int32}
-    build_count::CuVector{Int32}
-    subtract_count::CuVector{Int32}
-    pre_leaf_gpu::CuVector{Float32}
+    
+    node_counts::CuVector{Int32}
+    build_mask::CuVector{UInt8}
 end

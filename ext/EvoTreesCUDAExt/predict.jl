@@ -17,7 +17,7 @@ using KernelAbstractions
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
-            nid = (nid << 1) + Int(!cond)
+            nid = nid << 1 + !cond
         end
         @inbounds for k = 1:K
             pred[k, i] += leaf_pred[k, nid]
@@ -41,7 +41,7 @@ end
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
-            nid = (nid << 1) + Int(!cond)
+            nid = nid << 1 + !cond
         end
         pred[1, i] += leaf_pred[1, nid]
     end
@@ -63,10 +63,9 @@ end
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
-            nid = (nid << 1) + Int(!cond)
+            nid = nid << 1 + !cond
         end
-        val = pred[1, i] + leaf_pred[1, nid]
-        pred[1, i] = min(eltype(pred)(15), max(eltype(pred)(-15), val))
+        pred[1, i] += leaf_pred[1, nid]
     end
 end
 
@@ -86,11 +85,10 @@ end
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
-            nid = (nid << 1) + Int(!cond)
+            nid = nid << 1 + !cond
         end
         pred[1, i] += leaf_pred[1, nid]
-        val2 = pred[2, i] + leaf_pred[2, nid]
-        pred[2, i] = max(eltype(pred)(-15), val2)
+        pred[2, i] = max(eltype(pred)(-15), pred[2, i] + leaf_pred[2, nid])
     end
 end
 
@@ -103,20 +101,19 @@ function EvoTrees.predict!(
 ) where {L,K,T}
     n = size(pred, 2)
     backend = KernelAbstractions.get_backend(pred)
-    
-    split_dev = KernelAbstractions.zeros(backend, eltype(tree.split), length(tree.split))
-    feats_dev = KernelAbstractions.zeros(backend, eltype(tree.feat), length(tree.feat))
-    cond_dev = KernelAbstractions.zeros(backend, eltype(tree.cond_bin), length(tree.cond_bin))
-    leaf_dev = KernelAbstractions.zeros(backend, eltype(tree.pred), size(tree.pred,1), size(tree.pred,2))
-    
-    copyto!(split_dev, tree.split)
-    copyto!(feats_dev, tree.feat)
-    copyto!(cond_dev, tree.cond_bin)
-    copyto!(leaf_dev, tree.pred)
-    
-    workgroupsize = min(256, n)
-    predict_kernel!(backend)(L, pred, split_dev, feats_dev, cond_dev, leaf_dev, x_bin, feattypes; 
-                             ndrange=n, workgroupsize=workgroupsize)
+    threads = min(MAX_THREADS, n)
+    predict_kernel!(backend)(
+        L,
+        pred,
+        CuArray(tree.split),
+        CuArray(tree.feat),
+        CuArray(tree.cond_bin),
+        CuArray(tree.pred),
+        x_bin,
+        feattypes;
+        ndrange=n,
+        workgroupsize=threads
+    )
     KernelAbstractions.synchronize(backend)
 end
 
@@ -129,22 +126,20 @@ function EvoTrees.predict!(
 ) where {L<:EvoTrees.MLogLoss,K,T}
     n = size(pred, 2)
     backend = KernelAbstractions.get_backend(pred)
-    
-    split_dev = KernelAbstractions.zeros(backend, eltype(tree.split), length(tree.split))
-    feats_dev = KernelAbstractions.zeros(backend, eltype(tree.feat), length(tree.feat))
-    cond_dev = KernelAbstractions.zeros(backend, eltype(tree.cond_bin), length(tree.cond_bin))
-    leaf_dev = KernelAbstractions.zeros(backend, eltype(tree.pred), size(tree.pred,1), size(tree.pred,2))
-    
-    copyto!(split_dev, tree.split)
-    copyto!(feats_dev, tree.feat)
-    copyto!(cond_dev, tree.cond_bin)
-    copyto!(leaf_dev, tree.pred)
-    
-    workgroupsize = min(256, n)
-    predict_kernel!(backend)(L, pred, split_dev, feats_dev, cond_dev, leaf_dev, x_bin, feattypes; 
-                             ndrange=n, workgroupsize=workgroupsize)
+    threads = min(MAX_THREADS, n)
+    predict_kernel!(backend)(
+        L,
+        pred,
+        CuArray(tree.split),
+        CuArray(tree.feat),
+        CuArray(tree.cond_bin),
+        CuArray(tree.pred),
+        x_bin,
+        feattypes;
+        ndrange=n,
+        workgroupsize=threads
+    )
     KernelAbstractions.synchronize(backend)
-    
     pred .= max.(T(-15), pred .- maximum(pred, dims=1))
 end
 
@@ -153,27 +148,17 @@ function EvoTrees._predict(
     data,
     ::Type{<:EvoTrees.GPU};
     ntree_limit=length(m.trees)) where {L,K}
-    
+
     EvoTrees.Tables.istable(data) ? data = EvoTrees.Tables.columntable(data) : nothing
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
-    
-    xb = EvoTrees.binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges])
-    backend = KernelAbstractions.get_backend(CuArray(xb))
-    x_bin = KernelAbstractions.zeros(backend, eltype(xb), size(xb,1), size(xb,2))
-    copyto!(x_bin, xb)
-    
-    ft = m.info[:feattypes]
-    feattypes = KernelAbstractions.zeros(backend, Bool, length(ft))
-    copyto!(feattypes, ft)
-    
-    Tpred = eltype(m.trees[1].pred)
-    pred = KernelAbstractions.zeros(backend, Tpred, K, size(data, 1))
-    
+    x_bin = CuArray(EvoTrees.binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges]))
+    nobs = size(x_bin, 1)
+    pred = CUDA.zeros(K, nobs)
+    feattypes = CuArray(m.info[:feattypes])
     for i = 1:ntree_limit
         EvoTrees.predict!(pred, m.trees[i], x_bin, feattypes)
     end
-    
     if L == EvoTrees.LogLoss
         pred .= EvoTrees.sigmoid.(pred)
     elseif L ∈ [EvoTrees.Poisson, EvoTrees.Gamma, EvoTrees.Tweedie]
@@ -193,9 +178,8 @@ end
     if i <= nobs
         isum = zero(eltype(p))
         @inbounds for k in 1:K
-            val = exp(p[k, i])
-            p[k, i] = val
-            isum += val 
+            p[k, i] = exp(p[k, i])
+            isum += exp(p[k, i])
         end
         @inbounds for k in 1:K
             p[k, i] /= isum
@@ -206,8 +190,8 @@ end
 function EvoTrees.softmax!(p::CuMatrix{T}; MAX_THREADS=1024) where {T}
     K, nobs = size(p)
     backend = KernelAbstractions.get_backend(p)
-    workgroupsize = min(256, nobs)
-    softmax_kernel!(backend)(p; ndrange=nobs, workgroupsize=workgroupsize)
+    threads = min(MAX_THREADS, nobs)
+    softmax_kernel!(backend)(p; ndrange=nobs, workgroupsize=threads)
     KernelAbstractions.synchronize(backend)
     return nothing
 end
