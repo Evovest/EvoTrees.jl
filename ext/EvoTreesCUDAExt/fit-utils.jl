@@ -3,10 +3,9 @@ using Atomix
 using StaticArrays
 
 const MAX_K = 8
-const DEFAULT_WORKGROUP = 512
 
-@inline get_workgroup_size(work_size) = min(DEFAULT_WORKGROUP, work_size)
 @inline get_grad_dims(is_mle2p, K) = is_mle2p ? 5 : (2 * K + 1)
+@inline get_workgroup_size(work_size, n_feats=1) = work_size < 256 ? min(128, work_size) : (n_feats > 50 ? min(256, work_size) : min(512, work_size))
 
 @kernel function update_nodes_idx_kernel!(
     nidx::AbstractVector{T},
@@ -49,14 +48,13 @@ end
     gidx = @index(Global, Linear)
     n_feats = length(js)
     n_obs = length(is)
-    obs_per_thread = n_obs > 1000000 ? 96 : 64
+    obs_per_thread = n_obs > 2000000 ? (n_feats > 50 ? 128 : 96) : (n_obs > 500000 ? 80 : 64)
 
     total_work = cld(n_obs, obs_per_thread) * n_feats
     if gidx <= total_work
         feat_idx = (gidx - 1) % n_feats + 1
         obs_chunk_idx = (gidx - 1) ÷ n_feats
         feat = js[feat_idx]
-
         start_idx = obs_chunk_idx * obs_per_thread + 1
         end_idx = min(start_idx + obs_per_thread - 1, n_obs)
 
@@ -195,10 +193,12 @@ end
     end
 end
 
-@kernel function count_node_samples!(
+@kernel function count_and_strategy_fused_kernel!(
     node_counts::AbstractVector{Int32},
+    build_mask::AbstractVector{UInt8},
     @Const(nidx),
-    @Const(is)
+    @Const(is),
+    @Const(active_nodes)
 )
     gidx = @index(Global)
     @inbounds if gidx <= length(is)
@@ -208,16 +208,10 @@ end
             Atomix.@atomic node_counts[node] += Int32(1)
         end
     end
-end
-
-@kernel function determine_build_strategy!(
-    build_mask::AbstractVector{UInt8},
-    @Const(node_counts),
-    @Const(active_nodes)
-)
-    idx = @index(Global)
-    @inbounds if idx <= length(active_nodes)
-        node = active_nodes[idx]
+    @synchronize()
+    
+    if gidx <= length(active_nodes)
+        node = active_nodes[gidx]
         if node <= 1
             build_mask[node] = UInt8(1)
         elseif (node & 1) == 0
@@ -315,28 +309,25 @@ function update_hist_gpu!(
     n_k, n_b, n_j = size(h∇, 1), size(h∇, 2), size(h∇, 3)
     n_nodes_h = size(h∇, 4)
     n_grad_hess = get_grad_dims(is_mle2p, K)
+    n_feats = length(js)
     
     h∇ .= 0
     
     if depth == 1
-        n_work = cld(length(is), length(is) > 1000000 ? 96 : 64) * length(js)
+        n_work = cld(length(is), n_feats > 50 ? 96 : 64) * n_feats
         hist_kernel!(backend)(
             h∇, ∇, x_bin, nidx, js, is, K, is_mle2p, n_grad_hess, n_b, n_nodes_h;
-            ndrange = n_work, workgroupsize = get_workgroup_size(n_work)
+            ndrange = n_work, workgroupsize = get_workgroup_size(n_work, n_feats)
         )
         copyto!(h∇_parent, h∇)
     else
         fill!(node_counts, Int32(0))
         fill!(build_mask, UInt8(0))
         
-        count_node_samples!(backend)(
-            node_counts, nidx, is;
-            ndrange = length(is), workgroupsize = get_workgroup_size(length(is))
-        )
-        
-        determine_build_strategy!(backend)(
-            build_mask, node_counts, active_nodes;
-            ndrange = n_active, workgroupsize = get_workgroup_size(n_active)
+        max_work = max(length(is), length(active_nodes))
+        count_and_strategy_fused_kernel!(backend)(
+            node_counts, build_mask, nidx, is, active_nodes;
+            ndrange = max_work, workgroupsize = get_workgroup_size(max_work)
         )
         
         hist_kernel_selective!(backend)(
@@ -366,3 +357,4 @@ function update_hist_gpu!(
     
     KernelAbstractions.synchronize(backend)
 end
+
