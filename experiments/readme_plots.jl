@@ -12,7 +12,7 @@ using EvoTrees: fit, predict, sigmoid, logit
 
 # prepare a dataset
 tree_type = :binary # binary/oblivious
-_device = :cpu
+_device = :gpu
 
 Random.seed!(123)
 features = rand(10_000) .* 5
@@ -436,7 +436,6 @@ Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
 f
 save("docs/src/assets/quantiles-sinus-$tree_type-$_device.png", f)
 
-
 ###############################
 # credibility losses
 ###############################
@@ -523,3 +522,4 @@ lines!(ax,
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
 save("docs/src/assets/credibility-sinus-$tree_type-$_device.png", f)
+
