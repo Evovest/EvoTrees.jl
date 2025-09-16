@@ -102,11 +102,13 @@ end
             eps = T(1e-8)
 
             @inbounds begin
-                local_f = js[1]
                 for k in 1:n_grad_hess
                     total = zero(T)
-                    for b in 1:nbins
-                        total += T(h∇[k, b, local_f, node])
+                    for j_idx in 1:length(js)
+                        f = js[j_idx]
+                        for b in 1:nbins
+                            total += T(h∇[k, b, f, node])
+                        end
                     end
                     nodes_sum[k, node] = total
                 end
@@ -204,7 +206,7 @@ end
     @inbounds if gidx <= length(is)
         obs = is[gidx]
         node = nidx[obs]
-        if node > 0
+        if node > 0 && node <= length(node_counts)
             Atomix.@atomic node_counts[node] += Int32(1)
         end
     end
@@ -212,16 +214,22 @@ end
     
     if gidx <= length(active_nodes)
         node = active_nodes[gidx]
-        if node <= 1
-            build_mask[node] = UInt8(1)
-        elseif (node & 1) == 0
-            sibling = node + 1
-            if node_counts[node] <= node_counts[sibling]
+        if node > 0 && node <= length(build_mask)
+            if node <= 1
                 build_mask[node] = UInt8(1)
-                build_mask[sibling] = UInt8(0)
-            else
-                build_mask[node] = UInt8(0)
-                build_mask[sibling] = UInt8(1)
+            elseif (node & 1) == 0
+                sibling = node + 1
+                if sibling <= length(node_counts) && sibling <= length(build_mask)
+                    if node_counts[node] <= node_counts[sibling]
+                        build_mask[node] = UInt8(1)
+                        build_mask[sibling] = UInt8(0)
+                    else
+                        build_mask[node] = UInt8(0)
+                        build_mask[sibling] = UInt8(1)
+                    end
+                else
+                    build_mask[node] = UInt8(1)
+                end
             end
         end
     end
@@ -277,16 +285,19 @@ end
         elem_idx = (gidx - 1) % n_elements + 1
         
         node = active_nodes[node_idx]
-        if node > 1 && build_mask[node] == 0
+        if node > 1 && node <= length(build_mask) && build_mask[node] == 0
             parent = node >> 1
             sibling = (node & 1) == 0 ? node + 1 : node - 1
             
-            k = (elem_idx - 1) % n_k + 1
-            rest = (elem_idx - 1) ÷ n_k
-            b = rest % n_b + 1
-            j = rest ÷ n_b + 1
-            
-            h∇[k, b, j, node] = h∇_parent[k, b, j, parent] - h∇[k, b, j, sibling]
+            if parent > 0 && parent <= size(h∇_parent, 4) && 
+               sibling > 0 && sibling <= size(h∇, 4)
+                k = (elem_idx - 1) % n_k + 1
+                rest = (elem_idx - 1) ÷ n_k
+                b = rest % n_b + 1
+                j = rest ÷ n_b + 1
+                
+                h∇[k, b, j, node] = h∇_parent[k, b, j, parent] - h∇[k, b, j, sibling]
+            end
         end
     end
 end
