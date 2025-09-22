@@ -1,16 +1,14 @@
-using KernelAbstractions
-
-@kernel function predict_kernel!(
+function predict_kernel!(
     ::Type{L},
-    pred,
+    pred::CuDeviceMatrix{T},
     split,
     feats,
     cond_bins,
     leaf_pred,
     x_bin,
     feattypes,
-) where {L}
-    i = @index(Global)
+) where {L,T}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     K = size(pred, 1)
     @inbounds if i <= size(pred, 2)
@@ -23,19 +21,22 @@ using KernelAbstractions
             pred[k, i] += leaf_pred[k, nid]
         end
     end
+    sync_threads()
+    return nothing
 end
 
-@kernel function predict_kernel!(
+# GradientRegression
+function predict_kernel!(
     ::Type{<:EvoTrees.GradientRegression},
-    pred,
+    pred::CuDeviceMatrix{T},
     split,
     feats,
     cond_bins,
     leaf_pred,
     x_bin,
     feattypes,
-)
-    i = @index(Global)
+) where {T}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if i <= size(pred, 2)
         @inbounds while split[nid]
@@ -45,19 +46,22 @@ end
         end
         pred[1, i] += leaf_pred[1, nid]
     end
+    sync_threads()
+    return nothing
 end
 
-@kernel function predict_kernel!(
+# Logistic
+function predict_kernel!(
     ::Type{<:EvoTrees.LogLoss},
-    pred,
+    pred::CuDeviceMatrix{T},
     split,
     feats,
     cond_bins,
     leaf_pred,
     x_bin,
     feattypes,
-)
-    i = @index(Global)
+) where {T}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if i <= size(pred, 2)
         @inbounds while split[nid]
@@ -65,21 +69,24 @@ end
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
             nid = nid << 1 + !cond
         end
-        pred[1, i] += leaf_pred[1, nid]
+        pred[1, i] = min(T(15), max(T(-15), pred[1, i] + leaf_pred[1, nid]))
     end
+    sync_threads()
+    return nothing
 end
 
-@kernel function predict_kernel!(
+# MLE2P
+function predict_kernel!(
     ::Type{<:EvoTrees.MLE2P},
-    pred,
+    pred::CuDeviceMatrix{T},
     split,
     feats,
     cond_bins,
     leaf_pred,
     x_bin,
     feattypes,
-)
-    i = @index(Global)
+) where {T}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
     @inbounds if i <= size(pred, 2)
         @inbounds while split[nid]
@@ -88,10 +95,13 @@ end
             nid = nid << 1 + !cond
         end
         pred[1, i] += leaf_pred[1, nid]
-        pred[2, i] = max(eltype(pred)(-15), pred[2, i] + leaf_pred[2, nid])
+        pred[2, i] = max(T(-15), pred[2, i] + leaf_pred[2, nid])
     end
+    sync_threads()
+    return nothing
 end
 
+# prediction from single tree - assign each observation to its final leaf
 function EvoTrees.predict!(
     pred::CuMatrix{T},
     tree::EvoTrees.Tree{L,K},
@@ -100,9 +110,9 @@ function EvoTrees.predict!(
     MAX_THREADS=1024
 ) where {L,K,T}
     n = size(pred, 2)
-    backend = KernelAbstractions.get_backend(pred)
     threads = min(MAX_THREADS, n)
-    predict_kernel!(backend)(
+    blocks = cld(n, threads)
+    @cuda blocks = blocks threads = threads predict_kernel!(
         L,
         pred,
         CuArray(tree.split),
@@ -110,11 +120,9 @@ function EvoTrees.predict!(
         CuArray(tree.cond_bin),
         CuArray(tree.pred),
         x_bin,
-        feattypes;
-        ndrange=n,
-        workgroupsize=threads
+        feattypes,
     )
-    KernelAbstractions.synchronize(backend)
+    CUDA.synchronize()
 end
 
 function EvoTrees.predict!(
@@ -125,9 +133,9 @@ function EvoTrees.predict!(
     MAX_THREADS=1024
 ) where {L<:EvoTrees.MLogLoss,K,T}
     n = size(pred, 2)
-    backend = KernelAbstractions.get_backend(pred)
     threads = min(MAX_THREADS, n)
-    predict_kernel!(backend)(
+    blocks = cld(n, threads)
+    @cuda blocks = blocks threads = threads predict_kernel!(
         L,
         pred,
         CuArray(tree.split),
@@ -135,14 +143,13 @@ function EvoTrees.predict!(
         CuArray(tree.cond_bin),
         CuArray(tree.pred),
         x_bin,
-        feattypes;
-        ndrange=n,
-        workgroupsize=threads
+        feattypes,
     )
-    KernelAbstractions.synchronize(backend)
+    CUDA.synchronize()
     pred .= max.(T(-15), pred .- maximum(pred, dims=1))
 end
 
+# prediction for EvoTree model
 function EvoTrees._predict(
     m::EvoTrees.EvoTree{L,K},
     data,
@@ -172,11 +179,11 @@ function EvoTrees._predict(
     return pred
 end
 
-@kernel function softmax_kernel!(p)
-    i = @index(Global)
+function softmax_kernel!(p::CuDeviceMatrix{T}) where {T}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     K, nobs = size(p)
     if i <= nobs
-        isum = zero(eltype(p))
+        isum = zero(T)
         @inbounds for k in 1:K
             p[k, i] = exp(p[k, i])
             isum += exp(p[k, i])
@@ -185,17 +192,19 @@ end
             p[k, i] /= isum
         end
     end
+    return nothing
 end
 
 function EvoTrees.softmax!(p::CuMatrix{T}; MAX_THREADS=1024) where {T}
     K, nobs = size(p)
-    backend = KernelAbstractions.get_backend(p)
     threads = min(MAX_THREADS, nobs)
-    softmax_kernel!(backend)(p; ndrange=nobs, workgroupsize=threads)
-    KernelAbstractions.synchronize(backend)
+    blocks = cld(nobs, threads)
+    @cuda blocks = blocks threads = threads softmax_kernel!(p)
+    CUDA.synchronize()
     return nothing
 end
 
+# Quantile - special case where ∇ is passed as argument
 function quantile_gpu(x::AnyCuVector, alpha)
     x_sort = sort(x)
     idx = ceil(Int, alpha * length(x_sort))
@@ -206,3 +215,4 @@ function EvoTrees.pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}
     ϵ = eps(T)
     p[1, n] = params.eta * quantile_gpu(view(∇, 2, is), params.alpha) / (1 + params.lambda + params.L2 / ∑[3])
 end
+
