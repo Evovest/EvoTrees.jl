@@ -37,8 +37,9 @@ function grow_tree!(
 
     backend = KernelAbstractions.get_backend(cache.x_bin)
 
-    ∇_gpu = copy(cache.∇)
+    ∇_gpu = cache.∇
     if L <: Union{EvoTrees.MAE, EvoTrees.Quantile}
+        ∇_gpu = copy(cache.∇)
         ∇_gpu[2, :] .= 1.0f0
     end
 

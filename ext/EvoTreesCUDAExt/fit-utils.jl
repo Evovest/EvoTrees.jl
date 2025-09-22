@@ -34,13 +34,14 @@ end
     @Const(nidx),
     @Const(js),
     @Const(is),
-    K::Int
+    K::Int,
+    chunk_size::Int
 ) where {T}
     gidx = @index(Global, Linear)
     
     n_feats = length(js)
     n_obs = length(is)
-    total_work_items = n_feats * cld(n_obs, 12)
+    total_work_items = n_feats * cld(n_obs, chunk_size)
     
     if gidx <= total_work_items
         feat_idx = (gidx - 1) % n_feats + 1
@@ -48,8 +49,8 @@ end
         
         feat = js[feat_idx]
         
-        start_idx = obs_chunk * 12 + 1
-        end_idx = min(start_idx + 11, n_obs)
+        start_idx = obs_chunk * chunk_size + 1
+        end_idx = min(start_idx + (chunk_size - 1), n_obs)
         
         @inbounds for obs_idx in start_idx:end_idx
             obs = is[obs_idx]
@@ -351,17 +352,19 @@ function update_hist_gpu!(
     h∇ .= 0
     
     n_feats = length(js)
-    n_obs_chunks = cld(length(is), 12)
+    chunk_size = 64
+    n_obs_chunks = cld(length(is), chunk_size)
     num_threads = n_feats * n_obs_chunks
     
     hist_kernel_f! = hist_kernel!(backend)
-    workgroup_size = min(256, max(32, num_threads))
-    hist_kernel_f!(h∇, ∇, x_bin, nidx, js, is, K; ndrange = num_threads, workgroupsize = workgroup_size)
+    workgroup_size = min(256, max(64, num_threads))
+    hist_kernel_f!(h∇, ∇, x_bin, nidx, js, is, K, chunk_size; ndrange = num_threads, workgroupsize = workgroup_size)
     KernelAbstractions.synchronize(backend)
     
     find_split! = find_best_split_from_hist_kernel!(backend)
     find_split!(gains, bins, feats, h∇, nodes_sum_gpu, active_nodes, js, feattypes, monotone_constraints,
                 eltype(gains)(params.lambda), eltype(gains)(params.min_weight), K, sums_temp;
-                ndrange = max(n_active, 1), workgroupsize = 256)
+                ndrange = max(n_active, 1), workgroupsize = min(256, max(64, n_active)))
     KernelAbstractions.synchronize(backend)
 end
+
