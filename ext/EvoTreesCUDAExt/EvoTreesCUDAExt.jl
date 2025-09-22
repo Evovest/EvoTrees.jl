@@ -6,7 +6,6 @@ using KernelAbstractions
 using Atomix
 using Adapt
 using Tables
-using StaticArrays
 using KernelAbstractions: get_backend
 
 EvoTrees.device_ones(::Type{<:EvoTrees.GPU}, ::Type{T}, n::Int) where {T} = CUDA.ones(T, n)
@@ -26,3 +25,4 @@ include("fit-utils.jl")
 include("fit.jl")
 
 end
+

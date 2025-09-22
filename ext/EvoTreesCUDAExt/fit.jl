@@ -178,7 +178,8 @@ function grow_tree!(
                 if !isempty(node_is)
                     EvoTrees.pred_leaf_cpu!(tree.pred, n, node_sum_cpu, L, params, ∇_cpu, node_is)
                 else
-                    # fallback: keep kernel-computed value when node has no samples
+                    # fallback: no samples reached this leaf for this bag; use MAE-style scalar to avoid empty quantile
+                    EvoTrees.pred_leaf_cpu!(tree.pred, n, node_sum_cpu, EvoTrees.MAE, params)
                 end
             else
                 EvoTrees.pred_leaf_cpu!(tree.pred, n, node_sum_cpu, L, params)
