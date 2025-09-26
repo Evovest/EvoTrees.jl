@@ -21,7 +21,6 @@ function predict_kernel!(
             pred[k, i] += leaf_pred[k, nid]
         end
     end
-    sync_threads()
     return nothing
 end
 
@@ -46,7 +45,6 @@ function predict_kernel!(
         end
         pred[1, i] += leaf_pred[1, nid]
     end
-    sync_threads()
     return nothing
 end
 
@@ -69,9 +67,8 @@ function predict_kernel!(
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
             nid = (nid << 1) + Int(!cond)
         end
-        pred[1, i] += leaf_pred[1, nid]
+        pred[1, i] = clamp(pred[1, i] + leaf_pred[1, nid], T(-15), T(15))
     end
-    sync_threads()
     return nothing
 end
 
@@ -97,7 +94,6 @@ function predict_kernel!(
         pred[1, i] += leaf_pred[1, nid]
         pred[2, i] = max(T(-15), pred[2, i] + leaf_pred[2, nid])
     end
-    sync_threads()
     return nothing
 end
 
@@ -122,7 +118,6 @@ function EvoTrees.predict!(
         x_bin,
         feattypes,
     )
-    CUDA.synchronize()
 end
 
 function EvoTrees.predict!(
@@ -145,7 +140,6 @@ function EvoTrees.predict!(
         x_bin,
         feattypes,
     )
-    CUDA.synchronize()
     pred .= max.(T(-15), pred .- maximum(pred, dims=1))
 end
 
@@ -200,7 +194,6 @@ function EvoTrees.softmax!(p::CuMatrix{T}; MAX_THREADS=1024) where {T}
     threads = min(MAX_THREADS, nobs)
     blocks = cld(nobs, threads)
     @cuda blocks = blocks threads = threads softmax_kernel!(p)
-    CUDA.synchronize()
     return nothing
 end
 
