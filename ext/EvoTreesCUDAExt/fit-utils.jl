@@ -81,7 +81,9 @@ end
 end
 
 # Kernel computing best split from histograms
+# Loss-specific logic uses type-based dispatch.
 @kernel function find_best_split_from_hist_kernel!(
+    ::Type{L},
     gains::AbstractVector{T},
     bins::AbstractVector{Int32},
     feats::AbstractVector{Int32},
@@ -95,9 +97,8 @@ end
     L2::T,
     min_weight::T,
     K::Int,
-    loss_id::Int32,
     sums_temp::AbstractArray{T,2}
-) where {T}
+) where {T,L}
     n_idx = @index(Global)
     
     @inbounds if n_idx <= length(active_nodes)
@@ -128,7 +129,7 @@ end
             
             # Parent gain depends on loss
             gain_p = zero(T)
-            if loss_id == 1 # GradientRegression
+            if L <: EvoTrees.GradientRegression
                 if K == 1
                     g_p = nodes_sum[1, node]
                     h_p = nodes_sum[2, node]
@@ -144,7 +145,7 @@ end
                         gain_p += g_p^2 / denom_p / 2
                     end
                 end
-            elseif loss_id == 2 # MLE2P
+            elseif L <: EvoTrees.MLE2P
                 g1 = nodes_sum[1, node]
                 g2 = nodes_sum[2, node]
                 h1 = nodes_sum[3, node]
@@ -154,7 +155,7 @@ end
                 denom1 = denom1 < eps ? eps : denom1
                 denom2 = denom2 < eps ? eps : denom2
                 gain_p = (g1^2 / denom1 + g2^2 / denom2) / 2
-            elseif loss_id == 3 # MLogLoss
+            elseif L == EvoTrees.MLogLoss
                 for k in 1:K
                     gk = nodes_sum[k, node]
                     hk = nodes_sum[K+k, node]
@@ -162,9 +163,9 @@ end
                     denom = denom < eps ? eps : denom
                     gain_p += gk^2 / denom / 2
                 end
-            elseif loss_id == 4 || loss_id == 5 # MAE or Quantile
+            elseif (L == EvoTrees.MAE || L == EvoTrees.Quantile)
                 gain_p = zero(T)
-            elseif loss_id == 6 # Credibility
+            elseif L <: EvoTrees.Cred
                 μp = nodes_sum[1, node] / w_p
                 VHM = μp^2
                 EVPV = nodes_sum[2, node] / w_p - VHM
@@ -210,7 +211,7 @@ end
                         (w_l < min_weight || w_r < min_weight) && continue
                         
                         g_val = zero(T)
-                        if loss_id == 1
+                        if L <: EvoTrees.GradientRegression
                             g_l = acc1
                             h_l = acc2
                             g_r = nodes_sum[1, node] - g_l
@@ -228,32 +229,8 @@ end
                                     continue
                                 end
                             end
-                        elseif loss_id == 2
-                            g1_l = acc1
-                            h1_l = acc2
-                            g1_r = nodes_sum[1, node] - g1_l
-                            h1_r = nodes_sum[3, node] - h1_l
-                            g2_l = is_numeric ? (sums_temp[2, n_idx] += h∇[2, b, f, node]; sums_temp[2, n_idx]) : h∇[2, b, f, node]
-                            h2_l = is_numeric ? (sums_temp[4, n_idx] += h∇[4, b, f, node]; sums_temp[4, n_idx]) : h∇[4, b, f, node]
-                            g2_r = nodes_sum[2, node] - g2_l
-                            h2_r = nodes_sum[4, node] - h2_l
-                            d1_l = h1_l + lambda * w_l + L2
-                            d1_r = h1_r + lambda * w_r + L2
-                            d2_l = h2_l + lambda * w_l + L2
-                            d2_r = h2_r + lambda * w_r + L2
-                            d1_l = d1_l < eps ? eps : d1_l
-                            d1_r = d1_r < eps ? eps : d1_r
-                            d2_l = d2_l < eps ? eps : d2_l
-                            d2_r = d2_r < eps ? eps : d2_r
-                            g_val = ((g1_l^2 / d1_l + g2_l^2 / d2_l) + (g1_r^2 / d1_r + g2_r^2 / d2_r)) / 2 - gain_p
-                            if constraint != 0
-                                pred_l = -g1_l / d1_l
-                                pred_r = -g1_r / d1_r
-                                if (constraint == -1 && pred_l <= pred_r) || (constraint == 1 && pred_l >= pred_r)
-                                    continue
-                                end
-                            end
-                        elseif loss_id == 4 || loss_id == 5
+                        elseif L == EvoTrees.MAE
+                            # MAE 
                             μp = nodes_sum[1, node] / w_p
                             μl = acc1 / w_l
                             μr = (nodes_sum[1, node] - acc1) / w_r
@@ -262,7 +239,17 @@ end
                             d_l = d_l < eps ? eps : d_l
                             d_r = d_r < eps ? eps : d_r
                             g_val = abs(μl - μp) * w_l / d_l + abs(μr - μp) * w_r / d_r
-                        elseif loss_id == 6
+                        elseif L == EvoTrees.Quantile
+                            # Quantile
+                            μp = nodes_sum[1, node] / w_p
+                            μl = acc1 / w_l
+                            μr = (nodes_sum[1, node] - acc1) / w_r
+                            d_l = 1 + lambda + L2 / w_l
+                            d_r = 1 + lambda + L2 / w_r
+                            d_l = d_l < eps ? eps : d_l
+                            d_r = d_r < eps ? eps : d_r
+                            g_val = abs(μl - μp) * w_l / d_l + abs(μr - μp) * w_r / d_r
+                        elseif L <: EvoTrees.Cred
                             μp = nodes_sum[1, node] / w_p
                             VHM_p = μp^2
                             EVPV_p = nodes_sum[2, node] / w_p - VHM_p
@@ -297,7 +284,9 @@ end
                         w_r = w_p - w_l
                         (w_l < min_weight || w_r < min_weight) && continue
                         
-                        if constraint != 0 && loss_id != 3
+                        if L == EvoTrees.MLogLoss
+                            # no monotone constraint check for softmax
+                        elseif constraint != 0
                             g_l1 = sums_temp[1, n_idx]
                             h_l1 = sums_temp[K+1, n_idx]
                             g_r1 = nodes_sum[1, node] - g_l1
@@ -417,9 +406,10 @@ end
 
 # Build histograms and find best splits
 function update_hist_gpu!(
+    ::Type{L},
     h∇, gains::AbstractVector{T}, bins::AbstractVector{Int32}, feats::AbstractVector{Int32}, ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params,
-    feattypes, monotone_constraints, K, loss_id::Int32, L2::T, sums_temp=nothing
-) where {T}
+    feattypes, monotone_constraints, K, L2::T, sums_temp=nothing
+) where {T,L}
     backend = KernelAbstractions.get_backend(h∇)
     n_active = length(active_nodes)
     
@@ -448,8 +438,8 @@ function update_hist_gpu!(
     hist_kernel_f!(h∇, ∇, x_bin, nidx, js, is, K, chunk_size; ndrange = num_threads, workgroupsize = workgroup_size)
     
     find_split! = find_best_split_from_hist_kernel!(backend)
-    find_split!(gains, bins, feats, h∇, nodes_sum_gpu, active_nodes, js, feattypes, monotone_constraints,
-                eltype(gains)(params.lambda), L2, eltype(gains)(params.min_weight), K, loss_id, sums_temp;
+    find_split!(L, gains, bins, feats, h∇, nodes_sum_gpu, active_nodes, js, feattypes, monotone_constraints,
+                eltype(gains)(params.lambda), L2, eltype(gains)(params.min_weight), K, sums_temp;
                 ndrange = max(n_active, 1), workgroupsize = min(256, max(64, n_active)))
 end
 

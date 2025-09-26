@@ -49,9 +49,11 @@ function grow_tree!(
     backend = KernelAbstractions.get_backend(cache.x_bin)
 
     ∇_gpu = cache.∇
-    if L <: Union{EvoTrees.MAE, EvoTrees.Quantile}
+    if L <: EvoTrees.MAE
         ∇_gpu = copy(cache.∇)
         ∇_gpu[2, :] .= 1.0f0
+    elseif L <: EvoTrees.Quantile
+        ∇_gpu = cache.∇
     end
 
     # Clear cache arrays - keep on GPU
@@ -71,31 +73,16 @@ function grow_tree!(
     cache.nidx .= 1
     view(cache.anodes_gpu, 1:1) .= 1
 
-    loss_id::Int32 = if L <: EvoTrees.GradientRegression
-        Int32(1)
-    elseif L <: EvoTrees.MLE2P
-        Int32(2)
-    elseif L == EvoTrees.MLogLoss
-        Int32(3)
-    elseif L == EvoTrees.MAE
-        Int32(4)
-    elseif L == EvoTrees.Quantile
-        Int32(5)
-    elseif L <: EvoTrees.Cred
-        Int32(6)
-    else
-        Int32(1)
-    end
-
     if params.max_depth == 1
         reduce_root_sums_kernel!(backend)(cache.nodes_sum_gpu, ∇_gpu, is; ndrange=length(is), workgroupsize=256)
         KernelAbstractions.synchronize(backend)
     else
         update_hist_gpu!(
+            L,
             cache.h∇, cache.best_gain_gpu, cache.best_bin_gpu, cache.best_feat_gpu,
             ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
             1, view(cache.anodes_gpu, 1:1), cache.nodes_sum_gpu, params,
-            cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K, loss_id, Float32(params.L2), view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1)
+            cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K, Float32(params.L2), view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1)
         )
     end
 
@@ -145,10 +132,11 @@ function grow_tree!(
             
             if build_count_val > 0
                 update_hist_gpu_optimized!(
+                    L,
                     cache.h∇, cache.best_gain_gpu, cache.best_bin_gpu, cache.best_feat_gpu,
                     ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
                     depth, view(cache.build_nodes_gpu, 1:build_count_val), cache.nodes_sum_gpu, params,
-                    cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K, loss_id, Float32(params.L2), 
+                    cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K, Float32(params.L2), 
                     view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:max(build_count_val,1)),
                     backend
                 )
@@ -246,10 +234,11 @@ end
 
 # Histogram update using device-side clear and kernels
 function update_hist_gpu_optimized!(
+    ::Type{L},
     h∇, gains::AbstractVector{T}, bins::AbstractVector{Int32}, feats::AbstractVector{Int32}, 
     ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params,
-    feattypes, monotone_constraints, K, loss_id::Int32, L2::T, sums_temp, backend
-) where {T}
+    feattypes, monotone_constraints, K, L2::T, sums_temp, backend
+) where {T,L}
     
     n_active = length(active_nodes)
     
@@ -259,7 +248,7 @@ function update_hist_gpu_optimized!(
         sums_temp = similar(nodes_sum_gpu, 1, 1)
     end
     
-    # OPTIMIZATION 6: Use GPU kernel to clear histogram instead of CPU loop
+    # Use GPU kernel to clear histogram instead of CPU loop
     if n_active > 0
         clear_hist_kernel!(backend)(
             h∇, active_nodes, n_active;
@@ -281,8 +270,8 @@ function update_hist_gpu_optimized!(
     KernelAbstractions.synchronize(backend)
     
     find_split! = find_best_split_from_hist_kernel!(backend)
-    find_split!(gains, bins, feats, h∇, nodes_sum_gpu, active_nodes, js, feattypes, monotone_constraints,
-                eltype(gains)(params.lambda), L2, eltype(gains)(params.min_weight), K, loss_id, sums_temp;
+    find_split!(L, gains, bins, feats, h∇, nodes_sum_gpu, active_nodes, js, feattypes, monotone_constraints,
+                eltype(gains)(params.lambda), L2, eltype(gains)(params.min_weight), K, sums_temp;
                 ndrange = max(n_active, 1), workgroupsize = min(256, max(64, n_active)))
     KernelAbstractions.synchronize(backend)
 end
