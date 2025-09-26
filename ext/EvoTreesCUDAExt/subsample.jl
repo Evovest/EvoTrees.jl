@@ -85,3 +85,4 @@ function EvoTrees.subsample(left::CuVector, is::CuVector, mask_cond::CuVector, r
         return view(is, 1:counts_sum)
     end
 end
+

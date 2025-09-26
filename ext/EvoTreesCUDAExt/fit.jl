@@ -248,7 +248,7 @@ function update_hist_gpu_optimized!(
         sums_temp = similar(nodes_sum_gpu, 1, 1)
     end
     
-    # Use GPU kernel to clear histogram instead of CPU loop
+    # OPTIMIZATION 6: Use GPU kernel to clear histogram instead of CPU loop
     if n_active > 0
         clear_hist_kernel!(backend)(
             h∇, active_nodes, n_active;
@@ -367,4 +367,3 @@ end
         end
     end
 end
-
