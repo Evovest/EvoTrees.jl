@@ -69,7 +69,7 @@ function predict_kernel!(
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
             nid = (nid << 1) + Int(!cond)
         end
-        pred[1, i] = min(T(15), max(T(-15), pred[1, i] + leaf_pred[1, nid]))
+        pred[1, i] += leaf_pred[1, nid]
     end
     sync_threads()
     return nothing
@@ -215,4 +215,3 @@ function EvoTrees.pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}
     ϵ = eps(T)
     p[1, n] = params.eta / params.bagging_size * quantile_gpu(view(∇, 2, is), params.alpha) / (1 + params.lambda + params.L2 / ∑[3])
 end
-
