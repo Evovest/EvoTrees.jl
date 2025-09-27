@@ -47,3 +47,4 @@ struct CacheGPU
     subtract_count::CuVector{Int32}
     sums_temp_gpu::CuArray{Float32,2}
 end
+

@@ -184,3 +184,4 @@ function EvoTrees.mlogloss(p::CuMatrix{T}, y::CuVector, w::CuVector{T}, eval::Cu
     CUDA.synchronize()
     return sum(eval) / sum(w)
 end
+

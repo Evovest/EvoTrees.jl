@@ -179,3 +179,4 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     
     return m, cache
 end
+

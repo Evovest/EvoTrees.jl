@@ -284,3 +284,4 @@ function EvoTrees.update_grads!(
     CUDA.synchronize()
     return
 end
+
