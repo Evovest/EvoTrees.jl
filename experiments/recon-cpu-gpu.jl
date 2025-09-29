@@ -3,13 +3,12 @@ using Statistics
 using StatsBase: sample, quantile
 using Distributions
 using Random
-using CairoMakie
 using DataFrames
 using CategoricalArrays
-using EvoTrees: predict, sigmoid, logit
-# using ProfileView
 using CUDA
+using KernelAbstractions, StaticArrays, Adapt, Atomix
 using EvoTrees
+using EvoTrees: predict, sigmoid, logit
 using EvoTrees: fit, predict, sigmoid, logit
 
 device = :gpu
