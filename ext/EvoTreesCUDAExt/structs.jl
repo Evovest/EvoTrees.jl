@@ -2,7 +2,7 @@ struct CacheGPU
     info::Dict
     x_bin::CuMatrix
     y::CuArray
-    w::Union{Nothing, CuVector}
+    w::Union{Nothing,CuVector}
     K::Int
     nodes::Vector
     pred::CuMatrix
@@ -16,7 +16,7 @@ struct CacheGPU
     h∇::CuArray
     h∇L::CuArray
     h∇R::CuArray
-    fnames::Vector{Symbol}  
+    fnames::Vector{Symbol}
     edges::Vector
     featbins::Vector
     feattypes_gpu::CuVector{Bool}
@@ -28,7 +28,7 @@ struct CacheGPU
     left_nodes_buf::CuVector{Int32}
     right_nodes_buf::CuVector{Int32}
     target_mask_buf::CuVector{UInt8}
-    
+
     tree_split_gpu::CuVector{Bool}
     tree_cond_bin_gpu::CuVector{UInt8}
     tree_feat_gpu::CuVector{Int32}

@@ -283,7 +283,7 @@ end
                         w_l = sums_temp[2*K+1, n_idx]
                         w_r = w_p - w_l
                         (w_l < min_weight || w_r < min_weight) && continue
-                        
+
                         if L == EvoTrees.MLogLoss
                             # no monotone constraint check for softmax
                         elseif constraint != 0
@@ -439,6 +439,6 @@ function update_hist_gpu!(
 
     find_split! = find_best_split_from_hist_kernel!(backend)
     find_split!(L, gains, bins, feats, h∇, nodes_sum_gpu, active_nodes, js, feattypes, monotone_constraints,
-                eltype(gains)(params.lambda), L2, eltype(gains)(params.min_weight), K, sums_temp;
-                ndrange = max(n_active, 1), workgroupsize = min(256, max(64, n_active)))
+        eltype(gains)(params.lambda), L2, eltype(gains)(params.min_weight), K, sums_temp;
+        ndrange=max(n_active, 1), workgroupsize=min(256, max(64, n_active)))
 end
