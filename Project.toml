@@ -5,9 +5,7 @@ version = "0.17.4"
 
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
-BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 MLJModelInterface = "e80e1ace-859a-464e-9ed9-23947d8ae3ea"
@@ -30,9 +28,7 @@ EvoTreesCUDAExt = ["CUDA", "KernelAbstractions", "Atomix", "Adapt", "StaticArray
 [compat]
 Adapt = "4"
 BSON = "0.3"
-BenchmarkTools = "1.6.0"
 CUDA = "3.0, 4.0, 5.0"
-CairoMakie = "0.15.6"
 CategoricalArrays = "0.9, 0.10, 1"
 Distributions = "0.24, 0.25"
 MLJModelInterface = "0.3, 0.4, 1.0"
@@ -59,4 +55,3 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 [targets]
 docs = ["Documenter"]
 test = ["CUDA", "DataFrames", "Test", "MLJBase", "MLJTestInterface"]
-
