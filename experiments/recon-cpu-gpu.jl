@@ -89,7 +89,7 @@ config = EvoTreeRegressor(;
     verbosity=0
 );
 @time pred_gpu = model(dtrain; device=:cpu);
-cor(pred_cpu, pred_gpu) # ~0.93%
+println("corr cpu_vs_gpu (x_cat+x_num) = ", cor(pred_cpu, pred_gpu)) # expect ~0.999 after fix
 
 ############################################
 # cpu vs GPU num feature
@@ -143,4 +143,4 @@ config = EvoTreeRegressor(;
     verbosity=0
 );
 @time pred_gpu = model(dtrain; device=:cpu);
-cor(pred_cpu, pred_gpu) # ~0.999
+println("corr cpu_vs_gpu (x_num only) = ", cor(pred_cpu, pred_gpu)) # ~0.999

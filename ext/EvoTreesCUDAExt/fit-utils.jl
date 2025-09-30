@@ -193,8 +193,9 @@ end
                         sums_temp[kk, n_idx] = zero(T)
                     end
                 end
-
-                for b in 1:(nbins-1)
+                
+                b_max = is_numeric ? (nbins - 1) : nbins
+                for b in 1:b_max
                     # Update accumulator
                     if K == 1
                         if is_numeric
@@ -230,7 +231,7 @@ end
                                 end
                             end
                         elseif L == EvoTrees.MAE
-                            # MAE uses accumulated residuals (in acc1)
+                            # MAE uses accumulated residuals 
                             μp = nodes_sum[1, node] / w_p
                             μl = acc1 / w_l
                             μr = (nodes_sum[1, node] - acc1) / w_r
@@ -240,7 +241,7 @@ end
                             d_r = d_r < eps ? eps : d_r
                             g_val = abs(μl - μp) * w_l / d_l + abs(μr - μp) * w_r / d_r
                         elseif L == EvoTrees.Quantile
-                            # Quantile: mirror CPU get_gain by using ∑1 accumulators (weighted gradients)
+                            # Quantile
                             μp = nodes_sum[1, node] / w_p
                             μl = acc1 / w_l
                             μr = (nodes_sum[1, node] - acc1) / w_r
@@ -442,3 +443,4 @@ function update_hist_gpu!(
         eltype(gains)(params.lambda), L2, eltype(gains)(params.min_weight), K, sums_temp;
         ndrange=max(n_active, 1), workgroupsize=min(256, max(64, n_active)))
 end
+

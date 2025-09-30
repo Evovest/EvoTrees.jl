@@ -159,6 +159,7 @@ function grow_tree!(
             view_gain, view_bin, view_feat,
             cache.h∇,
             active_nodes_full,
+            cache.feattypes_gpu,
             depth, params.max_depth, Float32(params.lambda), Float32(params.gamma), Float32(params.L2), cache.K;
             ndrange=max(n_active, 1), workgroupsize=256
         )
@@ -284,6 +285,7 @@ end
     best_gain, best_bin, best_feat,
     h∇,
     active_nodes,
+    feattypes,
     depth, max_depth, lambda, gamma, L2,
     K_val
 )
@@ -300,11 +302,16 @@ end
 
         child_l, child_r = node << 1, (node << 1) + 1
         feat, bin = Int(tree_feat[node]), Int(tree_cond_bin[node])
+        is_numeric = feattypes[feat]
 
         @inbounds for kk in 1:(2*K_val+1)
             sum_val = zero(eltype(nodes_sum))
-            for b in 1:bin
-                sum_val += h∇[kk, b, feat, node]
+            if is_numeric
+                for b in 1:bin
+                    sum_val += h∇[kk, b, feat, node]
+                end
+            else
+                sum_val = h∇[kk, bin, feat, node]
             end
             nodes_sum[kk, child_l] = sum_val
             nodes_sum[kk, child_r] = nodes_sum[kk, node] - sum_val
