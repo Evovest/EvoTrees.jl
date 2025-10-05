@@ -158,6 +158,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         left_nodes_buf,
         right_nodes_buf,
         target_mask_buf,
+        
         tree_split_gpu,
         tree_cond_bin_gpu,
         tree_feat_gpu,
