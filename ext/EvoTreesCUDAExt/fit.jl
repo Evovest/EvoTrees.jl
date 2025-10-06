@@ -29,9 +29,7 @@ function grow_otree!(
     grow_tree!(tree, params, cache, is)
 end
 
-# Grow decision tree level-by-level with histogram subtraction optimization
-# Tree structure: root=1, left_child=2*parent, right_child=2*parent+1
-# Key optimization: at depth≥2, build histogram for smaller child, subtract for larger
+# Grow decision tree level-by-level; at depth≥2 use histogram subtraction
 function grow_tree!(
     tree::EvoTrees.Tree{L,K},
     params::EvoTrees.EvoTypes,
@@ -110,12 +108,7 @@ function grow_tree!(
             view(cache.anodes_gpu, n_active+1:n_nodes) .= 0
         end
 
-        # ====================================================================
-        # HISTOGRAM SUBTRACTION OPTIMIZATION (depth ≥ 2)
-        # ====================================================================
-        # At depth ≥ 2, parent histograms are available, so we use subtraction
-        # Key insight: h∇[parent] = h∇[left_child] + h∇[right_child]
-        # Therefore: h∇[larger_child] = h∇[parent] - h∇[smaller_child]
+        # Histogram subtraction (depth ≥ 2): h∇[big] = h∇[parent] - h∇[small]
         if depth >= 2
             # Clear tracking arrays
             cache.build_nodes_gpu .= 0
@@ -123,27 +116,29 @@ function grow_tree!(
             cache.build_count .= 0
             cache.subtract_count .= 0
             
-            # STEP 1: Separate active_nodes into BUILD and SUBTRACT lists
-            # active_nodes contains all children at current depth
-            # nodes_sum_gpu contains parent gradient sums (needed for weight comparison)
+            # Separate active nodes into BUILD (smaller) and SUBTRACT (larger) using raw counts
+            cache.node_counts_gpu .= 0
+            count_nodes_kernel!(backend)(
+                cache.node_counts_gpu, cache.nidx, is;
+                ndrange = length(is), workgroupsize = 256
+            )
+            KernelAbstractions.synchronize(backend)
+
             separate_kernel! = separate_nodes_kernel!(backend)
             separate_kernel!(
-                cache.build_nodes_gpu, cache.build_count,        # Output: smaller children
-                cache.subtract_nodes_gpu, cache.subtract_count,  # Output: larger children
-                view(active_nodes, 1:n_active),                  # Input: all active children
-                cache.nodes_sum_gpu,                             # Input: has parent sums
-                cache.K;                                         # For weight index calc
+                cache.build_nodes_gpu, cache.build_count,
+                cache.subtract_nodes_gpu, cache.subtract_count,
+                view(active_nodes, 1:n_active),
+                cache.node_counts_gpu;
                 ndrange = n_active,
                 workgroupsize = 256
             )
             KernelAbstractions.synchronize(backend)
             
-            # STEP 2: Get counts from GPU
-            build_count_val = Array(cache.build_count)[1]        # How many to BUILD
-            subtract_count_val = Array(cache.subtract_count)[1]  # How many to SUBTRACT
+            build_count_val = Array(cache.build_count)[1]
+            subtract_count_val = Array(cache.subtract_count)[1]
             
-            # STEP 3: Build histograms only for smaller children
-            # This is the expensive part - scanning observations
+            # Build histograms only for smaller children (observation scan)
             if build_count_val > 0
                 update_hist_gpu!(
                     L, cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
@@ -156,9 +151,7 @@ function grow_tree!(
                 )
             end
             
-            # STEP 4: Compute larger children via subtraction
-            # This is FAST - pure arithmetic, no observation scan!
-            # For each node in subtract_nodes: h∇[node] = h∇[parent] - h∇[sibling]
+            # Compute larger children via subtraction (no observation scan)
             if subtract_count_val > 0
                 subtract_hist_kernel!(backend)(
                     cache.h∇,                                             # Histogram to update
@@ -169,9 +162,7 @@ function grow_tree!(
                 KernelAbstractions.synchronize(backend)
             end
             
-            # STEP 5: Find best splits for ALL active nodes
-            # Now all histograms are ready (some built, some subtracted)
-            # We pass the original active_nodes to maintain correct indexing
+            # Find best splits for all active nodes (built or subtracted)
             find_split_all! = find_best_split_from_hist_kernel!(backend)
             find_split_all!(
                 L, view(cache.best_gain_gpu, 1:n_nodes), 
@@ -273,8 +264,8 @@ function grow_tree!(
     return nothing
 end
 
-# Apply splits kernel: decide split vs leaf, compute child gradients/predictions
-# Child gradient sums extracted from histogram enable subtraction at next level
+# Apply splits kernel: decide split vs leaf, compute child gradient sums
+# Note: histogram subtraction uses h∇, not nodes_sum; nodes_sum is used for gains/prediction
 @kernel function apply_splits_kernel!(
     tree_split, tree_cond_bin, tree_feat, tree_gain, tree_pred,
     nodes_sum, n_next, n_next_active,
@@ -297,9 +288,7 @@ end
         bin = Int(tree_cond_bin[node])
         is_numeric = feattypes[feat]
 
-        # Compute child gradient sums from histogram (enables subtraction at next level!)
-        # This is CRITICAL: stores gradient sums so next level can use:
-        #   h∇[grandchild] = h∇[parent=this_node] - h∇[sibling]
+        # Compute child gradient sums
         for kk in 1:(2*K_val+1)
             sum_val = zero(eltype(nodes_sum))
             if is_numeric
@@ -311,51 +300,17 @@ end
                 # Categorical: left child gets only matching bin
                 sum_val = h∇[kk, bin, feat, node]
             end
-            # Store child sums (used for next level's subtraction)
+            # Store child sums
             nodes_sum[kk, child_l] = sum_val
-            nodes_sum[kk, child_r] = nodes_sum[kk, node] - sum_val  # Already subtraction!
+            nodes_sum[kk, child_r] = nodes_sum[kk, node] - sum_val
         end
-        
-        w_l = nodes_sum[2*K_val+1, child_l]
-        w_r = nodes_sum[2*K_val+1, child_r]
-        
-        if K_val == 1
-            g_l = nodes_sum[1, child_l]
-            h_l = nodes_sum[2, child_l]
-            tree_pred[1, child_l] = -g_l / max(eps, h_l + lambda * w_l + L2)
-            
-            g_r = nodes_sum[1, child_r]
-            h_r = nodes_sum[2, child_r]
-            tree_pred[1, child_r] = -g_r / max(eps, h_r + lambda * w_r + L2)
-        else
-            for k in 1:K_val
-                g_l = nodes_sum[k, child_l]
-                h_l = nodes_sum[K_val+k, child_l]
-                tree_pred[k, child_l] = -g_l / max(eps, h_l + lambda * w_l + L2)
-                
-                g_r = nodes_sum[k, child_r]
-                h_r = nodes_sum[K_val+k, child_r]
-                tree_pred[k, child_r] = -g_r / max(eps, h_r + lambda * w_r + L2)
-            end
-        end
+        # Predictions are computed later on CPU (loss-specific)
         
         idx_base = Atomix.@atomic n_next_active[1] += 2
         n_next[idx_base - 1] = child_l
         n_next[idx_base] = child_r
     else
-        # Make leaf node
-        w = nodes_sum[2*K_val+1, node]
-        if K_val == 1
-            g = nodes_sum[1, node]
-            h = nodes_sum[2, node]
-            tree_pred[1, node] = (w <= 0 || h <= 0) ? 0.0f0 : -g / max(eps, h + lambda * w + L2)
-        else
-            for k in 1:K_val
-                g = nodes_sum[k, node]
-                h = nodes_sum[K_val+k, node]
-                tree_pred[k, node] = (w <= 0 || h <= 0) ? 0.0f0 : -g / max(eps, h + lambda * w + L2)
-            end
-        end
+        # Leaf node: prediction computed later on CPU (loss-specific)
     end
 end
 

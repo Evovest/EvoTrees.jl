@@ -1,8 +1,7 @@
 using KernelAbstractions
 using Atomix
 
-# Update observation-to-node assignments after splits
-# Left child = node*2, right child = node*2+1
+# Update observation-to-node assignments (left=node*2, right=node*2+1)
 @kernel function update_nodes_idx_kernel!(
     nidx::AbstractVector{T},        # Node index for each observation (in/out)
     @Const(is),                     # Observation indices to process
@@ -29,9 +28,7 @@ using Atomix
     end
 end
 
-# Build gradient histograms by accumulating (gradient, hessian, weight) for each (feature, bin, node)
-# h∇[2K+1, n_bins, n_feats, n_nodes] stores: [g1..gK, h1..hK, weight]
-# Chunking reduces atomic contention
+# Build gradient histograms: h∇[2K+1, n_bins, n_feats, n_nodes]
 @kernel function hist_kernel!(
     h∇::AbstractArray{T,4},         # Histogram [2K+1, n_bins, n_feats, n_nodes]
     @Const(∇),                      # Gradients [2K+1, n_obs]
@@ -76,39 +73,29 @@ end
     end
 end
 
-# KEY OPTIMIZATION: Separate sibling nodes into BUILD (smaller) vs SUBTRACT (larger) lists
-# Math: h∇[larger_child] = h∇[parent] - h∇[smaller_child] (no observation scan!)
-# Siblings identified by XOR: node ⊻ 1 (e.g., 4⊻1=5, 5⊻1=4)
+# Split active siblings into BUILD (smaller) vs SUBTRACT (larger) lists; sibling via node ⊻ 1
 @kernel function separate_nodes_kernel!(
     build_nodes, build_count,       # Output: nodes to build via observation scan
     subtract_nodes, subtract_count, # Output: nodes to compute via subtraction
     @Const(active_nodes),           # Input: all active child nodes at current depth
-    @Const(nodes_sum_gpu),          # Input: gradient sums [2K+1, n_nodes] - weight at index 2K+1
-    K_val::Int                      # Number of output dimensions
+    @Const(node_counts)             # Input: raw counts per node (number of observations)
 )
     idx = @index(Global)
     @inbounds if idx <= length(active_nodes)
-        # Get node from active_nodes list (e.g., nodes 4,5,6,7 at depth 3)
         node = active_nodes[idx]
         
         if node > 0
-            # Find sibling using XOR trick:
-            # Left child (even): 4⊻1=5, Right child (odd): 5⊻1=4
             sibling = node ⊻ 1
             
-            # Compare observation counts to decide which is smaller
-            # Weight stored at index 2*K+1 in nodes_sum_gpu
-            w_node = nodes_sum_gpu[2*K_val+1, node]
-            w_sibling = nodes_sum_gpu[2*K_val+1, sibling]
+            # Compare raw observation counts (not weights)
+            w_node = node_counts[node]
+            w_sibling = node_counts[sibling]
             
-            # Decision: build smaller, subtract larger
-            # Tiebreaker ensures only one sibling gets added to each list
+            # Tiebreak by node id on equality
             if w_node < w_sibling || (w_node == w_sibling && node < sibling)
-                # This node is smaller → BUILD its histogram
                 pos = Atomix.@atomic build_count[1] += 1
                 build_nodes[pos] = node
             else
-                # This node is larger → SUBTRACT from parent
                 pos = Atomix.@atomic subtract_count[1] += 1
                 subtract_nodes[pos] = node
             end
@@ -116,8 +103,7 @@ end
     end
 end
 
-# Compute histograms via subtraction: h∇[child] = h∇[parent] - h∇[sibling]
-# Much faster than observation scan: no memory access, no atomics, pure arithmetic
+# Compute hist via subtraction: h∇[child] = h∇[parent] - h∇[sibling]
 @kernel function subtract_hist_kernel!(
     h∇,                    # Histogram [2K+1, n_bins, n_feats, n_nodes] - modified in-place
     @Const(subtract_nodes) # List of larger children to compute via subtraction
@@ -125,36 +111,26 @@ end
     gidx = @index(Global)
     
     # Decode histogram dimensions to parallelize across all elements
-    n_k = size(h∇, 1)  # 2K+1 gradient components
-    n_b = size(h∇, 2)  # Number of bins
-    n_j = size(h∇, 3)  # Number of features
+    n_k = size(h∇, 1)
+    n_b = size(h∇, 2)
+    n_j = size(h∇, 3)
     n_elements_per_node = n_k * n_b * n_j
     
-    # Which node from subtract_nodes list are we processing?
     node_idx = (gidx - 1) ÷ n_elements_per_node + 1
     
     if node_idx <= length(subtract_nodes)
-        # Decode which (feature, bin, gradient_component) within this node
         remainder = (gidx - 1) % n_elements_per_node
         j = remainder ÷ (n_k * n_b) + 1
         remainder = remainder % (n_k * n_b)
         b = remainder ÷ n_k + 1
         k = remainder % n_k + 1
         
-        # Get the node to compute (from subtract_nodes list)
         @inbounds node = subtract_nodes[node_idx]
         
         if node > 0
-            # THE SUBTRACTION LOGIC:
-            # parent = node / 2 (e.g., node 5 → parent 2)
             parent = node >> 1
-            # sibling = XOR to flip last bit (e.g., node 5 → sibling 4)
             sibling = node ⊻ 1
             
-            # Compute: h∇[node] = h∇[parent] - h∇[sibling]
-            # Parent histogram already contains sum of both children
-            # Sibling histogram was built by scanning observations
-            # So: this node = parent - sibling (no observation scan needed!)
             @inbounds h∇[k, b, j, node] = h∇[k, b, j, parent] - h∇[k, b, j, sibling]
         end
     end
@@ -172,9 +148,7 @@ end
     end
 end
 
-# Find best split for each node by evaluating all (feature, bin) combinations
-# Gain = (left_score + right_score) - parent_score, where score = -g²/(h + λ*w + L2)
-# Supports multiple loss functions and monotone constraints
+# Find best split per node from histograms (supports multiple losses/constraints)
 @kernel function find_best_split_from_hist_kernel!(
     ::Type{L},                      # Loss function type
     gains::AbstractVector{T},       # Output: best gain for each node
@@ -455,8 +429,19 @@ end
     end
 end
 
-# Main entry point for histogram building: marks nodes, clears old data, builds histograms
-# Called for BUILD nodes; SUBTRACT nodes use parent - sibling arithmetic (see fit.jl)
+# Count raw number of observations per node for the current is/nidx mapping
+@kernel function count_nodes_kernel!(node_counts, @Const(nidx), @Const(is))
+    idx = @index(Global)
+    if idx <= length(is)
+        obs = is[idx]
+        node = nidx[obs]
+        if node > 0 && node <= length(node_counts)
+            Atomix.@atomic node_counts[node] += 1
+        end
+    end
+end
+
+# Build histograms for a set of active nodes (BUILD side of subtraction)
 function update_hist_gpu!(
     ::Type{L},
     h∇, ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params,
