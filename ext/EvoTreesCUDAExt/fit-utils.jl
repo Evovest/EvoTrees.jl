@@ -443,10 +443,9 @@ end
 
 # Build histograms for a set of active nodes (BUILD side of subtraction)
 function update_hist_gpu!(
-    ::Type{L},
     h∇, ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params,
     feattypes, monotone_constraints, K, L2, sums_temp, target_mask, backend
-) where {L}
+)
     n_active = length(active_nodes)
 
     if sums_temp === nothing && K > 1

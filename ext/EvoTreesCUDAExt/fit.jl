@@ -71,7 +71,7 @@ function grow_tree!(
         KernelAbstractions.synchronize(backend)
     else
         update_hist_gpu!(
-            L, cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
+            cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
             1, view(cache.anodes_gpu, 1:1), cache.nodes_sum_gpu, params,
             cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K, 
             Float32(params.L2), view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1),
@@ -141,7 +141,7 @@ function grow_tree!(
             # Build histograms only for smaller children (observation scan)
             if build_count_val > 0
                 update_hist_gpu!(
-                    L, cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
+                    cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
                     depth, view(cache.build_nodes_gpu, 1:build_count_val), 
                     cache.nodes_sum_gpu, params,
                     cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K, 
@@ -182,7 +182,7 @@ function grow_tree!(
         # Apply splits: create children if gain > threshold, else make leaf
         apply_splits_kernel!(backend)(
             cache.tree_split_gpu, cache.tree_cond_bin_gpu, cache.tree_feat_gpu, 
-            cache.tree_gain_gpu, cache.tree_pred_gpu, cache.nodes_sum_gpu,
+            cache.tree_gain_gpu, cache.nodes_sum_gpu,
             cache.n_next_gpu, cache.n_next_active_gpu,
             view(cache.best_gain_gpu, 1:n_nodes), 
             view(cache.best_bin_gpu, 1:n_nodes), 
@@ -267,14 +267,13 @@ end
 # Apply splits kernel: decide split vs leaf, compute child gradient sums
 # Note: histogram subtraction uses h∇, not nodes_sum; nodes_sum is used for gains/prediction
 @kernel function apply_splits_kernel!(
-    tree_split, tree_cond_bin, tree_feat, tree_gain, tree_pred,
+    tree_split, tree_cond_bin, tree_feat, tree_gain,
     nodes_sum, n_next, n_next_active,
     best_gain, best_bin, best_feat, h∇, active_nodes, feattypes,
     depth, max_depth, lambda, gamma, L2, K_val
 )
     n_idx = @index(Global)
     node = active_nodes[n_idx]
-    eps = eltype(tree_pred)(1e-8)
 
     @inbounds if depth < max_depth && best_gain[n_idx] > gamma
         tree_split[node] = true
