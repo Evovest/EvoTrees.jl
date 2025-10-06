@@ -136,8 +136,8 @@ function grow_tree!(
                     cache.h∇, cache.best_gain_gpu, cache.best_bin_gpu, cache.best_feat_gpu,
                     ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
                     depth, view(cache.build_nodes_gpu, 1:build_count_val), cache.nodes_sum_gpu, params,
-                    cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K, Float32(params.L2), 
-                    view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:max(build_count_val,1)),
+                    cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K, Float32(params.L2),
+                    view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:max(build_count_val, 1)),
                     backend
                 )
             end
@@ -159,6 +159,7 @@ function grow_tree!(
             view_gain, view_bin, view_feat,
             cache.h∇,
             active_nodes_full,
+            cache.feattypes_gpu,
             depth, params.max_depth, Float32(params.lambda), Float32(params.gamma), Float32(params.L2), cache.K;
             ndrange=max(n_active, 1), workgroupsize=256
         )
@@ -235,11 +236,11 @@ end
 # Histogram update using device-side clear and kernels
 function update_hist_gpu_optimized!(
     ::Type{L},
-    h∇, gains::AbstractVector{T}, bins::AbstractVector{Int32}, feats::AbstractVector{Int32}, 
+    h∇, gains::AbstractVector{T}, bins::AbstractVector{Int32}, feats::AbstractVector{Int32},
     ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params,
     feattypes, monotone_constraints, K, L2::T, sums_temp, backend
 ) where {T,L}
-    
+
     n_active = length(active_nodes)
 
     if sums_temp === nothing && K > 1
@@ -271,8 +272,8 @@ function update_hist_gpu_optimized!(
 
     find_split! = find_best_split_from_hist_kernel!(backend)
     find_split!(L, gains, bins, feats, h∇, nodes_sum_gpu, active_nodes, js, feattypes, monotone_constraints,
-                eltype(gains)(params.lambda), L2, eltype(gains)(params.min_weight), K, sums_temp;
-                ndrange = max(n_active, 1), workgroupsize = min(256, max(64, n_active)))
+        eltype(gains)(params.lambda), L2, eltype(gains)(params.min_weight), K, sums_temp;
+        ndrange=max(n_active, 1), workgroupsize=min(256, max(64, n_active)))
     KernelAbstractions.synchronize(backend)
 end
 
@@ -284,6 +285,7 @@ end
     best_gain, best_bin, best_feat,
     h∇,
     active_nodes,
+    feattypes,
     depth, max_depth, lambda, gamma, L2,
     K_val
 )
@@ -300,11 +302,16 @@ end
 
         child_l, child_r = node << 1, (node << 1) + 1
         feat, bin = Int(tree_feat[node]), Int(tree_cond_bin[node])
+        is_numeric = feattypes[feat]
 
         @inbounds for kk in 1:(2*K_val+1)
             sum_val = zero(eltype(nodes_sum))
-            for b in 1:bin
-                sum_val += h∇[kk, b, feat, node]
+            if is_numeric
+                for b in 1:bin
+                    sum_val += h∇[kk, b, feat, node]
+                end
+            else
+                sum_val = h∇[kk, bin, feat, node]
             end
             nodes_sum[kk, child_l] = sum_val
             nodes_sum[kk, child_r] = nodes_sum[kk, node] - sum_val
