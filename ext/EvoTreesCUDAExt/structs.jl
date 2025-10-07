@@ -34,11 +34,11 @@ struct CacheGPU
     tree_feat_gpu::CuVector{Int32}
     tree_gain_gpu::CuVector{Float64}
     tree_pred_gpu::CuMatrix{Float32}
-    nodes_sum_gpu::CuArray{Float32,2}
+    nodes_sum_gpu::CuArray{Float64,2}
     anodes_gpu::CuVector{Int32}
     n_next_gpu::CuVector{Int32}
     n_next_active_gpu::CuVector{Int32}
-    best_gain_gpu::CuVector{Float32}
+    best_gain_gpu::CuVector{Float64}
     best_bin_gpu::CuVector{Int32}
     best_feat_gpu::CuVector{Int32}
     build_nodes_gpu::CuVector{Int32}
@@ -46,6 +46,6 @@ struct CacheGPU
     build_count::CuVector{Int32}
     subtract_count::CuVector{Int32}
     node_counts_gpu::CuVector{Int32}
-    sums_temp_gpu::CuArray{Float32,2}
+    sums_temp_gpu::CuArray{Float64,2}
 end
 

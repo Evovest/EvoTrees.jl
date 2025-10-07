@@ -86,7 +86,7 @@ function grow_tree!(
             cache.h∇, cache.nodes_sum_gpu,
             view(cache.anodes_gpu, 1:1),
             cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
-            Float32(params.lambda), Float32(params.L2), Float32(params.min_weight),
+            params.lambda, params.L2, params.min_weight,
             cache.K, view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1);
             ndrange=1,
             workgroupsize=64
@@ -171,7 +171,7 @@ function grow_tree!(
                 cache.h∇, cache.nodes_sum_gpu,
                 view(active_nodes, 1:n_active),
                 cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
-                Float32(params.lambda), Float32(params.L2), Float32(params.min_weight),
+                params.lambda, params.L2, params.min_weight,
                 cache.K, view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:n_active);
                 ndrange=n_active,
                 workgroupsize=min(256, max(64, n_active))
