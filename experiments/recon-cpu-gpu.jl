@@ -10,8 +10,6 @@ using EvoTrees
 using EvoTrees: predict, sigmoid, logit
 using EvoTrees: fit, predict, sigmoid, logit
 
-device = :gpu
-
 # prepare a dataset
 nobs = 10_000
 Random.seed!(123)
@@ -88,7 +86,7 @@ config = EvoTreeRegressor(;
     verbosity=0
 );
 @time pred_gpu = model(dtrain; device=:cpu);
-cor(pred_cpu, pred_gpu) # ~0.9999%
+cor(pred_cpu, pred_gpu) # ~0.999%
 
 ############################################
 # cpu vs GPU num feature
