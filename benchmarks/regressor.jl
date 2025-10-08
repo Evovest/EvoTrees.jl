@@ -6,7 +6,7 @@ using StatsBase: sample
 using EvoTrees
 using BenchmarkTools
 using Random: seed!
-using XGBoost
+
 
 run_evo = true
 run_xgb = false

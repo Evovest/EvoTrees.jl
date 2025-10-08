@@ -16,17 +16,14 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
 [weakdeps]
-Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 Atomix = "a9b6321e-bd34-4604-b9c9-b65b8de01458"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
-StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [extensions]
-EvoTreesCUDAExt = ["CUDA", "KernelAbstractions", "Atomix", "Adapt", "StaticArrays"]
+EvoTreesCUDAExt = ["CUDA", "KernelAbstractions", "Atomix"]
 
 [compat]
-Adapt = "4"
 BSON = "0.3"
 CUDA = "3.0, 4.0, 5.0"
 CategoricalArrays = "0.9, 0.10, 1"
@@ -41,7 +38,6 @@ Tables = "1.9"
 julia = "1.9"
 
 [extras]
-Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 Atomix = "a9b6321e-bd34-4604-b9c9-b65b8de01458"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
@@ -49,7 +45,6 @@ Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 MLJBase = "a7f614a8-145f-11e9-1d2a-a57a1082229d"
 MLJTestInterface = "72560011-54dd-4dc2-94f3-c5de45b75ecd"
-StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
