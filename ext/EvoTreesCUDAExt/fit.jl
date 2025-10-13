@@ -19,6 +19,11 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L, K}, cache::CacheGPU, params:
 	return nothing
 end
 
+"""
+    grow_otree!(tree, params, cache, is)
+
+Grow an oblivious tree on GPU (currently falls back to standard binary tree with a warning).
+"""
 function grow_otree!(
 	tree::EvoTrees.Tree{L, K},
 	params::EvoTrees.EvoTypes,
@@ -29,7 +34,11 @@ function grow_otree!(
 	grow_tree!(tree, params, cache, is)
 end
 
-# Grow decision tree level-by-level; at depth≥2 use histogram subtraction
+"""
+    grow_tree!(tree, params, cache, is)
+
+Grow a binary decision tree on GPU level-by-level using histogram-based splits.
+"""
 function grow_tree!(
 	tree::EvoTrees.Tree{L, K},
 	params::EvoTrees.EvoTypes,
@@ -210,7 +219,7 @@ function grow_tree!(
 			)
 			KernelAbstractions.synchronize(backend)
 		elseif depth == params.max_depth && n_active > 0
-
+			# Finalize nidx at max depth to ensure MAE/Quantile leaf predictions use correct observation sets
 			update_nodes_idx_kernel!(backend)(
 				cache.nidx, is, cache.x_bin, cache.tree_feat_gpu,
 				cache.tree_cond_bin_gpu, cache.feattypes_gpu;
@@ -229,6 +238,9 @@ function grow_tree!(
 
 	leaf_nodes = findall(!, tree.split)
 
+	# MAE/Quantile: use CPU-based leaf prediction with exact observation indices
+	# Build leaf membership from nidx and compute predictions using actual sample quantiles
+	# instead of histogram-accumulated sums to avoid numerical errors.
 	if L <: Union{EvoTrees.MAE, EvoTrees.Quantile}
 		cpu_data = (
 			nidx = Array(cache.nidx),
@@ -275,8 +287,11 @@ function grow_tree!(
 	return nothing
 end
 
-# Apply splits kernel: decide split vs leaf, compute child gradient sums
-# Note: histogram subtraction uses h∇, not nodes_sum; nodes_sum is used for gains/prediction
+"""
+    apply_splits_kernel!(tree_split, tree_cond_bin, tree_feat, tree_gain, nodes_sum, n_next, n_next_active, best_gain, best_bin, best_feat, h∇, active_nodes, feattypes, depth, max_depth, lambda, gamma, L2, K_val)
+
+Apply splits by creating child nodes if gain exceeds gamma threshold, otherwise mark as leaf; compute child gradient sums from histograms.
+"""
 @kernel function apply_splits_kernel!(
 	tree_split, tree_cond_bin, tree_feat, tree_gain,
 	nodes_sum, n_next, n_next_active,
@@ -320,3 +335,4 @@ end
 		n_next[idx_base] = child_r
 	end
 end
+

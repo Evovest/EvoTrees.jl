@@ -1,7 +1,11 @@
 using KernelAbstractions
 using Atomix
 
-# Update observation-to-node assignments (left=node*2, right=node*2+1)
+"""
+    update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
+
+Update observation-to-node assignments by traversing splits (left child = node*2, right child = node*2+1).
+"""
 @kernel function update_nodes_idx_kernel!(
 	nidx::AbstractVector{T},        # Node index for each observation (in/out)
 	@Const(is),                     # Observation indices to process
@@ -28,7 +32,11 @@ using Atomix
 	end
 end
 
-# Build gradient histograms: h∇[2K+1, n_bins, n_feats, n_nodes]
+"""
+    hist_kernel!(h∇, ∇, x_bin, nidx, js, is, K, chunk_size, target_mask)
+
+Build gradient histograms for active nodes using atomic operations to accumulate gradients by bin.
+"""
 @kernel function hist_kernel!(
 	h∇::AbstractArray{T, 4},         # Histogram [2K+1, n_bins, n_feats, n_nodes]
 	@Const(∇),                      # Gradients [2K+1, n_obs]
@@ -136,7 +144,11 @@ end
 	end
 end
 
-# Accumulate gradients for root node
+"""
+    reduce_root_sums_kernel!(nodes_sum, ∇, is)
+
+Accumulate gradient sums for the root node using atomic operations.
+"""
 @kernel function reduce_root_sums_kernel!(nodes_sum, @Const(∇), @Const(is))
 	idx = @index(Global)
 	if idx <= length(is)
@@ -148,7 +160,11 @@ end
 	end
 end
 
-# Find best split per node from histograms (supports multiple losses/constraints)
+"""
+    find_best_split_from_hist_kernel!(L, gains, bins, feats, h∇, nodes_sum, active_nodes, js, feattypes, monotone_constraints, lambda, L2, min_weight, K, sums_temp)
+
+Find the best split for each active node by evaluating gains across all features and bins from precomputed histograms.
+"""
 @kernel function find_best_split_from_hist_kernel!(
 	::Type{L},                      # Loss function type
 	gains::AbstractVector{T},       # Output: best gain for each node
@@ -176,6 +192,7 @@ end
 			feats[n_idx] = Int32(0)
 		else
 			nbins = size(h∇, 2)
+			# Use eps(T) for numerical stability guards 
 			eps = T(1e-8)
 
 			# Compute node total gradients by summing across bins
@@ -393,6 +410,11 @@ end
 	end
 end
 
+"""
+    clear_hist_kernel!(h∇, active_nodes, n_active)
+
+Clear (zero) histogram entries for specified active nodes.
+"""
 @kernel function clear_hist_kernel!(h∇, @Const(active_nodes), n_active)
 	idx = @index(Global, Linear)
 	n_elements = size(h∇, 1) * size(h∇, 2) * size(h∇, 3)
@@ -412,6 +434,11 @@ end
 	end
 end
 
+"""
+    clear_mask_kernel!(mask)
+
+Clear (zero) all entries in a mask array.
+"""
 @kernel function clear_mask_kernel!(mask)
 	idx = @index(Global)
 	if idx <= length(mask)
@@ -419,6 +446,11 @@ end
 	end
 end
 
+"""
+    mark_active_nodes_kernel!(mask, active_nodes)
+
+Mark specified active nodes in a mask array by setting their entries to 1.
+"""
 @kernel function mark_active_nodes_kernel!(mask, @Const(active_nodes))
 	idx = @index(Global)
 	if idx <= length(active_nodes)
@@ -441,7 +473,11 @@ end
 	end
 end
 
-# Build histograms for a set of active nodes
+"""
+    update_hist_gpu!(h∇, ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params, feattypes, monotone_constraints, K, L2, sums_temp, target_mask, backend)
+
+Build histograms for active nodes by clearing previous entries and invoking the histogram kernel.
+"""
 function update_hist_gpu!(
 	h∇, ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params,
 	feattypes, monotone_constraints, K, L2, sums_temp, target_mask, backend,
