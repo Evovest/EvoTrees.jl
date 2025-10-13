@@ -2,7 +2,7 @@ using KernelAbstractions
 using Atomix
 
 """
-    update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
+	update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
 
 Update observation-to-node assignments by traversing splits (left child = node*2, right child = node*2+1).
 """
@@ -33,7 +33,7 @@ Update observation-to-node assignments by traversing splits (left child = node*2
 end
 
 """
-    hist_kernel!(h∇, ∇, x_bin, nidx, js, is, K, chunk_size, target_mask)
+	hist_kernel!(h∇, ∇, x_bin, nidx, js, is, K, chunk_size, target_mask)
 
 Build gradient histograms for active nodes using atomic operations to accumulate gradients by bin.
 """
@@ -145,7 +145,7 @@ end
 end
 
 """
-    reduce_root_sums_kernel!(nodes_sum, ∇, is)
+	reduce_root_sums_kernel!(nodes_sum, ∇, is)
 
 Accumulate gradient sums for the root node using atomic operations.
 """
@@ -161,7 +161,7 @@ Accumulate gradient sums for the root node using atomic operations.
 end
 
 """
-    find_best_split_from_hist_kernel!(L, gains, bins, feats, h∇, nodes_sum, active_nodes, js, feattypes, monotone_constraints, lambda, L2, min_weight, K, sums_temp)
+	find_best_split_from_hist_kernel!(L, gains, bins, feats, h∇, nodes_sum, active_nodes, js, feattypes, monotone_constraints, lambda, L2, min_weight, K, sums_temp)
 
 Find the best split for each active node by evaluating gains across all features and bins from precomputed histograms.
 """
@@ -411,7 +411,7 @@ Find the best split for each active node by evaluating gains across all features
 end
 
 """
-    clear_hist_kernel!(h∇, active_nodes, n_active)
+	clear_hist_kernel!(h∇, active_nodes, n_active)
 
 Clear (zero) histogram entries for specified active nodes.
 """
@@ -435,7 +435,7 @@ Clear (zero) histogram entries for specified active nodes.
 end
 
 """
-    clear_mask_kernel!(mask)
+	clear_mask_kernel!(mask)
 
 Clear (zero) all entries in a mask array.
 """
@@ -447,7 +447,7 @@ Clear (zero) all entries in a mask array.
 end
 
 """
-    mark_active_nodes_kernel!(mask, active_nodes)
+	mark_active_nodes_kernel!(mask, active_nodes)
 
 Mark specified active nodes in a mask array by setting their entries to 1.
 """
@@ -474,7 +474,7 @@ end
 end
 
 """
-    update_hist_gpu!(h∇, ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params, feattypes, monotone_constraints, K, L2, sums_temp, target_mask, backend)
+	update_hist_gpu!(h∇, ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params, feattypes, monotone_constraints, K, L2, sums_temp, target_mask, backend)
 
 Build histograms for active nodes by clearing previous entries and invoking the histogram kernel.
 """

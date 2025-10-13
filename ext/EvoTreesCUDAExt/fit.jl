@@ -20,7 +20,7 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L, K}, cache::CacheGPU, params:
 end
 
 """
-    grow_otree!(tree, params, cache, is)
+	grow_otree!(tree, params, cache, is)
 
 Grow an oblivious tree on GPU (currently falls back to standard binary tree with a warning).
 """
@@ -35,7 +35,7 @@ function grow_otree!(
 end
 
 """
-    grow_tree!(tree, params, cache, is)
+	grow_tree!(tree, params, cache, is)
 
 Grow a binary decision tree on GPU level-by-level using histogram-based splits.
 """
@@ -288,7 +288,7 @@ function grow_tree!(
 end
 
 """
-    apply_splits_kernel!(tree_split, tree_cond_bin, tree_feat, tree_gain, nodes_sum, n_next, n_next_active, best_gain, best_bin, best_feat, h∇, active_nodes, feattypes, depth, max_depth, lambda, gamma, L2, K_val)
+	apply_splits_kernel!(tree_split, tree_cond_bin, tree_feat, tree_gain, nodes_sum, n_next, n_next_active, best_gain, best_bin, best_feat, h∇, active_nodes, feattypes, depth, max_depth, lambda, gamma, L2, K_val)
 
 Apply splits by creating child nodes if gain exceeds gamma threshold, otherwise mark as leaf; compute child gradient sums from histograms.
 """
