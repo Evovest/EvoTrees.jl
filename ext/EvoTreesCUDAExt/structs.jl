@@ -48,4 +48,3 @@ struct CacheGPU
     node_counts_gpu::CuVector{Int32}
     sums_temp_gpu::CuArray{Float64,2}
 end
-

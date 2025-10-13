@@ -23,7 +23,7 @@ function grow_otree!(
     tree::EvoTrees.Tree{L,K},
     params::EvoTrees.EvoTypes,
     cache::CacheGPU,
-    is::CuVector
+    is::CuVector,
 ) where {L,K}
     @warn "Oblivious tree GPU implementation not yet available, using standard tree" maxlog = 1
     grow_tree!(tree, params, cache, is)
@@ -34,7 +34,7 @@ function grow_tree!(
     tree::EvoTrees.Tree{L,K},
     params::EvoTrees.EvoTypes,
     cache::CacheGPU,
-    is::CuVector
+    is::CuVector,
 ) where {L,K}
 
     backend = KernelAbstractions.get_backend(cache.x_bin)
@@ -66,7 +66,7 @@ function grow_tree!(
         reduce_root_sums_kernel!(backend)(
             cache.nodes_sum_gpu, ∇_gpu, is;
             ndrange=length(is),
-            workgroupsize=256
+            workgroupsize=256,
         )
         KernelAbstractions.synchronize(backend)
     else
@@ -75,7 +75,7 @@ function grow_tree!(
             1, view(cache.anodes_gpu, 1:1), cache.nodes_sum_gpu, params,
             cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K,
             Float32(params.L2), view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1),
-            cache.target_mask_buf, backend
+            cache.target_mask_buf, backend,
         )
 
         find_split_root! = find_best_split_from_hist_kernel!(backend)
@@ -89,7 +89,7 @@ function grow_tree!(
             params.lambda, params.L2, params.min_weight,
             cache.K, view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1);
             ndrange=1,
-            workgroupsize=64
+            workgroupsize=64,
         )
         KernelAbstractions.synchronize(backend)
     end
@@ -105,7 +105,7 @@ function grow_tree!(
         active_nodes = view(cache.anodes_gpu, 1:n_nodes)
 
         if n_active < n_nodes
-            view(cache.anodes_gpu, n_active+1:n_nodes) .= 0
+            view(cache.anodes_gpu, (n_active+1):n_nodes) .= 0
         end
 
         # Histogram subtraction (depth ≥ 2): h∇[big] = h∇[parent] - h∇[small]
@@ -120,7 +120,7 @@ function grow_tree!(
             cache.node_counts_gpu .= 0
             count_nodes_kernel!(backend)(
                 cache.node_counts_gpu, cache.nidx, is;
-                ndrange=length(is), workgroupsize=256
+                ndrange=length(is), workgroupsize=256,
             )
             KernelAbstractions.synchronize(backend)
 
@@ -131,7 +131,7 @@ function grow_tree!(
                 view(active_nodes, 1:n_active),
                 cache.node_counts_gpu;
                 ndrange=n_active,
-                workgroupsize=256
+                workgroupsize=256,
             )
             KernelAbstractions.synchronize(backend)
 
@@ -147,7 +147,7 @@ function grow_tree!(
                     cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K,
                     Float32(params.L2),
                     view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:max(build_count_val, 1)),
-                    cache.target_mask_buf, backend
+                    cache.target_mask_buf, backend,
                 )
             end
 
@@ -157,7 +157,7 @@ function grow_tree!(
                     cache.h∇,                                             # Histogram to update
                     view(cache.subtract_nodes_gpu, 1:subtract_count_val); # Nodes to compute
                     ndrange=subtract_count_val * size(cache.h∇, 1) * size(cache.h∇, 2) * size(cache.h∇, 3),
-                    workgroupsize=256
+                    workgroupsize=256,
                 )
                 KernelAbstractions.synchronize(backend)
             end
@@ -174,7 +174,7 @@ function grow_tree!(
                 params.lambda, params.L2, params.min_weight,
                 cache.K, view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:n_active);
                 ndrange=n_active,
-                workgroupsize=min(256, max(64, n_active))
+                workgroupsize=min(256, max(64, n_active)),
             )
             KernelAbstractions.synchronize(backend)
         end
@@ -191,7 +191,7 @@ function grow_tree!(
             depth, params.max_depth, Float32(params.lambda), Float32(params.gamma),
             Float32(params.L2), cache.K;
             ndrange=max(n_active, 1),
-            workgroupsize=256
+            workgroupsize=256,
         )
         KernelAbstractions.synchronize(backend)
 
@@ -206,7 +206,16 @@ function grow_tree!(
                 cache.nidx, is, cache.x_bin, cache.tree_feat_gpu,
                 cache.tree_cond_bin_gpu, cache.feattypes_gpu;
                 ndrange=length(is),
-                workgroupsize=256
+                workgroupsize=256,
+            )
+            KernelAbstractions.synchronize(backend)
+        elseif depth == params.max_depth && n_active > 0
+
+            update_nodes_idx_kernel!(backend)(
+                cache.nidx, is, cache.x_bin, cache.tree_feat_gpu,
+                cache.tree_cond_bin_gpu, cache.feattypes_gpu;
+                ndrange=length(is),
+                workgroupsize=256,
             )
             KernelAbstractions.synchronize(backend)
         end
@@ -221,22 +230,24 @@ function grow_tree!(
     leaf_nodes = findall(!, tree.split)
 
     if L <: Union{EvoTrees.MAE,EvoTrees.Quantile}
-        # Special handling: MAE/Quantile need median computation on CPU
         cpu_data = (
             nidx=Array(cache.nidx),
             is=Array(is),
             ∇=Array(cache.∇),
-            nodes_sum=Array(cache.nodes_sum_gpu)
+            nodes_sum=Array(cache.nodes_sum_gpu),
         )
 
         leaf_map = Dict{Int,Vector{UInt32}}()
         sizehint!(leaf_map, length(leaf_nodes))
         for i in 1:length(cpu_data.is)
             leaf_id = cpu_data.nidx[cpu_data.is[i]]
-            if !haskey(leaf_map, leaf_id)
-                leaf_map[leaf_id] = UInt32[]
+
+            if leaf_id > 0 && leaf_id <= length(tree.split) && !tree.split[leaf_id]
+                if !haskey(leaf_map, leaf_id)
+                    leaf_map[leaf_id] = UInt32[]
+                end
+                push!(leaf_map[leaf_id], cpu_data.is[i])
             end
-            push!(leaf_map[leaf_id], cpu_data.is[i])
         end
 
         for n in leaf_nodes
@@ -270,7 +281,7 @@ end
     tree_split, tree_cond_bin, tree_feat, tree_gain,
     nodes_sum, n_next, n_next_active,
     best_gain, best_bin, best_feat, h∇, active_nodes, feattypes,
-    depth, max_depth, lambda, gamma, L2, K_val
+    depth, max_depth, lambda, gamma, L2, K_val,
 )
     n_idx = @index(Global)
     node = active_nodes[n_idx]
@@ -303,13 +314,9 @@ end
             nodes_sum[kk, child_l] = sum_val
             nodes_sum[kk, child_r] = nodes_sum[kk, node] - sum_val
         end
-        # Predictions are computed later on CPU (loss-specific)
 
         idx_base = Atomix.@atomic n_next_active[1] += 2
         n_next[idx_base-1] = child_l
         n_next[idx_base] = child_r
-    else
-        # Leaf node: prediction computed later on CPU (loss-specific)
     end
 end
-

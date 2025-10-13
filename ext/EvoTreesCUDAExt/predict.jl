@@ -17,7 +17,7 @@ function predict_kernel!(
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
             nid = (nid << 1) + Int(!cond)
         end
-        @inbounds for k = 1:K
+        @inbounds for k ∈ 1:K
             pred[k, i] += leaf_pred[k, nid]
         end
     end
@@ -103,7 +103,7 @@ function EvoTrees.predict!(
     tree::EvoTrees.Tree{L,K},
     x_bin::CuMatrix,
     feattypes::CuVector{Bool};
-    MAX_THREADS=1024
+    MAX_THREADS=1024,
 ) where {L,K,T}
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
@@ -125,7 +125,7 @@ function EvoTrees.predict!(
     tree::EvoTrees.Tree{L,K},
     x_bin::CuMatrix,
     feattypes::CuVector{Bool};
-    MAX_THREADS=1024
+    MAX_THREADS=1024,
 ) where {L<:EvoTrees.MLogLoss,K,T}
     n = size(pred, 2)
     threads = min(MAX_THREADS, n)
@@ -157,7 +157,7 @@ function EvoTrees._predict(
     nobs = size(x_bin, 1)
     pred = CUDA.zeros(K, nobs)
     feattypes = CuArray(m.info[:feattypes])
-    for i = 1:ntree_limit
+    for i ∈ 1:ntree_limit
         EvoTrees.predict!(pred, m.trees[i], x_bin, feattypes)
     end
     if L == EvoTrees.LogLoss
@@ -208,4 +208,3 @@ function EvoTrees.pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}
     ϵ = eps(T)
     p[1, n] = params.eta / params.bagging_size * quantile_gpu(view(∇, 2, is), params.alpha) / (1 + params.lambda + params.L2 / ∑[3])
 end
-

@@ -4,7 +4,6 @@ using EvoTrees
 using CUDA
 using KernelAbstractions
 using Atomix
-using Adapt
 using Tables
 using KernelAbstractions: get_backend
 
@@ -25,3 +24,4 @@ include("fit-utils.jl")
 include("fit.jl")
 
 end
+

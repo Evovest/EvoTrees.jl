@@ -17,13 +17,13 @@ using Atomix
         if node > 0                 # If observation is in an active node
             feat = cond_feats[node] # Get split feature for this node
             bin = cond_bins[node]   # Get split threshold
-            if bin == 0             # No split (leaf node)
-                nidx[obs] = zero(T) # Mark as inactive
-            else
+            # If bin == 0, node is a leaf - keep the current node ID
+            if bin != 0
                 feattype = feattypes[feat]
                 is_left = feattype ? (x_bin[obs, feat] <= bin) : (x_bin[obs, feat] == bin)
                 nidx[obs] = (node << 1) + T(Int(!is_left))
             end
+            # If bin == 0, do nothing - nidx[obs] already has the leaf node ID
         end
     end
 end
@@ -164,7 +164,7 @@ end
     L2::T,                          # Regularization: L2 penalty
     min_weight::T,                  # Minimum observations per leaf
     K::Int,                         # Number of output dimensions
-    sums_temp::AbstractArray{T,2}   # Temporary storage for gradient accumulation
+    sums_temp::AbstractArray{T,2},   # Temporary storage for gradient accumulation
 ) where {T,L}
     n_idx = @index(Global)
 
@@ -441,10 +441,10 @@ end
     end
 end
 
-# Build histograms for a set of active nodes (BUILD side of subtraction)
+# Build histograms for a set of active nodes
 function update_hist_gpu!(
     h∇, ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params,
-    feattypes, monotone_constraints, K, L2, sums_temp, target_mask, backend
+    feattypes, monotone_constraints, K, L2, sums_temp, target_mask, backend,
 )
     n_active = length(active_nodes)
 
@@ -464,7 +464,7 @@ function update_hist_gpu!(
         clear_hist_kernel!(backend)(
             h∇, active_nodes, n_active;
             ndrange=n_active * size(h∇, 1) * size(h∇, 2) * size(h∇, 3),
-            workgroupsize=256
+            workgroupsize=256,
         )
         KernelAbstractions.synchronize(backend)
     end
@@ -477,7 +477,7 @@ function update_hist_gpu!(
     hist_kernel_f!(
         h∇, ∇, x_bin, nidx, js, is, K, chunk_size, target_mask;
         ndrange=num_threads,
-        workgroupsize=256
+        workgroupsize=256,
     )
     KernelAbstractions.synchronize(backend)
 end

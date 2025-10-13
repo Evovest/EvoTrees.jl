@@ -92,7 +92,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         :feattypes => feattypes,
     )
 
-    nodes = [EvoTrees.TrainNode(nfeats, params.nbins, K, view(zeros(UInt32, 0), 1:0)) for _ in 1:2^params.max_depth-1]
+    nodes = [EvoTrees.TrainNode(nfeats, params.nbins, K, view(zeros(UInt32, 0), 1:0)) for _ in 1:(2^params.max_depth-1)]
     bias = [EvoTrees.Tree{L,K}(μ)]
     m = EvoTree{L,K}(L, K, bias, info)
 
@@ -175,9 +175,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         build_count,
         subtract_count,
         node_counts_gpu,
-        sums_temp_gpu
+        sums_temp_gpu,
     )
 
     return m, cache
 end
-
