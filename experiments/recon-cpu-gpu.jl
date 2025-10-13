@@ -11,8 +11,6 @@ using EvoTrees
 using EvoTrees: predict, sigmoid, logit
 using EvoTrees: fit, predict, sigmoid, logit
 
-device = :gpu
-
 # prepare a dataset
 nobs = 10_000
 Random.seed!(123)

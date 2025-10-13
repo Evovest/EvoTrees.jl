@@ -10,8 +10,8 @@ using KernelAbstractions: get_backend
 EvoTrees.device_ones(::Type{<:EvoTrees.GPU}, ::Type{T}, n::Int) where {T} = CUDA.ones(T, n)
 EvoTrees.device_array_type(::Type{<:EvoTrees.GPU}) = CuArray
 function EvoTrees.post_fit_gc(::Type{<:EvoTrees.GPU})
-	GC.gc(true)
-	CUDA.reclaim()
+    GC.gc(true)
+    CUDA.reclaim()
 end
 
 include("structs.jl")
