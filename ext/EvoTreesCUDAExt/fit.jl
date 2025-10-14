@@ -83,7 +83,7 @@ function grow_tree!(
 			cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
 			1, view(cache.anodes_gpu, 1:1), cache.nodes_sum_gpu, params,
 			cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K,
-			Float32(params.L2), view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1),
+			view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1),
 			cache.target_mask_buf, backend,
 		)
 
@@ -154,7 +154,6 @@ function grow_tree!(
 					depth, view(cache.build_nodes_gpu, 1:build_count_val),
 					cache.nodes_sum_gpu, params,
 					cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K,
-					Float32(params.L2),
 					view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:max(build_count_val, 1)),
 					cache.target_mask_buf, backend,
 				)
@@ -197,8 +196,8 @@ function grow_tree!(
 			view(cache.best_bin_gpu, 1:n_nodes),
 			view(cache.best_feat_gpu, 1:n_nodes),
 			cache.h∇, active_nodes, cache.feattypes_gpu,
-			depth, params.max_depth, Float32(params.lambda), Float32(params.gamma),
-			Float32(params.L2), cache.K;
+			depth, params.max_depth, Float32(params.gamma),
+			cache.K;
 			ndrange = max(n_active, 1),
 			workgroupsize = 256,
 		)
@@ -210,16 +209,8 @@ function grow_tree!(
 		end
 
 		# Update observation→node assignments for next level
-		if depth < params.max_depth && n_active > 0
-			update_nodes_idx_kernel!(backend)(
-				cache.nidx, is, cache.x_bin, cache.tree_feat_gpu,
-				cache.tree_cond_bin_gpu, cache.feattypes_gpu;
-				ndrange = length(is),
-				workgroupsize = 256,
-			)
-			KernelAbstractions.synchronize(backend)
-		elseif depth == params.max_depth && n_active > 0
-			# Finalize nidx at max depth to ensure MAE/Quantile leaf predictions use correct observation sets
+		# Finalize nidx at max depth to ensure MAE/Quantile leaf predictions use correct observation sets
+		if depth <= params.max_depth && n_active > 0
 			update_nodes_idx_kernel!(backend)(
 				cache.nidx, is, cache.x_bin, cache.tree_feat_gpu,
 				cache.tree_cond_bin_gpu, cache.feattypes_gpu;
@@ -288,7 +279,7 @@ function grow_tree!(
 end
 
 """
-	apply_splits_kernel!(tree_split, tree_cond_bin, tree_feat, tree_gain, nodes_sum, n_next, n_next_active, best_gain, best_bin, best_feat, h∇, active_nodes, feattypes, depth, max_depth, lambda, gamma, L2, K_val)
+	apply_splits_kernel!(tree_split, tree_cond_bin, tree_feat, tree_gain, nodes_sum, n_next, n_next_active, best_gain, best_bin, best_feat, h∇, active_nodes, feattypes, depth, max_depth, gamma, K_val)
 
 Apply splits by creating child nodes if gain exceeds gamma threshold, otherwise mark as leaf; compute child gradient sums from histograms.
 """
@@ -296,7 +287,7 @@ Apply splits by creating child nodes if gain exceeds gamma threshold, otherwise 
 	tree_split, tree_cond_bin, tree_feat, tree_gain,
 	nodes_sum, n_next, n_next_active,
 	best_gain, best_bin, best_feat, h∇, active_nodes, feattypes,
-	depth, max_depth, lambda, gamma, L2, K_val,
+	depth, max_depth, gamma, K_val,
 )
 	n_idx = @index(Global)
 	node = active_nodes[n_idx]
