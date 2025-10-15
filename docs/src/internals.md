@@ -19,9 +19,6 @@ EvoTrees.get_best_split
 EvoTrees.update_gains!
 EvoTrees.predict!
 EvoTrees.subsample
-EvoTrees.split_set_chunk!
-EvoTrees.grow_tree!
-EvoTrees.grow_otree!
 ```
 
 ## Histogram
