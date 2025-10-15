@@ -430,21 +430,21 @@ end
 end
 
 # Count raw number of observations per node for the current is/nidx mapping
-@kernel function count_nodes_kernel!(node_counts, @Const(nidx), @Const(is))
-    idx = @index(Global)
-    if idx <= length(is)
-        obs = is[idx]
-        node = nidx[obs]
-        if node > 0 && node <= length(node_counts)
-            Atomix.@atomic node_counts[node] += 1
-        end
-    end
-end
+# @kernel function count_nodes_kernel!(node_counts, @Const(nidx), @Const(is))
+#     idx = @index(Global)
+#     if idx <= length(is)
+#         obs = is[idx]
+#         node = nidx[obs]
+#         if node > 0 && node <= length(node_counts)
+#             Atomix.@atomic node_counts[node] += 1
+#         end
+#     end
+# end
 
 # Build histograms for a set of active nodes
 function update_hist_gpu!(
     h∇, ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params,
-    feattypes, monotone_constraints, K, L2, sums_temp, target_mask, backend,
+    feattypes, monotone_constraints, K, sums_temp, target_mask, backend,
 )
     n_active = length(active_nodes)
 

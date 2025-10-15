@@ -74,7 +74,7 @@ function grow_tree!(
             cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
             1, view(cache.anodes_gpu, 1:1), cache.nodes_sum_gpu, params,
             cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K,
-            Float32(params.L2), view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1),
+            view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1),
             cache.target_mask_buf, backend,
         )
 
@@ -116,51 +116,15 @@ function grow_tree!(
             cache.build_count .= 0
             cache.subtract_count .= 0
 
-            # Separate active nodes into BUILD (smaller) and SUBTRACT (larger) using raw counts
-            cache.node_counts_gpu .= 0
-            count_nodes_kernel!(backend)(
-                cache.node_counts_gpu, cache.nidx, is;
-                ndrange=length(is), workgroupsize=256,
-            )
-            KernelAbstractions.synchronize(backend)
-
-            separate_kernel! = separate_nodes_kernel!(backend)
-            separate_kernel!(
-                cache.build_nodes_gpu, cache.build_count,
-                cache.subtract_nodes_gpu, cache.subtract_count,
-                view(active_nodes, 1:n_active),
-                cache.node_counts_gpu;
-                ndrange=n_active,
-                workgroupsize=256,
-            )
-            KernelAbstractions.synchronize(backend)
-
-            build_count_val = Array(cache.build_count)[1]
-            subtract_count_val = Array(cache.subtract_count)[1]
-
             # Build histograms only for smaller children (observation scan)
-            if build_count_val > 0
-                update_hist_gpu!(
-                    cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
-                    depth, view(cache.build_nodes_gpu, 1:build_count_val),
-                    cache.nodes_sum_gpu, params,
-                    cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K,
-                    Float32(params.L2),
-                    view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:max(build_count_val, 1)),
-                    cache.target_mask_buf, backend,
-                )
-            end
-
-            # Compute larger children via subtraction (no observation scan)
-            if subtract_count_val > 0
-                subtract_hist_kernel!(backend)(
-                    cache.h∇,                                             # Histogram to update
-                    view(cache.subtract_nodes_gpu, 1:subtract_count_val); # Nodes to compute
-                    ndrange=subtract_count_val * size(cache.h∇, 1) * size(cache.h∇, 2) * size(cache.h∇, 3),
-                    workgroupsize=256,
-                )
-                KernelAbstractions.synchronize(backend)
-            end
+            update_hist_gpu!(
+                cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
+                depth, view(cache.anodes_gpu, 1:n_active),
+                cache.nodes_sum_gpu, params,
+                cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K,
+                view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:n_active),
+                cache.target_mask_buf, backend,
+            )
 
             # Find best splits for all active nodes (built or subtracted)
             find_split_all! = find_best_split_from_hist_kernel!(backend)
@@ -188,8 +152,8 @@ function grow_tree!(
             view(cache.best_bin_gpu, 1:n_nodes),
             view(cache.best_feat_gpu, 1:n_nodes),
             cache.h∇, active_nodes, cache.feattypes_gpu,
-            depth, params.max_depth, Float32(params.lambda), Float32(params.gamma),
-            Float32(params.L2), cache.K;
+            depth, params.max_depth, params.gamma,
+            cache.K;
             ndrange=max(n_active, 1),
             workgroupsize=256,
         )
@@ -281,7 +245,7 @@ end
     tree_split, tree_cond_bin, tree_feat, tree_gain,
     nodes_sum, n_next, n_next_active,
     best_gain, best_bin, best_feat, h∇, active_nodes, feattypes,
-    depth, max_depth, lambda, gamma, L2, K_val,
+    depth, max_depth, gamma, K_val,
 )
     n_idx = @index(Global)
     node = active_nodes[n_idx]
