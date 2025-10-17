@@ -131,7 +131,6 @@ mutable struct EvoTreeCount <: MMI.Probabilistic
     rowsample::Float64
     colsample::Float64
     nbins::Int
-    alpha::Float64
     monotone_constraints::Dict{Int,Int}
     tree_type::Symbol
     rng::AbstractRNG
@@ -154,7 +153,6 @@ function EvoTreeCount(; kwargs...)
         :rowsample => 1.0,
         :colsample => 1.0,
         :nbins => 64,
-        :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => :binary,
         :rng => 123,
@@ -193,7 +191,6 @@ function EvoTreeCount(; kwargs...)
         args[:rowsample],
         args[:colsample],
         args[:nbins],
-        args[:alpha],
         args[:monotone_constraints],
         tree_type,
         rng,
@@ -218,7 +215,6 @@ mutable struct EvoTreeClassifier <: MMI.Probabilistic
     rowsample::Float64
     colsample::Float64
     nbins::Int
-    alpha::Float64
     tree_type::Symbol
     rng::AbstractRNG
     device::Symbol
@@ -240,7 +236,6 @@ function EvoTreeClassifier(; kwargs...)
         :rowsample => 1.0,
         :colsample => 1.0,
         :nbins => 64,
-        :alpha => 0.5,
         :tree_type => :binary,
         :rng => 123,
         :device => :cpu
@@ -278,7 +273,6 @@ function EvoTreeClassifier(; kwargs...)
         args[:rowsample],
         args[:colsample],
         args[:nbins],
-        args[:alpha],
         tree_type,
         rng,
         device
@@ -302,7 +296,6 @@ mutable struct EvoTreeMLE <: MMI.Probabilistic
     rowsample::Float64
     colsample::Float64
     nbins::Int
-    alpha::Float64
     monotone_constraints::Dict{Int,Int}
     tree_type::Symbol
     rng::AbstractRNG
@@ -327,7 +320,6 @@ function EvoTreeMLE(; kwargs...)
         :rowsample => 1.0,
         :colsample => 1.0,
         :nbins => 64,
-        :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => :binary,
         :rng => 123,
@@ -377,7 +369,6 @@ function EvoTreeMLE(; kwargs...)
         args[:rowsample],
         args[:colsample],
         args[:nbins],
-        args[:alpha],
         args[:monotone_constraints],
         tree_type,
         rng,
@@ -402,7 +393,6 @@ mutable struct EvoTreeGaussian <: MMI.Probabilistic
     rowsample::Float64
     colsample::Float64
     nbins::Int
-    alpha::Float64
     monotone_constraints::Dict{Int,Int}
     tree_type::Symbol
     rng::AbstractRNG
@@ -424,7 +414,6 @@ function EvoTreeGaussian(; kwargs...)
         :rowsample => 1.0,
         :colsample => 1.0,
         :nbins => 64,
-        :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => :binary,
         :rng => 123,
@@ -463,7 +452,6 @@ function EvoTreeGaussian(; kwargs...)
         args[:rowsample],
         args[:colsample],
         args[:nbins],
-        args[:alpha],
         args[:monotone_constraints],
         tree_type,
         rng,
@@ -522,7 +510,6 @@ function check_args(args::Dict{Symbol,Any})
     check_parameter(Float64, args[:min_weight], zero(Float64), typemax(Float64), :min_weight)
 
     # check bounded parameters
-    check_parameter(Float64, args[:alpha], zero(Float64), one(Float64), :alpha)
     check_parameter(Float64, args[:rowsample], eps(Float64), one(Float64), :rowsample)
     check_parameter(Float64, args[:colsample], eps(Float64), one(Float64), :colsample)
     check_parameter(Float64, args[:eta], zero(Float64), typemax(Float64), :eta)
@@ -555,7 +542,6 @@ function check_args(model::EvoTypes)
     check_parameter(Float64, model.min_weight, zero(Float64), typemax(Float64), :min_weight)
 
     # check bounded parameters
-    check_parameter(Float64, model.alpha, zero(Float64), one(Float64), :alpha)
     check_parameter(Float64, model.rowsample, eps(Float64), one(Float64), :rowsample)
     check_parameter(Float64, model.colsample, eps(Float64), one(Float64), :colsample)
     check_parameter(Float64, model.eta, zero(Float64), typemax(Float64), :eta)
