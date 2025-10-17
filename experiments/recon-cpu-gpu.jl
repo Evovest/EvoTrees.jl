@@ -3,16 +3,13 @@ using Statistics
 using StatsBase: sample, quantile
 using Distributions
 using Random
-using CairoMakie
 using DataFrames
 using CategoricalArrays
-using EvoTrees: predict, sigmoid, logit
-# using ProfileView
 using CUDA
+using KernelAbstractions, StaticArrays, Adapt, Atomix
 using EvoTrees
+using EvoTrees: predict, sigmoid, logit
 using EvoTrees: fit, predict, sigmoid, logit
-
-device = :gpu
 
 # prepare a dataset
 nobs = 10_000
@@ -90,7 +87,7 @@ config = EvoTreeRegressor(;
     verbosity=0
 );
 @time pred_gpu = model(dtrain; device=:cpu);
-cor(pred_cpu, pred_gpu)
+println("corr cpu_vs_gpu (x_cat+x_num) = ", cor(pred_cpu, pred_gpu)) # expect ~0.999 after fix
 
 ############################################
 # cpu vs GPU num feature
@@ -144,49 +141,4 @@ config = EvoTreeRegressor(;
     verbosity=0
 );
 @time pred_gpu = model(dtrain; device=:cpu);
-cor(pred_cpu, pred_gpu)
-
-# laptop: 51.651 ms (237548 allocations: 23.94 MiB)
-# plot(logger[:metrics])
-# @time pred_train_linear = predict(model, x_train);
-# @time pred_eval_linear = predict(model, x_eval)
-# mean((pred_train_linear .- y_train) .^ 2)
-# mean((pred_eval_linear .- y_eval) .^ 2)
-f = Figure()
-ax = Axis(f[1, 1], xlabel="feature", ylabel="target")
-scatter!(ax,
-    dtrain.x_num,
-    dtrain.y,
-    color="#BBB",
-    markersize=2)
-dinfer = dtrain[dtrain.x_cat.=="A", :]
-x_perm = sortperm(dinfer.x_num)
-pred = model(dinfer)
-lines!(ax,
-    dinfer.x_num[x_perm],
-    pred[x_perm],
-    color="lightblue",
-    linewidth=1,
-    label="mse - A",
-)
-dinfer = dtrain[dtrain.x_cat.=="B", :]
-pred = model(dinfer);
-x_perm = sortperm(dinfer.x_num)
-lines!(ax,
-    dinfer.x_num[x_perm],
-    pred[x_perm],
-    color="blue",
-    linewidth=1,
-    label="mse - B",
-)
-dinfer = dtrain[dtrain.x_cat.=="C", :]
-pred = model(dinfer);
-x_perm = sortperm(dinfer.x_num)
-lines!(ax,
-    dinfer.x_num[x_perm],
-    pred[x_perm],
-    color="navy",
-    linewidth=1,
-    label="mse - C",
-)
-f
+println("corr cpu_vs_gpu (x_num only) = ", cor(pred_cpu, pred_gpu)) # ~0.999

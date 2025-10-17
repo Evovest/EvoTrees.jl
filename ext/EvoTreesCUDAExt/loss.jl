@@ -15,7 +15,7 @@ function EvoTrees.update_grads!(
     y::CuVector,
     ::Type{EvoTrees.MSE},
     params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
+    MAX_THREADS=1024,
 )
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
@@ -40,7 +40,7 @@ function EvoTrees.update_grads!(
     y::CuVector,
     ::Type{EvoTrees.MAE},
     params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
+    MAX_THREADS=1024,
 )
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
@@ -66,7 +66,7 @@ function EvoTrees.update_grads!(
     y::CuVector,
     ::Type{<:EvoTrees.Cred},
     params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
+    MAX_THREADS=1024,
 )
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
@@ -94,7 +94,7 @@ function EvoTrees.update_grads!(
     y::CuVector{T},
     ::Type{EvoTrees.Quantile},
     params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
+    MAX_THREADS=1024,
 ) where {T<:AbstractFloat}
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
@@ -121,7 +121,7 @@ function EvoTrees.update_grads!(
     y::CuVector,
     ::Type{EvoTrees.LogLoss},
     params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
+    MAX_THREADS=1024,
 )
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
@@ -148,7 +148,7 @@ function EvoTrees.update_grads!(
     y::CuVector,
     ::Type{EvoTrees.Poisson},
     params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
+    MAX_THREADS=1024,
 )
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
@@ -175,7 +175,7 @@ function EvoTrees.update_grads!(
     y::CuVector,
     ::Type{EvoTrees.Gamma},
     params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
+    MAX_THREADS=1024,
 )
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
@@ -204,7 +204,7 @@ function EvoTrees.update_grads!(
     y::CuVector,
     ::Type{EvoTrees.Tweedie},
     params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
+    MAX_THREADS=1024,
 )
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
@@ -212,7 +212,6 @@ function EvoTrees.update_grads!(
     CUDA.synchronize()
     return
 end
-
 
 #####################
 # Softmax
@@ -244,7 +243,7 @@ function EvoTrees.update_grads!(
     y::CuVector,
     ::Type{EvoTrees.MLogLoss},
     params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
+    MAX_THREADS=1024,
 )
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
@@ -252,7 +251,6 @@ function EvoTrees.update_grads!(
     CUDA.synchronize()
     return
 end
-
 
 ################################################################################
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
@@ -278,7 +276,7 @@ function EvoTrees.update_grads!(
     y::CuVector,
     ::Type{EvoTrees.GaussianMLE},
     params::EvoTrees.EvoTypes;
-    MAX_THREADS=1024
+    MAX_THREADS=1024,
 )
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
