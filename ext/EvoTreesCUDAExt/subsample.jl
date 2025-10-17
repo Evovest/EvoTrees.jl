@@ -6,7 +6,7 @@ function get_rand_kernel!(mask_cond)
 
     i_max = length(mask_cond)
     niter = cld(i_max, bdx * gdx)
-    for iter = 1:niter
+    for iter ∈ 1:niter
         i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
         if i <= i_max
             mask_cond[i] = rand(UInt8)
@@ -30,7 +30,7 @@ function subsample_step_1_kernel(left, mask_cond, cond, counts, chunk_size)
     i_stop = bid == gdim ? length(left) : i_start + chunk_size - 1
     count = 0
 
-    @inbounds for i = i_start:i_stop
+    @inbounds for i ∈ i_start:i_stop
         @inbounds if mask_cond[i] <= cond
             left[i_start+count] = i
             count += 1
@@ -45,7 +45,7 @@ function subsample_step_2_kernel(left, is, counts, counts_cum, chunk_size)
     bid = blockIdx().x
     count_cum = counts_cum[bid]
     i_start = chunk_size * (bid - 1)
-    @inbounds for i = 1:counts[bid]
+    @inbounds for i ∈ 1:counts[bid]
         is[count_cum+i] = left[i_start+i]
     end
     sync_threads()
@@ -85,3 +85,4 @@ function EvoTrees.subsample(left::CuVector, is::CuVector, mask_cond::CuVector, r
         return view(is, 1:counts_sum)
     end
 end
+

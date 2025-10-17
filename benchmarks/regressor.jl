@@ -3,13 +3,13 @@ using DataFrames
 using CSV
 using Statistics
 using StatsBase: sample
-using XGBoost
 using EvoTrees
 using BenchmarkTools
 using Random: seed!
+# using XGBoost
 
 run_evo = true
-run_xgb = true
+run_xgb = false
 nrounds = 200
 
 loss = :mse
@@ -17,17 +17,17 @@ tree_type = :binary
 T = Float32
 nthreads = Base.Threads.nthreads()
 
-device_list = [:cpu, :gpu]
-# device_list = [:gpu]
+# device_list = [:cpu, :gpu]
+device_list = [:gpu]
 
 nobs_list = Int.([1e5, 1e6, 1e7])
-# nobs_list = Int.([1e6])
+# nobs_list = Int.([1e5])
 
 nfeats_list = [10, 100]
 # nfeats_list = [10]
 
 max_depth_list = [6, 11]
-# max_depth_list = [11]
+# max_depth_list = [6]
 
 # nobs = first(nobs_list)
 # nfeats = first(nfeats_list)
@@ -135,3 +135,4 @@ for _device in device_list
     path = joinpath(@__DIR__, "results", "regressor-$_device.csv")
     CSV.write(path, df)
 end
+
