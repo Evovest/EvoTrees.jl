@@ -222,10 +222,11 @@ function grow_tree!(
     end
 
     # Copy tree to CPU and compute leaf predictions
-    copyto!(tree.split, Array(cache.tree_split_gpu))
-    copyto!(tree.feat, Array(cache.tree_feat_gpu))
-    copyto!(tree.cond_bin, Array(cache.tree_cond_bin_gpu))
-    copyto!(tree.gain, Array(cache.tree_gain_gpu))
+    copyto!(tree.split, cache.tree_split_gpu)
+    copyto!(tree.feat, cache.tree_feat_gpu)
+    copyto!(tree.cond_bin, cache.tree_cond_bin_gpu)
+    copyto!(tree.gain, cache.tree_gain_gpu)
+    copyto!(tree.w, view(cache.nodes_sum_gpu, size(cache.nodes_sum_gpu, 1), 1:length(tree.w))) # FIXME: nodes_sum_gpu[k,:] should match tree.w size
 
     leaf_nodes = findall(!, tree.split)
 

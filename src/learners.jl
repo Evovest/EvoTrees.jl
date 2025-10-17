@@ -513,6 +513,7 @@ function check_args(args::Dict{Symbol,Any})
     check_parameter(Float64, args[:rowsample], eps(Float64), one(Float64), :rowsample)
     check_parameter(Float64, args[:colsample], eps(Float64), one(Float64), :colsample)
     check_parameter(Float64, args[:eta], zero(Float64), typemax(Float64), :eta)
+    haskey(args, :alpha) && check_parameter(Float64, args[:alpha], zero(Float64), one(Float64), :alpha)
 
     try
         tree_type = string(args[:tree_type])
@@ -545,6 +546,7 @@ function check_args(model::EvoTypes)
     check_parameter(Float64, model.rowsample, eps(Float64), one(Float64), :rowsample)
     check_parameter(Float64, model.colsample, eps(Float64), one(Float64), :colsample)
     check_parameter(Float64, model.eta, zero(Float64), typemax(Float64), :eta)
+    hasproperty(model, :alpha) && check_parameter(Float64, model.alpha, zero(Float64), one(Float64), :alpha)
 
     try
         tree_type = string(model.tree_type)

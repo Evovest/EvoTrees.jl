@@ -33,7 +33,7 @@ config = EvoTreeRegressor(
     nbins=16,
     lambda=0.5,
     gamma=0.1,
-    eta=0.05,
+    eta=0.1,
     max_depth=6,
     min_weight=1.0,
     rowsample=0.5,
@@ -65,7 +65,7 @@ config = EvoTreeRegressor(
         dtrain;
         target_name,
         deval,
-        print_every_n=25)
+        print_every_n=100)
 
     preds = EvoTrees.predict(model, deval)
     mse_error = mean((preds .- y_eval) .^ 2)
@@ -98,7 +98,7 @@ end
         dtrain;
         target_name,
         deval,
-        print_every_n=25)
+        print_every_n=100)
 
     preds = EvoTrees.predict(model, deval)
     mse_error = mean((preds .- y_eval) .^ 2)

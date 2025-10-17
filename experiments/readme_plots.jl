@@ -1,7 +1,7 @@
 using BenchmarkTools
 using Statistics
 using StatsBase: sample, quantile
-using Distributions
+import Distributions
 using Random
 using CairoMakie
 using CUDA
