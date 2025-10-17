@@ -47,7 +47,7 @@ y_train, y_eval = Y[i_train], Y[i_eval]
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -79,7 +79,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -111,7 +111,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -143,7 +143,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -177,7 +177,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -211,7 +211,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -242,7 +242,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -275,7 +275,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)[:, 1]
@@ -308,7 +308,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)[:, 1]
@@ -340,7 +340,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)[:, 1]

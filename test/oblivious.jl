@@ -30,10 +30,10 @@ y_train_c, y_eval_c = Yc[i_train], Yc[i_eval]
         config = EvoTreeRegressor(
             loss=loss,
             tree_type=:oblivious,
-            nrounds=200,
+            nrounds=100,
             nbins=32,
             rng=123,
-            eta=0.05,
+            eta=0.1,
         )
 
         model, cache = EvoTrees.init(config, x_train, y_train)
@@ -45,7 +45,7 @@ y_train_c, y_eval_c = Yc[i_train], Yc[i_eval]
             y_train,
             x_eval,
             y_eval,
-            print_every_n=25
+            print_every_n=100
         )
 
         preds = model(x_eval)
@@ -60,7 +60,7 @@ end
 
     config = EvoTreeCount(
         tree_type="oblivious",
-        nrounds=200,
+        nrounds=100,
         nbins=32,
         rng=123,
     )
@@ -74,7 +74,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = model(x_eval)
@@ -90,7 +90,7 @@ end
         config = EvoTreeMLE(
             loss=loss,
             tree_type="oblivious",
-            nrounds=200,
+            nrounds=100,
             nbins=32,
             rng=123,
         )
@@ -104,7 +104,7 @@ end
             y_train,
             x_eval,
             y_eval,
-            print_every_n=25
+            print_every_n=100
         )
 
         preds = model(x_eval)[:, 1]
@@ -134,7 +134,7 @@ end
         y_train=y_train_c,
         x_eval,
         y_eval=y_eval_c,
-        print_every_n=50
+        print_every_n=100
     )
 
     preds = model(x_eval)
