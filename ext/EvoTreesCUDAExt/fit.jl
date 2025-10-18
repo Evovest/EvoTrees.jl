@@ -106,7 +106,7 @@ function grow_tree!(
     end
 
     # Main loop: build tree level by level - FIX: stop at max_depth-1
-    for depth in 1:(params.max_depth - 1)
+    for depth in 1:(params.max_depth-1)
         iszero(n_active) && break
 
         view(cache.n_next_active_gpu, 1:1) .= 0

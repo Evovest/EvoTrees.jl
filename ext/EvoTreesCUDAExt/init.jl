@@ -106,7 +106,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     max_nodes_level = 2^params.max_depth
     left_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
     right_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
-    
+
     # FIX: Use correct tree node count
     max_tree_nodes = 2^params.max_depth - 1
     target_mask_buf = KernelAbstractions.zeros(backend, UInt8, max_tree_nodes)
@@ -117,7 +117,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     tree_pred_gpu = KernelAbstractions.zeros(backend, Float32, K, max_tree_nodes)
     nodes_sum_gpu = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, max_tree_nodes)
     node_counts_gpu = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
-    
+
     anodes_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
     n_next_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level * 2)
     n_next_active_gpu = KernelAbstractions.zeros(backend, Int32, 1)
