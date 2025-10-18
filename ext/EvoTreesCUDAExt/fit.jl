@@ -78,6 +78,7 @@ function grow_tree!(
             workgroupsize=256,
         )
         KernelAbstractions.synchronize(backend)
+        n_active = 0
     else
         update_hist_gpu!(
             cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
@@ -101,12 +102,11 @@ function grow_tree!(
             workgroupsize=64,
         )
         KernelAbstractions.synchronize(backend)
+        n_active = 1
     end
 
-    n_active = params.max_depth == 1 ? 0 : 1
-
-    # Main loop: build tree level by level
-    for depth in 1:params.max_depth
+    # Main loop: build tree level by level - FIX: stop at max_depth-1
+    for depth in 1:(params.max_depth - 1)
         iszero(n_active) && break
 
         view(cache.n_next_active_gpu, 1:1) .= 0
@@ -162,8 +162,8 @@ function grow_tree!(
             # Compute larger children via subtraction (no observation scan)
             if subtract_count_val > 0
                 subtract_hist_kernel!(backend)(
-                    cache.h∇,                                             # Histogram to update
-                    view(cache.subtract_nodes_gpu, 1:subtract_count_val); # Nodes to compute
+                    cache.h∇,
+                    view(cache.subtract_nodes_gpu, 1:subtract_count_val);
                     ndrange=subtract_count_val * size(cache.h∇, 1) * size(cache.h∇, 2) * size(cache.h∇, 3),
                     workgroupsize=256,
                 )
@@ -209,8 +209,7 @@ function grow_tree!(
         end
 
         # Update observation→node assignments for next level
-        # Finalize nidx at max depth to ensure MAE/Quantile leaf predictions use correct observation sets
-        if depth <= params.max_depth && n_active > 0
+        if n_active > 0
             update_nodes_idx_kernel!(backend)(
                 cache.nidx, is, cache.x_bin, cache.tree_feat_gpu,
                 cache.tree_cond_bin_gpu, cache.feattypes_gpu;
@@ -221,19 +220,28 @@ function grow_tree!(
         end
     end
 
+    # Update final leaf assignments if we have nodes at max_depth
+    if params.max_depth > 1 && n_active > 0
+        update_nodes_idx_kernel!(backend)(
+            cache.nidx, is, cache.x_bin, cache.tree_feat_gpu,
+            cache.tree_cond_bin_gpu, cache.feattypes_gpu;
+            ndrange=length(is),
+            workgroupsize=256,
+        )
+        KernelAbstractions.synchronize(backend)
+    end
+
     # Copy tree to CPU and compute leaf predictions
     copyto!(tree.split, cache.tree_split_gpu)
     copyto!(tree.feat, cache.tree_feat_gpu)
     copyto!(tree.cond_bin, cache.tree_cond_bin_gpu)
     copyto!(tree.gain, cache.tree_gain_gpu)
-    copyto!(tree.w, view(cache.nodes_sum_gpu, size(cache.nodes_sum_gpu, 1), 1:length(tree.w))) # FIXME: nodes_sum_gpu[k,:] should match tree.w size
+    copyto!(tree.w, view(cache.nodes_sum_gpu, size(cache.nodes_sum_gpu, 1), 1:length(tree.w)))
 
     leaf_nodes = findall(!, tree.split)
 
-    # MAE/Quantile: use CPU-based leaf prediction with exact observation indices
-    # Build leaf membership from nidx and compute predictions using actual sample quantiles
-    # instead of histogram-accumulated sums to avoid numerical errors.
-    if L <: Union{EvoTrees.MAE,EvoTrees.Quantile}
+    # Quantile: needs exact observation indices for median computation
+    if L <: EvoTrees.Quantile
         cpu_data = (
             nidx=Array(cache.nidx),
             is=Array(is),
@@ -254,23 +262,21 @@ function grow_tree!(
             end
         end
 
-        for n in leaf_nodes
+        # Process Quantile leaves with multithreading
+        Threads.@threads for n in leaf_nodes
             node_sum_view = view(cpu_data.nodes_sum, :, n)
-            if L <: EvoTrees.Quantile
-                node_is = get(leaf_map, n, UInt32[])
-                if !isempty(node_is)
-                    EvoTrees.pred_leaf_cpu!(tree.pred, n, node_sum_view, L, params, cpu_data.∇, node_is)
-                else
-                    EvoTrees.pred_leaf_cpu!(tree.pred, n, node_sum_view, EvoTrees.MAE, params)
-                end
+            node_is = get(leaf_map, n, UInt32[])
+            if !isempty(node_is)
+                EvoTrees.pred_leaf_cpu!(tree.pred, n, node_sum_view, L, params, cpu_data.∇, node_is)
             else
-                EvoTrees.pred_leaf_cpu!(tree.pred, n, node_sum_view, L, params)
+                # Handle empty leaf - set to zero prediction
+                tree.pred[:, n] .= 0
             end
         end
     else
-        # Standard loss: pred = -g / (h + λ*w + L2)
+        # All other losses (including MAE): use histogram-based predictions with multithreading
         nodes_sum_cpu = Array(cache.nodes_sum_gpu)
-        for n in leaf_nodes
+        Threads.@threads for n in leaf_nodes
             node_sum_view = view(nodes_sum_cpu, :, n)
             EvoTrees.pred_leaf_cpu!(tree.pred, n, node_sum_view, L, params)
         end
