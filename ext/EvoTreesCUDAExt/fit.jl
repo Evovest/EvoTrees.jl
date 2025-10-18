@@ -1,4 +1,4 @@
-function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache::CacheGPU, params::EvoTrees.EvoTypes) where {L,K}
+function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, params::EvoTrees.EvoTypes) where {L,K}
     EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, L, params)
 
     for _ in 1:params.bagging_size
@@ -11,11 +11,11 @@ function EvoTrees.grow_evotree!(evotree::EvoTree{L,K}, cache::CacheGPU, params::
 
         tree = EvoTrees.Tree{L,K}(params.max_depth)
         grow_tree!(tree, params, cache, is)
-        push!(evotree.trees, tree)
+        push!(m.trees, tree)
         EvoTrees.predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
     end
 
-    evotree.info[:nrounds] += 1
+    m.info[:nrounds] += 1
     return nothing
 end
 
@@ -27,7 +27,7 @@ Grow an oblivious tree on GPU (currently falls back to standard binary tree with
 function grow_otree!(
     tree::EvoTrees.Tree{L,K},
     params::EvoTrees.EvoTypes,
-    cache::CacheGPU,
+    cache::EvoTrees.CacheGPU,
     is::CuVector,
 ) where {L,K}
     @warn "Oblivious tree GPU implementation not yet available, using standard tree" maxlog = 1
@@ -42,7 +42,7 @@ Grow a binary decision tree on GPU level-by-level using histogram-based splits.
 function grow_tree!(
     tree::EvoTrees.Tree{L,K},
     params::EvoTrees.EvoTypes,
-    cache::CacheGPU,
+    cache::EvoTrees.CacheGPU,
     is::CuVector,
 ) where {L,K}
 

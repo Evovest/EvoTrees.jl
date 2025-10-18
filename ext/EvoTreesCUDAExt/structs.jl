@@ -1,10 +1,10 @@
-struct CacheGPU
-    info::Dict
-    x_bin::CuMatrix
-    y::CuArray
-    w::Union{Nothing,CuVector}
+struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
+    params::EvoTrees.EvoTypes
     K::Int
-    nodes::Vector
+    x_bin::CuMatrix
+    y::Y
+    w::Union{Nothing,CuVector}
+    nodes::Vector{N}
     pred::CuMatrix
     nidx::CuVector{UInt32}
     is_in::CuVector{UInt32}
@@ -16,7 +16,7 @@ struct CacheGPU
     h∇::CuArray
     h∇L::CuArray
     h∇R::CuArray
-    fnames::Vector{Symbol}
+    feature_names::Vector{Symbol}
     edges::Vector
     featbins::Vector
     feattypes_gpu::CuVector{Bool}

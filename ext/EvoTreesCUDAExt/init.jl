@@ -1,7 +1,7 @@
-function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, data, fnames, y_train, w, offset)
+function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, data, feature_names, y_train, w, offset)
 
-    edges, featbins, feattypes = EvoTrees.get_edges(data; feature_names=fnames, nbins=params.nbins, rng=params.rng)
-    x_bin = CuArray(EvoTrees.binarize(data; feature_names=fnames, edges))
+    edges, featbins, feattypes = EvoTrees.get_edges(data; feature_names, nbins=params.nbins, rng=params.rng)
+    x_bin = CuArray(EvoTrees.binarize(data; feature_names, edges))
     nobs, nfeats = size(x_bin)
     T = Float32
     L = EvoTrees._loss2type_dict[params.loss]
@@ -84,7 +84,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
 
     info = Dict(
         :nrounds => 0,
-        :feature_names => fnames,
+        :feature_names => feature_names,
         :target_levels => target_levels,
         :target_isordered => target_isordered,
         :edges => edges,
@@ -130,12 +130,14 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     subtract_count = KernelAbstractions.zeros(backend, Int32, 1)
     sums_temp_gpu = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, max_nodes_level)
 
-    cache = CacheGPU(
-        Dict(:nrounds => 0),
+    Y = typeof(y)
+    N = typeof(first(nodes))
+    cache = CacheBaseGPU{Y,N}(
+        deepcopy(params),
+        K,
         x_bin,
         y,
         w,
-        K,
         nodes,
         pred,
         nidx,
@@ -148,7 +150,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         h∇,
         h∇L,
         h∇R,
-        fnames,
+        feature_names,
         edges,
         featbins,
         feattypes_gpu,

@@ -104,6 +104,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     Y = typeof(y)
     N = typeof(first(nodes))
     cache = CacheBaseCPU{Y,N}(
+        deepcopy(params),
         K,
         x_bin,
         y,
