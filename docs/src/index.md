@@ -30,7 +30,7 @@ A model configuration must first be defined, using one of the model constructor:
 - [`EvoTreeCount`](@ref)
 - [`EvoTreeMLE`](@ref)
 
-Then fitting can be performed using [`fit_evotree`](@ref). 2 broad methods are supported: Matrix and Tables based inputs. Optional kwargs can be used to specify eval data on which to track eval metric and perform early stopping. Look at the docs for more details on available hyper-parameters for each of the above constructors and other options for training.
+Then fitting can be performed using [`fit`](@ref). 2 broad methods are supported: Matrix and Tables based inputs. Optional kwargs can be used to specify eval data on which to track eval metric and perform early stopping. Look at the docs for more details on available hyper-parameters for each of the above constructors and other options for training.
 
 Predictions are obtained by passing features data to the model. Model acts as a functor, ie. it's a struct containing the fitted model as well as a function generating the prediction of that model for the features argument. 
 
@@ -43,6 +43,7 @@ When using a `Tables` compatible input such as `DataFrames`, features with eleme
 
 ```julia
 using EvoTrees
+using EvoTrees: fit
 using DataFrames
 
 config = EvoTreeRegressor(
@@ -55,8 +56,8 @@ config = EvoTreeRegressor(
 x_train, y_train = rand(1_000, 10), rand(1_000)
 dtrain = DataFrame(x_train, :auto)
 dtrain.y .= y_train
-m = fit_evotree(config, dtrain; target_name="y");
-m = fit_evotree(config, dtrain; target_name="y", feature_names=["x1", "x3"]); # to only use specified features
+m = fit(config, dtrain; target_name="y");
+m = fit(config, dtrain; target_name="y", feature_names=["x1", "x3"]); # to only use specified features
 preds = m(dtrain)
 ```
 
@@ -64,6 +65,7 @@ preds = m(dtrain)
 
 ```julia
 using EvoTrees
+using EvoTrees: fit
 
 config = EvoTreeRegressor(
     loss=:mse, 
@@ -73,7 +75,7 @@ config = EvoTreeRegressor(
     eta=0.1)
 
 x_train, y_train = rand(1_000, 10), rand(1_000)
-m = fit_evotree(config; x_train, y_train)
+m = fit(config; x_train, y_train)
 preds = m(x_train)
 ```
 
@@ -93,7 +95,7 @@ config = EvoTreeRegressor(
     device=:gpu
 )
 
-m = fit_evotree(config, dtrain; target_name="y");
+m = fit(config, dtrain; target_name="y");
 p = m(dtrain; device=:gpu)
 ```
 
@@ -111,17 +113,17 @@ Consequently, the following `m1` and `m2` models will be identical:
 
 ```julia
 config = EvoTreeRegressor(rowsample=0.5, rng=123)
-m1 = fit_evotree(config, dtrain; target_name="y");
+m1 = fit(config, dtrain; target_name="y");
 config = EvoTreeRegressor(rowsample=0.5, rng=123)
-m2 = fit_evotree(config, dtrain; target_name="y");
+m2 = fit(config, dtrain; target_name="y");
 ```
 
 However, the following `m1` and `m2` models won't be because the there's stochasticity involved in the model from `rowsample` and the random generator in the `config` isn't reset between the fits:
 
 ```julia
 config = EvoTreeRegressor(rowsample=0.5, rng=123)
-m1 = fit_evotree(config, dtrain; target_name="y");
-m2 = fit_evotree(config, dtrain; target_name="y");
+m1 = fit(config, dtrain; target_name="y");
+m2 = fit(config, dtrain; target_name="y");
 ```
 
 Note that in presence of multiple identical or very highly correlated features, model may not be reproducible if features are permuted since in situation where 2 features provide identical gains, the first one will be selected. Therefore, if the identity relationship doesn't hold on new data, different predictions will be returned from models trained on different features order. 
