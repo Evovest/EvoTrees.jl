@@ -1,6 +1,7 @@
 function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, data, feature_names, y_train, w, offset)
 
-    edges, featbins, feattypes = EvoTrees.get_edges(data; feature_names, nbins=params.nbins, rng=params.rng)
+    rng = Xoshiro(params.seed)
+    edges, featbins, feattypes = EvoTrees.get_edges(data; feature_names, nbins=params.nbins, rng)
     x_bin = CuArray(EvoTrees.binarize(data; feature_names, edges))
     nobs, nfeats = size(x_bin)
     T = Float32
@@ -73,6 +74,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     nidx = KernelAbstractions.ones(backend, UInt32, nobs)
     is_in = KernelAbstractions.zeros(backend, UInt32, nobs)
     is_out = KernelAbstractions.zeros(backend, UInt32, nobs)
+    # is = CuArray{UInt32}(1:nobs)
     mask = KernelAbstractions.zeros(backend, UInt8, nobs)
     js_ = UInt32.(collect(1:nfeats))
     js = KernelAbstractions.zeros(backend, UInt32, ceil(Int, params.colsample * nfeats))
@@ -133,7 +135,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     Y = typeof(y)
     N = typeof(first(nodes))
     cache = CacheBaseGPU{Y,N}(
-        deepcopy(params),
+        rng,
         K,
         x_bin,
         y,

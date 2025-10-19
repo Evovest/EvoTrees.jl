@@ -32,7 +32,7 @@ y_train_c, y_eval_c = Yc[i_train], Yc[i_eval]
             tree_type=:oblivious,
             nrounds=100,
             nbins=32,
-            rng=123,
+            seed=123,
             eta=0.1,
         )
 
@@ -62,7 +62,7 @@ end
         tree_type="oblivious",
         nrounds=100,
         nbins=32,
-        rng=123,
+        seed=123,
     )
 
     model, cache = EvoTrees.init(config, x_train, y_train)
@@ -92,7 +92,7 @@ end
             tree_type="oblivious",
             nrounds=100,
             nbins=32,
-            rng=123,
+            seed=123,
         )
 
         model, cache = EvoTrees.init(config, x_train, y_train)
@@ -121,7 +121,7 @@ end
         tree_type="oblivious",
         nrounds=100,
         nbins=32,
-        rng=123,
+        seed=123,
     )
 
     model, cache = EvoTrees.init(config, x_train, y_train_c)

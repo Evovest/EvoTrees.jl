@@ -1,6 +1,7 @@
 module EvoTreesCUDAExt
 
 using EvoTrees
+using EvoTrees.Random: Xoshiro
 using CUDA
 using KernelAbstractions
 using Atomix

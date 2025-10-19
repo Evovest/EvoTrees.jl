@@ -1,5 +1,5 @@
 struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
-    params::EvoTrees.EvoTypes
+    rng::Xoshiro
     K::Int
     x_bin::CuMatrix
     y::Y
@@ -7,6 +7,7 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     nodes::Vector{N}
     pred::CuMatrix
     nidx::CuVector{UInt32}
+    # is::CuVector{UInt32}
     is_in::CuVector{UInt32}
     is_out::CuVector{UInt32}
     mask::CuVector{UInt8}

@@ -35,7 +35,7 @@ abstract type CacheCPU <: Cache end
 abstract type CacheGPU <: Cache end
 
 struct CacheBaseCPU{Y,N<:TrainNode} <: CacheCPU
-    params::EvoTrees.EvoTypes
+    rng::Xoshiro
     K::UInt8
     x_bin::Matrix{UInt8}
     y::Y

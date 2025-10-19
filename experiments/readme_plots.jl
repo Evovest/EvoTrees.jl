@@ -264,7 +264,7 @@ config = EvoTreeGaussian(;
     min_weight=8,
     rowsample=0.5,
     colsample=1.0,
-    rng=123,
+    seed=123,
     tree_type,
     device=_device
 )

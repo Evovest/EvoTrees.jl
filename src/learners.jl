@@ -1,7 +1,3 @@
-# make a Random Number Generator object
-mk_rng(rng::AbstractRNG) = rng
-mk_rng(int::Integer) = Random.MersenneTwister(int)
-
 mutable struct EvoTreeRegressor <: MMI.Deterministic
     loss::Symbol
     metric::Symbol
@@ -20,7 +16,7 @@ mutable struct EvoTreeRegressor <: MMI.Deterministic
     alpha::Float64
     monotone_constraints::Dict{Int,Int}
     tree_type::Symbol
-    rng::AbstractRNG
+    seed::Int
     device::Symbol
 end
 
@@ -45,7 +41,7 @@ function EvoTreeRegressor(; kwargs...)
         :alpha => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => :binary,
-        :rng => 123,
+        :seed => 123,
         :device => :cpu
     )
 
@@ -88,7 +84,6 @@ function EvoTreeRegressor(; kwargs...)
 
     tree_type = Symbol(args[:tree_type])
     device = Symbol(args[:device])
-    rng = mk_rng(args[:rng])
     check_args(args)
 
     model = EvoTreeRegressor(
@@ -109,7 +104,7 @@ function EvoTreeRegressor(; kwargs...)
         args[:alpha],
         args[:monotone_constraints],
         tree_type,
-        rng,
+        args[:seed],
         device
     )
 
@@ -133,7 +128,7 @@ mutable struct EvoTreeCount <: MMI.Probabilistic
     nbins::Int
     monotone_constraints::Dict{Int,Int}
     tree_type::Symbol
-    rng::AbstractRNG
+    seed::Int
     device::Symbol
 end
 
@@ -155,7 +150,7 @@ function EvoTreeCount(; kwargs...)
         :nbins => 64,
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => :binary,
-        :rng => 123,
+        :seed => 123,
         :device => :cpu
     )
 
@@ -173,7 +168,6 @@ function EvoTreeCount(; kwargs...)
 
     tree_type = Symbol(args[:tree_type])
     device = Symbol(args[:device])
-    rng = mk_rng(args[:rng])
     check_args(args)
 
     model = EvoTreeCount(
@@ -193,7 +187,7 @@ function EvoTreeCount(; kwargs...)
         args[:nbins],
         args[:monotone_constraints],
         tree_type,
-        rng,
+        args[:seed],
         device
     )
 
@@ -216,7 +210,7 @@ mutable struct EvoTreeClassifier <: MMI.Probabilistic
     colsample::Float64
     nbins::Int
     tree_type::Symbol
-    rng::AbstractRNG
+    seed::Int
     device::Symbol
 end
 
@@ -237,7 +231,7 @@ function EvoTreeClassifier(; kwargs...)
         :colsample => 1.0,
         :nbins => 64,
         :tree_type => :binary,
-        :rng => 123,
+        :seed => 123,
         :device => :cpu
     )
 
@@ -255,7 +249,6 @@ function EvoTreeClassifier(; kwargs...)
 
     tree_type = Symbol(args[:tree_type])
     device = Symbol(args[:device])
-    rng = mk_rng(args[:rng])
     check_args(args)
 
     model = EvoTreeClassifier(
@@ -274,7 +267,7 @@ function EvoTreeClassifier(; kwargs...)
         args[:colsample],
         args[:nbins],
         tree_type,
-        rng,
+        args[:seed],
         device
     )
 
@@ -298,7 +291,7 @@ mutable struct EvoTreeMLE <: MMI.Probabilistic
     nbins::Int
     monotone_constraints::Dict{Int,Int}
     tree_type::Symbol
-    rng::AbstractRNG
+    seed::Int
     device::Symbol
 end
 
@@ -322,7 +315,7 @@ function EvoTreeMLE(; kwargs...)
         :nbins => 64,
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => :binary,
-        :rng => 123,
+        :seed => 123,
         :device => :cpu
     )
 
@@ -351,7 +344,6 @@ function EvoTreeMLE(; kwargs...)
 
     tree_type = Symbol(args[:tree_type])
     device = Symbol(args[:device])
-    rng = mk_rng(args[:rng])
     check_args(args)
 
     model = EvoTreeMLE(
@@ -371,7 +363,7 @@ function EvoTreeMLE(; kwargs...)
         args[:nbins],
         args[:monotone_constraints],
         tree_type,
-        rng,
+        args[:seed],
         device
     )
 
@@ -395,7 +387,7 @@ mutable struct EvoTreeGaussian <: MMI.Probabilistic
     nbins::Int
     monotone_constraints::Dict{Int,Int}
     tree_type::Symbol
-    rng::AbstractRNG
+    seed::Int
     device::Symbol
 end
 function EvoTreeGaussian(; kwargs...)
@@ -416,7 +408,7 @@ function EvoTreeGaussian(; kwargs...)
         :nbins => 64,
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => :binary,
-        :rng => 123,
+        :seed => 123,
         :device => :cpu
     )
 
@@ -434,7 +426,6 @@ function EvoTreeGaussian(; kwargs...)
 
     tree_type = Symbol(args[:tree_type])
     device = Symbol(args[:device])
-    rng = mk_rng(args[:rng])
     check_args(args)
 
     model = EvoTreeGaussian(
@@ -454,7 +445,7 @@ function EvoTreeGaussian(; kwargs...)
         args[:nbins],
         args[:monotone_constraints],
         tree_type,
-        rng,
+        args[:seed],
         device
     )
 
