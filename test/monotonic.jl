@@ -43,7 +43,7 @@
     )
 
     model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
-    preds_ref = EvoTrees.predict(model, x_train);
+    preds_ref = EvoTrees.predict(model, x_train)
 
     # monotonic constraint
     params1 = EvoTreeRegressor(
@@ -63,7 +63,7 @@
     )
 
     model = fit(params1; x_train, y_train, x_eval, y_eval, print_every_n=25)
-    preds_mono = EvoTrees.predict(model, x_train);
+    preds_mono = EvoTrees.predict(model, x_train)
 
     # using Plots
     # x_perm = sortperm(x_train[:, 1])

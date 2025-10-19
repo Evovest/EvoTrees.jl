@@ -17,9 +17,3 @@ EvoTrees.predict
 ```@docs
 EvoTrees.importance
 ```
-
-## Deprecated
-
-```@docs
-EvoTrees.fit_evotree
-```

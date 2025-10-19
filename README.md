@@ -97,7 +97,7 @@ A model configuration must first be defined, using one of the model constructor:
 - `EvoTreeCount`
 - `EvoTreeMLE`
 
-Model training is performed using `fit_evotree`. 
+Model training is performed using `fit`. 
 It supports additional keyword arguments to track evaluation metric and perform early stopping. 
 Look at the docs for more details on available hyper-parameters for each of the above constructors and other options training options.
 
