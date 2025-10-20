@@ -30,7 +30,7 @@ A model configuration must first be defined, using one of the model constructor:
 - [`EvoTreeCount`](@ref)
 - [`EvoTreeMLE`](@ref)
 
-Then fitting can be performed using [`fit`](@ref). 2 broad methods are supported: Matrix and Tables based inputs. Optional kwargs can be used to specify eval data on which to track eval metric and perform early stopping. Look at the docs for more details on available hyper-parameters for each of the above constructors and other options for training.
+Then fitting can be performed using [`EvoTrees.fit`](@ref). 2 broad methods are supported: Matrix and Tables based inputs. Optional kwargs can be used to specify eval data on which to track eval metric and perform early stopping. Look at the docs for more details on available hyper-parameters for each of the above constructors and other options for training.
 
 Predictions are obtained by passing features data to the model. Model acts as a functor, ie. it's a struct containing the fitted model as well as a function generating the prediction of that model for the features argument. 
 
@@ -106,8 +106,8 @@ EvoTrees models trained on cpu can be fully reproducible.
 Models of the gradient boosting family typically involve some stochasticity. 
 In EvoTrees, this primarily concern the the 2 subsampling parameters `rowsample` and `colsample`. The other stochastic operation happens at model initialisation when the features are binarized to allow for fast histogram construction: a random subsample of `1_000 * nbins` is used to compute the breaking points. 
 
-These random parts of the algorithm can be deterministically reproduced on cpu by specifying an `rng` to the model constructor. `rng` can be an integer (ex: `123`) or a random generator (ex: `Random.Xoshiro(123)`). 
-If no `rng` is specified, `123` is used by default. When an integer `rng` is used, a `Random.MersenneTwister` generator will be created by the EvoTrees's constructor. Otherwise, the provided random generator will be used.  
+These random parts of the algorithm can be deterministically reproduced on cpu by specifying a `seed` to the model constructor. `seed` is an integer, which defaults to `123`. 
+A `Random.Xoshiro` generator will be created at training's initialization and stored in cache to provide a consistent, reproducible random number generation.  
 
 Consequently, the following `m1` and `m2` models will be identical:
 
@@ -118,7 +118,7 @@ config = EvoTreeRegressor(rowsample=0.5, rng=123)
 m2 = fit(config, dtrain; target_name="y");
 ```
 
-However, the following `m1` and `m2` models won't be because the there's stochasticity involved in the model from `rowsample` and the random generator in the `config` isn't reset between the fits:
+Since the random generator is initialized within the `fit` step, the following `m1` and `m2` models will also be identical:
 
 ```julia
 config = EvoTreeRegressor(rowsample=0.5, rng=123)
