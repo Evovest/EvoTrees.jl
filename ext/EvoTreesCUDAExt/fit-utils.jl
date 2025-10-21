@@ -484,12 +484,6 @@ function update_hist_gpu!(
 )
     n_active = length(active_nodes)
 
-    if sums_temp === nothing && K > 1
-        sums_temp = similar(nodes_sum_gpu, 2 * K + 1, max(n_active, 1))
-    elseif K == 1
-        sums_temp = similar(nodes_sum_gpu, 1, 1)
-    end
-
     clear_mask_kernel!(backend)(target_mask; ndrange=length(target_mask), workgroupsize=256)
     KernelAbstractions.synchronize(backend)
 
