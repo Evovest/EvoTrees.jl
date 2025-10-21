@@ -81,13 +81,17 @@ function grow_tree!(
         KernelAbstractions.synchronize(backend)
         n_active = 0
     else
-        update_hist_gpu!(
-            cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
-            1, view(cache.anodes_gpu, 1:1), cache.nodes_sum_gpu, params,
-            cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K,
-            view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1),
-            cache.target_mask_buf, backend,
-        )
+        # update_hist_gpu!(
+        #     cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
+        #     1, view(cache.anodes_gpu, 1:1), cache.nodes_sum_gpu, params,
+        #     cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K,
+        #     view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1),
+        #     cache.target_mask_buf, backend,
+        # )
+        update_hist_gpu_single!(cache.h∇, ∇_gpu, cache.x_bin, is, cache.js, cache.nidx,
+            cache.nodes_sum_gpu, view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1), K,
+            view(cache.anodes_gpu, 1:1), backend)
+        # @info "cache.h∇" cache.h∇
 
         find_split_root! = find_best_split_from_hist_kernel!(backend)
         find_split_root!(
@@ -121,55 +125,59 @@ function grow_tree!(
         # Histogram subtraction (depth ≥ 2): h∇[big] = h∇[parent] - h∇[small]
         if depth >= 2
             # Clear tracking arrays
-            cache.build_nodes_gpu .= 0
-            cache.subtract_nodes_gpu .= 0
-            cache.build_count .= 0
-            cache.subtract_count .= 0
+            # cache.build_nodes_gpu .= 0
+            # cache.subtract_nodes_gpu .= 0
+            # cache.build_count .= 0
+            # cache.subtract_count .= 0
 
             # Separate active nodes into BUILD (smaller) and SUBTRACT (larger) using raw counts
-            cache.node_counts_gpu .= 0
-            count_nodes_kernel!(backend)(
-                cache.node_counts_gpu, cache.nidx, is;
-                ndrange=length(is), workgroupsize=256,
-            )
-            KernelAbstractions.synchronize(backend)
+            # cache.node_counts_gpu .= 0
+            # count_nodes_kernel!(backend)(
+            #     cache.node_counts_gpu, cache.nidx, is;
+            #     ndrange=length(is), workgroupsize=256,
+            # )
+            # KernelAbstractions.synchronize(backend)
 
-            separate_kernel! = separate_nodes_kernel!(backend)
-            separate_kernel!(
-                cache.build_nodes_gpu, cache.build_count,
-                cache.subtract_nodes_gpu, cache.subtract_count,
-                view(active_nodes, 1:n_active),
-                cache.node_counts_gpu;
-                ndrange=n_active,
-                workgroupsize=256,
-            )
-            KernelAbstractions.synchronize(backend)
+            # separate_kernel! = separate_nodes_kernel!(backend)
+            # separate_kernel!(
+            #     cache.build_nodes_gpu, cache.build_count,
+            #     cache.subtract_nodes_gpu, cache.subtract_count,
+            #     view(active_nodes, 1:n_active),
+            #     cache.node_counts_gpu;
+            #     ndrange=n_active,
+            #     workgroupsize=256,
+            # )
+            # KernelAbstractions.synchronize(backend)
 
-            build_count_val = Array(cache.build_count)[1]
-            subtract_count_val = Array(cache.subtract_count)[1]
+            # build_count_val = Array(cache.build_count)[1]
+            # subtract_count_val = Array(cache.subtract_count)[1]
 
             # Build histograms only for smaller children (observation scan)
-            if build_count_val > 0
-                update_hist_gpu!(
-                    cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
-                    depth, view(cache.build_nodes_gpu, 1:build_count_val),
-                    cache.nodes_sum_gpu, params,
-                    cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K,
-                    view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:max(build_count_val, 1)),
-                    cache.target_mask_buf, backend,
-                )
-            end
+            # if build_count_val > 0
+            #     update_hist_gpu!(
+            #         cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
+            #         depth, view(cache.build_nodes_gpu, 1:build_count_val),
+            #         cache.nodes_sum_gpu, params,
+            #         cache.feattypes_gpu, cache.monotone_constraints_gpu, cache.K,
+            #         view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:max(build_count_val, 1)),
+            #         cache.target_mask_buf, backend,
+            #     )
+            # end
 
-            # Compute larger children via subtraction (no observation scan)
-            if subtract_count_val > 0
-                subtract_hist_kernel!(backend)(
-                    cache.h∇,
-                    view(cache.subtract_nodes_gpu, 1:subtract_count_val);
-                    ndrange=subtract_count_val * size(cache.h∇, 1) * size(cache.h∇, 2) * size(cache.h∇, 3),
-                    workgroupsize=256,
-                )
-                KernelAbstractions.synchronize(backend)
-            end
+            # # Compute larger children via subtraction (no observation scan)
+            # if subtract_count_val > 0
+            #     subtract_hist_kernel!(backend)(
+            #         cache.h∇,
+            #         view(cache.subtract_nodes_gpu, 1:subtract_count_val);
+            #         ndrange=subtract_count_val * size(cache.h∇, 1) * size(cache.h∇, 2) * size(cache.h∇, 3),
+            #         workgroupsize=256,
+            #     )
+            #     KernelAbstractions.synchronize(backend)
+            # end
+            update_hist_gpu_single!(cache.h∇, ∇_gpu, cache.x_bin, is, cache.js, cache.nidx,
+                cache.nodes_sum_gpu, view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1), K,
+                view(cache.anodes_gpu, 1:n_active), backend)
+            # @info "cache.h∇" cache.h∇
 
             # Find best splits for all active nodes (built or subtracted)
             find_split_all! = find_best_split_from_hist_kernel!(backend)

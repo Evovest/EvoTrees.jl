@@ -518,3 +518,66 @@ function update_hist_gpu!(
     KernelAbstractions.synchronize(backend)
 end
 
+
+
+function hist_kernel_single_v1!(h∇::CuDeviceArray{T,4}, ∇::CuDeviceMatrix{S}, x_bin, is, js, ns) where {T,S}
+    tix, tiy, k = threadIdx().z, threadIdx().y, threadIdx().x
+    bdx, bdy = blockDim().z, blockDim().y
+    bix, biy = blockIdx().z, blockIdx().y
+    gdx = gridDim().z
+
+    j = tiy + bdy * (biy - 1)
+    if j <= length(js)
+        jdx = js[j]
+        i_max = length(is)
+        niter = cld(i_max, bdx * gdx)
+        @inbounds for iter in 1:niter
+            i = tix + bdx * (bix - 1) + bdx * gdx * (iter - 1)
+            if i <= i_max
+                @inbounds idx = is[i]
+                @inbounds ndx = ns[idx]
+                if ndx != 0
+                    @inbounds bin = x_bin[idx, jdx]
+                    hid = Base._to_linear_index(h∇, k, bin, jdx, ndx)
+                    CUDA.atomic_add!(pointer(h∇, hid), T(∇[k, idx]))
+                end
+            end
+        end
+    end
+    sync_threads()
+    return nothing
+end
+
+function update_hist_gpu_single!(h∇, ∇, x_bin, is, js, ns,
+    nodes_sum_gpu, sums_temp, K, active_nodes, backend)
+
+    if sums_temp === nothing && K > 1
+        sums_temp = similar(nodes_sum_gpu, 2 * K + 1, max(n_active, 1))
+    elseif K == 1
+        sums_temp = similar(nodes_sum_gpu, 1, 1)
+    end
+
+    n_active = length(active_nodes)
+    clear_hist_kernel!(backend)(
+        h∇, active_nodes, n_active;
+        ndrange=n_active * size(h∇, 1) * size(h∇, 2) * size(h∇, 3),
+        workgroupsize=256,
+    )
+    KernelAbstractions.synchronize(backend)
+
+    kernel = @cuda launch = false hist_kernel_single_v1!(h∇, ∇, x_bin, is, js, ns)
+    config = launch_configuration(kernel.fun)
+    max_threads = config.threads
+    max_blocks = config.blocks
+    k = size(h∇, 1)
+    ty = max(1, min(length(js), fld(max_threads, k)))
+    tx = min(64, max(1, min(length(is), fld(max_threads, k * ty))))
+    threads = (k, ty, tx)
+    max_blocks = min(65535, max_blocks * fld(max_threads, prod(threads)))
+    by = cld(length(js), ty)
+    bx = min(cld(max_blocks, by), cld(length(is), tx))
+    blocks = (1, by, bx)
+    kernel(h∇, ∇, x_bin, is, js, ns; threads, blocks)
+    CUDA.synchronize()
+    return nothing
+end
