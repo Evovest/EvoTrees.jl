@@ -72,8 +72,6 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     ∇[end, :] .= w
 
     nidx = KernelAbstractions.ones(backend, UInt32, nobs)
-    # is_in = KernelAbstractions.zeros(backend, UInt32, nobs)
-    # is_out = KernelAbstractions.zeros(backend, UInt32, nobs)
     is_full = CuArray{UInt32}(1:nobs)
     mask_cpu = zeros(UInt8, nobs)
     mask_gpu = KernelAbstractions.zeros(backend, UInt8, nobs)
