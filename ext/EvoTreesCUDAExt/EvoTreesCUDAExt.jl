@@ -1,11 +1,11 @@
 module EvoTreesCUDAExt
 
 using EvoTrees
-using EvoTrees.Random: Xoshiro
+using EvoTrees.Random: rand!, Xoshiro
+using EvoTrees.Tables
 using CUDA
-using KernelAbstractions
 using Atomix
-using Tables
+using KernelAbstractions
 using KernelAbstractions: get_backend
 
 EvoTrees.device_ones(::Type{<:EvoTrees.GPU}, ::Type{T}, n::Int) where {T} = CUDA.ones(T, n)
