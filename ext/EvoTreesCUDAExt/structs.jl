@@ -1,7 +1,7 @@
 struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     rng::Xoshiro
     K::Int
-    x_bin::CuMatrix
+    x_bin::CuMatrix{UInt8}
     y::Y
     w::Union{Nothing,CuVector}
     nodes::Vector{N}
@@ -20,10 +20,10 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     edges::Vector
     featbins::Vector
     feattypes_gpu::CuVector{Bool}
-    cond_feats::Vector{Int}
-    cond_feats_gpu::CuVector
+    cond_feats::Vector{UInt32}
+    cond_feats_gpu::CuVector{UInt32}
     cond_bins::Vector{UInt8}
-    cond_bins_gpu::CuVector
+    cond_bins_gpu::CuVector{UInt8}
     monotone_constraints_gpu::CuVector{Int32}
     left_nodes_buf::CuVector{Int32}
     right_nodes_buf::CuVector{Int32}
@@ -31,7 +31,7 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
 
     tree_split_gpu::CuVector{Bool}
     tree_cond_bin_gpu::CuVector{UInt8}
-    tree_feat_gpu::CuVector{Int32}
+    tree_feat_gpu::CuVector{UInt32}
     tree_gain_gpu::CuVector{Float64}
     tree_pred_gpu::CuMatrix{Float32}
     nodes_sum_gpu::CuArray{Float64,2}
@@ -39,8 +39,8 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     n_next_gpu::CuVector{Int32}
     n_next_active_gpu::CuVector{Int32}
     best_gain_gpu::CuVector{Float64}
-    best_bin_gpu::CuVector{Int32}
-    best_feat_gpu::CuVector{Int32}
+    best_bin_gpu::CuVector{UInt8}
+    best_feat_gpu::CuVector{UInt32}
     build_nodes_gpu::CuVector{Int32}
     subtract_nodes_gpu::CuVector{Int32}
     build_count::CuVector{Int32}

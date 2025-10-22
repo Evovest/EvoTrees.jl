@@ -168,8 +168,8 @@ Find the best split for each active node by evaluating gains across all features
 @kernel function find_best_split_from_hist_kernel!(
     ::Type{L},                      # Loss function type
     gains::AbstractVector{T},       # Output: best gain for each node
-    bins::AbstractVector{Int32},    # Output: best bin for each node
-    feats::AbstractVector{Int32},   # Output: best feature for each node
+    bins::AbstractVector{UInt8},    # Output: best bin for each node
+    feats::AbstractVector{UInt32},   # Output: best feature for each node
     @Const(h∇),                     # Input: histograms [2K+1, n_bins, n_feats, n_nodes]
     nodes_sum,                      # Input/Output: gradient sums per node
     @Const(active_nodes),           # Input: which nodes to process
@@ -188,8 +188,8 @@ Find the best split for each active node by evaluating gains across all features
         node = active_nodes[n_idx]
         if node == 0
             gains[n_idx] = T(-Inf)
-            bins[n_idx] = Int32(0)
-            feats[n_idx] = Int32(0)
+            bins[n_idx] = UInt8(0)
+            feats[n_idx] = UInt32(0)
         else
             nbins = size(h∇, 2)
             # Use eps(T) for numerical stability guards 
@@ -257,8 +257,8 @@ Find the best split for each active node by evaluating gains across all features
             end
 
             g_best = T(-Inf)
-            b_best = Int32(0)
-            f_best = Int32(0)
+            b_best = UInt8(0)
+            f_best = UInt32(0)
 
             for j_idx in 1:length(js)
                 f = js[j_idx]
@@ -397,8 +397,8 @@ Find the best split for each active node by evaluating gains across all features
 
                     if g_val > g_best
                         g_best = g_val
-                        b_best = Int32(b)
-                        f_best = Int32(f)
+                        b_best = UInt8(b)
+                        f_best = UInt32(f)
                     end
                 end
             end
@@ -484,22 +484,21 @@ function update_hist_gpu!(
 )
     n_active = length(active_nodes)
 
-    clear_mask_kernel!(backend)(target_mask; ndrange=length(target_mask), workgroupsize=256)
+    clear_mask_kernel!(backend)(target_mask; ndrange=length(target_mask))
     KernelAbstractions.synchronize(backend)
 
-    mark_active_nodes_kernel!(backend)(target_mask, active_nodes; ndrange=n_active, workgroupsize=256)
+    mark_active_nodes_kernel!(backend)(target_mask, active_nodes; ndrange=n_active)
     KernelAbstractions.synchronize(backend)
 
     if n_active > 0
         clear_hist_kernel!(backend)(
             h∇, active_nodes, n_active;
             ndrange=n_active * size(h∇, 1) * size(h∇, 2) * size(h∇, 3),
-            workgroupsize=256,
         )
         KernelAbstractions.synchronize(backend)
     end
 
-    chunk_size = 64
+    chunk_size = 16
     n_obs_chunks = cld(length(is), chunk_size)
     num_threads = length(js) * n_obs_chunks
 
@@ -507,7 +506,6 @@ function update_hist_gpu!(
     hist_kernel_f!(
         h∇, ∇, x_bin, nidx, js, is, K, chunk_size, target_mask;
         ndrange=num_threads,
-        workgroupsize=256,
     )
     KernelAbstractions.synchronize(backend)
 end

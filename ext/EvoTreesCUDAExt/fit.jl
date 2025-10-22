@@ -76,7 +76,6 @@ function grow_tree!(
         reduce_root_sums_kernel!(backend)(
             cache.nodes_sum_gpu, ∇_gpu, is;
             ndrange=length(is),
-            workgroupsize=256,
         )
         KernelAbstractions.synchronize(backend)
         n_active = 0
@@ -99,7 +98,6 @@ function grow_tree!(
             params.lambda, params.L2, params.min_weight,
             cache.K, view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:1);
             ndrange=1,
-            workgroupsize=64,
         )
         KernelAbstractions.synchronize(backend)
         n_active = 1
@@ -124,7 +122,7 @@ function grow_tree!(
             cache.node_counts_gpu .= 0
             count_nodes_kernel!(backend)(
                 cache.node_counts_gpu, cache.nidx, is;
-                ndrange=length(is), workgroupsize=256,
+                ndrange=length(is)
             )
             KernelAbstractions.synchronize(backend)
 
@@ -132,10 +130,9 @@ function grow_tree!(
             separate_kernel!(
                 cache.build_nodes_gpu, cache.build_count,
                 cache.subtract_nodes_gpu, cache.subtract_count,
-                view(active_nodes, 1:n_active),
+                active_nodes,
                 cache.node_counts_gpu;
-                ndrange=n_active,
-                workgroupsize=256,
+                ndrange=n_active
             )
             KernelAbstractions.synchronize(backend)
 
@@ -159,7 +156,6 @@ function grow_tree!(
                     cache.h∇,
                     view(cache.subtract_nodes_gpu, 1:subtract_count_val);
                     ndrange=subtract_count_val * size(cache.h∇, 1) * size(cache.h∇, 2) * size(cache.h∇, 3),
-                    workgroupsize=256,
                 )
                 KernelAbstractions.synchronize(backend)
             end
@@ -171,12 +167,11 @@ function grow_tree!(
                 view(cache.best_bin_gpu, 1:n_active),
                 view(cache.best_feat_gpu, 1:n_active),
                 cache.h∇, cache.nodes_sum_gpu,
-                view(active_nodes, 1:n_active),
+                active_nodes,
                 cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
                 params.lambda, params.L2, params.min_weight,
                 cache.K, view(cache.sums_temp_gpu, 1:(2*cache.K+1), 1:n_active);
-                ndrange=n_active,
-                workgroupsize=min(256, max(64, n_active)),
+                ndrange=n_active
             )
             KernelAbstractions.synchronize(backend)
         end
@@ -193,7 +188,6 @@ function grow_tree!(
             depth, params.max_depth, Float32(params.gamma),
             cache.K;
             ndrange=max(n_active, 1),
-            workgroupsize=256,
         )
         KernelAbstractions.synchronize(backend)
 
@@ -208,7 +202,6 @@ function grow_tree!(
                 cache.nidx, is, cache.x_bin, cache.tree_feat_gpu,
                 cache.tree_cond_bin_gpu, cache.feattypes_gpu;
                 ndrange=length(is),
-                workgroupsize=256,
             )
             KernelAbstractions.synchronize(backend)
         end
@@ -220,7 +213,6 @@ function grow_tree!(
             cache.nidx, is, cache.x_bin, cache.tree_feat_gpu,
             cache.tree_cond_bin_gpu, cache.feattypes_gpu;
             ndrange=length(is),
-            workgroupsize=256,
         )
         KernelAbstractions.synchronize(backend)
     end
