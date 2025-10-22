@@ -128,7 +128,7 @@ m2 = fit(config, dtrain; target_name="y");
 
 Note that in presence of multiple identical or very highly correlated features, model may not be reproducible if features are permuted since in situation where 2 features provide identical gains, the first one will be selected. Therefore, if the identity relationship doesn't hold on new data, different predictions will be returned from models trained on different features order. 
 
-At the moment, there's no reproducibility guarantee on GPU, although this may change in the future. 
+Reproducibility is supported both for `cpu` and `gpu`(CUDA) devices. 
 
 ## Missing values
 

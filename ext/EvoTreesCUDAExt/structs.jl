@@ -7,10 +7,9 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     nodes::Vector{N}
     pred::CuMatrix
     nidx::CuVector{UInt32}
-    # is::CuVector{UInt32}
-    is_in::CuVector{UInt32}
-    is_out::CuVector{UInt32}
-    mask::CuVector{UInt8}
+    is_full::CuVector{UInt32}
+    mask_cpu::Vector{UInt8}
+    mask_gpu::CuVector{UInt8}
     js_::Vector{UInt32}
     js::CuVector{UInt32}
     ∇::CuMatrix

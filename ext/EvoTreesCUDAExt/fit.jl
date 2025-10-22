@@ -3,7 +3,7 @@ function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, param
     EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, L, params)
 
     for _ in 1:params.bagging_size
-        is = EvoTrees.subsample(cache.is_in, cache.is_out, cache.mask, params.rowsample, cache.rng)
+        is = EvoTrees.subsample(cache.is_full, cache.mask_cpu, cache.mask_gpu, params.rowsample, cache.rng)
 
         # Feature sampling done on CPU then copied to GPU
         js_cpu = Vector{eltype(cache.js)}(undef, length(cache.js))
