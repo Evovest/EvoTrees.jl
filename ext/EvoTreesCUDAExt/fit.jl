@@ -106,17 +106,12 @@ function grow_tree!(
         n_active = 1
     end
 
-    # Main loop: build tree level by level - FIX: stop at max_depth-1
+    # Main loop: build tree level by level
     for depth in 1:(params.max_depth-1)
         iszero(n_active) && break
 
         view(cache.n_next_active_gpu, 1:1) .= 0
-        n_nodes = 2^(depth - 1)
-        active_nodes = view(cache.anodes_gpu, 1:n_nodes)
-
-        if n_active < n_nodes
-            view(cache.anodes_gpu, (n_active+1):n_nodes) .= 0
-        end
+        active_nodes = view(cache.anodes_gpu, 1:n_active)
 
         # Histogram subtraction (depth ≥ 2): h∇[big] = h∇[parent] - h∇[small]
         if depth >= 2
@@ -174,9 +169,9 @@ function grow_tree!(
             # Find best splits for all active nodes (built or subtracted)
             find_split_all! = find_best_split_from_hist_kernel!(backend)
             find_split_all!(
-                L, view(cache.best_gain_gpu, 1:n_nodes),
-                view(cache.best_bin_gpu, 1:n_nodes),
-                view(cache.best_feat_gpu, 1:n_nodes),
+                L, view(cache.best_gain_gpu, 1:n_active),
+                view(cache.best_bin_gpu, 1:n_active),
+                view(cache.best_feat_gpu, 1:n_active),
                 cache.h∇, cache.nodes_sum_gpu,
                 view(active_nodes, 1:n_active),
                 cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
@@ -193,9 +188,9 @@ function grow_tree!(
             cache.tree_split_gpu, cache.tree_cond_bin_gpu, cache.tree_feat_gpu,
             cache.tree_gain_gpu, cache.nodes_sum_gpu,
             cache.n_next_gpu, cache.n_next_active_gpu,
-            view(cache.best_gain_gpu, 1:n_nodes),
-            view(cache.best_bin_gpu, 1:n_nodes),
-            view(cache.best_feat_gpu, 1:n_nodes),
+            view(cache.best_gain_gpu, 1:n_active),
+            view(cache.best_bin_gpu, 1:n_active),
+            view(cache.best_feat_gpu, 1:n_active),
             cache.h∇, active_nodes, cache.feattypes_gpu,
             depth, params.max_depth, Float32(params.gamma),
             cache.K;
