@@ -480,7 +480,7 @@ Build histograms for active nodes by clearing previous entries and invoking the 
 """
 function update_hist_gpu!(
     h∇, ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params,
-    feattypes, monotone_constraints, K, sums_temp, target_mask, backend,
+    feattypes, monotone_constraints, K, target_mask, backend,
 )
     n_active = length(active_nodes)
 
