@@ -66,7 +66,7 @@ for _device in device_list
                         colsample=0.5,
                         nbins=64,
                         tree_type,
-                        rng=123,
+                        seed=123,
                         device=_device
                     )
 

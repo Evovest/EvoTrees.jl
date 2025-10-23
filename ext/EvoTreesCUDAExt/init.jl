@@ -104,12 +104,11 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     feattypes_gpu = CuArray(feattypes)
     monotone_constraints_gpu = CuArray(monotone_constraints)
 
-    max_nodes_level = 2^params.max_depth
-    left_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
-    right_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
+    max_tree_nodes = 2^params.max_depth - 1
+    left_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
+    right_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
 
     # FIX: Use correct tree node count
-    max_tree_nodes = 2^params.max_depth - 1
     target_mask_buf = KernelAbstractions.zeros(backend, UInt8, max_tree_nodes)
     tree_split_gpu = KernelAbstractions.zeros(backend, Bool, max_tree_nodes)
     tree_cond_bin_gpu = KernelAbstractions.zeros(backend, UInt8, max_tree_nodes)
@@ -119,17 +118,17 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     nodes_sum_gpu = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, max_tree_nodes)
     node_counts_gpu = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
 
-    anodes_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
-    n_next_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level * 2)
+    anodes_gpu = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
+    n_next_gpu = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
     n_next_active_gpu = KernelAbstractions.zeros(backend, Int32, 1)
-    best_gain_gpu = KernelAbstractions.zeros(backend, Float64, max_nodes_level)
-    best_bin_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
-    best_feat_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
-    build_nodes_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
-    subtract_nodes_gpu = KernelAbstractions.zeros(backend, Int32, max_nodes_level)
+    best_gain_gpu = KernelAbstractions.zeros(backend, Float64, max_tree_nodes)
+    best_bin_gpu = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
+    best_feat_gpu = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
+    build_nodes_gpu = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
+    subtract_nodes_gpu = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
     build_count = KernelAbstractions.zeros(backend, Int32, 1)
     subtract_count = KernelAbstractions.zeros(backend, Int32, 1)
-    sums_temp_gpu = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, max_nodes_level)
+    sums_temp_gpu = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, max_tree_nodes)
 
     Y = typeof(y)
     N = typeof(first(nodes))

@@ -207,16 +207,6 @@ function grow_tree!(
         end
     end
 
-    # Update final leaf assignments if we have nodes at max_depth
-    if params.max_depth > 1 && n_active > 0
-        update_nodes_idx_kernel!(backend)(
-            cache.nidx, is, cache.x_bin, cache.tree_feat_gpu,
-            cache.tree_cond_bin_gpu, cache.feattypes_gpu;
-            ndrange=length(is),
-        )
-        KernelAbstractions.synchronize(backend)
-    end
-
     # Copy tree to CPU and compute leaf predictions
     copyto!(tree.split, cache.tree_split_gpu)
     copyto!(tree.feat, cache.tree_feat_gpu)
