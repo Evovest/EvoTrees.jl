@@ -1,7 +1,9 @@
 function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset)
 
     # binarize data into quantiles
-    edges, featbins, feattypes = get_edges(data; feature_names, nbins=params.nbins, rng=params.rng)
+    rng = Xoshiro(params.seed)
+
+    edges, featbins, feattypes = get_edges(data; feature_names, nbins=params.nbins, rng)
     x_bin = binarize(data; feature_names, edges)
     nobs, nfeats = size(x_bin)
 
@@ -104,6 +106,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     Y = typeof(y)
     N = typeof(first(nodes))
     cache = CacheBaseCPU{Y,N}(
+        rng,
         K,
         x_bin,
         y,

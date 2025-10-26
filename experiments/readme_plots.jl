@@ -1,12 +1,12 @@
 using BenchmarkTools
 using Statistics
 using StatsBase: sample, quantile
-using Distributions
+import Distributions
 using Random
-using CairoMakie
 using CUDA
 using EvoTrees
 using EvoTrees: fit, predict, sigmoid, logit
+using CairoMakie
 
 # using ProfileView
 
@@ -264,7 +264,7 @@ config = EvoTreeGaussian(;
     min_weight=8,
     rowsample=0.5,
     colsample=1.0,
-    rng=123,
+    seed=123,
     tree_type,
     device=_device
 )
@@ -329,6 +329,7 @@ lines!(ax,
     label="q80",
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
+f
 save("docs/src/assets/gaussian-sinus-$tree_type-$_device.png", f)
 
 ###############################
@@ -436,7 +437,6 @@ Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
 f
 save("docs/src/assets/quantiles-sinus-$tree_type-$_device.png", f)
 
-
 ###############################
 # credibility losses
 ###############################
@@ -522,4 +522,6 @@ lines!(ax,
     label="cred_std",
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
+f
 save("docs/src/assets/credibility-sinus-$tree_type-$_device.png", f)
+

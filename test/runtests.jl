@@ -6,9 +6,6 @@ using Tables
 using Random
 using Test
 
-
-using EvoTrees: fit_evotree
-
 @testset "EvoTrees" begin
 
     @testset "Internal API" begin

@@ -12,7 +12,7 @@ using Base.Threads: @threads, @spawn, nthreads
 using Statistics
 using StatsBase: sample, sample!, quantile, proportions
 using Random
-using Random: seed!, AbstractRNG
+using Random: seed!, AbstractRNG, Xoshiro
 import Distributions
 using Tables
 using CategoricalArrays
@@ -38,10 +38,6 @@ include("subsample.jl")
 include("fit-utils.jl")
 include("fit.jl")
 
-# if !isdefined(Base, :get_extension)
-#     include("../ext/EvoTreesCUDAExt/EvoTreesCUDAExt.jl")
-# end
-
 include("callback.jl")
 include("importance.jl")
 include("plot.jl")
@@ -57,3 +53,4 @@ function load(path)
 end
 
 end # module
+

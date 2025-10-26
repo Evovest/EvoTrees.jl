@@ -35,7 +35,7 @@ y_train, y_eval = Y[i_train], Y[i_eval]
         min_weight=1.0,
         rowsample=0.5,
         colsample=1.0,
-        rng=123,
+        seed=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -47,7 +47,7 @@ y_train, y_eval = Y[i_train], Y[i_eval]
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -67,7 +67,7 @@ end
         min_weight=1.0,
         rowsample=0.5,
         colsample=1.0,
-        rng=123,
+        seed=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -79,7 +79,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -99,7 +99,7 @@ end
         min_weight=1.0,
         rowsample=0.5,
         colsample=1.0,
-        rng=123,
+        seed=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -111,7 +111,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -131,7 +131,7 @@ end
         min_weight=1.0,
         rowsample=0.5,
         colsample=1.0,
-        rng=123,
+        seed=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -143,7 +143,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -165,7 +165,7 @@ end
         min_weight=1.0,
         rowsample=0.5,
         colsample=1.0,
-        rng=123,
+        seed=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -177,7 +177,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -199,7 +199,7 @@ end
         min_weight=1.0,
         rowsample=0.5,
         colsample=1.0,
-        rng=123,
+        seed=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -211,7 +211,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -230,7 +230,7 @@ end
         min_weight=1.0,
         rowsample=0.5,
         colsample=1.0,
-        rng=123,
+        seed=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -242,7 +242,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)
@@ -263,7 +263,7 @@ end
         min_weight=10.0,
         rowsample=0.5,
         colsample=1.0,
-        rng=123,
+        seed=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -275,7 +275,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)[:, 1]
@@ -296,7 +296,7 @@ end
         min_weight=10.0,
         rowsample=0.5,
         colsample=1.0,
-        rng=123,
+        seed=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -308,7 +308,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)[:, 1]
@@ -328,7 +328,7 @@ end
         min_weight=10.0,
         rowsample=0.5,
         colsample=1.0,
-        rng=123,
+        seed=123,
     )
 
     model, cache = EvoTrees.init(params1, x_train, y_train)
@@ -340,7 +340,7 @@ end
         y_train,
         x_eval,
         y_eval,
-        print_every_n=25
+        print_every_n=100
     )
 
     preds = EvoTrees.predict(model, x_eval)[:, 1]
@@ -361,7 +361,7 @@ end
         min_weight=1.0,
         rowsample=0.5,
         colsample=1.0,
-        rng=123,
+        seed=123,
     )
 
     model = fit(params1; x_train, y_train)
@@ -376,8 +376,8 @@ end
     ])
     y_train = repeat(1:2; inner=1000)
 
-    rng = rand(UInt32)
-    params1 = EvoTreeClassifier(; nrounds=100, eta=0.3, rng)
+    seed = 123
+    params1 = EvoTreeClassifier(; nrounds=100, eta=0.3, seed)
     model = fit(params1; x_train, y_train)
 
     preds = EvoTrees.predict(model, x_train)[:, 1]
@@ -386,7 +386,7 @@ end
     # Categorical array
     y_train_cat = CategoricalArray(y_train; levels=1:2)
 
-    params1 = EvoTreeClassifier(; nrounds=100, eta=0.3, rng)
+    params1 = EvoTreeClassifier(; nrounds=100, eta=0.3, seed)
     model_cat = fit(params1; x_train, y_train=y_train_cat)
 
     preds_cat = EvoTrees.predict(model_cat, x_train)[:, 1]
@@ -395,7 +395,7 @@ end
     # Categorical array with additional levels
     y_train_cat = CategoricalArray(y_train; levels=1:3)
 
-    params1 = EvoTreeClassifier(; nrounds=100, eta=0.3, rng)
+    params1 = EvoTreeClassifier(; nrounds=100, eta=0.3, seed)
     model_cat = fit(params1; x_train, y_train=y_train_cat)
 
     preds_cat = EvoTrees.predict(model_cat, x_train)[:, 1]

@@ -42,12 +42,12 @@ config = EvoTreeRegressor(
     nbins=16,
     lambda=0.5,
     gamma=0.1,
-    eta=0.05,
+    eta=0.1,
     max_depth=3,
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
-    rng=123,
+    seed=123,
 )
 
 @testset "DataFrames - missing features" begin

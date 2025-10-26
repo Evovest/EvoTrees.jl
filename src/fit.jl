@@ -11,9 +11,9 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
     for _ in 1:params.bagging_size
 
         # subsample rows
-        cache.nodes[1].is = subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, params.rng)
+        cache.nodes[1].is = subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, cache.rng)
         # subsample cols
-        sample!(params.rng, UInt32(1):UInt32(length(cache.feattypes)), cache.js, replace=false, ordered=true)
+        sample!(cache.rng, UInt32(1):UInt32(length(cache.feattypes)), cache.js, replace=false, ordered=true)
 
         # instantiate a tree then grow it
         tree = Tree{L,K}(params.max_depth)
@@ -69,6 +69,7 @@ function grow_tree!(
         # pred leafs if max depth is reached
         if depth == params.max_depth
             for n ∈ n_current
+                tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
                 if L <: Quantile
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
                 else
@@ -89,6 +90,7 @@ function grow_tree!(
             end
             sort!(n_current)
             @threads for n ∈ n_current
+                tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
                 best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
                 if best_bin != 0
                     tree.gain[n] = best_gain
@@ -173,6 +175,7 @@ function grow_otree!(
 
         if depth == params.max_depth
             for n in n_current
+                tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
                 if L <: Quantile
                     pred_leaf_cpu!(tree.pred, n, nodes[n].∑, L, params, ∇, nodes[n].is)
                 else
@@ -193,6 +196,7 @@ function grow_otree!(
             end
             sort!(n_current)
             @threads for n ∈ n_current
+                tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
                 update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
             end
 
@@ -434,155 +438,6 @@ function fit(
     end
     post_fit_gc(_device)
     m.info[:logger] = logger
-
-    return m
-
-end
-
-
-
-"""
-    fit_evotree(
-        params::EvoTypes, 
-        dtrain;
-        target_name,
-        feature_names=nothing,
-        weight_name=nothing,
-        offset_name=nothing,
-        deval=nothing,
-        print_every_n=9999,
-        verbosity=1
-)
-
-Main training function. Performs model fitting given configuration `params`, `dtrain`, `target_name` and other optional kwargs. 
-
-# Arguments
-
-- `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` can be one of: 
-    - [`EvoTreeRegressor`](@ref)
-    - [`EvoTreeClassifier`](@ref)
-    - [`EvoTreeCount`](@ref)
-    - [`EvoTreeMLE`](@ref)
-- `dtrain`: A Tables compatible training data (named tuples, DataFrame...) containing features and target variables. 
-
-# Keyword arguments
-
-- `target_name`: name of target variable. 
-- `feature_names = nothing`: the names `dtrain` variables to use as features. If not provided, it deafults to all variables that aren't one of `target`, `weight` or `offset``.
-- `weight_name = nothing`: name of the variable containing weights. If `nothing`, common weights on one will be used.
-- `offset_name = nothing`: name of the offset variable.
-- `deval`: A Tables compatible evaluation data containing features and target variables. 
-- `print_every_n`: sets at which frequency logging info should be printed. 
-- `verbosity`: set to 1 to print logging info during training.
-"""
-function fit_evotree(
-    params::EvoTypes,
-    dtrain;
-    target_name,
-    feature_names=nothing,
-    weight_name=nothing,
-    offset_name=nothing,
-    deval=nothing,
-    print_every_n=9999,
-    verbosity=1,
-    kwargs...
-)
-
-    Base.depwarn(
-        "`fit_evotree` has been deprecated, use `fit` instead. 
-        Following kwargs are no longer supported in `fit_evotree`: `metric`, `return_logger`, `early_stopping_rounds` and `device`.
-        See docs on how to get those functionalities through the model builder (ex: `EvoTreeRegressor`) and `fit`.",
-        :fit_evotree
-    )
-
-    return fit(params, dtrain;
-        target_name,
-        feature_names,
-        weight_name,
-        offset_name,
-        deval,
-        print_every_n,
-        verbosity)
-
-end
-
-"""
-    fit_evotree(
-        params::EvoTypes{L};
-        x_train::AbstractMatrix, 
-        y_train::AbstractVector, 
-        w_train=nothing, 
-        offset_train=nothing,
-        x_eval=nothing, 
-        y_eval=nothing, 
-        w_eval=nothing, 
-        offset_eval=nothing,
-        feature_names=nothing,
-        early_stopping_rounds=9999,
-        print_every_n=9999,
-        verbosity=1)
-
-Main training function. Performs model fitting given configuration `params`, `x_train`, `y_train` and other optional kwargs. 
-
-# Arguments
-
-- `params::EvoTypes`: configuration info providing hyper-paramters. `EvoTypes` can be one of: 
-    - [`EvoTreeRegressor`](@ref)
-    - [`EvoTreeClassifier`](@ref)
-    - [`EvoTreeCount`](@ref)
-    - [`EvoTreeMLE`](@ref)
-
-# Keyword arguments
-
-- `x_train::Matrix`: training data of size `[#observations, #features]`. 
-- `y_train::Vector`: vector of train targets of length `#observations`.
-- `w_train::Vector`: vector of train weights of length `#observations`. If `nothing`, a vector of ones is assumed.
-- `offset_train::VecOrMat`: offset for the training data. Should match the size of the predictions.
-- `x_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
-- `y_eval::Vector`: vector of evaluation targets of length `#observations`.
-- `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
-- `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
-- `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
-- `print_every_n`: sets at which frequency logging info should be printed. 
-- `verbosity`: set to 1 to print logging info during training.
-"""
-function fit_evotree(
-    params::EvoTypes;
-    x_train::AbstractMatrix,
-    y_train::AbstractVector,
-    w_train=nothing,
-    offset_train=nothing,
-    x_eval=nothing,
-    y_eval=nothing,
-    w_eval=nothing,
-    offset_eval=nothing,
-    feature_names=nothing,
-    print_every_n=9999,
-    verbosity=1,
-    kwargs...
-)
-
-    Base.depwarn(
-        "`fit_evotree` has been deprecated, use `fit` instead. 
-        Following kwargs are no longer supported in `fit_evotree`: `metric`, `return_logger`, `early_stopping_rounds` and `device`.
-        See docs on how to get those functionalities through the model builder (ex: `EvoTreeRegressor`) and `fit`.",
-        :fit_evotree
-    )
-
-    return fit(
-        params;
-        x_train,
-        y_train,
-        w_train,
-        offset_train,
-        x_eval,
-        y_eval,
-        w_eval,
-        offset_eval,
-        print_every_n,
-        verbosity,
-        feature_names
-    )
 
     return m
 

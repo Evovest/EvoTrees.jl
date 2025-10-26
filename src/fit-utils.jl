@@ -131,8 +131,22 @@ function split_set!(
 end
 
 """
-    Multi-threaded split_set!
-        Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
+    split_set_chunk!(
+        left,
+        right,
+        is,
+        bid,
+        nblocks,
+        x_bin,
+        feat,
+        cond_bin,
+        feattype,
+        offset,
+        chunk_size,
+    )
+
+Multi-threaded split set.
+Take a view into left and right placeholders. Right ids are assigned at the end of the length of the current node set.
 """
 function split_set_chunk!(
     left,
