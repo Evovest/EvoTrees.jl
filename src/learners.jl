@@ -56,14 +56,6 @@ function EvoTreeRegressor(; kwargs...)
 
     _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile, :cred_std, :cred_var]
     loss = Symbol(args[:loss])
-    if loss == :linear
-        loss = :mse
-        @warn "`:linear` loss is no longer supported - `:mse` loss will be used."
-    end
-    if loss == :logistic
-        loss = :logloss
-        @warn "`:logistic` loss is no longer supported - `:logloss` will be used."
-    end
     if loss ∉ _loss_list
         error("Invalid loss. Must be one of: $_loss_list")
     end
