@@ -154,7 +154,7 @@ MMI.metadata_model(
 )
 
 """
-  EvoTreeRegressor(;kwargs...)
+    EvoTreeRegressor(;kwargs...)
 
 A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API and the MLJ model interface.
 
@@ -181,12 +181,12 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:gini`: The normalized Gini between pred and target
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
-- `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
+- `eta=0.1`:               Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.   
-- `L2::T=0.0`:            L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
-- `lambda::T=0.0`:        L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
-- `gamma::T=0.0`:         Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
-- `alpha::T=0.5`:         Loss specific parameter in the [0, 1] range:
+- `L2=1.0`:               L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
+- `lambda=0.0`:           L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
+- `gamma=0.0`:            Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
+- `alpha=0.5`:            Loss specific parameter in the [0, 1] range:
                             - `:quantile`: target quantile for the regression.
 - `max_depth=6`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
@@ -200,7 +200,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 - `tree_type=:binary`    Tree structure to be used. One of:
   - `:binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
   - `:oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
-- `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
+- `seed=123`:             An integer used as a seed to the random number generator.
 - `device=:cpu`: Hardware device to use for computations. Can be either `:cpu` or `gpu`.
 
 # Internal API
@@ -296,7 +296,7 @@ EvoTreeRegressor
 
 
 """
-  EvoTreeClassifier(;kwargs...)
+    EvoTreeClassifier(;kwargs...)
 
 A model type for constructing a EvoTreeClassifier, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API and the MLJ model interface.
 EvoTreeClassifier is used to perform multi-class classification, using cross-entropy loss.
@@ -304,12 +304,12 @@ EvoTreeClassifier is used to perform multi-class classification, using cross-ent
 # Hyper-parameters
 
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
-- `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
+- `nrounds=100`:          Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
-- `L2::T=0.0`:            L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
-- `lambda::T=0.0`:        L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
-- `gamma::T=0.0`:         Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
+- `L2=1.0`:               L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
+- `lambda=0.0`:           L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
+- `gamma=0.0`:            Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `max_depth=6`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
   Compute cost is proportional to `2^max_depth`. Typical optimal values are in the 3 to 9 range.
@@ -317,11 +317,11 @@ EvoTreeClassifier is used to perform multi-class classification, using cross-ent
 - `rowsample=1.0`:        Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `colsample=1.0`:        Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `nbins=64`:             Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
-- `tree_type=:binary`    Tree structure to be used. One of:
+- `tree_type=:binary`     Tree structure to be used. One of:
   - `:binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
   - `:oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
-- `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `device=:cpu`: Hardware device to use for computations. Can be either `:cpu` or `:gpu`.
+- `seed=123`:             An integer used as a seed to the random number generator.
+- `device=:cpu`:          Hardware device to use for computations. Can be either `:cpu` or `:gpu`.
 
 # Internal API
 
@@ -423,7 +423,7 @@ See also
 EvoTreeClassifier
 
 """
-  EvoTreeCount(;kwargs...)
+    EvoTreeCount(;kwargs...)
 
 A model type for constructing a EvoTreeCount, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API the MLJ model interface.
 EvoTreeCount is used to perform Poisson probabilistic regression on count target.
@@ -434,9 +434,9 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
-- `L2::T=0.0`:            L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
-- `lambda::T=0.0`:        L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
-- `gamma::T=0.0`:         Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
+- `L2=1.0`:               L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
+- `lambda=0.0`:           L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
+- `gamma=0.0`:            Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
 - `max_depth=6`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
   Compute cost is proportional to 2^max_depth. Typical optimal values are in the 3 to 9 range.
@@ -445,11 +445,11 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
 - `colsample=1.0`:        Proportion of columns / features that are sampled at each iteration to build the tree. Should be `]0, 1]`.
 - `nbins=64`:             Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing).
-- `tree_type=:binary`    Tree structure to be used. One of:
+- `tree_type=:binary`     Tree structure to be used. One of:
   - `:binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
   - `:oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
-- `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `device=:cpu`: Hardware device to use for computations. Can be either `:cpu` or `:gpu`.
+- `seed=123`:             An integer used as a seed to the random number generator.
+- `device=:cpu`:          Hardware device to use for computations. Can be either `:cpu` or `:gpu`.
 
 # Internal API
 
@@ -555,7 +555,7 @@ See also
 EvoTreeCount
 
 """
-  EvoTreeGaussian(;kwargs...)
+    EvoTreeGaussian(;kwargs...)
 
 A model type for constructing a EvoTreeGaussian, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API the MLJ model interface.
 EvoTreeGaussian is used to perform Gaussian probabilistic regression, fitting μ and σ parameters to maximize likelihood.
@@ -566,9 +566,9 @@ EvoTreeGaussian is used to perform Gaussian probabilistic regression, fitting μ
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
-- `L2::T=0.0`:            L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
-- `lambda::T=0.0`:        L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
-- `gamma::T=0.0`:         Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
+- `L2=1.0`:               L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
+- `lambda=0.0`:           L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
+- `gamma=0.0`:            Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `max_depth=6`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
   Compute cost is proportional to 2^max_depth. Typical optimal values are in the 3 to 9 range.
@@ -578,11 +578,11 @@ EvoTreeGaussian is used to perform Gaussian probabilistic regression, fitting μ
 - `nbins=64`:             Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   !Experimental feature: note that for Gaussian regression, constraints may not be enforce systematically.
-- `tree_type=:binary`    Tree structure to be used. One of:
+- `tree_type=:binary`     Tree structure to be used. One of:
   - `:binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
   - `:oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
-- `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `device=:cpu`: Hardware device to use for computations. Can be either `:cpu` or `gpu`.
+- `seed=123`:             An integer used as a seed to the random number generator.
+- `device=:cpu`:          Hardware device to use for computations. Can be either `:cpu` or `gpu`.
 
 # Internal API
 
@@ -692,7 +692,7 @@ EvoTreeGaussian
 
 
 """
-  EvoTreeMLE(;kwargs...)
+    EvoTreeMLE(;kwargs...)
 
 A model type for constructing a EvoTreeMLE, based on [EvoTrees.jl](https://github.com/Evovest/EvoTrees.jl), and implementing both an internal API the MLJ model interface.
 EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is specified through `loss` kwargs. Both Gaussian and Logistic distributions are supported.
@@ -700,15 +700,15 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
 # Hyper-parameters
 
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
-`loss=:gaussian`:         Loss to be be minimized during training. One of:
+- `loss=:gaussian`:       Loss to be be minimized during training. One of:
   - `:gaussian_mle`
   - `:logistic_mle`
-- `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
+- `nrounds=100`:          Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
-- `L2::T=0.0`:            L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
-- `lambda::T=0.0`:        L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
-- `gamma::T=0.0`:         Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
+- `L2=1.0`:               L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
+- `lambda=0.0`:           L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
+- `gamma=0.0`:            Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `max_depth=6`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
   Compute cost is proportional to 2^max_depth. Typical optimal values are in the 3 to 9 range.
@@ -718,11 +718,11 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
 - `nbins=64`:             Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   !Experimental feature: note that for MLE regression, constraints may not be enforced systematically.
-- `tree_type=:binary`    Tree structure to be used. One of:
+- `tree_type=:binary`     Tree structure to be used. One of:
   - `:binary`:       Each node of a tree is grown independently. Tree are built depthwise until max depth is reach or if min weight or gain (see `gamma`) stops further node splits.  
   - `:oblivious`:    A common splitting condition is imposed to all nodes of a given depth. 
-- `rng=123`:              Either an integer used as a seed to the random number generator or an actual random number generator (`::Random.AbstractRNG`).
-- `device=:cpu`: Hardware device to use for computations. Can be either `:cpu` or `gpu`. Following losses are not GPU supported at the moment: `:logistic_mle`.
+- `seed=123`:             An integer used as a seed to the random number generator.
+- `device=:cpu`:          Hardware device to use for computations. Can be either `:cpu` or `gpu`. Following losses are not GPU supported at the moment: `:logistic_mle`.
 
 # Internal API
 
