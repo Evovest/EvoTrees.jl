@@ -460,13 +460,6 @@ const EvoTypes = Union{
     EvoTreeMLE,
 }
 
-function Base.show(io::IO, config::EvoTypes)
-    println(io, "$(typeof(config))")
-    for fname in fieldnames(typeof(config))
-        println(io, " - $fname: $(getfield(config, fname))")
-    end
-end
-
 """
     check_parameter(::Type{<:T}, value, min_value::Real, max_value::Real, label::Symbol) where {T<:Number}
 
