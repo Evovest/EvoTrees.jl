@@ -1,12 +1,11 @@
 using EvoTrees
 using DataFrames
-using MLJBase
+using MLJ
 
 @load XGBoostClassifier
-@load EvoTreeClassifier
-xgb = XGBoostClassifier()
-[xgb, xgb]  # compact form
+xgb = MLJXGBoostInterface.XGBoostClassifier()
+[xgb, xgb]
 
-(@load EvoTreeClassifier)()
+# @load EvoTreeClassifier
 evo = EvoTreeClassifier()
 [evo, evo]
