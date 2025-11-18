@@ -42,6 +42,7 @@ include("callback.jl")
 include("importance.jl")
 include("plot.jl")
 include("MLJ.jl")
+include("shap.jl")
 
 function save(model::EvoTree, path)
     BSON.bson(path, Dict(:model => model))
