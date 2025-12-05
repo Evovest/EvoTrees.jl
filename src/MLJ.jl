@@ -52,12 +52,7 @@ end
 
 function predict(::EvoTreeClassifier, fitresult::EvoTree, A)
   pred = predict(fitresult, A)
-  target_levels = fitresult.info[:target_levels]
-  if target_levels isa AbstractArray{<:CategoricalValue}
-    return MMI.UnivariateFinite(target_levels, pred)
-  else
-    return MMI.UnivariateFinite(target_levels, pred, pool=missing, ordered=fitresult.info[:target_isordered])
-  end
+  return MMI.UnivariateFinite(fitresult.info[:target_levels], pred)
 end
 
 function predict(::EvoTreeCount, fitresult::EvoTree, A)
