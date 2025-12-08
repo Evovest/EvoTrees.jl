@@ -30,8 +30,8 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
             target_isordered = isordered(y_train)
             y = UInt32.(CategoricalArrays.levelcode.(y_train))
         elseif eltype(y_train) <: Integer || eltype(y_train) <: Bool || eltype(y_train) <: String || eltype(y_train) <: Char
-            target_levels = sort(unique(y_train))
-            yc = CategoricalVector(y_train, levels=target_levels)
+            yc = categorical(y_train, levels=sort(unique(y_train)), ordered=false)
+            target_levels = CategoricalArrays.levels(yc)
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         else
             @error "Invalid target eltype: $(eltype(y_train))"
