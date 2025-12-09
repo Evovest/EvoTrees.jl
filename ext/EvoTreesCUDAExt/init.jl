@@ -27,8 +27,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
             target_isordered = EvoTrees.isordered(y_train)
             y = UInt32.(EvoTrees.CategoricalArrays.levelcode.(y_train))
         elseif eltype(y_train) <: Integer || eltype(y_train) <: Bool || eltype(y_train) <: String || eltype(y_train) <: Char
-            target_levels = sort(unique(y_train))
-            yc = EvoTrees.CategoricalVector(y_train, levels=target_levels)
+            yc = EvoTrees.CategoricalArrays.categorical(y_train, levels=sort(unique(y_train)), ordered=false)
+            target_levels = EvoTrees.CategoricalArrays.levels(yc)
             y = UInt32.(EvoTrees.CategoricalArrays.levelcode.(yc))
         else
             @error "Invalid target eltype: $(eltype(y_train))"
