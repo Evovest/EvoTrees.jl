@@ -335,42 +335,42 @@ Find the best split for each (node, feature) pair in parallel.
                                 end
                             end
                         elseif L == EvoTrees.MAE
-                            μp_val = nodes_sum[1, node] / w_p
+                            μp = nodes_sum[1, node] / w_p
                             μl = acc1 / w_l
                             μr = (nodes_sum[1, node] - acc1) / w_r
                             d_l = 1 + lambda + L2 / w_l
                             d_r = 1 + lambda + L2 / w_r
                             d_l = d_l < eps ? eps : d_l
                             d_r = d_r < eps ? eps : d_r
-                            g_val = abs(μl - μp_val) * w_l / d_l + abs(μr - μp_val) * w_r / d_r
+                            g_val = abs(μl - μp) * w_l / d_l + abs(μr - μp) * w_r / d_r
                         elseif L == EvoTrees.Quantile
-                            μp_val = nodes_sum[1, node] / w_p
+                            μp = nodes_sum[1, node] / w_p
                             μl = acc1 / w_l
                             μr = (nodes_sum[1, node] - acc1) / w_r
                             d_l = 1 + lambda + L2 / w_l
                             d_r = 1 + lambda + L2 / w_r
                             d_l = d_l < eps ? eps : d_l
                             d_r = d_r < eps ? eps : d_r
-                            g_val = abs(μl - μp_val) * w_l / d_l + abs(μr - μp_val) * w_r / d_r
+                            g_val = abs(μl - μp) * w_l / d_l + abs(μr - μp) * w_r / d_r
                         elseif L <: EvoTrees.Cred
-                            μp_val = nodes_sum[1, node] / w_p
-                            VHM_p = μp_val^2
+                            μp = nodes_sum[1, node] / w_p
+                            VHM_p = μp^2
                             EVPV_p = nodes_sum[2, node] / w_p - VHM_p
                             EVPV_p = EVPV_p < eps ? eps : EVPV_p
-                            Zp_val = VHM_p / (VHM_p + EVPV_p)
+                            Zp = VHM_p / (VHM_p + EVPV_p)
                             μl = acc1 / w_l
                             VHM_l = μl^2
                             EVPV_l = acc2 / w_l - VHM_l
                             EVPV_l = EVPV_l < eps ? eps : EVPV_l
                             Zl = VHM_l / (VHM_l + EVPV_l)
-                            g_l_cred = Zl * abs(acc1) / (1 + L2 / w_l)
+                            g_l = Zl * abs(acc1) / (1 + L2 / w_l)
                             μr = (nodes_sum[1, node] - acc1) / w_r
                             VHM_r = μr^2
                             EVPV_r = (nodes_sum[2, node] - acc2) / w_r - VHM_r
                             EVPV_r = EVPV_r < eps ? eps : EVPV_r
                             Zr = VHM_r / (VHM_r + EVPV_r)
-                            g_r_cred = Zr * abs(nodes_sum[1, node] - acc1) / (1 + L2 / w_r)
-                            g_val = g_l_cred + g_r_cred - Zp_val * abs(nodes_sum[1, node]) / (1 + L2 / w_p)
+                            g_r = Zr * abs(nodes_sum[1, node] - acc1) / (1 + L2 / w_r)
+                            g_val = g_l + g_r - Zp * abs(nodes_sum[1, node]) / (1 + L2 / w_p)
                         end
                     end
                 else
@@ -571,3 +571,4 @@ Reduce per-feature gains to find the best split for each active node.
         best_feat[n_idx] = js[best_f_idx]
     end
 end
+
