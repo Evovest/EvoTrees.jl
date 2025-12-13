@@ -47,4 +47,8 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     subtract_count::CuVector{Int32}
     node_counts_gpu::CuVector{Int32}
     sums_temp_gpu::CuArray{Float64,2}
+    gains_per_feat_gpu::CuMatrix{Float64}    
+    bins_per_feat_gpu::CuMatrix{Int32}       
+    sums_temp_par_gpu::CuMatrix{Float64}     
+
 end

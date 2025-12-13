@@ -27,8 +27,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
             target_isordered = EvoTrees.isordered(y_train)
             y = UInt32.(EvoTrees.CategoricalArrays.levelcode.(y_train))
         elseif eltype(y_train) <: Integer || eltype(y_train) <: Bool || eltype(y_train) <: String || eltype(y_train) <: Char
-            yc = EvoTrees.CategoricalArrays.categorical(y_train, levels=sort(unique(y_train)), ordered=false)
-            target_levels = EvoTrees.CategoricalArrays.levels(yc)
+            target_levels = sort(unique(y_train))
+            yc = EvoTrees.CategoricalVector(y_train, levels=target_levels)
             y = UInt32.(EvoTrees.CategoricalArrays.levelcode.(yc))
         else
             @error "Invalid target eltype: $(eltype(y_train))"
@@ -108,7 +108,6 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     left_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
     right_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
 
-    # FIX: Use correct tree node count
     target_mask_buf = KernelAbstractions.zeros(backend, UInt8, max_tree_nodes)
     tree_split_gpu = KernelAbstractions.zeros(backend, Bool, max_tree_nodes)
     tree_cond_bin_gpu = KernelAbstractions.zeros(backend, UInt8, max_tree_nodes)
@@ -130,6 +129,12 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     subtract_count = KernelAbstractions.zeros(backend, Int32, 1)
     sums_temp_gpu = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, max_tree_nodes)
 
+    n_sampled_feats = ceil(Int, params.colsample * nfeats)
+    gains_per_feat_gpu = KernelAbstractions.zeros(backend, Float64, n_sampled_feats, max_tree_nodes)
+    bins_per_feat_gpu = KernelAbstractions.zeros(backend, Int32, n_sampled_feats, max_tree_nodes)
+    
+    sums_temp_par_gpu = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, n_sampled_feats * max_tree_nodes)
+    
     Y = typeof(y)
     N = typeof(first(nodes))
     cache = CacheBaseGPU{Y,N}(
@@ -161,7 +166,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         monotone_constraints_gpu,
         left_nodes_buf,
         right_nodes_buf,
-        target_mask_buf, tree_split_gpu,
+        target_mask_buf,
+        tree_split_gpu,
         tree_cond_bin_gpu,
         tree_feat_gpu,
         tree_gain_gpu,
@@ -179,8 +185,12 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         subtract_count,
         node_counts_gpu,
         sums_temp_gpu,
+        
+        gains_per_feat_gpu,
+        bins_per_feat_gpu,
+        sums_temp_par_gpu,
+        
     )
 
     return m, cache
 end
-
