@@ -161,55 +161,85 @@ Accumulate gradient sums for the root node using atomic operations.
 end
 
 """
-	find_best_split_from_hist_kernel!(L, gains, bins, feats, h∇, nodes_sum, active_nodes, js, feattypes, monotone_constraints, lambda, L2, min_weight, K, sums_temp)
+    compute_nodes_sum_kernel!(nodes_sum, h∇, active_nodes, K)
 
-Find the best split for each active node by evaluating gains across all features and bins from precomputed histograms.
+Precompute gradient sums for each active node by summing histogram across all bins.
 """
-@kernel function find_best_split_from_hist_kernel!(
-    ::Type{L},                      # Loss function type
-    gains::AbstractVector{T},       # Output: best gain for each node
-    bins::AbstractVector{UInt8},    # Output: best bin for each node
-    feats::AbstractVector{UInt32},   # Output: best feature for each node
-    @Const(h∇),                     # Input: histograms [2K+1, n_bins, n_feats, n_nodes]
-    nodes_sum,                      # Input/Output: gradient sums per node
-    @Const(active_nodes),           # Input: which nodes to process
-    @Const(js),                     # Input: feature indices to consider
-    @Const(feattypes),              # Input: feature types (numeric/categorical)
-    @Const(monotone_constraints),   # Input: monotonicity constraints per feature
-    lambda::T,                      # Regularization: L1-like penalty
-    L2::T,                          # Regularization: L2 penalty
-    min_weight::T,                  # Minimum observations per leaf
-    K::Int,                         # Number of output dimensions
-    sums_temp::AbstractArray{T,2},   # Temporary storage for gradient accumulation
-) where {T,L}
-    n_idx = @index(Global)
+@kernel function compute_nodes_sum_kernel!(
+    nodes_sum,
+    @Const(h∇),
+    @Const(active_nodes),
+    K::Int
+)
+    gidx = @index(Global)
+    n_active = length(active_nodes)
+    n_k = 2 * K + 1
 
-    @inbounds if n_idx <= length(active_nodes)
+    # Parallelizes over n_active * (2K+1) threads
+    # Each thread computes one gradient component for one node
+    @inbounds if gidx <= n_active * n_k
+        n_idx = (gidx - 1) ÷ n_k + 1
+        k = (gidx - 1) % n_k + 1
         node = active_nodes[n_idx]
+
+        if node > 0
+            nbins = size(h∇, 2)
+            # Sum histogram values across all bins for gradient component k
+            sum_val = zero(eltype(nodes_sum))
+            for b in 1:nbins
+                sum_val += h∇[k, b, 1, node]
+            end
+            nodes_sum[k, node] = sum_val
+        end
+    end
+end
+
+"""
+    find_best_split_parallel_kernel!(L, gains, bins, h∇, nodes_sum, active_nodes, js, feattypes, monotone_constraints, lambda, L2, min_weight, K, n_feats, sums_temp)
+
+Find the best split for each (node, feature) pair in parallel.
+"""
+@kernel function find_best_split_parallel_kernel!(
+    ::Type{L},
+    gains::AbstractMatrix{T},
+    bins::AbstractMatrix{Int32},
+    @Const(h∇),
+    @Const(nodes_sum),
+    @Const(active_nodes),
+    @Const(js),
+    @Const(feattypes),
+    @Const(monotone_constraints),
+    lambda::T,
+    L2::T,
+    min_weight::T,
+    K::Int,
+    n_feats::Int,
+    sums_temp::AbstractArray{T,2},
+) where {T,L}
+    gidx = @index(Global)
+    n_active = length(active_nodes)
+
+    @inbounds if gidx <= n_active * n_feats
+        # Decode global index into (node_index, feature_index)
+        n_idx = (gidx - 1) ÷ n_feats + 1
+        f_idx = (gidx - 1) % n_feats + 1
+        node = active_nodes[n_idx]
+
         if node == 0
-            gains[n_idx] = T(-Inf)
-            bins[n_idx] = UInt8(0)
-            feats[n_idx] = UInt32(0)
+            gains[f_idx, n_idx] = T(-Inf)
+            bins[f_idx, n_idx] = Int32(0)
         else
             nbins = size(h∇, 2)
-            # Use eps(T) for numerical stability guards 
             eps = T(1e-8)
 
-            # Compute node total gradients by summing across bins
-            if !isempty(js)
-                first_feat = js[1]
-                for k in 1:(2*K+1)
-                    sum_val = zero(T)
-                    for b in 1:nbins
-                        sum_val += h∇[k, b, first_feat, node]
-                    end
-                    nodes_sum[k, node] = sum_val
-                end
-            end
+            f = js[f_idx]
+            is_numeric = feattypes[f]
+            constraint = monotone_constraints[f]
 
             w_p = nodes_sum[2*K+1, node]
             λw_p = lambda * w_p
 
+            # Compute parent node gain for this loss type
             gain_p = zero(T)
             if L <: EvoTrees.GradientRegression
                 if K == 1
@@ -257,41 +287,44 @@ Find the best split for each active node by evaluating gains across all features
             end
 
             g_best = T(-Inf)
-            b_best = UInt8(0)
-            f_best = UInt32(0)
+            b_best = Int32(0)
 
-            for j_idx in 1:length(js)
-                f = js[j_idx]
-                is_numeric = feattypes[f]
-                constraint = monotone_constraints[f]
+            # Unique column index for this thread's temporary storage
+            temp_idx = (n_idx - 1) * n_feats + f_idx
+
+            acc1 = zero(T)
+            acc2 = zero(T)
+            accw = zero(T)
+            if K > 1
+                for kk in 1:(2*K+1)
+                    sums_temp[kk, temp_idx] = zero(T)
+                end
+            end
+
+            # Scan bins: numeric features exclude last bin, categorical include all
+            b_max = is_numeric ? (nbins - 1) : nbins
+            for b in 1:b_max
+                skip_bin = false
+                g_val = zero(T)
 
                 if K == 1
-                    acc1 = zero(T)
-                    acc2 = zero(T)
-                    accw = zero(T)
-                else
-                    for kk in 1:(2*K+1)
-                        sums_temp[kk, n_idx] = zero(T)
+                    # Accumulate for numeric, direct assign for categorical
+                    if is_numeric
+                        acc1 += h∇[1, b, f, node]
+                        acc2 += h∇[2, b, f, node]
+                        accw += h∇[3, b, f, node]
+                    else
+                        acc1 = h∇[1, b, f, node]
+                        acc2 = h∇[2, b, f, node]
+                        accw = h∇[3, b, f, node]
                     end
-                end
+                    w_l = accw
+                    w_r = w_p - w_l
+                    if w_l < min_weight || w_r < min_weight
+                        skip_bin = true
+                    end
 
-                b_max = is_numeric ? (nbins - 1) : nbins
-                for b in 1:b_max
-                    if K == 1
-                        if is_numeric
-                            acc1 += h∇[1, b, f, node]
-                            acc2 += h∇[2, b, f, node]
-                            accw += h∇[3, b, f, node]
-                        else
-                            acc1 = h∇[1, b, f, node]
-                            acc2 = h∇[2, b, f, node]
-                            accw = h∇[3, b, f, node]
-                        end
-                        w_l = accw
-                        w_r = w_p - w_l
-                        (w_l < min_weight || w_r < min_weight) && continue
-
-                        g_val = zero(T)
+                    if !skip_bin
                         if L <: EvoTrees.GradientRegression
                             g_l = acc1
                             h_l = acc2
@@ -307,7 +340,7 @@ Find the best split for each active node by evaluating gains across all features
                                 pred_l = -g_l / d_l
                                 pred_r = -g_r / d_r
                                 if (constraint == -1 && pred_l <= pred_r) || (constraint == 1 && pred_l >= pred_r)
-                                    continue
+                                    skip_bin = true
                                 end
                             end
                         elseif L == EvoTrees.MAE
@@ -348,25 +381,31 @@ Find the best split for each active node by evaluating gains across all features
                             g_r = Zr * abs(nodes_sum[1, node] - acc1) / (1 + L2 / w_r)
                             g_val = g_l + g_r - Zp * abs(nodes_sum[1, node]) / (1 + L2 / w_p)
                         end
-                    else
-                        if is_numeric
-                            for kk in 1:(2*K+1)
-                                sums_temp[kk, n_idx] += h∇[kk, b, f, node]
-                            end
-                        else
-                            for kk in 1:(2*K+1)
-                                sums_temp[kk, n_idx] = h∇[kk, b, f, node]
-                            end
+                    end
+                else
+                    # K > 1: accumulate into thread-local sums_temp column
+                    if is_numeric
+                        for kk in 1:(2*K+1)
+                            sums_temp[kk, temp_idx] += h∇[kk, b, f, node]
                         end
+                    else
+                        for kk in 1:(2*K+1)
+                            sums_temp[kk, temp_idx] = h∇[kk, b, f, node]
+                        end
+                    end
 
-                        w_l = sums_temp[2*K+1, n_idx]
-                        w_r = w_p - w_l
-                        (w_l < min_weight || w_r < min_weight) && continue
+                    w_l = sums_temp[2*K+1, temp_idx]
+                    w_r = w_p - w_l
+                    if w_l < min_weight || w_r < min_weight
+                        skip_bin = true
+                    end
 
+                    if !skip_bin
                         if L == EvoTrees.MLogLoss
+                            # No monotone constraint for MLogLoss
                         elseif constraint != 0
-                            g_l1 = sums_temp[1, n_idx]
-                            h_l1 = sums_temp[K+1, n_idx]
+                            g_l1 = sums_temp[1, temp_idx]
+                            h_l1 = sums_temp[K+1, temp_idx]
                             g_r1 = nodes_sum[1, node] - g_l1
                             h_r1 = nodes_sum[K+1, node] - h_l1
                             d1_l = h_l1 + lambda * w_l + L2
@@ -376,40 +415,39 @@ Find the best split for each active node by evaluating gains across all features
                             pred_l = -g_l1 / d1_l
                             pred_r = -g_r1 / d1_r
                             if (constraint == -1 && pred_l <= pred_r) || (constraint == 1 && pred_l >= pred_r)
-                                continue
+                                skip_bin = true
                             end
                         end
 
-                        g_val = zero(T)
-                        for k in 1:K
-                            g_l = sums_temp[k, n_idx]
-                            h_l = sums_temp[K+k, n_idx]
-                            g_r = nodes_sum[k, node] - g_l
-                            h_r = nodes_sum[K+k, node] - h_l
-                            d_l = h_l + lambda * w_l + L2
-                            d_r = h_r + lambda * w_r + L2
-                            d_l = d_l < eps ? eps : d_l
-                            d_r = d_r < eps ? eps : d_r
-                            g_val += (g_l^2 / d_l + g_r^2 / d_r) / 2
+                        if !skip_bin
+                            g_val = zero(T)
+                            for k in 1:K
+                                g_l = sums_temp[k, temp_idx]
+                                h_l = sums_temp[K+k, temp_idx]
+                                g_r = nodes_sum[k, node] - g_l
+                                h_r = nodes_sum[K+k, node] - h_l
+                                d_l = h_l + lambda * w_l + L2
+                                d_r = h_r + lambda * w_r + L2
+                                d_l = d_l < eps ? eps : d_l
+                                d_r = d_r < eps ? eps : d_r
+                                g_val += (g_l^2 / d_l + g_r^2 / d_r) / 2
+                            end
+                            g_val -= gain_p
                         end
-                        g_val -= gain_p
                     end
+                end
 
-                    if g_val > g_best
-                        g_best = g_val
-                        b_best = UInt8(b)
-                        f_best = UInt32(f)
-                    end
+                if !skip_bin && g_val > g_best
+                    g_best = g_val
+                    b_best = Int32(b)
                 end
             end
 
-            gains[n_idx] = g_best
-            bins[n_idx] = b_best
-            feats[n_idx] = f_best
+            gains[f_idx, n_idx] = g_best
+            bins[f_idx, n_idx] = b_best
         end
     end
 end
-
 """
 	clear_hist_kernel!(h∇, active_nodes, n_active)
 
@@ -508,5 +546,39 @@ function update_hist_gpu!(
         ndrange=num_threads,
     )
     KernelAbstractions.synchronize(backend)
+end
+
+"""
+    reduce_best_split_kernel!(best_gain, best_bin, best_feat, gains, bins, js, n_feats)
+
+Reduce per-feature gains to find the best split for each active node.
+"""
+@kernel function reduce_best_split_kernel!(
+    best_gain,
+    best_bin,
+    best_feat,
+    @Const(gains),
+    @Const(bins),
+    @Const(js),
+    n_feats::Int
+)
+    n_idx = @index(Global)
+
+    @inbounds if n_idx <= size(gains, 2)
+        best_f_idx = 1
+        best_g = gains[1, n_idx]
+
+        for f_idx in 2:n_feats
+            g = gains[f_idx, n_idx]
+            if g > best_g
+                best_g = g
+                best_f_idx = f_idx
+            end
+        end
+
+        best_gain[n_idx] = best_g
+        best_bin[n_idx] = bins[best_f_idx, n_idx]
+        best_feat[n_idx] = js[best_f_idx]
+    end
 end
 
