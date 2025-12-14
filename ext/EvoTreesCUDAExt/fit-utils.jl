@@ -175,6 +175,8 @@ Precompute gradient sums for each active node by summing histogram across all bi
     n_active = length(active_nodes)
     n_k = 2 * K + 1
 
+    # Parallelizes over n_active * (2K+1) threads
+    # Each thread computes one gradient component for one node
     @inbounds if gidx <= n_active * n_k
         n_idx = (gidx - 1) ÷ n_k + 1
         k = (gidx - 1) % n_k + 1
@@ -182,6 +184,7 @@ Precompute gradient sums for each active node by summing histogram across all bi
 
         if node > 0
             nbins = size(h∇, 2)
+            # Sum histogram values across all bins for gradient component k
             sum_val = zero(eltype(nodes_sum))
             for b in 1:nbins
                 sum_val += h∇[k, b, 1, node]
@@ -192,7 +195,7 @@ Precompute gradient sums for each active node by summing histogram across all bi
 end
 
 """
-	find_best_split_parallel_kernel!(L, gains, bins, h∇, nodes_sum, active_nodes, js, feattypes, monotone_constraints, lambda, L2, min_weight, K, n_feats, sums_temp)
+    find_best_split_parallel_kernel!(L, gains, bins, h∇, nodes_sum, active_nodes, js, feattypes, monotone_constraints, lambda, L2, min_weight, K, n_feats, sums_temp)
 
 Find the best split for each (node, feature) pair in parallel.
 """
@@ -217,6 +220,7 @@ Find the best split for each (node, feature) pair in parallel.
     n_active = length(active_nodes)
 
     @inbounds if gidx <= n_active * n_feats
+        # Decode global index into (node_index, feature_index)
         n_idx = (gidx - 1) ÷ n_feats + 1
         f_idx = (gidx - 1) % n_feats + 1
         node = active_nodes[n_idx]
@@ -235,6 +239,7 @@ Find the best split for each (node, feature) pair in parallel.
             w_p = nodes_sum[2*K+1, node]
             λw_p = lambda * w_p
 
+            # Compute parent node gain for this loss type
             gain_p = zero(T)
             if L <: EvoTrees.GradientRegression
                 if K == 1
@@ -283,6 +288,8 @@ Find the best split for each (node, feature) pair in parallel.
 
             g_best = T(-Inf)
             b_best = Int32(0)
+
+            # Unique column index for this thread's temporary storage
             temp_idx = (n_idx - 1) * n_feats + f_idx
 
             acc1 = zero(T)
@@ -294,12 +301,14 @@ Find the best split for each (node, feature) pair in parallel.
                 end
             end
 
+            # Scan bins: numeric features exclude last bin, categorical include all
             b_max = is_numeric ? (nbins - 1) : nbins
             for b in 1:b_max
                 skip_bin = false
                 g_val = zero(T)
 
                 if K == 1
+                    # Accumulate for numeric, direct assign for categorical
                     if is_numeric
                         acc1 += h∇[1, b, f, node]
                         acc2 += h∇[2, b, f, node]
@@ -374,6 +383,7 @@ Find the best split for each (node, feature) pair in parallel.
                         end
                     end
                 else
+                    # K > 1: accumulate into thread-local sums_temp column
                     if is_numeric
                         for kk in 1:(2*K+1)
                             sums_temp[kk, temp_idx] += h∇[kk, b, f, node]
@@ -392,6 +402,7 @@ Find the best split for each (node, feature) pair in parallel.
 
                     if !skip_bin
                         if L == EvoTrees.MLogLoss
+                            # No monotone constraint for MLogLoss
                         elseif constraint != 0
                             g_l1 = sums_temp[1, temp_idx]
                             h_l1 = sums_temp[K+1, temp_idx]
@@ -437,7 +448,6 @@ Find the best split for each (node, feature) pair in parallel.
         end
     end
 end
-
 """
 	clear_hist_kernel!(h∇, active_nodes, n_active)
 
