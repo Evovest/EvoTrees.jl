@@ -132,9 +132,9 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     n_sampled_feats = ceil(Int, params.colsample * nfeats)
     gains_per_feat_gpu = KernelAbstractions.zeros(backend, Float64, n_sampled_feats, max_tree_nodes)
     bins_per_feat_gpu = KernelAbstractions.zeros(backend, Int32, n_sampled_feats, max_tree_nodes)
-    
+
     sums_temp_par_gpu = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, n_sampled_feats * max_tree_nodes)
-    
+
     Y = typeof(y)
     N = typeof(first(nodes))
     cache = CacheBaseGPU{Y,N}(
@@ -185,11 +185,9 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         subtract_count,
         node_counts_gpu,
         sums_temp_gpu,
-        
         gains_per_feat_gpu,
         bins_per_feat_gpu,
-        sums_temp_par_gpu,
-        
+        sums_temp_par_gpu
     )
 
     return m, cache
