@@ -1,3 +1,15 @@
+"""
+	CacheBaseGPU <: EvoTrees.CacheGPU
+
+GPU training cache holding preallocated buffers used during tree growth.
+
+### Quick reference (selected buffers)
+- `h∇`: gradient histogram, indexed as `[2K+1, nbins, n_feats, node]`
+- `nodes_sum_gpu`: per-node gradient totals `[2K+1, node]`
+- `gains_per_feat_gpu`, `bins_per_feat_gpu`: per-(feature,node) best split results
+- `best_gain_gpu`, `best_bin_gpu`, `best_feat_gpu`: reduced best split per node
+- `split_sums_temp_gpu`: per-(node,feature) temporary buffer for K>1 split scanning
+"""
 struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     rng::Xoshiro
     K::Int
@@ -46,9 +58,10 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     build_count::CuVector{Int32}
     subtract_count::CuVector{Int32}
     node_counts_gpu::CuVector{Int32}
-    sums_temp_gpu::CuArray{Float64,2}
-    gains_per_feat_gpu::CuMatrix{Float64}    
-    bins_per_feat_gpu::CuMatrix{Int32}       
-    sums_temp_par_gpu::CuMatrix{Float64}     
+    sums_temp_gpu::CuArray{Float64,2}        # Scratch: [2K+1, max_tree_nodes]
+    gains_per_feat_gpu::CuMatrix{Float64}    # Output: best gain per (feature,node)  [n_sampled_feats, max_tree_nodes]
+    bins_per_feat_gpu::CuMatrix{Int32}       # Output: best bin per (feature,node)   [n_sampled_feats, max_tree_nodes]
+    split_sums_temp_gpu::CuMatrix{Float64}   # Temp: per-(node,feature) accumulators [2K+1, n_sampled_feats*max_tree_nodes]
 
 end
+
