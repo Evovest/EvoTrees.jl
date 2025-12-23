@@ -1,4 +1,3 @@
-using Revise
 using Statistics
 using StatsBase: sample
 using XGBoost
@@ -8,8 +7,8 @@ using BenchmarkTools
 using Random: seed!
 import CUDA
 
-nobs = Int(1e5)
-num_feat = Int(10)
+nobs = Int(1e6)
+num_feat = Int(100)
 nrounds = 200
 T = Float64
 nthread = Base.Threads.nthreads()
@@ -73,7 +72,6 @@ params_evo = EvoTreeRegressor(;
     colsample=0.5,
     nbins=64,
     rng=123,
-    device=:gpu
 )
 @info "EvoTrees CPU"
 params_evo.device = :cpu
@@ -82,26 +80,24 @@ params_evo.device = :cpu
 @time m_df, cache_df = EvoTrees.init(params_evo, dtrain; target_name);
 
 # @info "train - no eval"
-# @time m_evo_df = fit_evotree(params_evo, dtrain; target_name, device, verbosity, print_every_n=100);
-# @time m_evo_df = fit_evotree(params_evo, dtrain; target_name, device, verbosity, print_every_n=100);
+# @time m_evo_df = fit(params_evo, dtrain; target_name, device, verbosity, print_every_n=100);
+# @time m_evo_df = fit(params_evo, dtrain; target_name, device, verbosity, print_every_n=100);
 
 @info "train - eval"
-@time m_evo = EvoTrees.fit_evotree(params_evo, dtrain; target_name, deval=dtrain, verbosity, print_every_n=100);
-@time m_evo = fit_evotree(params_evo, dtrain; target_name, deval=dtrain, verbosity, print_every_n=100);
-# @time m_evo = fit_evotree(params_evo, dtrain; target_name, device);
-# @btime fit_evotree($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
+@time m_cpu = fit(params_evo, dtrain; target_name, deval=dtrain, verbosity, print_every_n=100);
+# @time m_cpu = fit(params_evo, dtrain; target_name, device);
+# @btime fit($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
 @info "predict"
-@time pred_evo = m_evo(dtrain);
+@time pred_cpu = m_cpu(dtrain);
 @btime m_evo($dtrain);
 
 @info "EvoTrees GPU"
-device = :gpu
-params_evo.device = device
+_device = :gpu
+params_evo.device = _device
 @info "train"
-@time m_evo = fit_evotree(params_evo, dtrain; target_name, deval=dtrain, verbosity, print_every_n=100);
-@time m_evo = fit_evotree(params_evo, dtrain; target_name, deval=dtrain, verbosity, print_every_n=100);
-# @btime m_evo = fit_evotree($params_evo, $dtrain; target_name, device);
-# @btime fit_evotree($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
+@time m_gpu = fit(params_evo, dtrain; target_name, deval=dtrain, verbosity, print_every_n=100);
 @info "predict"
-@time pred_evo = m_evo(dtrain; device);
-@btime m_evo($dtrain; device);
+@time pred_gpu = m_gpu(dtrain; device=_device);
+@btime m_gpu($dtrain; _device);
+
+# cor(pred_evo, pred_gpu)

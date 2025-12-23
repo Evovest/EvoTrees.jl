@@ -420,6 +420,13 @@ end
     return g_val - gain_p
 end
 
+@inline function split_gain_multi(
+    ::Type{L}, sums_temp, nodes_sum, node, temp_idx,
+    K, w_l, w_r, gain_p, lambda, L2, ε::T
+) where {T,L}
+    return T(-Inf)
+end
+
 # Monotone constraint check: GradientRegression
 @inline function check_monotone(::Type{L}, constraint, g_l, h_l, g_r, h_r, w_l, w_r, lambda, L2, ε) where {L<:EvoTrees.GradientRegression}
     constraint == 0 && return false

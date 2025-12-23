@@ -19,7 +19,17 @@ function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, param
     return nothing
 end
 
-# Oblivious tree fallback
+"""
+	grow_otree!(tree, params, cache, is)
+
+Grow an oblivious tree on GPU.
+
+GPU oblivious-tree growth is not implemented yet; falls back to `grow_tree!` and emits a warning.
+
+Mutates:
+- `tree`: the resulting tree structure and leaf predictions
+- `cache`: internal GPU working buffers used during growth
+"""
 function grow_otree!(
     tree::EvoTrees.Tree{L,K},
     params::EvoTrees.EvoTypes,
@@ -30,7 +40,15 @@ function grow_otree!(
     grow_tree!(tree, params, cache, is)
 end
 
-# Grow binary decision tree on GPU level-by-level
+"""
+	grow_tree!(tree, params, cache, is)
+
+Grow a binary decision tree on GPU, level-by-level (breadth-first).
+
+Mutates:
+- `tree`: split structure and leaf predictions (copied back from GPU buffers)
+- `cache`: GPU working buffers (histograms, node lists, gains, etc.)
+"""
 function grow_tree!(
     tree::EvoTrees.Tree{L,K},
     params::EvoTrees.EvoTypes,
@@ -92,7 +110,7 @@ function grow_tree!(
             view(cache.anodes_gpu, 1:1),
             cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
             params.lambda, params.L2, params.min_weight,
-            cache.K, n_feats, cache.sums_temp_par_gpu;
+            cache.K, n_feats, cache.split_sums_temp_gpu;
             ndrange=n_feats,
         )
         KernelAbstractions.synchronize(backend)
@@ -176,7 +194,7 @@ function grow_tree!(
                 active_nodes,
                 cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
                 params.lambda, params.L2, params.min_weight,
-                cache.K, n_feats, cache.sums_temp_par_gpu;
+                cache.K, n_feats, cache.split_sums_temp_gpu;
                 ndrange=n_active * n_feats,
             )
             KernelAbstractions.synchronize(backend)
@@ -273,7 +291,27 @@ function grow_tree!(
     return nothing
 end
 
-# Apply splits by creating child nodes if gain exceeds threshold
+"""
+	apply_splits_kernel!(tree_split, tree_cond_bin, tree_feat, tree_gain,
+	                     nodes_sum, n_next, n_next_active,
+	                     best_gain, best_bin, best_feat,
+	                     h∇, active_nodes, feattypes,
+	                     depth, max_depth, gamma, K_val)
+
+Apply the chosen best split for each active node and create its children.
+
+For each active node `node = active_nodes[n_idx]`, if `best_gain[n_idx] > gamma`
+and we are below `max_depth`, mark the node as split and:
+- Write split metadata (`tree_split`, `tree_feat`, `tree_cond_bin`, `tree_gain`)
+- Compute left-child gradient totals from histograms (`h∇`) and write them into `nodes_sum`
+- Compute right-child totals as `parent - left` (also into `nodes_sum`)
+- Append the two children to the next active-node list (`n_next`) using atomic allocation
+
+Mutates:
+- `tree_split`, `tree_cond_bin`, `tree_feat`, `tree_gain`
+- `nodes_sum` (writes child node totals)
+- `n_next`, `n_next_active`
+"""
 @kernel function apply_splits_kernel!(
     tree_split, tree_cond_bin, tree_feat, tree_gain,
     nodes_sum, n_next, n_next_active,
@@ -313,4 +351,3 @@ end
         n_next[idx_base] = child_r
     end
 end
-
