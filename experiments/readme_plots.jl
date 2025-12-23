@@ -55,6 +55,11 @@ config = EvoTreeRegressor(;
     print_every_n=25,
 );
 
+# sum([sum(tree.split) for tree in model.trees]) / (length(model.trees) - 1)
+# pred_cpu = predict(model, x_train)
+# pred_gpu = predict(model, x_train)
+# cor(pred_cpu, pred_gpu)
+
 @time pred_train_linear = predict(model, x_train)
 mean(abs.(pred_train_linear .- y_train))
 sqrt(mean((pred_train_linear .- y_train) .^ 2))
