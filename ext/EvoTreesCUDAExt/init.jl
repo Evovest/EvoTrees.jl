@@ -76,7 +76,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     mask_cpu = zeros(UInt8, nobs)
     mask_gpu = KernelAbstractions.zeros(backend, UInt8, nobs)
     js_ = UInt32.(collect(1:nfeats))
-    js = KernelAbstractions.zeros(backend, UInt32, ceil(Int, params.colsample * nfeats))
+    n_sampled_feats = max(1, ceil(Int, params.colsample * nfeats))
+    js = KernelAbstractions.zeros(backend, UInt32, n_sampled_feats)
 
     monotone_constraints = zeros(Int32, nfeats)
     hasproperty(params, :monotone_constraints) && for (k, v) in params.monotone_constraints
@@ -108,7 +109,6 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     left_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
     right_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
 
-    # FIX: Use correct tree node count
     target_mask_buf = KernelAbstractions.zeros(backend, UInt8, max_tree_nodes)
     tree_split_gpu = KernelAbstractions.zeros(backend, Bool, max_tree_nodes)
     tree_cond_bin_gpu = KernelAbstractions.zeros(backend, UInt8, max_tree_nodes)
@@ -129,6 +129,14 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     build_count = KernelAbstractions.zeros(backend, Int32, 1)
     subtract_count = KernelAbstractions.zeros(backend, Int32, 1)
     sums_temp_gpu = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, max_tree_nodes)
+
+    n_sampled_feats = max(1, ceil(Int, params.colsample * nfeats))
+    gains_per_feat_gpu = KernelAbstractions.zeros(backend, Float64, n_sampled_feats, max_tree_nodes)
+    bins_per_feat_gpu = KernelAbstractions.zeros(backend, Int32, n_sampled_feats, max_tree_nodes)
+
+    # Per-(node,feature) temp buffer for split scanning (K>1).
+    # Layout: [2K+1, n_sampled_feats * max_tree_nodes]; col = (node_idx-1)*n_sampled_feats + feat_idx.
+    split_sums_temp_gpu = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, n_sampled_feats * max_tree_nodes)
 
     Y = typeof(y)
     N = typeof(first(nodes))
@@ -161,7 +169,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         monotone_constraints_gpu,
         left_nodes_buf,
         right_nodes_buf,
-        target_mask_buf, tree_split_gpu,
+        target_mask_buf,
+        tree_split_gpu,
         tree_cond_bin_gpu,
         tree_feat_gpu,
         tree_gain_gpu,
@@ -178,9 +187,9 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         build_count,
         subtract_count,
         node_counts_gpu,
-        sums_temp_gpu,
-    )
+        sums_temp_gpu, gains_per_feat_gpu,
+        bins_per_feat_gpu,
+        split_sums_temp_gpu,)
 
     return m, cache
 end
-

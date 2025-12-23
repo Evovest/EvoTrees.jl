@@ -7,27 +7,41 @@ using Atomix
 Update observation-to-node assignments by traversing splits (left child = node*2, right child = node*2+1).
 """
 @kernel function update_nodes_idx_kernel!(
-    nidx::AbstractVector{T},        # Node index for each observation (in/out)
-    @Const(is),                     # Observation indices to process
-    @Const(x_bin),                  # Binned feature values [n_obs, n_feats]
-    @Const(cond_feats),             # Split feature for each node
-    @Const(cond_bins),              # Split threshold for each node
-    @Const(feattypes),              # Feature types (true=numeric, false=categorical)
+    nidx::AbstractVector{T},
+    @Const(is),
+    @Const(x_bin),
+    @Const(cond_feats),
+    @Const(cond_bins),
+    @Const(feattypes),
 ) where {T<:Unsigned}
     gidx = @index(Global)
     @inbounds if gidx <= length(is)
-        obs = is[gidx]              # Get observation index
-        node = nidx[obs]            # Get current node for this observation
-        if node > 0                 # If observation is in an active node
-            feat = cond_feats[node] # Get split feature for this node
-            bin = cond_bins[node]   # Get split threshold
-            # If bin == 0, node is a leaf - keep the current node ID
+        obs = is[gidx]
+        node = nidx[obs]
+        if node > 0
+            feat = cond_feats[node]
+            bin = cond_bins[node]
             if bin != 0
                 feattype = feattypes[feat]
                 is_left = feattype ? (x_bin[obs, feat] <= bin) : (x_bin[obs, feat] == bin)
                 nidx[obs] = (node << 1) + T(Int(!is_left))
             end
-            # If bin == 0, do nothing - nidx[obs] already has the leaf node ID
+        end
+    end
+end
+
+"""
+	count_nodes_kernel!(node_counts, nidx, is)
+
+Count the number of observations assigned to each node (raw counts), using atomic increments.
+"""
+@kernel function count_nodes_kernel!(node_counts, @Const(nidx), @Const(is))
+    idx = @index(Global)
+    @inbounds if idx <= length(is)
+        obs = is[idx]
+        node = nidx[obs]
+        if node > 0 && node <= length(node_counts)
+            Atomix.@atomic node_counts[node] += 1
         end
     end
 end
@@ -35,27 +49,29 @@ end
 """
 	hist_kernel!(h∇, ∇, x_bin, nidx, js, is, K, chunk_size, target_mask)
 
-Build gradient histograms for active nodes using atomic operations to accumulate gradients by bin.
+Build per-node gradient histograms using atomic updates.
+
+- `h∇` layout: [2K+1, nbins, n_feats, n_nodes]
+- Each thread processes one (feature, observation-chunk) pair to reduce contention.
 """
 @kernel function hist_kernel!(
-    h∇::AbstractArray{T,4},         # Histogram [2K+1, n_bins, n_feats, n_nodes]
-    @Const(∇),                      # Gradients [2K+1, n_obs]
-    @Const(x_bin),                  # Binned features [n_obs, n_feats]
-    @Const(nidx),                   # Node index for each observation
-    @Const(js),                     # Feature indices to process
-    @Const(is),                     # Observation indices to process
-    K::Int,                         # Number of output dimensions
-    chunk_size::Int,                # Observations per thread (reduces contention)
-    @Const(target_mask)             # Mask indicating which nodes to build histograms for
+    h∇::AbstractArray{T,4},
+    @Const(∇),
+    @Const(x_bin),
+    @Const(nidx),
+    @Const(js),
+    @Const(is),
+    K::Int,
+    chunk_size::Int,
+    @Const(target_mask)
 ) where {T}
     gidx = @index(Global, Linear)
-
     n_feats = length(js)
     n_obs = length(is)
     total_chunks = cld(n_obs, chunk_size)
     total_threads = n_feats * total_chunks
 
-    if gidx <= total_threads
+    @inbounds if gidx <= total_threads
         feat_idx = (gidx - 1) % n_feats + 1
         chunk_idx = (gidx - 1) ÷ n_feats
         feat = js[feat_idx]
@@ -63,349 +79,17 @@ Build gradient histograms for active nodes using atomic operations to accumulate
         start_obs = chunk_idx * chunk_size + 1
         end_obs = min(start_obs + chunk_size - 1, n_obs)
 
-        @inbounds for obs_idx in start_obs:end_obs
+        for obs_idx in start_obs:end_obs
             obs = is[obs_idx]
             node = nidx[obs]
-
             if node > 0 && node <= size(h∇, 4) && target_mask[node] != 0
                 bin = x_bin[obs, feat]
-
                 if bin > 0 && bin <= size(h∇, 2)
                     for k in 1:(2*K+1)
-                        grad = ∇[k, obs]
-                        Atomix.@atomic h∇[k, bin, feat, node] += grad
+                        Atomix.@atomic h∇[k, bin, feat, node] += ∇[k, obs]
                     end
                 end
             end
-        end
-    end
-end
-
-# Split active siblings into BUILD (smaller) vs SUBTRACT (larger) lists; sibling via node ⊻ 1
-@kernel function separate_nodes_kernel!(
-    build_nodes, build_count,       # Output: nodes to build via observation scan
-    subtract_nodes, subtract_count, # Output: nodes to compute via subtraction
-    @Const(active_nodes),           # Input: all active child nodes at current depth
-    @Const(node_counts)             # Input: raw counts per node (number of observations)
-)
-    idx = @index(Global)
-    @inbounds if idx <= length(active_nodes)
-        node = active_nodes[idx]
-
-        if node > 0
-            sibling = node ⊻ 1
-
-            # Compare raw observation counts (not weights)
-            w_node = node_counts[node]
-            w_sibling = node_counts[sibling]
-
-            # Tiebreak by node id on equality
-            if w_node < w_sibling || (w_node == w_sibling && node < sibling)
-                pos = Atomix.@atomic build_count[1] += 1
-                build_nodes[pos] = node
-            else
-                pos = Atomix.@atomic subtract_count[1] += 1
-                subtract_nodes[pos] = node
-            end
-        end
-    end
-end
-
-# Compute hist via subtraction: h∇[child] = h∇[parent] - h∇[sibling]
-@kernel function subtract_hist_kernel!(
-    h∇,                    # Histogram [2K+1, n_bins, n_feats, n_nodes] - modified in-place
-    @Const(subtract_nodes) # List of larger children to compute via subtraction
-)
-    gidx = @index(Global)
-
-    # Decode histogram dimensions to parallelize across all elements
-    n_k = size(h∇, 1)
-    n_b = size(h∇, 2)
-    n_j = size(h∇, 3)
-    n_elements_per_node = n_k * n_b * n_j
-
-    node_idx = (gidx - 1) ÷ n_elements_per_node + 1
-
-    if node_idx <= length(subtract_nodes)
-        remainder = (gidx - 1) % n_elements_per_node
-        j = remainder ÷ (n_k * n_b) + 1
-        remainder = remainder % (n_k * n_b)
-        b = remainder ÷ n_k + 1
-        k = remainder % n_k + 1
-
-        @inbounds node = subtract_nodes[node_idx]
-
-        if node > 0
-            parent = node >> 1
-            sibling = node ⊻ 1
-
-            @inbounds h∇[k, b, j, node] = h∇[k, b, j, parent] - h∇[k, b, j, sibling]
-        end
-    end
-end
-
-"""
-	reduce_root_sums_kernel!(nodes_sum, ∇, is)
-
-Accumulate gradient sums for the root node using atomic operations.
-"""
-@kernel function reduce_root_sums_kernel!(nodes_sum, @Const(∇), @Const(is))
-    idx = @index(Global)
-    if idx <= length(is)
-        obs = is[idx]
-        n_k = size(∇, 1)
-        @inbounds for k in 1:n_k
-            Atomix.@atomic nodes_sum[k, 1] += ∇[k, obs]
-        end
-    end
-end
-
-"""
-	find_best_split_from_hist_kernel!(L, gains, bins, feats, h∇, nodes_sum, active_nodes, js, feattypes, monotone_constraints, lambda, L2, min_weight, K, sums_temp)
-
-Find the best split for each active node by evaluating gains across all features and bins from precomputed histograms.
-"""
-@kernel function find_best_split_from_hist_kernel!(
-    ::Type{L},                      # Loss function type
-    gains::AbstractVector{T},       # Output: best gain for each node
-    bins::AbstractVector{UInt8},    # Output: best bin for each node
-    feats::AbstractVector{UInt32},   # Output: best feature for each node
-    @Const(h∇),                     # Input: histograms [2K+1, n_bins, n_feats, n_nodes]
-    nodes_sum,                      # Input/Output: gradient sums per node
-    @Const(active_nodes),           # Input: which nodes to process
-    @Const(js),                     # Input: feature indices to consider
-    @Const(feattypes),              # Input: feature types (numeric/categorical)
-    @Const(monotone_constraints),   # Input: monotonicity constraints per feature
-    lambda::T,                      # Regularization: L1-like penalty
-    L2::T,                          # Regularization: L2 penalty
-    min_weight::T,                  # Minimum observations per leaf
-    K::Int,                         # Number of output dimensions
-    sums_temp::AbstractArray{T,2},   # Temporary storage for gradient accumulation
-) where {T,L}
-    n_idx = @index(Global)
-
-    @inbounds if n_idx <= length(active_nodes)
-        node = active_nodes[n_idx]
-        if node == 0
-            gains[n_idx] = T(-Inf)
-            bins[n_idx] = UInt8(0)
-            feats[n_idx] = UInt32(0)
-        else
-            nbins = size(h∇, 2)
-            # Use eps(T) for numerical stability guards 
-            eps = T(1e-8)
-
-            # Compute node total gradients by summing across bins
-            if !isempty(js)
-                first_feat = js[1]
-                for k in 1:(2*K+1)
-                    sum_val = zero(T)
-                    for b in 1:nbins
-                        sum_val += h∇[k, b, first_feat, node]
-                    end
-                    nodes_sum[k, node] = sum_val
-                end
-            end
-
-            w_p = nodes_sum[2*K+1, node]
-            λw_p = lambda * w_p
-
-            gain_p = zero(T)
-            if L <: EvoTrees.GradientRegression
-                if K == 1
-                    g_p = nodes_sum[1, node]
-                    h_p = nodes_sum[2, node]
-                    denom_p = h_p + λw_p + L2
-                    denom_p = denom_p < eps ? eps : denom_p
-                    gain_p = g_p^2 / denom_p / 2
-                else
-                    for k in 1:K
-                        g_p = nodes_sum[k, node]
-                        h_p = nodes_sum[K+k, node]
-                        denom_p = h_p + λw_p + L2
-                        denom_p = denom_p < eps ? eps : denom_p
-                        gain_p += g_p^2 / denom_p / 2
-                    end
-                end
-            elseif L <: EvoTrees.MLE2P
-                g1 = nodes_sum[1, node]
-                g2 = nodes_sum[2, node]
-                h1 = nodes_sum[3, node]
-                h2 = nodes_sum[4, node]
-                denom1 = h1 + λw_p + L2
-                denom2 = h2 + λw_p + L2
-                denom1 = denom1 < eps ? eps : denom1
-                denom2 = denom2 < eps ? eps : denom2
-                gain_p = (g1^2 / denom1 + g2^2 / denom2) / 2
-            elseif L == EvoTrees.MLogLoss
-                for k in 1:K
-                    gk = nodes_sum[k, node]
-                    hk = nodes_sum[K+k, node]
-                    denom = hk + λw_p + L2
-                    denom = denom < eps ? eps : denom
-                    gain_p += gk^2 / denom / 2
-                end
-            elseif (L == EvoTrees.MAE || L == EvoTrees.Quantile)
-                gain_p = zero(T)
-            elseif L <: EvoTrees.Cred
-                μp = nodes_sum[1, node] / w_p
-                VHM = μp^2
-                EVPV = nodes_sum[2, node] / w_p - VHM
-                EVPV = EVPV < eps ? eps : EVPV
-                Zp = VHM / (VHM + EVPV)
-                gain_p = Zp * abs(nodes_sum[1, node]) / (1 + L2 / w_p)
-            end
-
-            g_best = T(-Inf)
-            b_best = UInt8(0)
-            f_best = UInt32(0)
-
-            for j_idx in 1:length(js)
-                f = js[j_idx]
-                is_numeric = feattypes[f]
-                constraint = monotone_constraints[f]
-
-                if K == 1
-                    acc1 = zero(T)
-                    acc2 = zero(T)
-                    accw = zero(T)
-                else
-                    for kk in 1:(2*K+1)
-                        sums_temp[kk, n_idx] = zero(T)
-                    end
-                end
-
-                b_max = is_numeric ? (nbins - 1) : nbins
-                for b in 1:b_max
-                    if K == 1
-                        if is_numeric
-                            acc1 += h∇[1, b, f, node]
-                            acc2 += h∇[2, b, f, node]
-                            accw += h∇[3, b, f, node]
-                        else
-                            acc1 = h∇[1, b, f, node]
-                            acc2 = h∇[2, b, f, node]
-                            accw = h∇[3, b, f, node]
-                        end
-                        w_l = accw
-                        w_r = w_p - w_l
-                        (w_l < min_weight || w_r < min_weight) && continue
-
-                        g_val = zero(T)
-                        if L <: EvoTrees.GradientRegression
-                            g_l = acc1
-                            h_l = acc2
-                            g_r = nodes_sum[1, node] - g_l
-                            h_r = nodes_sum[2, node] - h_l
-                            d_l = h_l + lambda * w_l + L2
-                            d_r = h_r + lambda * w_r + L2
-                            d_l = d_l < eps ? eps : d_l
-                            d_r = d_r < eps ? eps : d_r
-                            g_val = (g_l^2 / d_l + g_r^2 / d_r) / 2 - gain_p
-
-                            if constraint != 0
-                                pred_l = -g_l / d_l
-                                pred_r = -g_r / d_r
-                                if (constraint == -1 && pred_l <= pred_r) || (constraint == 1 && pred_l >= pred_r)
-                                    continue
-                                end
-                            end
-                        elseif L == EvoTrees.MAE
-                            μp = nodes_sum[1, node] / w_p
-                            μl = acc1 / w_l
-                            μr = (nodes_sum[1, node] - acc1) / w_r
-                            d_l = 1 + lambda + L2 / w_l
-                            d_r = 1 + lambda + L2 / w_r
-                            d_l = d_l < eps ? eps : d_l
-                            d_r = d_r < eps ? eps : d_r
-                            g_val = abs(μl - μp) * w_l / d_l + abs(μr - μp) * w_r / d_r
-                        elseif L == EvoTrees.Quantile
-                            μp = nodes_sum[1, node] / w_p
-                            μl = acc1 / w_l
-                            μr = (nodes_sum[1, node] - acc1) / w_r
-                            d_l = 1 + lambda + L2 / w_l
-                            d_r = 1 + lambda + L2 / w_r
-                            d_l = d_l < eps ? eps : d_l
-                            d_r = d_r < eps ? eps : d_r
-                            g_val = abs(μl - μp) * w_l / d_l + abs(μr - μp) * w_r / d_r
-                        elseif L <: EvoTrees.Cred
-                            μp = nodes_sum[1, node] / w_p
-                            VHM_p = μp^2
-                            EVPV_p = nodes_sum[2, node] / w_p - VHM_p
-                            EVPV_p = EVPV_p < eps ? eps : EVPV_p
-                            Zp = VHM_p / (VHM_p + EVPV_p)
-                            μl = acc1 / w_l
-                            VHM_l = μl^2
-                            EVPV_l = acc2 / w_l - VHM_l
-                            EVPV_l = EVPV_l < eps ? eps : EVPV_l
-                            Zl = VHM_l / (VHM_l + EVPV_l)
-                            g_l = Zl * abs(acc1) / (1 + L2 / w_l)
-                            μr = (nodes_sum[1, node] - acc1) / w_r
-                            VHM_r = μr^2
-                            EVPV_r = (nodes_sum[2, node] - acc2) / w_r - VHM_r
-                            EVPV_r = EVPV_r < eps ? eps : EVPV_r
-                            Zr = VHM_r / (VHM_r + EVPV_r)
-                            g_r = Zr * abs(nodes_sum[1, node] - acc1) / (1 + L2 / w_r)
-                            g_val = g_l + g_r - Zp * abs(nodes_sum[1, node]) / (1 + L2 / w_p)
-                        end
-                    else
-                        if is_numeric
-                            for kk in 1:(2*K+1)
-                                sums_temp[kk, n_idx] += h∇[kk, b, f, node]
-                            end
-                        else
-                            for kk in 1:(2*K+1)
-                                sums_temp[kk, n_idx] = h∇[kk, b, f, node]
-                            end
-                        end
-
-                        w_l = sums_temp[2*K+1, n_idx]
-                        w_r = w_p - w_l
-                        (w_l < min_weight || w_r < min_weight) && continue
-
-                        if L == EvoTrees.MLogLoss
-                        elseif constraint != 0
-                            g_l1 = sums_temp[1, n_idx]
-                            h_l1 = sums_temp[K+1, n_idx]
-                            g_r1 = nodes_sum[1, node] - g_l1
-                            h_r1 = nodes_sum[K+1, node] - h_l1
-                            d1_l = h_l1 + lambda * w_l + L2
-                            d1_r = h_r1 + lambda * w_r + L2
-                            d1_l = d1_l < eps ? eps : d1_l
-                            d1_r = d1_r < eps ? eps : d1_r
-                            pred_l = -g_l1 / d1_l
-                            pred_r = -g_r1 / d1_r
-                            if (constraint == -1 && pred_l <= pred_r) || (constraint == 1 && pred_l >= pred_r)
-                                continue
-                            end
-                        end
-
-                        g_val = zero(T)
-                        for k in 1:K
-                            g_l = sums_temp[k, n_idx]
-                            h_l = sums_temp[K+k, n_idx]
-                            g_r = nodes_sum[k, node] - g_l
-                            h_r = nodes_sum[K+k, node] - h_l
-                            d_l = h_l + lambda * w_l + L2
-                            d_r = h_r + lambda * w_r + L2
-                            d_l = d_l < eps ? eps : d_l
-                            d_r = d_r < eps ? eps : d_r
-                            g_val += (g_l^2 / d_l + g_r^2 / d_r) / 2
-                        end
-                        g_val -= gain_p
-                    end
-
-                    if g_val > g_best
-                        g_best = g_val
-                        b_best = UInt8(b)
-                        f_best = UInt32(f)
-                    end
-                end
-            end
-
-            gains[n_idx] = g_best
-            bins[n_idx] = b_best
-            feats[n_idx] = f_best
         end
     end
 end
@@ -413,18 +97,17 @@ end
 """
 	clear_hist_kernel!(h∇, active_nodes, n_active)
 
-Clear (zero) histogram entries for specified active nodes.
+Zero histogram entries in `h∇` for the `n_active` nodes listed in `active_nodes`.
 """
 @kernel function clear_hist_kernel!(h∇, @Const(active_nodes), n_active)
     idx = @index(Global, Linear)
     n_elements = size(h∇, 1) * size(h∇, 2) * size(h∇, 3)
     total = n_elements * n_active
 
-    if idx <= total
+    @inbounds if idx <= total
         node_idx = (idx - 1) ÷ n_elements + 1
         element_idx = (idx - 1) % n_elements
-
-        @inbounds node = active_nodes[node_idx]
+        node = active_nodes[node_idx]
         if node > 0
             k = element_idx % size(h∇, 1) + 1
             b = (element_idx ÷ size(h∇, 1)) % size(h∇, 2) + 1
@@ -437,11 +120,11 @@ end
 """
 	clear_mask_kernel!(mask)
 
-Clear (zero) all entries in a mask array.
+Set all entries of `mask` to 0.
 """
 @kernel function clear_mask_kernel!(mask)
     idx = @index(Global)
-    if idx <= length(mask)
+    @inbounds if idx <= length(mask)
         mask[idx] = 0
     end
 end
@@ -449,11 +132,11 @@ end
 """
 	mark_active_nodes_kernel!(mask, active_nodes)
 
-Mark specified active nodes in a mask array by setting their entries to 1.
+Mark each node id in `active_nodes` as active by setting `mask[node] = 1`.
 """
 @kernel function mark_active_nodes_kernel!(mask, @Const(active_nodes))
     idx = @index(Global)
-    if idx <= length(active_nodes)
+    @inbounds if idx <= length(active_nodes)
         node = active_nodes[idx]
         if node > 0 && node <= length(mask)
             mask[node] = 1
@@ -461,27 +144,8 @@ Mark specified active nodes in a mask array by setting their entries to 1.
     end
 end
 
-# Count raw number of observations per node for the current is/nidx mapping
-@kernel function count_nodes_kernel!(node_counts, @Const(nidx), @Const(is))
-    idx = @index(Global)
-    if idx <= length(is)
-        obs = is[idx]
-        node = nidx[obs]
-        if node > 0 && node <= length(node_counts)
-            Atomix.@atomic node_counts[node] += 1
-        end
-    end
-end
-
-"""
-	update_hist_gpu!(h∇, ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params, feattypes, monotone_constraints, K, sums_temp, target_mask, backend)
-
-Build histograms for active nodes by clearing previous entries and invoking the histogram kernel.
-"""
-function update_hist_gpu!(
-    h∇, ∇, x_bin, nidx, js, is, depth, active_nodes, nodes_sum_gpu, params,
-    feattypes, monotone_constraints, K, target_mask, backend,
-)
+# Build histograms for active nodes
+function update_hist_gpu!(h∇, ∇, x_bin, nidx, js, is, active_nodes, K, target_mask, backend)
     n_active = length(active_nodes)
 
     clear_mask_kernel!(backend)(target_mask; ndrange=length(target_mask))
@@ -502,11 +166,481 @@ function update_hist_gpu!(
     n_obs_chunks = cld(length(is), chunk_size)
     num_threads = length(js) * n_obs_chunks
 
-    hist_kernel_f! = hist_kernel!(backend)
-    hist_kernel_f!(
+    hist_kernel!(backend)(
         h∇, ∇, x_bin, nidx, js, is, K, chunk_size, target_mask;
         ndrange=num_threads,
     )
     KernelAbstractions.synchronize(backend)
 end
 
+"""
+	separate_nodes_kernel!(build_nodes, build_count, subtract_nodes, subtract_count, active_nodes, node_counts)
+
+Split active sibling nodes into:
+- **build_nodes**: nodes whose histograms should be built via observation scan (smaller sibling)
+- **subtract_nodes**: nodes whose histograms should be computed as `parent - sibling` (larger sibling)
+
+Ties are broken by node id.
+"""
+@kernel function separate_nodes_kernel!(
+    build_nodes, build_count,
+    subtract_nodes, subtract_count,
+    @Const(active_nodes),
+    @Const(node_counts)
+)
+    idx = @index(Global)
+    @inbounds if idx <= length(active_nodes)
+        node = active_nodes[idx]
+        if node > 0
+            sibling = node ⊻ 1
+            w_node = node_counts[node]
+            w_sibling = node_counts[sibling]
+
+            if w_node < w_sibling || (w_node == w_sibling && node < sibling)
+                pos = Atomix.@atomic build_count[1] += 1
+                build_nodes[pos] = node
+            else
+                pos = Atomix.@atomic subtract_count[1] += 1
+                subtract_nodes[pos] = node
+            end
+        end
+    end
+end
+
+"""
+	subtract_hist_kernel!(h∇, subtract_nodes)
+
+Compute histograms for nodes in `subtract_nodes` via subtraction:
+`h∇[:,:,:,child] = h∇[:,:,:,parent] - h∇[:,:,:,sibling]`.
+"""
+@kernel function subtract_hist_kernel!(h∇, @Const(subtract_nodes))
+    gidx = @index(Global)
+    n_k, n_b, n_j = size(h∇, 1), size(h∇, 2), size(h∇, 3)
+    n_elements_per_node = n_k * n_b * n_j
+    node_idx = (gidx - 1) ÷ n_elements_per_node + 1
+
+    @inbounds if node_idx <= length(subtract_nodes)
+        remainder = (gidx - 1) % n_elements_per_node
+        j = remainder ÷ (n_k * n_b) + 1
+        remainder = remainder % (n_k * n_b)
+        b = remainder ÷ n_k + 1
+        k = remainder % n_k + 1
+
+        node = subtract_nodes[node_idx]
+        if node > 0
+            parent = node >> 1
+            sibling = node ⊻ 1
+            h∇[k, b, j, node] = h∇[k, b, j, parent] - h∇[k, b, j, sibling]
+        end
+    end
+end
+
+"""
+	reduce_root_sums_kernel!(nodes_sum, ∇, is)
+
+Accumulate (atomic) gradient sums over observations `is` into the root node (node id = 1).
+"""
+@kernel function reduce_root_sums_kernel!(nodes_sum, @Const(∇), @Const(is))
+    idx = @index(Global)
+    @inbounds if idx <= length(is)
+        obs = is[idx]
+        n_k = size(∇, 1)
+        for k in 1:n_k
+            Atomix.@atomic nodes_sum[k, 1] += ∇[k, obs]
+        end
+    end
+end
+
+"""
+	compute_nodes_sum_kernel!(nodes_sum, h∇, active_nodes, js, K)
+
+Compute per-node gradient totals by summing histograms across bins.
+Writes into `nodes_sum[:, node]` for each node in `active_nodes`.
+"""
+@kernel function compute_nodes_sum_kernel!(nodes_sum, @Const(h∇), @Const(active_nodes), @Const(js), K::Int)
+    gidx = @index(Global)
+    n_active = length(active_nodes)
+    n_k = 2 * K + 1
+
+    @inbounds if gidx <= n_active * n_k
+        n_idx = (gidx - 1) ÷ n_k + 1
+        k = (gidx - 1) % n_k + 1
+        node = active_nodes[n_idx]
+
+        if node > 0
+            nbins = size(h∇, 2)
+            sum_val = zero(eltype(nodes_sum))
+            feat = isempty(js) ? 1 : js[1]
+            for b in 1:nbins
+                sum_val += h∇[k, b, feat, node]
+            end
+            nodes_sum[k, node] = sum_val
+        end
+    end
+end
+
+# Split statistics for gain computation
+struct SplitStats{T}
+    g_l::T
+    h_l::T
+    w_l::T
+    g_r::T
+    h_r::T
+    w_r::T
+    g_p::T
+    h_p::T
+    w_p::T
+end
+
+# Parent gain: GradientRegression
+@inline function parent_gain(::Type{L}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T,L<:EvoTrees.GradientRegression}
+    if K == 1
+        g, h = nodes_sum[1, node], nodes_sum[2, node]
+        return g^2 / max(h + λw + L2, ε) / 2
+    else
+        gain = zero(T)
+        for k in 1:K
+            g, h = nodes_sum[k, node], nodes_sum[K+k, node]
+            gain += g^2 / max(h + λw + L2, ε)
+        end
+        return gain / 2
+    end
+end
+
+# Parent gain: MLE2P
+@inline function parent_gain(::Type{L}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T,L<:EvoTrees.MLE2P}
+    g1, g2 = nodes_sum[1, node], nodes_sum[2, node]
+    h1, h2 = nodes_sum[3, node], nodes_sum[4, node]
+    d1 = max(h1 + λw + L2, ε)
+    d2 = max(h2 + λw + L2, ε)
+    return (g1^2 / d1 + g2^2 / d2) / 2
+end
+
+# Parent gain: MLogLoss
+@inline function parent_gain(::Type{EvoTrees.MLogLoss}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T}
+    gain = zero(T)
+    for k in 1:K
+        g, h = nodes_sum[k, node], nodes_sum[K+k, node]
+        gain += g^2 / max(h + λw + L2, ε)
+    end
+    return gain / 2
+end
+
+# Parent gain: MAE
+@inline function parent_gain(::Type{EvoTrees.MAE}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T}
+    return zero(T)
+end
+
+# Parent gain: Quantile
+@inline function parent_gain(::Type{EvoTrees.Quantile}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T}
+    return zero(T)
+end
+
+# Parent gain: Cred
+@inline function parent_gain(::Type{L}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T,L<:EvoTrees.Cred}
+    μ = nodes_sum[1, node] / w_p
+    VHM = μ^2
+    EVPV = max(nodes_sum[2, node] / w_p - VHM, ε)
+    Z = VHM / (VHM + EVPV)
+    return Z * abs(nodes_sum[1, node]) / (1 + L2 / w_p)
+end
+
+# Split gain: GradientRegression
+@inline function split_gain(::Type{L}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T,L<:EvoTrees.GradientRegression}
+    d_l = max(s.h_l + lambda * s.w_l + L2, ε)
+    d_r = max(s.h_r + lambda * s.w_r + L2, ε)
+    return (s.g_l^2 / d_l + s.g_r^2 / d_r) / 2 - gain_p
+end
+
+# Split gain: MLE2P
+@inline function split_gain(::Type{L}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T,L<:EvoTrees.MLE2P}
+    d_l = max(s.h_l + lambda * s.w_l + L2, ε)
+    d_r = max(s.h_r + lambda * s.w_r + L2, ε)
+    return (s.g_l^2 / d_l + s.g_r^2 / d_r) / 2 - gain_p
+end
+
+# Split gain: MLogLoss
+@inline function split_gain(::Type{EvoTrees.MLogLoss}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T}
+    d_l = max(s.h_l + lambda * s.w_l + L2, ε)
+    d_r = max(s.h_r + lambda * s.w_r + L2, ε)
+    return (s.g_l^2 / d_l + s.g_r^2 / d_r) / 2 - gain_p
+end
+
+# Split gain: MAE
+@inline function split_gain(::Type{EvoTrees.MAE}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T}
+    μp = s.g_p / s.w_p
+    μl = s.g_l / s.w_l
+    μr = s.g_r / s.w_r
+    d_l = max(1 + lambda + L2 / s.w_l, ε)
+    d_r = max(1 + lambda + L2 / s.w_r, ε)
+    return abs(μl - μp) * s.w_l / d_l + abs(μr - μp) * s.w_r / d_r
+end
+
+# Split gain: Quantile
+@inline function split_gain(::Type{EvoTrees.Quantile}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T}
+    μp = s.g_p / s.w_p
+    μl = s.g_l / s.w_l
+    μr = s.g_r / s.w_r
+    d_l = max(1 + lambda + L2 / s.w_l, ε)
+    d_r = max(1 + lambda + L2 / s.w_r, ε)
+    return abs(μl - μp) * s.w_l / d_l + abs(μr - μp) * s.w_r / d_r
+end
+
+# Split gain: Cred
+@inline function split_gain(::Type{L}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T,L<:EvoTrees.Cred}
+    μl = s.g_l / s.w_l
+    VHM_l = μl^2
+    EVPV_l = max(s.h_l / s.w_l - VHM_l, ε)
+    Z_l = VHM_l / (VHM_l + EVPV_l)
+    gain_l = Z_l * abs(s.g_l) / (1 + L2 / s.w_l)
+
+    μr = s.g_r / s.w_r
+    VHM_r = μr^2
+    EVPV_r = max(s.h_r / s.w_r - VHM_r, ε)
+    Z_r = VHM_r / (VHM_r + EVPV_r)
+    gain_r = Z_r * abs(s.g_r) / (1 + L2 / s.w_r)
+
+    return gain_l + gain_r - gain_p
+end
+
+# Split gain for K>1: GradientRegression/MLE2P/MLogLoss
+@inline function split_gain_multi(
+    ::Type{L}, sums_temp, nodes_sum, node, temp_idx,
+    K, w_l, w_r, gain_p, lambda, L2, ε::T
+) where {T,L<:Union{EvoTrees.GradientRegression,EvoTrees.MLE2P,EvoTrees.MLogLoss}}
+    g_val = zero(T)
+    for k in 1:K
+        g_l = sums_temp[k, temp_idx]
+        h_l = sums_temp[K+k, temp_idx]
+        g_r = nodes_sum[k, node] - g_l
+        h_r = nodes_sum[K+k, node] - h_l
+        d_l = max(h_l + lambda * w_l + L2, ε)
+        d_r = max(h_r + lambda * w_r + L2, ε)
+        g_val += (g_l^2 / d_l + g_r^2 / d_r) / 2
+    end
+    return g_val - gain_p
+end
+
+@inline function split_gain_multi(
+    ::Type{L}, sums_temp, nodes_sum, node, temp_idx,
+    K, w_l, w_r, gain_p, lambda, L2, ε::T
+) where {T,L}
+    return T(-Inf)
+end
+
+# Monotone constraint check: GradientRegression
+@inline function check_monotone(::Type{L}, constraint, g_l, h_l, g_r, h_r, w_l, w_r, lambda, L2, ε) where {L<:EvoTrees.GradientRegression}
+    constraint == 0 && return false
+    d_l = max(h_l + lambda * w_l + L2, ε)
+    d_r = max(h_r + lambda * w_r + L2, ε)
+    pred_l = -g_l / d_l
+    pred_r = -g_r / d_r
+    return (constraint == -1 && pred_l <= pred_r) || (constraint == 1 && pred_l >= pred_r)
+end
+
+# Monotone constraint check: MLE2P
+@inline function check_monotone(::Type{L}, constraint, g_l, h_l, g_r, h_r, w_l, w_r, lambda, L2, ε) where {L<:EvoTrees.MLE2P}
+    constraint == 0 && return false
+    d_l = max(h_l + lambda * w_l + L2, ε)
+    d_r = max(h_r + lambda * w_r + L2, ε)
+    pred_l = -g_l / d_l
+    pred_r = -g_r / d_r
+    return (constraint == -1 && pred_l <= pred_r) || (constraint == 1 && pred_l >= pred_r)
+end
+
+# Monotone constraint check: MLogLoss (no constraints)
+@inline check_monotone(::Type{EvoTrees.MLogLoss}, constraint, args...) = false
+
+# Monotone constraint check: MAE (no constraints)
+@inline check_monotone(::Type{EvoTrees.MAE}, constraint, args...) = false
+
+# Monotone constraint check: Quantile (no constraints)
+@inline check_monotone(::Type{EvoTrees.Quantile}, constraint, args...) = false
+
+# Monotone constraint check: Cred (no constraints)
+@inline check_monotone(::Type{L}, constraint, args...) where {L<:EvoTrees.Cred} = false
+
+# Accumulate histogram for K=1
+@inline function accumulate_hist_k1(h∇, f, b, node, is_numeric, acc1, acc2, accw)
+    if is_numeric
+        return (acc1 + h∇[1, b, f, node], acc2 + h∇[2, b, f, node], accw + h∇[3, b, f, node])
+    else
+        return (h∇[1, b, f, node], h∇[2, b, f, node], h∇[3, b, f, node])
+    end
+end
+
+# Accumulate histogram for K>1
+@inline function accumulate_hist_kn!(sums_temp, h∇, f, b, node, K, is_numeric, temp_idx)
+    @inbounds for kk in 1:(2*K+1)
+        if is_numeric
+            sums_temp[kk, temp_idx] += h∇[kk, b, f, node]
+        else
+            sums_temp[kk, temp_idx] = h∇[kk, b, f, node]
+        end
+    end
+end
+
+"""
+	find_best_split_parallel_kernel!(L, gains, bins, h∇, nodes_sum, active_nodes, js, feattypes, monotone_constraints, lambda, L2, min_weight, K, n_feats, sums_temp)
+
+Evaluate all candidate split bins for each (active node, feature) pair and store:
+- `gains[f_idx, n_idx]`: best gain
+- `bins[f_idx, n_idx]`: best bin threshold/category id (0 if none)
+
+Notes:
+- Numeric features scan bins `1:nbins-1` (cumulative left).
+- Categorical features scan bins `1:nbins` (one-vs-rest per bin).
+- Monotone constraints apply only to `GradientRegression` and `MLE2P` losses.
+"""
+@kernel function find_best_split_parallel_kernel!(
+    ::Type{L},
+    gains::AbstractMatrix{T},
+    bins::AbstractMatrix{Int32},
+    @Const(h∇),
+    @Const(nodes_sum),
+    @Const(active_nodes),
+    @Const(js),
+    @Const(feattypes),
+    @Const(monotone_constraints),
+    lambda::T,
+    L2::T,
+    min_weight::T,
+    K::Int,
+    n_feats::Int,
+    sums_temp::AbstractArray{T,2},
+) where {T,L}
+    gidx = @index(Global)
+    n_active = length(active_nodes)
+    ε = T(1e-8)
+
+    @inbounds if gidx <= n_active * n_feats
+        # Decode thread index into (node, feature) pair
+        n_idx = (gidx - 1) ÷ n_feats + 1
+        f_idx = (gidx - 1) % n_feats + 1
+        node = active_nodes[n_idx]
+
+        if node == 0
+            # Invalid node, mark as no valid split
+            gains[f_idx, n_idx] = T(-Inf)
+            bins[f_idx, n_idx] = Int32(0)
+        else
+            # Setup feature info and parent weight
+            f = js[f_idx]
+            nbins = size(h∇, 2)
+            is_numeric = feattypes[f]
+            constraint = monotone_constraints[f]
+            w_p = nodes_sum[2*K+1, node]
+            λw = lambda * w_p
+
+            # Compute baseline gain before splitting
+            gain_p = parent_gain(L, nodes_sum, node, K, λw, L2, w_p, ε)
+
+            # Track best split found for this (node, feature)
+            g_best = T(-Inf)
+            b_best = Int32(0)
+
+            # Unique temp storage column for this thread
+            temp_idx = (n_idx - 1) * n_feats + f_idx
+
+            # Initialize left-side accumulators (cumulative sums)
+            acc1, acc2, accw = zero(T), zero(T), zero(T)
+            if K > 1
+                for kk in 1:(2*K+1)
+                    sums_temp[kk, temp_idx] = zero(T)
+                end
+            end
+
+            # Scan bins: numeric excludes last bin, categorical includes all
+            b_max = is_numeric ? (nbins - 1) : nbins
+            for b in 1:b_max
+                if K == 1
+                    # Accumulate histogram into left-side sums
+                    acc1, acc2, accw = accumulate_hist_k1(h∇, f, b, node, is_numeric, acc1, acc2, accw)
+                    w_l, w_r = accw, w_p - accw
+
+                    # Skip if either child has insufficient weight
+                    (w_l < min_weight || w_r < min_weight) && continue
+
+                    # Compute right-side stats by subtraction
+                    g_l, h_l = acc1, acc2
+                    g_r = nodes_sum[1, node] - g_l
+                    h_r = nodes_sum[2, node] - h_l
+                    g_p = nodes_sum[1, node]
+                    h_p = nodes_sum[2, node]
+
+                    # Skip if split violates monotone constraint
+                    check_monotone(L, constraint, g_l, h_l, g_r, h_r, w_l, w_r, lambda, L2, ε) && continue
+
+                    # Compute split gain using loss-specific formula
+                    stats = SplitStats(g_l, h_l, w_l, g_r, h_r, w_r, g_p, h_p, w_p)
+                    g_val = split_gain(L, stats, gain_p, lambda, L2, ε)
+                else
+                    # K > 1: accumulate all gradient components
+                    accumulate_hist_kn!(sums_temp, h∇, f, b, node, K, is_numeric, temp_idx)
+                    w_l = sums_temp[2*K+1, temp_idx]
+                    w_r = w_p - w_l
+
+                    # Skip if either child has insufficient weight
+                    (w_l < min_weight || w_r < min_weight) && continue
+
+                    # Check monotone constraint using first output dimension
+                    g_l1 = sums_temp[1, temp_idx]
+                    h_l1 = sums_temp[K+1, temp_idx]
+                    g_r1 = nodes_sum[1, node] - g_l1
+                    h_r1 = nodes_sum[K+1, node] - h_l1
+                    check_monotone(L, constraint, g_l1, h_l1, g_r1, h_r1, w_l, w_r, lambda, L2, ε) && continue
+
+                    # Compute multi-output split gain
+                    g_val = split_gain_multi(L, sums_temp, nodes_sum, node, temp_idx, K, w_l, w_r, gain_p, lambda, L2, ε)
+                end
+
+                # Update best if this split is better
+                if g_val > g_best
+                    g_best = g_val
+                    b_best = Int32(b)
+                end
+            end
+
+            # Store best split for this (node, feature) pair
+            gains[f_idx, n_idx] = g_best
+            bins[f_idx, n_idx] = b_best
+        end
+    end
+end
+
+"""
+	reduce_best_split_kernel!(best_gain, best_bin, best_feat, gains, bins, js, n_feats)
+
+For each node-column in `gains`, find the feature index with maximum gain and output:
+- `best_gain[n_idx]`
+- `best_bin[n_idx]`
+- `best_feat[n_idx]` (actual feature id from `js`)
+"""
+@kernel function reduce_best_split_kernel!(
+    best_gain,
+    best_bin,
+    best_feat,
+    @Const(gains),
+    @Const(bins),
+    @Const(js),
+    n_feats::Int
+)
+    n_idx = @index(Global)
+
+    @inbounds if n_idx <= size(gains, 2)
+        best_f_idx = 1
+        best_g = gains[1, n_idx]
+
+        for f_idx in 2:n_feats
+            g = gains[f_idx, n_idx]
+            if g > best_g
+                best_g = g
+                best_f_idx = f_idx
+            end
+        end
+
+        best_gain[n_idx] = best_g
+        best_bin[n_idx] = bins[best_f_idx, n_idx]
+        best_feat[n_idx] = js[best_f_idx]
+    end
+end
