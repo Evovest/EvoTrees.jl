@@ -17,14 +17,14 @@ tree_type = :binary
 T = Float32
 nthreads = Base.Threads.nthreads()
 
-# device_list = [:cpu, :gpu]
-device_list = [:gpu]
+device_list = [:cpu, :gpu]
+# device_list = [:gpu]
 
 nobs_list = Int.([1e5, 1e6, 1e7])
-# nobs_list = Int.([1e5, 1e6])
+# nobs_list = Int.([1e6])
 
 nfeats_list = [10, 100]
-# nfeats_list = [10]
+# nfeats_list = [100]
 
 max_depth_list = [6, 11]
 # max_depth_list = [6]
