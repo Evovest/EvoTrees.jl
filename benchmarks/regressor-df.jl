@@ -43,7 +43,7 @@ params_evo = EvoTreeRegressor(;
     max_depth=6,
     min_weight=1.0,
     rowsample=0.5,
-    colsample=1.0, # reconcile if 1.0 - bug if 0.5
+    colsample=0.5, # reconcile if 1.0 - bug if 0.5
     nbins=64,
     rng=123,
 )
