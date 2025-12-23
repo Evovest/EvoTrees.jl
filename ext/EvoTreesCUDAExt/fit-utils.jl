@@ -252,12 +252,12 @@ Accumulate (atomic) gradient sums over observations `is` into the root node (nod
 end
 
 """
-	compute_nodes_sum_kernel!(nodes_sum, h∇, active_nodes, K)
+	compute_nodes_sum_kernel!(nodes_sum, h∇, active_nodes, js, K)
 
 Compute per-node gradient totals by summing histograms across bins.
 Writes into `nodes_sum[:, node]` for each node in `active_nodes`.
 """
-@kernel function compute_nodes_sum_kernel!(nodes_sum, @Const(h∇), @Const(active_nodes), K::Int)
+@kernel function compute_nodes_sum_kernel!(nodes_sum, @Const(h∇), @Const(active_nodes), @Const(js), K::Int)
     gidx = @index(Global)
     n_active = length(active_nodes)
     n_k = 2 * K + 1
@@ -270,8 +270,9 @@ Writes into `nodes_sum[:, node]` for each node in `active_nodes`.
         if node > 0
             nbins = size(h∇, 2)
             sum_val = zero(eltype(nodes_sum))
+            feat = isempty(js) ? 1 : js[1]
             for b in 1:nbins
-                sum_val += h∇[k, b, 1, node]
+                sum_val += h∇[k, b, feat, node]
             end
             nodes_sum[k, node] = sum_val
         end
@@ -643,4 +644,3 @@ For each node-column in `gains`, find the feature index with maximum gain and ou
         best_feat[n_idx] = js[best_f_idx]
     end
 end
-

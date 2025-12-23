@@ -76,7 +76,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     mask_cpu = zeros(UInt8, nobs)
     mask_gpu = KernelAbstractions.zeros(backend, UInt8, nobs)
     js_ = UInt32.(collect(1:nfeats))
-    js = KernelAbstractions.zeros(backend, UInt32, ceil(Int, params.colsample * nfeats))
+    n_sampled_feats = max(1, ceil(Int, params.colsample * nfeats))
+    js = KernelAbstractions.zeros(backend, UInt32, n_sampled_feats)
 
     monotone_constraints = zeros(Int32, nfeats)
     hasproperty(params, :monotone_constraints) && for (k, v) in params.monotone_constraints
@@ -129,7 +130,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     subtract_count = KernelAbstractions.zeros(backend, Int32, 1)
     sums_temp_gpu = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, max_tree_nodes)
 
-    n_sampled_feats = ceil(Int, params.colsample * nfeats)
+    n_sampled_feats = max(1, ceil(Int, params.colsample * nfeats))
     gains_per_feat_gpu = KernelAbstractions.zeros(backend, Float64, n_sampled_feats, max_tree_nodes)
     bins_per_feat_gpu = KernelAbstractions.zeros(backend, Int32, n_sampled_feats, max_tree_nodes)
 
