@@ -97,7 +97,7 @@ function grow_tree!(
         )
 
         compute_nodes_sum_kernel!(backend)(
-            cache.nodes_sum_gpu, cache.h∇, view(cache.anodes_gpu, 1:1), cache.K;
+            cache.nodes_sum_gpu, cache.h∇, view(cache.anodes_gpu, 1:1), cache.js, cache.K;
             ndrange=(2 * cache.K + 1),
         )
         KernelAbstractions.synchronize(backend)
@@ -181,7 +181,7 @@ function grow_tree!(
             end
 
             compute_nodes_sum_kernel!(backend)(
-                cache.nodes_sum_gpu, cache.h∇, active_nodes, cache.K;
+                cache.nodes_sum_gpu, cache.h∇, active_nodes, cache.js, cache.K;
                 ndrange=n_active * (2 * cache.K + 1),
             )
             KernelAbstractions.synchronize(backend)
@@ -351,4 +351,3 @@ Mutates:
         n_next[idx_base] = child_r
     end
 end
-
