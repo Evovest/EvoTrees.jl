@@ -135,4 +135,3 @@ for _device in device_list
     path = joinpath(@__DIR__, "results", "regressor-$_device.csv")
     CSV.write(path, df)
 end
-

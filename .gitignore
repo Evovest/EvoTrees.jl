@@ -26,3 +26,5 @@ Manifest.toml
 data/
 figures/
 .vscode/
+
+.CondaPkg/
