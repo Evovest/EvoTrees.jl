@@ -3,12 +3,12 @@
 ## v0.18
 
 ## Refactor of GPU training backend
-- Computations are now alsmost entirely done through `KernelAbstractions.jl`. Objective is to eventually have full support for AMD / ROCm in addition to current NVIDIA / CUDA devices.
+- Computations are now done through `KernelAbstractions.jl` instead of CUDA specific kernels. Objective is to eventually have full support for AMD / ROCm in addition to current NVIDIA / CUDA devices.
 - Important performance increase, notably for larger max depth. Training time is now closely increase linearly with depth. 
 
 ### Breaking change: improved reproducibility
 - Training returns exactly the same fitted  model for a given learner (ex: `EvoTreeRegressor`). 
-- Reproducibility is respected for both `cpu` and `gpu`. However, thes result may differ between `cpu` and `gpu`. Ie: reproducibility is guaranteed only within the same device type.
+- Reproducibility is respected for both `cpu` and `gpu`. However, results may differ between `cpu` and `gpu`. Ie: reproducibility is guaranteed only within the same device type.
 - The learner / model constructor (ex: `EvoTreeRegressor`) now has a `seed::Int` argument to set the random seed. Legacy `rng` kwarg will now be ignored.
 - The internal random generator is now `Random.Xoshiro` (was previously `Random.MersenneTwister` with `rng::Int`).
 

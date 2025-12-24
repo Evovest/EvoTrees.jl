@@ -1,0 +1,6 @@
+[deps]
+cudatoolkit = ""
+numpy = ""
+
+[pip.deps]
+xgboost = ""

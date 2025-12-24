@@ -189,7 +189,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         node_counts_gpu,
         sums_temp_gpu, gains_per_feat_gpu,
         bins_per_feat_gpu,
-        split_sums_temp_gpu,)
+        split_sums_temp_gpu
+    )
 
     return m, cache
 end

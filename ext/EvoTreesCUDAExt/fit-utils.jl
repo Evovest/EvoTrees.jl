@@ -270,7 +270,7 @@ Writes into `nodes_sum[:, node]` for each node in `active_nodes`.
         if node > 0
             nbins = size(h∇, 2)
             sum_val = zero(eltype(nodes_sum))
-            feat = isempty(js) ? 1 : js[1]
+            feat = js[1]
             for b in 1:nbins
                 sum_val += h∇[k, b, feat, node]
             end
