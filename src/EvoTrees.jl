@@ -43,6 +43,8 @@ include("importance.jl")
 include("plot.jl")
 include("MLJ.jl")
 
+include("linear_tree_shap.jl")
+
 function save(model::EvoTree, path)
     BSON.bson(path, Dict(:model => model))
 end
