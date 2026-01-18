@@ -64,21 +64,21 @@ config = EvoTreeRegressor(
     nrounds=1,
     early_stopping_rounds=10,
     eta=1.0,
-    max_depth=5,
+    max_depth=3,
     lambda=0.0,
     L2=0.0,
-    rowsample=0.9,
-    colsample=0.9)
+    rowsample=1.0,
+    colsample=1.0)
 
 m = EvoTrees.fit(config;
     x_train, y_train,
     x_eval, y_eval,
     print_every_n=1)
 
-pred_train = m(x_train)
-pred_eval = m(x_eval)
-
 EvoTrees.importance(m)
+
+p_full = m(x_train)
+p_tree = p_full .- mean(p_full)
 
 ltree = LinearTreeShap.copy_tree(m.trees[2])
 x_bin = EvoTrees.binarize(x_train; feature_names=m.info[:feature_names], edges=m.info[:edges])
@@ -89,9 +89,12 @@ tree_shap_imp = mean(abs.(shap); dims=1)
 tree_shap_imp ./ sum(tree_shap_imp)
 
 # obs decomposition
-shap[1,:]
-sum(shap[1,:])
-m.trees[1].pred
+sum(shap[2, :])
+sum(shap[3, :])
+# m.trees[2].pred
+# proper spread betwee idx 2 and 3, but not overall level...
+sum(shap[3, :]) - sum(shap[2, :])
+p_tree[3] - p_tree[2]
 
 function shap_pred_fun(m, data)
     p = m(data)
