@@ -49,12 +49,12 @@ function copy_tree(tree::EvoTrees.Tree)
     n_node_samples = Float64.(tree.w)
 
     # compute weights and parents and edge_heights following the python reference semantics
-    function _recursive_copy(node::Int; feature::Int=-1, parent_samples::Float64=n_node_samples[1], prod_weight=1.0, seen_features=Dict{Int,Int}())
+    function _recursive_copy(node::Int; feature::Int=0, parent_samples::Float64=n_node_samples[1], prod_weight=1.0, seen_features=Dict{Int,Int}())
         if node < 1 || node > n
             return 0
         end
         n_sample = n_node_samples[node]
-        if feature != -1
+        if feature != 0
             weight = n_sample / parent_samples
             prod_weight *= weight
             if haskey(seen_features, feature)
@@ -104,7 +104,7 @@ Inputs:
 - X: Matrix{<:Real} observations (rows are samples, columns features)
 Returns: Matrix of shap values (n_samples x n_features)
 """
-function inference(ltree::LTree, X::AbstractMatrix{<:Real}; debug::Bool=false)
+function inference(ltree::LTree, X::AbstractMatrix{<:Real})
     n_samples, n_features = size(X)
     result = zeros(Float64, n_samples, n_features)
 
@@ -123,16 +123,12 @@ function inference(ltree::LTree, X::AbstractMatrix{<:Real}; debug::Bool=false)
     for i = 1:n_samples
         x = vec(X[i, :])
         activation = falses(ltree.num_nodes)
+        activation[1] = true  # root node is always active
         C = zeros(Float64, m, m)
         E = zeros(Float64, m, m)
         C[1, :] .= 1.0   # corresponds to python C[0]
         # start with depth=0 (python convention). node indexes are 1-based in Julia
-        _inference!(ltree, x, view(result, i, :), activation, D, D_powers, Ns, C, E, 1, -1, 0, debug)
-        if debug && i == 1
-            @show C
-            @show E
-            @show result[i, :]
-        end
+        _inference!(ltree, x, view(result, i, :), activation, D, D_powers, Ns, C, E, 1, -1, 0)
     end
     return result
 end
@@ -180,7 +176,6 @@ function get_norm_weight(M::Int)
 end
 
 function psi(E_row::AbstractVector{T}, D_power::AbstractVector{<:Real}, D::AbstractVector{<:Real}, q, Ns, d) where T
-    # ((E*D_power/(D+q))[:d]).dot(n)/d  -- using 1-based indexing mapping
     if d <= 0
         return 0.0
     end
@@ -189,7 +184,7 @@ function psi(E_row::AbstractVector{T}, D_power::AbstractVector{<:Real}, D::Abstr
     return dot(vals, nvec) / d
 end
 
-function _inference!(ltree::LTree, x, result_row, activation, D::AbstractVector{<:Real}, D_powers::AbstractMatrix{<:Real}, Ns, C, E, node::Int, edge_feature::Int, depth::Int, debug::Bool=false)
+function _inference!(ltree::LTree, x, result_row, activation, D::AbstractVector{<:Real}, D_powers::AbstractMatrix{<:Real}, Ns, C, E, node::Int, edge_feature::Int, depth::Int)
     left = ltree.children_left[node]
     right = ltree.children_right[node]
     parent = ltree.parents[node]
@@ -202,6 +197,11 @@ function _inference!(ltree::LTree, x, result_row, activation, D::AbstractVector{
 
     # map python depth (0-based) to Julia row index
     idx = depth + 1
+
+    # Set activation based on parent's activation first (matches C++ implementation)
+    if parent >= 1
+        activation[node] = activation[node] & activation[parent]
+    end
 
     if left >= 1
         if child_edge_feature >= 1 && child_edge_feature <= length(x)
@@ -220,10 +220,6 @@ function _inference!(ltree::LTree, x, result_row, activation, D::AbstractVector{
     end
 
     if edge_feature >= 0
-        if parent >= 1
-            activation[node] &= activation[parent]
-        end
-
         q_eff = activation[node] ? 1.0 / ltree.weights[node] : 0.0
         # python: C[depth] = C[depth-1] * (D + q_eff)
         C[idx, :] .= C[idx-1, :] .* (D .+ q_eff)
@@ -234,37 +230,38 @@ function _inference!(ltree::LTree, x, result_row, activation, D::AbstractVector{
     end
 
     if left < 1
-        E[idx, :] .= 0.0
-        E[idx, 1:current_height+1] .= C[idx, 1:current_height+1] .* ltree.leaf_predictions[node]
+        E[idx, :] .= C[idx, :] .* ltree.leaf_predictions[node]
     else
-        _inference!(ltree, x, result_row, activation, D, D_powers, Ns, C, E, left, child_edge_feature, depth + 1, debug)
-        # multiply by appropriate D_powers row: python uses D_powers[current_height-left_height]
-        delta1 = current_height - left_height
-        row1 = clamp(delta1 + 1, 1, size(D_powers, 1))
-        E[idx, 1:left_height+1] .= E[idx+1, 1:left_height+1] .* D_powers[row1, 1:left_height+1]
-        _inference!(ltree, x, result_row, activation, D, D_powers, Ns, C, E, right, child_edge_feature, depth + 1, debug)
-        delta2 = current_height - right_height
-        row2 = clamp(delta2 + 1, 1, size(D_powers, 1))
-        E[idx, 1:right_height+1] .+= E[idx+1, 1:right_height+1] .* D_powers[row2, 1:right_height+1]
+        _inference!(ltree, x, result_row, activation, D, D_powers, Ns, C, E, left, child_edge_feature, depth + 1)
+        # E[depth] = E[depth+1]*Offset[current_height-left_height]
+        delta1 = current_height - left_height + 1  # +1 for 1-based indexing
+        row1 = clamp(delta1, 1, size(D_powers, 1))
+        E[idx, :] .= E[idx+1, :] .* D_powers[row1, :]
+
+        _inference!(ltree, x, result_row, activation, D, D_powers, Ns, C, E, right, child_edge_feature, depth + 1)
+        # E[depth] += E[depth+1]*Offset[current_height-right_height] 
+        delta2 = current_height - right_height + 1  # +1 for 1-based indexing
+        row2 = clamp(delta2, 1, size(D_powers, 1))
+        E[idx, :] .+= E[idx+1, :] .* D_powers[row2, :]
     end
 
     if edge_feature >= 0
-        # use first row of D_powers (python D_powers[0]) -> Julia row 1
-        val = (q_eff - 1.0) * psi(E[idx, :], D_powers[1, :], D, q_eff, Ns, current_height)
-        if debug
-            println("debug: node=", node, " edge_feature=", edge_feature, " q_eff=", q_eff, " current_height=", current_height)
-            println("debug: psi=", psi(E[idx, :], D_powers[1, :], D, q_eff, Ns, current_height), " val=", val)
+        # Early return if parent is inactive (matches C++ implementation)
+        if parent >= 1 && !activation[parent]
+            return
         end
+
+        # Python: value = (q_eff-1)*psi_v2(E[depth], Offset[0], Base, q_eff, Ns, current_height)
+        val = (q_eff - 1.0) * psi(E[idx, :], D_powers[1, :], D, q_eff, Ns, current_height)
         if edge_feature >= 1 && edge_feature <= length(result_row)
             result_row[edge_feature] += val
         end
         if parent >= 1
             s_eff = activation[parent] ? 1.0 / ltree.weights[parent] : 0.0
-            # use row corresponding to parent_height
-            val2 = (s_eff - 1.0) * psi(E[idx, :], D_powers[parent_height+1, :], D, s_eff, Ns, parent_height)
-            if debug
-                println("debug: parent=", parent, " s_eff=", s_eff, " parent_height=", parent_height, " val2=", val2)
-            end
+            # Python: value = (s_eff-1)*psi_v2(E[depth], Offset[parent_height-current_height], Base, s_eff, Ns, parent_height)
+            offset_row = parent_height - current_height + 1  # +1 for 1-based indexing
+            offset_row = clamp(offset_row, 1, size(D_powers, 1))
+            val2 = (s_eff - 1.0) * psi(E[idx, :], D_powers[offset_row, :], D, s_eff, Ns, parent_height)
             if edge_feature >= 1 && edge_feature <= length(result_row)
                 result_row[edge_feature] -= val2
             end
