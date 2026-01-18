@@ -127,7 +127,6 @@ function inference(ltree::LTree, X::AbstractMatrix{<:Real})
         C = zeros(Float64, m, m)
         E = zeros(Float64, m, m)
         C[1, :] .= 1.0   # corresponds to python C[0]
-        # start with depth=0 (python convention). node indexes are 1-based in Julia
         _inference!(ltree, x, view(result, i, :), activation, D, D_powers, Ns, C, E, 1, -1, 0)
     end
     return result
@@ -221,7 +220,6 @@ function _inference!(ltree::LTree, x, result_row, activation, D::AbstractVector{
 
     if edge_feature >= 0
         q_eff = activation[node] ? 1.0 / ltree.weights[node] : 0.0
-        # python: C[depth] = C[depth-1] * (D + q_eff)
         C[idx, :] .= C[idx-1, :] .* (D .+ q_eff)
         if parent >= 1
             s_eff = activation[parent] ? 1.0 / ltree.weights[parent] : 0.0
@@ -246,7 +244,7 @@ function _inference!(ltree::LTree, x, result_row, activation, D::AbstractVector{
     end
 
     if edge_feature >= 0
-        # Early return if parent is inactive (matches C++ implementation)
+        # Early return if parent is inactive
         if parent >= 1 && !activation[parent]
             return
         end

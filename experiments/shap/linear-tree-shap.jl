@@ -13,25 +13,21 @@ tree.pred[1, 3] = 1.0
 tree.w .= [4.0, 3.0, 1.0]
 
 ltree = LinearTreeShap.copy_tree(tree)
-shap = LinearTreeShap.inference(ltree, x_bin; debug=true)
+shap = LinearTreeShap.inference(ltree, x_bin)
 
-nobs = 100_000
-# x_train = randn(nobs, 2)
-x_train = rand(Bool, nobs, 2)
-y_train = 1.0 .* x_train[:, 1] .+ 0.5 * x_train[:, 2] .+ randn(nobs) .* 0.01
-learner = EvoTreeRegressor(nrounds=1, eta=0.5, max_depth=5)
-m = EvoTrees.fit(learner; x_train, y_train)
-x_bin = EvoTrees.binarize(x_train; feature_names=m.info[:feature_names], edges=m.info[:edges])
+# nobs = 100_000
+# # x_train = randn(nobs, 2)
+# x_train = rand(Bool, nobs, 2)
+# y_train = 1.0 .* x_train[:, 1] .+ 0.5 * x_train[:, 2] .+ randn(nobs) .* 0.01
+# learner = EvoTreeRegressor(nrounds=100, eta=0.01, max_depth=5)
+# m = EvoTrees.fit(learner; x_train, y_train)
+# x_bin = EvoTrees.binarize(x_train; feature_names=m.info[:feature_names], edges=m.info[:edges])
 
 # shap = zeros(size(x_bin))
-# for tree in m.trees[2:end]
+# @time for tree in m.trees[2:end]
 #     ltree = LinearTreeShap.copy_tree(tree)
-#     shap .+= LinearTreeShap.inference(ltree, x_bin; debug=false)
+#     shap .+= LinearTreeShap.inference(ltree, x_bin)
 # end
-# mean(abs.(shap); dims=1)
-
-# ltree = LinearTreeShap.copy_tree(m.trees[2])
-# shap = LinearTreeShap.inference(ltree, x_bin; debug=false)
 # mean(abs.(shap); dims=1)
 
 ######################
