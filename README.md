@@ -132,6 +132,16 @@ m = fit(config, dtrain; target_name="y");
 m = fit(config, dtrain; target_name="y", fnames=["x1", "x3"]);
 ```
 
+## Shap
+
+EvoTrees includes a Julia implementation of Linear TreeShap. Computes exact Shapley values for decision trees in O(LD) time
+This is a port of the algorithm from: https://github.com/yupbank/linear_tree_shap
+For more details, see the original (paper)[arXiv:2209.08192]: "Linear TreeShap" by Peng Yu, Chao Xu, Albert Bifet, Jesse Read.
+
+```julia
+shap_effects = EvoTrees.shap(m, dtrain)
+```
+
 ## Feature importance
 
 Returns the normalized gain by feature.

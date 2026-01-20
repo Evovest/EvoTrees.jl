@@ -37,11 +37,14 @@ include("init.jl")
 include("subsample.jl")
 include("fit-utils.jl")
 include("fit.jl")
-
 include("callback.jl")
-include("importance.jl")
-include("plot.jl")
+
 include("MLJ.jl")
+
+include("importance.jl")
+include("shap.jl")
+using .Shap
+include("plot.jl")
 
 function save(model::EvoTree, path)
     BSON.bson(path, Dict(:model => model))
