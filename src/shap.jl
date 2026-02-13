@@ -143,11 +143,14 @@ end
 """
     shap(m::EvoTree, data; ntree_limit=length(m.trees))
 
-Return the the shap effect as a Matrix of size `[nobs, features]`.
+Returns the shap effect as a Matrix of size `[nobs, features]`.
 
-The algorithm is a Julia implementation of Linear TreeShap.
-This is a port of the algorithm from: https://github.com/yupbank/linear_tree_shap
-For more details, see the original (paper)[arXiv:2209.08192]: "Linear TreeShap" by Peng Yu, Chao Xu, Albert Bifet, Jesse Read
+It's based on an implementation of Linear TreeShap by Yu et al. (2022). It computes exact Shapley values for decision trees in O(LD) time.
+It was ported from: https://github.com/yupbank/linear_tree_shap
+
+# References
+
+Peng Yu, Chao Xu, Albert Bifet, Jesse Read Linear Tree Shap (2022). In: Proceedings of 36th Conference on Neural Information Processing Systems. https://openreview.net/forum?id=OzbkiUo24g*
 """
 function shap(m::EvoTree, data; ntree_limit=length(m.trees))
     x_bin = EvoTrees.binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges])

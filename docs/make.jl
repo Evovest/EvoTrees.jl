@@ -28,6 +28,7 @@ makedocs(
     ),
     pages=pages,
     modules=[EvoTrees],
+    warnonly=true
 )
 
 deploydocs(repo="github.com/Evovest/EvoTrees.jl.git",
