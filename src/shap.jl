@@ -150,7 +150,7 @@ It was originally ported from this [repo](https://github.com/yupbank/linear_tree
 
 # References
 
-Peng Yu, Chao Xu, Albert Bifet, Jesse Read Linear Tree Shap (2022). In: [Proceedings of 36th Conference on Neural Information Processing Systems](https://openreview.net/forum?id=OzbkiUo24g).
+Peng Yu, Chao Xu, Albert Bifet, Jesse Read Linear Tree Shap (2022). In [Proceedings of 36th Conference on Neural Information Processing Systems](https://openreview.net/forum?id=OzbkiUo24g).
 """
 function shap(m::EvoTree, data; ntree_limit=length(m.trees))
     x_bin = EvoTrees.binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges])

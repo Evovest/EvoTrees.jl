@@ -143,7 +143,7 @@ shap_effects = EvoTrees.shap(m, dtrain)
 
 #### Reference
 
-Peng Yu, Chao Xu, Albert Bifet, Jesse Read Linear Tree Shap (2022). In: Proceedings of 36th Conference on Neural Information Processing Systems. https://openreview.net/forum?id=OzbkiUo24g
+Peng Yu, Chao Xu, Albert Bifet, Jesse Read Linear Tree Shap (2022). In [Proceedings of 36th Conference on Neural Information Processing Systems](https://openreview.net/forum?id=OzbkiUo24g).
 
 ## Feature importance
 
