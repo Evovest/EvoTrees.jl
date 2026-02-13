@@ -12,6 +12,12 @@ EvoTrees.fit
 EvoTrees.predict
 ```
 
+## shap
+
+```@docs
+EvoTrees.shap
+```
+
 ## importance
 
 ```@docs
