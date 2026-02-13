@@ -146,11 +146,11 @@ end
 Returns the shap effect as a Matrix of size `[nobs, features]`.
 
 It's based on an implementation of Linear TreeShap by Yu et al. (2022). It computes exact Shapley values for decision trees in O(LD) time.
-It was ported from: https://github.com/yupbank/linear_tree_shap
+It was originally ported from this [repo](https://github.com/yupbank/linear\_tree\_shap).
 
 # References
 
-Peng Yu, Chao Xu, Albert Bifet, Jesse Read Linear Tree Shap (2022). In: Proceedings of 36th Conference on Neural Information Processing Systems. https://openreview.net/forum?id=OzbkiUo24g*
+Peng Yu, Chao Xu, Albert Bifet, Jesse Read Linear Tree Shap (2022). In: [Proceedings of 36th Conference on Neural Information Processing Systems](https://openreview.net/forum?id=OzbkiUo24g).
 """
 function shap(m::EvoTree, data; ntree_limit=length(m.trees))
     x_bin = EvoTrees.binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges])
