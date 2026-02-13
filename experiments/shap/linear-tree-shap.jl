@@ -86,5 +86,5 @@ shap_pred_fun(m, explain)
 @time shap_ml = ShapML.shap(; explain, reference, model=m, predict_function=shap_pred_fun, sample_size=64, seed=123)
 shapml_imp = combine(groupby(shap_ml, :feature_name), :shap_effect => (x -> mean(abs.(x))) => :importance)
 transform!(shapml_imp, :importance => (x -> x ./ sum(x)) => :importance)
-shap_ml[shap_ml.index.==1, :]
+shap_ml[shap_ml.index.==1, :shap_effect]
 shap[1, :]
