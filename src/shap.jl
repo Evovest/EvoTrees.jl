@@ -146,7 +146,7 @@ end
 Returns the shap effect as a Matrix of size `[nobs, features]`.
 
 It's based on an implementation of Linear TreeShap by Yu et al. (2022). It computes exact Shapley values for decision trees in O(LD) time.
-It was originally ported from this [repo](https://github.com/yupbank/linear\_tree\_shap).
+It was originally ported from this [repo](https://github.com/yupbank/linear_tree_shap).
 
 # References
 
