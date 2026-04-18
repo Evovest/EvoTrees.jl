@@ -131,7 +131,7 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{Gaussi
         @inbounds ∇[2, i] = (1 - (p[1, i] - y[i])^2 / exp(2 * p[2, i])) * ∇[5, i]
         # second order
         @inbounds ∇[3, i] = ∇[5, i] / exp(2 * p[2, i])
-        @inbounds ∇[4, i] = ∇[5, i] * 2 / exp(2 * p[2, i]) * (p[1, i] - y[i])^2
+        @inbounds ∇[4, i] = ∇[5, i] * 2
     end
 end
 

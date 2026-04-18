@@ -12,7 +12,7 @@ using CairoMakie
 
 # prepare a dataset
 tree_type = :binary # binary/oblivious
-_device = :gpu
+_device = :cpu
 
 Random.seed!(123)
 features = rand(10_000) .* 5
@@ -254,13 +254,13 @@ save("docs/src/assets/regression-sinus-$tree_type-$_device.png", f)
 ## gaussian
 ###############################
 config = EvoTreeGaussian(;
-    nrounds=500,
+    nrounds=1,
     early_stopping_rounds=50,
     nbins=64,
-    L2=1.0,
+    L2=0.0,
     # gamma=0.1,
-    eta=0.1,
-    max_depth=6,
+    eta=1.0,
+    max_depth=3,
     min_weight=8,
     rowsample=0.5,
     colsample=1.0,
