@@ -1,10 +1,6 @@
 ---
 title: Usage of Offset
 engine: julia
-format:
-  commonmark:
-    variant: +pipe_tables
-    wrap: none
 ---
 
 Offset terms allow incorporating prior knowledge or the output of an existing model directly into the boosted tree training process. Rather than learning the full response from scratch, EvoTrees learns only the **residual** - the incremental signal beyond what the offset already explains.
@@ -13,11 +9,9 @@ This tutorial demonstrates offset usage on the Titanic survival dataset. A linea
 
 ## Key Principles
 
-- **Offset is expressed on the link scale**: For `logloss`, offset values must be provided as **logits** (log-odds), not probabilities. For `poisson`, `gamma`, or `tweedie` losses, the offset is on the log scale. Always apply the appropriate link function to transform raw predictions before using them as an offset.
-
 - **EvoTrees learns a residual over the offset**: When an offset is provided, offset is used as an initial predictions from which the model will learn. Gradients are therefore computed relative to this shifted baseline, and the trees only learn what the offset does not already explain.
 
-- **Predictions do not include the offset**: Calling `model(data)` returns only the tree-based component (the residual). To recover full predictions, you must manually re-add the offset logits before applying the inverse link (e.g., sigmoid for `logloss`). Omitting this step produces predictions that ignore the linear baseline entirely.
+- **Predictions do not include the offset**: Calling `model(data)` returns only the tree-based component (the residual). To recover full predictions, you must manually integrate the offsets and the residual prediction. This may require to to first apply link (e.g., logits for `logloss`) to combine the offset and residual prediction, prior the projecting back to the natural basis using the inverse link function.
 
 - **Stacking requires care**: Because offset is excluded from `model(data)` outputs, any downstream model in a stacking pipeline must receive the complete combined signal - offset logits plus tree residual logits - rather than the raw EvoTree output alone. Either add the offset manually before stacking, or expose the raw logit outputs to the meta-learner.
 
@@ -79,20 +73,20 @@ We train EvoTrees on all features without any offset as a reference:
 ```{julia}
 #| output: false
 config = EvoTreeRegressor(
-    loss                 = :logloss,
-    nrounds              = 200,
-    early_stopping_rounds = 10,
-    eta                  = 0.05,
-    max_depth            = 5,
-    rowsample            = 0.5,
-    colsample            = 0.9)
+    loss=:logloss,
+    nrounds=200,
+    early_stopping_rounds=10,
+    eta=0.05,
+    max_depth=5,
+    rowsample=0.5,
+    colsample=0.9)
 
 model = EvoTrees.fit(
     config, dtrain;
     deval,
     target_name,
     feature_names,
-    print_every_n = 10)
+    print_every_n=10)
 ```
 
 ```{julia}
@@ -124,7 +118,7 @@ We extract the predictions for both (`dtrain` and `deval`). GLM returns probabil
 #| output: false
 # logit(p) = log(p / (1 - p))
 offset_train = predict(glm_model, dtrain)
-offset_eval  = predict(glm_model, deval)
+offset_eval = predict(glm_model, deval)
 ```
 
 Add the offset columns to the DataFrames. Since `feature_names` was defined before this step, it does not include `"offset"` and EvoTrees will not use it as a predictor feature.
@@ -132,7 +126,7 @@ Add the offset columns to the DataFrames. Since `feature_names` was defined befo
 ```{julia}
 #| output: false
 dtrain[!, :offset] = offset_train
-deval[!, :offset]  = offset_eval
+deval[!, :offset] = offset_eval
 ```
 
 ```{julia}
@@ -155,8 +149,8 @@ model_offset = EvoTrees.fit(
     deval,
     target_name,
     feature_names,
-    offset_name = "offset",
-    print_every_n = 10)
+    offset_name="offset",
+    print_every_n=10)
 ```
 
 ## Diagnosis
@@ -179,18 +173,17 @@ Raw predictions from the offset model **do not include the offset** - they repre
 #| output: false
 # residual component only (offset NOT included)
 pred_residual_train = model_offset(dtrain)
-pred_residual_eval  = model_offset(deval)
+pred_residual_eval = model_offset(deval)
 ```
 
 To recover full probabilities, combine the offset logits with the residual logits on the **link scale**, then apply the inverse link (sigmoid):
 
 ```{julia}
 #| output: false
-sigmoid(x) = 1 / (1 + exp(-x))
 
 # Full predictions: offset logits + residual logits, then sigmoid
 full_pred_train = sigmoid.(logit.(offset_train) .+ logit.(pred_residual_train))
-full_pred_eval  = sigmoid.(logit.(offset_eval)  .+ logit.(pred_residual_eval))
+full_pred_eval = sigmoid.(logit.(offset_eval) .+ logit.(pred_residual_eval))
 ```
 
 ```{julia}
