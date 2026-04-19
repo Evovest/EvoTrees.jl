@@ -5,3 +5,4 @@ EvoTrees = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
 
 [compat]
 Documenter = "1"
+DocumenterVitepress = "0.3"
