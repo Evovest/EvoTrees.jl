@@ -15,7 +15,8 @@ pages = [
         "Ranking - Yahoo! LTRC" => "tutorials/ranking-LTRC.md",
         "Credibility-based loss" => "tutorials/cred-loss.md",
         "Internal API" => "tutorials/examples-API.md",
-        "MLJ API" => "tutorials/examples-MLJ.md"]
+        "MLJ API" => "tutorials/examples-MLJ.md",
+        "Offset Usage" => "tutorials/offset-usage.md"]
 ]
 
 makedocs(

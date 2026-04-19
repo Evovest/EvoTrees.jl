@@ -50,7 +50,7 @@ function CallBack(
     if !isnothing(offset)
         L == LogLoss && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
-        L == MultiClassRegression && (offset .= log.(offset))
+        L == MLogLoss && (offset .= log.(offset))
         L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
         offset = T.(offset)
         p .+= offset'
