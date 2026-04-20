@@ -98,8 +98,6 @@ code {
 :root {
   --vp-button-brand-border: var(--vp-evo-green);
   --vp-button-brand-bg: var(--vp-evo-green);
-  --vp-button-brand-hover-border: var(--vp-evo-green-hover);
-  --vp-button-brand-hover-bg: var(--vp-evo-green-hover);
 }
 
 /* Component: Home */
