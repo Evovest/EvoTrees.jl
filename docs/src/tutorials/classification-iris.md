@@ -8,6 +8,7 @@ To begin, we will load the required packages and the dataset:
 
 ```julia
 using EvoTrees
+using EvoTrees: fit
 using MLDatasets
 using DataFrames
 using Statistics: mean

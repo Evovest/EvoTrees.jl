@@ -9,6 +9,7 @@ To begin, we load the required packages:
 
 ```julia
 using EvoTrees
+using EvoTrees: fit
 using DataFrames
 using Statistics: mean
 using CategoricalArrays
