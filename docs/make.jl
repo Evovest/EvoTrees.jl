@@ -1,8 +1,9 @@
 using Documenter
+using DocumenterVitepress
 using EvoTrees
 
 pages = [
-    "Introduction" => "index.md",
+    "Overview" => "overview.md",
     "Models" => "models.md",
     "API" => [
         "Public" => "api.md",
@@ -15,22 +16,26 @@ pages = [
         "Ranking - Yahoo! LTRC" => "tutorials/ranking-LTRC.md",
         "Credibility-based loss" => "tutorials/cred-loss.md",
         "Internal API" => "tutorials/examples-API.md",
-        "MLJ API" => "tutorials/examples-MLJ.md"]
+        "MLJ API" => "tutorials/examples-MLJ.md",
+        "Offset Usage" => "tutorials/offset-usage.md"]
 ]
 
-makedocs(
+makedocs(;
     sitename="EvoTrees.jl",
     authors="Jeremie Desgagne-Bouchard and contributors.",
-    format=Documenter.HTML(
-        sidebar_sitename=false,
-        edit_link="main",
-        assets=["assets/style.css"]
+    format=DocumenterVitepress.MarkdownVitepress(
+        repo="github.com/Evovest/EvoTrees.jl",
+        devbranch="main",
+        devurl="dev",
     ),
-    pages=pages,
+    pages,
     modules=[EvoTrees],
     warnonly=true
 )
 
-deploydocs(repo="github.com/Evovest/EvoTrees.jl.git",
+DocumenterVitepress.deploydocs(;
+    repo="github.com/Evovest/EvoTrees.jl.git",
     target="build",
-    devbranch="main")
+    branch="gh-pages",
+    devbranch="main"
+)

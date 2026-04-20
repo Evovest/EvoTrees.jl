@@ -1,0 +1,8 @@
+[deps]
+CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+EvoTrees = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
+GLM = "38e38edf-8417-5370-95a0-9cbb8c7f171a"
+MLDatasets = "eb30cadb-4394-5ae3-aed4-317e484a6458"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"

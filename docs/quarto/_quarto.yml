@@ -1,0 +1,7 @@
+project:
+  type: default
+
+format:
+  commonmark:
+    variant: +pipe_tables
+    wrap: none
