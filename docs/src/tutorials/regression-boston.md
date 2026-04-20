@@ -8,7 +8,6 @@ To begin, we will load the required packages and the dataset:
 
 ```julia
 using EvoTrees
-using EvoTrees: fit
 using MLDatasets
 using DataFrames
 using Statistics: mean
@@ -38,7 +37,7 @@ x_eval, y_eval = Matrix(eval_data[:, Not(:MEDV)]), eval_data[:, :MEDV]
 ## Training
 
 Now we are ready to train our model. We will first define a model configuration using the [`EvoTreeRegressor`](@ref) model constructor. 
-Then, we'll use [`fit`](@ref) to train a boosted tree model. We'll pass optional `x_eval` and `y_eval` arguments, which enable the usage of early stopping. 
+Then, we'll use [`EvoTrees.fit`](@ref) to train a boosted tree model. We'll pass optional `x_eval` and `y_eval` arguments, which enable the usage of early stopping. 
 
 ```julia
 config = EvoTreeRegressor(
