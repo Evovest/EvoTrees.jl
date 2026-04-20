@@ -284,7 +284,7 @@ post_fit_gc(::Type{<:CPU}) = nothing
         deval=nothing,
         print_every_n=9999,
         verbosity=1
-)
+        )
 
 Main training function. Performs model fitting given configuration `params`, `dtrain`, `target_name` and other optional kwargs. 
 
@@ -366,7 +366,8 @@ end
         feature_names=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
-        verbosity=1)
+        verbosity=1
+        )
 
 Main training function. Performs model fitting given configuration `params`, `x_train`, `y_train` and other optional kwargs. 
 

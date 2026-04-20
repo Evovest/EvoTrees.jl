@@ -1,7 +1,7 @@
 # Usage of Offset
 
 
-Offset terms allow incorporating prior knowledge or the output of an existing model directly into the boosted tree training process. Rather than learning the full response from scratch, EvoTrees learns only the **residual** - the incremental signal beyond what the offset already explains.
+Offset terms allow incorporating prior knowledge or the output of an existing model directly into the boosted tree training process. Rather than learning the full response from scratch, EvoTrees learns only the **residual**: the incremental signal beyond what the offset already explains.
 
 This tutorial demonstrates offset usage on the Titanic survival dataset. A linear logistic regression (GLM) using only `Age` and `Sex` is fitted first as a baseline. Its linear predictions (logits) are then passed as an offset to EvoTrees, which learns to capture the remaining variation from the other features. Comparing feature importances between the two EvoTrees models reveals how the offset absorbs the linear signal, leaving the trees to focus on non-linear structure and interactions.
 
@@ -11,7 +11,7 @@ This tutorial demonstrates offset usage on the Titanic survival dataset. A linea
 
 - **Predictions do not include the offset**: Calling `model(data)` returns only the tree-based component (the residual). To recover full predictions, you must manually integrate the offsets and the residual prediction. This may require to to first apply link (e.g., logits for `logloss`) to combine the offset and residual prediction, prior the projecting back to the natural basis using the inverse link function.
 
-- **Stacking requires care**: Because offset is excluded from `model(data)` outputs, any downstream model in a stacking pipeline must receive the complete combined signal - offset logits plus tree residual logits - rather than the raw EvoTree output alone. Either add the offset manually before stacking, or expose the raw logit outputs to the meta-learner.
+- **Stacking requires care**: Because offset is excluded from `model(data)` outputs, any downstream model in a stacking pipeline must receive the complete combined signal (offset plus the residual model prediction), rather than just the raw EvoTree output alone.
 
 ## Getting Started
 
@@ -115,7 +115,7 @@ EvoTrees.importance(model)
 We now fit a vanilla logistic regression using only `Age` and `Sex`. This linear model captures the strong, well-understood survival gradient along those two dimensions.
 
 ``` julia
-glm_model = glm(@formula(Survived ~ Age + Sex), dtrain, Binomial(), LogitLink())
+glm_model = glm(@formula(Survived ~ Sex + Age), dtrain, Binomial(), LogitLink())
 ```
 
 We extract the predictions for both (`dtrain` and `deval`). GLM returns probabilities by default, which is the natural basis expected by the offset input.
@@ -164,8 +164,6 @@ model_offset = EvoTrees.fit(
 
 ### Feature Importance Comparison
 
-Feature importance from the offset model shows that the importance of `Sex` and `Age` has significantly dropped.
-
 ``` julia
 EvoTrees.importance(model_offset)
 ```
@@ -179,11 +177,11 @@ EvoTrees.importance(model_offset)
              :Parch => 0.04098912223088763
      :Age_ismissing => 0.016844371491747123
 
-The reduced importance of `Sex` and `Age` is expected: their signal is already encoded in the GLM offset, leaving the trees with little residual to gain from them. What the trees now explain is the non-linear structure and feature interactions of `Fare`, `Pclass`, and family-size variables (`SibSp`, `Parch`) - the variation that a simple linear model on `Age` and `Sex` cannot capture.
+Feature importance from the offset model shows that the importance of `Sex` has significantly shrinked, while `Age` has maintained a strong importance. The residual EvoTree model captures the non-linear and interaction effect missed by the GLM, as well as effect from the additional features. For `Sex`, since it’s a binary feature, much of its signal was already captured by the GLM.
 
 ### Full Predictions
 
-Raw predictions from the offset model **do not include the offset** - they represent only the tree-based residual component:
+Raw predictions from the offset model **do not include the offset**. They represent only the tree-based residual component:
 
 ``` julia
 # residual component only (offset NOT included)
