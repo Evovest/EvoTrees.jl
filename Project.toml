@@ -26,7 +26,7 @@ EvoTreesCUDAExt = ["CUDA", "KernelAbstractions", "Atomix"]
 [compat]
 Atomix = "1"
 BSON = "0.3"
-CUDA = "3.0, 4.0, 5.0"
+CUDA = "5, 6"
 CategoricalArrays = "1"
 Distributions = "0.24, 0.25"
 KernelAbstractions = "0.9"
