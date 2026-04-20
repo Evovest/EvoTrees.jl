@@ -62,7 +62,7 @@ y_test = dtest[:y]
 ## Training
 
 Now we are ready to train our model. We first define a model configuration using the [`EvoTreeRegressor`](@ref) model constructor. 
-Then, we use [`fit_evotree`](@ref) to train a boosted tree model. The optional `x_eval` and `y_eval` arguments are provided to enable the usage of early stopping. 
+Then, we use [`fit`](@ref) to train a boosted tree model. The optional `x_eval` and `y_eval` arguments are provided to enable the usage of early stopping. 
 
 ```julia
 config = EvoTreeRegressor(
