@@ -179,3 +179,12 @@ function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params:
     ϵ = eps(T)
     p[1, n] = params.eta / params.bagging_size * quantile(view(∇, 2, is), params.alpha) / (1 + params.lambda + params.L2 / ∑[3])
 end
+
+# MultiQuantile
+function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes, ∇, is) where {L<:MultiQuantile,T}
+    K = length(params.alphas)
+    denom = 1 + params.lambda + params.L2 / ∑[end]
+    @inbounds for k in 1:K
+        p[k, n] = params.eta / params.bagging_size * quantile(view(∇, K + k, is), params.alphas[k]) / denom
+    end
+end

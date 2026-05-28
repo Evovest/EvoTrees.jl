@@ -220,6 +220,41 @@ end
     @test mse_gain_pct < -0.75
 end
 
+@testset "EvoTreeRegressor - MultiQuantile" begin
+    alphas = [0.2, 0.5, 0.8]
+    params1 = EvoTreeRegressor(
+        loss=:multiquantile,
+        alphas=alphas,
+        nrounds=50,
+        nbins=16,
+        lambda=0.5,
+        gamma=0.0,
+        eta=0.1,
+        max_depth=6,
+        min_weight=1.0,
+        rowsample=0.5,
+        colsample=1.0,
+        seed=123,
+    )
+
+    model, cache = EvoTrees.init(params1, x_train, y_train)
+    preds_ini = EvoTrees.predict(model, x_eval)
+    @test size(preds_ini) == (length(y_eval), length(alphas))
+
+    model = fit(
+        params1;
+        x_train,
+        y_train,
+        x_eval,
+        y_eval,
+        print_every_n=100
+    )
+
+    preds = EvoTrees.predict(model, x_eval)
+    @test size(preds) == (length(y_eval), length(alphas))
+    @test !any(isnan.(preds))
+end
+
 @testset "EvoTreeCount - Count" begin
     params1 = EvoTreeCount(
         nrounds=100,
@@ -433,6 +468,14 @@ end
                 @test_throws Exception EvoTreeRegressor(; zip([key], [val])...)
             end
         end
+    end
+
+    @testset "check_args EvoTreeRegressor - MultiQuantile" begin
+        @test_throws Exception EvoTreeRegressor(loss=:multiquantile, alphas=[0.5])
+        @test_throws Exception EvoTreeRegressor(loss=:multiquantile, alphas=[0.6, 0.4])
+        @test_throws Exception EvoTreeRegressor(loss=:multiquantile, alphas=[0.0, 0.5])
+        config = EvoTreeRegressor(loss=:multiquantile, alphas=[0.2, 0.5, 0.8], nrounds=1)
+        @test check_args(config) === nothing
     end
 
     # Test all EvoTypes that they have *some* checks in place

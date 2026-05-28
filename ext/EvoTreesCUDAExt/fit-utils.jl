@@ -332,7 +332,7 @@ end
 end
 
 # Parent gain: Quantile
-@inline function parent_gain(::Type{EvoTrees.Quantile}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T}
+@inline function parent_gain(::Type{<:EvoTrees.Quantile}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T}
     return zero(T)
 end
 
@@ -377,7 +377,7 @@ end
 end
 
 # Split gain: Quantile
-@inline function split_gain(::Type{EvoTrees.Quantile}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T}
+@inline function split_gain(::Type{<:EvoTrees.Quantile}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T}
     μp = s.g_p / s.w_p
     μl = s.g_l / s.w_l
     μr = s.g_r / s.w_r
@@ -422,6 +422,23 @@ end
 end
 
 @inline function split_gain_multi(
+    ::Type{EvoTrees.MultiQuantile}, sums_temp, nodes_sum, node, temp_idx,
+    K, w_l, w_r, gain_p, lambda, L2, ε::T
+) where {T}
+    w_p = nodes_sum[2 * K + 1, node]
+    d_l = max(1 + lambda + L2 / w_l, ε)
+    d_r = max(1 + lambda + L2 / w_r, ε)
+    gain = zero(T)
+    for k in 1:K
+        g_l = sums_temp[k, temp_idx]
+        g_r = nodes_sum[k, node] - g_l
+        gain += abs(g_l / w_l - nodes_sum[k, node] / w_p) * w_l / d_l
+        gain += abs(g_r / w_r - nodes_sum[k, node] / w_p) * w_r / d_r
+    end
+    return gain - gain_p
+end
+
+@inline function split_gain_multi(
     ::Type{L}, sums_temp, nodes_sum, node, temp_idx,
     K, w_l, w_r, gain_p, lambda, L2, ε::T
 ) where {T,L}
@@ -455,7 +472,7 @@ end
 @inline check_monotone(::Type{EvoTrees.MAE}, constraint, args...) = false
 
 # Monotone constraint check: Quantile (no constraints)
-@inline check_monotone(::Type{EvoTrees.Quantile}, constraint, args...) = false
+@inline check_monotone(::Type{<:EvoTrees.Quantile}, constraint, args...) = false
 
 # Monotone constraint check: Cred (no constraints)
 @inline check_monotone(::Type{L}, constraint, args...) where {L<:EvoTrees.Cred} = false

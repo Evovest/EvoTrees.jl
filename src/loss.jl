@@ -11,6 +11,7 @@ abstract type MLogLoss <: LossType end
 abstract type GaussianMLE <: MLE2P end
 abstract type LogisticMLE <: MLE2P end
 abstract type Quantile <: LossType end
+abstract type MultiQuantile <: Quantile end
 abstract type MAE <: LossType end
 abstract type Cred <: LossType end
 abstract type CredVar <: Cred end
@@ -26,6 +27,7 @@ const _loss2type_dict = Dict(
     :gaussian_mle => GaussianMLE,
     :logistic_mle => LogisticMLE,
     :quantile => Quantile,
+    :multiquantile => MultiQuantile,
     :mae => MAE,
     :cred_var => CredVar,
     :cred_std => CredStd
@@ -110,6 +112,22 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{Quanti
         diff = (y[i] - p[1, i])
         @inbounds ∇[1, i] = diff > 0 ? params.alpha * ∇[3, i] : (params.alpha - 1) * ∇[3, i]
         @inbounds ∇[2, i] = diff
+    end
+end
+
+# MultiQuantile
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MultiQuantile}, params::EvoTypes,) where {T}
+    K = length(params.alphas)
+    w_idx = 2 * K + 1
+    @threads for i in eachindex(y)
+        yi = y[i]
+        @inbounds wi = ∇[w_idx, i]
+        @inbounds for k in 1:K
+            diff = yi - p[k, i]
+            alpha = params.alphas[k]
+            ∇[k, i] = diff > 0 ? alpha * wi : (alpha - 1) * wi
+            ∇[K + k, i] = diff
+        end
     end
 end
 
@@ -231,6 +249,23 @@ function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V)
     ϵ = eps(T)
     gain = abs(∑L[1] / ∑L[3] - ∑[1] / ∑[3]) * ∑L[3] / max(ϵ, (1 + params.lambda + params.L2 / ∑L[3])) +
            abs(∑R[1] / ∑R[3] - ∑[1] / ∑[3]) * ∑R[3] / max(ϵ, (1 + params.lambda + params.L2 / ∑R[3]))
+    return gain
+end
+
+# MultiQuantile
+function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:MultiQuantile,T,V<:AbstractVector}
+    ϵ = eps(T)
+    K = (length(∑) - 1) ÷ 2
+    w_p = ∑[end]
+    w_l = ∑L[end]
+    w_r = ∑R[end]
+    d_l = max(ϵ, (1 + params.lambda + params.L2 / w_l))
+    d_r = max(ϵ, (1 + params.lambda + params.L2 / w_r))
+    gain = zero(T)
+    @inbounds for k in 1:K
+        gain += abs(∑L[k] / w_l - ∑[k] / w_p) * w_l / d_l
+        gain += abs(∑R[k] / w_r - ∑[k] / w_p) * w_r / d_r
+    end
     return gain
 end
 

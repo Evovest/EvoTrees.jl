@@ -62,6 +62,49 @@ function EvoTrees.wmae(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuV
 end
 
 ########################
+# MultiQuantile
+########################
+function eval_multiquantile_kernel!(
+    eval::CuDeviceVector{T},
+    p::CuDeviceMatrix{T},
+    y::CuDeviceVector{T},
+    w::CuDeviceVector{T},
+    alphas::CuDeviceVector{T},
+    K::Int,
+) where {T<:AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= length(y)
+        yi = y[i]
+        acc = zero(T)
+        @inbounds for k in 1:K
+            diff = yi - p[k, i]
+            alpha = alphas[k]
+            acc += alpha * max(diff, zero(T)) + (1 - alpha) * max(-diff, zero(T))
+        end
+        @inbounds eval[i] = w[i] * acc / K
+    end
+    return nothing
+end
+
+function EvoTrees.multiquantile(
+    p::CuMatrix{T},
+    y::CuVector{T},
+    w::CuVector{T},
+    eval::CuVector{T};
+    MAX_THREADS=1024,
+    alphas,
+    kwargs...
+) where {T<:AbstractFloat}
+    K = length(alphas)
+    alphas_dev = alphas isa CuVector ? alphas : CuArray(T.(alphas))
+    threads = min(MAX_THREADS, length(y))
+    blocks = cld(length(y), threads)
+    @cuda blocks = blocks threads = threads eval_multiquantile_kernel!(eval, p, y, w, alphas_dev, K)
+    CUDA.synchronize()
+    return sum(eval) / sum(w)
+end
+
+########################
 # Logloss
 ########################
 function eval_logloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector{T}, w::CuDeviceVector{T}) where {T<:AbstractFloat}
