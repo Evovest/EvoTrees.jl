@@ -1,4 +1,4 @@
-struct CallBack{B,P,Y,C,D,A}
+struct CallBack{B,P,Y,C,D,K}
     feval::Function
     x_bin::B
     p::P
@@ -6,7 +6,7 @@ struct CallBack{B,P,Y,C,D,A}
     w::C
     eval::C
     feattypes::D
-    alphas::A
+    metric_kwargs::K
 end
 
 function CallBack(
@@ -46,8 +46,12 @@ function CallBack(
     feval = metric_dict[params.metric]
     V = device_array_type(device)
     w = isnothing(weight_name) ? device_ones(device, T, length(y)) : V{T}(Tables.getcolumn(deval, _weight_name))
-    alphas_eval = hasproperty(params, :alphas) ? T.(params.alphas) : nothing
-    device <: GPU && !isnothing(alphas_eval) && (alphas_eval = V{T}(alphas_eval))
+    metric_kwargs = (;)
+    if params.metric == :multiquantile
+        alphas_eval = T.(params.alphas)
+        device <: GPU && (alphas_eval = V{T}(alphas_eval))
+        metric_kwargs = (alphas=alphas_eval,)
+    end
 
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
     if !isnothing(offset)
@@ -59,7 +63,7 @@ function CallBack(
         p .+= offset'
     end
 
-    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), alphas_eval)
+    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs)
 end
 
 function CallBack(
@@ -92,8 +96,12 @@ function CallBack(
     feval = metric_dict[params.metric]
     V = device_array_type(device)
     w = isnothing(w_eval) ? device_ones(device, T, length(y)) : V{T}(w_eval)
-    alphas_eval = hasproperty(params, :alphas) ? T.(params.alphas) : nothing
-    device <: GPU && !isnothing(alphas_eval) && (alphas_eval = V{T}(alphas_eval))
+    metric_kwargs = (;)
+    if params.metric == :multiquantile
+        alphas_eval = T.(params.alphas)
+        device <: GPU && (alphas_eval = V{T}(alphas_eval))
+        metric_kwargs = (alphas=alphas_eval,)
+    end
 
     offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
     if !isnothing(offset)
@@ -105,12 +113,12 @@ function CallBack(
         p .+= offset'
     end
 
-    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), alphas_eval)
+    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs)
 end
 
 function (cb::CallBack)(logger, iter, tree)
     predict!(cb.p, tree, cb.x_bin, cb.feattypes)
-    metric = cb.feval(cb.p, cb.y, cb.w, cb.eval; alphas=cb.alphas)
+    metric = cb.feval(cb.p, cb.y, cb.w, cb.eval; cb.metric_kwargs...)
     update_logger!(logger, iter, metric)
     return nothing
 end
