@@ -482,16 +482,14 @@ end
 
 function check_alphas(alphas)
     try
-        @assert length(alphas) >= 2
-        prev = -Inf
-        for alpha in alphas
-            a = Float64(alpha)
-            @assert 0.0 < a < 1.0
-            @assert a > prev
-            prev = a
-        end
+        alphas_f = Float64.(alphas)
+        @assert !isempty(alphas_f)
+        @assert issorted(alphas_f)
+        amin, amax = extrema(alphas_f)
+        @assert 0.0 < amin && amax < 1.0
+        @assert length(unique(alphas_f)) == length(alphas_f)
     catch
-        error("Invalid value for parameter `alphas`: $alphas. `alphas` must be a strictly increasing vector with values in (0, 1).")
+        error("Invalid value for parameter `alphas`: $alphas. `alphas` must be a non-empty, strictly increasing vector with values in (0, 1).")
     end
 end
 

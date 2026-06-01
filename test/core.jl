@@ -471,10 +471,10 @@ end
     end
 
     @testset "check_args EvoTreeRegressor - MultiQuantile" begin
-        @test_throws Exception EvoTreeRegressor(loss=:multiquantile, alphas=[0.5])
         @test_throws Exception EvoTreeRegressor(loss=:multiquantile, alphas=[0.6, 0.4])
         @test_throws Exception EvoTreeRegressor(loss=:multiquantile, alphas=[0.0, 0.5])
-        config = EvoTreeRegressor(loss=:multiquantile, alphas=[0.2, 0.5, 0.8], nrounds=1)
+        @test_throws Exception EvoTreeRegressor(loss=:multiquantile, alphas=[0.5, 0.5])
+        config = EvoTreeRegressor(loss=:multiquantile, alphas=[0.5], nrounds=1)
         @test check_args(config) === nothing
     end
 
