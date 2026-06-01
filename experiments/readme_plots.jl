@@ -12,7 +12,7 @@ using CairoMakie
 
 # prepare a dataset
 tree_type = :binary # binary/oblivious
-_device = :gpu
+_device = :cpu
 
 Random.seed!(123)
 features = rand(10_000) .* 5
@@ -436,6 +436,69 @@ lines!(ax,
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
 f
 save("docs/src/assets/quantiles-sinus-$tree_type-$_device.png", f)
+
+###############################
+## MultiQuantiles
+###############################
+params1 = EvoTreeRegressor(;
+    loss=:multiquantile,
+    alphas=[0.2, 0.5, 0.8],
+    nrounds=500,
+    nbins=64,
+    eta=0.1,
+    L2=1.0,
+    max_depth=6,
+    rowsample=0.5,
+    colsample=1.0,
+    tree_type,
+    early_stopping_rounds=50,
+    device=_device
+)
+@time model = fit(
+    params1;
+    x_train,
+    y_train,
+    x_eval,
+    y_eval,
+    print_every_n=25,
+);
+# 116.822 ms (74496 allocations: 36.41 MiB) for 100 iterations
+# @btime model = grow_gbtree($X_train, $Y_train, $params1, X_eval = $X_eval, Y_eval = $Y_eval)
+@time pred_train_q = model(x_train)
+@info [mean(p .> y_train) for p in eachcol(pred_train_q)]
+
+x_perm = sortperm(x_train[:, 1])
+f = Figure()
+ax = Axis(f[1, 1], xlabel="feature", ylabel="target")
+scatter!(ax,
+    x_train[x_perm, 1],
+    y_train[x_perm],
+    color="#BBB",
+    markersize=2)
+lines!(ax,
+    x_train[x_perm, 1],
+    pred_train_q[x_perm, 1],
+    color="navy",
+    linewidth=1,
+    label="Median",
+)
+lines!(ax,
+    x_train[x_perm, 1],
+    pred_train_q[x_perm, 2],
+    color="darkred",
+    linewidth=1,
+    label="Q20",
+)
+lines!(ax,
+    x_train[x_perm, 1],
+    pred_train_q[x_perm, 3],
+    color="darkgreen",
+    linewidth=1,
+    label="Q80",
+)
+Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
+f
+save("docs/src/assets/multiquantiles-sinus-$tree_type-$_device.png", f)
 
 ###############################
 # credibility losses

@@ -1,6 +1,7 @@
 using Random
 using Statistics
 using EvoTrees
+# using CUDA
 
 Random.seed!(123)
 
@@ -32,7 +33,7 @@ config = EvoTreeRegressor(
     rowsample=0.8,
     colsample=1.0,
     seed=123,
-    device=:cpu,
+    device=:gpu,
 )
 
 model = EvoTrees.fit(
