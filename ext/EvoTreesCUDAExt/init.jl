@@ -49,6 +49,11 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         y = T.(y_train)
         μ = [EvoTrees.mean(y), log(EvoTrees.std(y) * sqrt(3) / π)]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+    elseif L == EvoTrees.MultiQuantile
+        @assert eltype(y_train) <: Real
+        K = length(params.alphas)
+        y = T.(y_train)
+        μ = T.(EvoTrees.quantile.(Ref(y), params.alphas))
     else
         @assert eltype(y_train) <: Real
         K = 1

@@ -52,6 +52,11 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         y = T.(y_train)
         μ = [mean(y), log(std(y) * sqrt(3) / π)]
         !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+    elseif L == MultiQuantile
+        @assert eltype(y_train) <: Real
+        K = length(params.alphas)
+        y = T.(y_train)
+        μ = T.(quantile.(Ref(y), params.alphas))
     else
         @assert eltype(y_train) <: Real
         K = 1

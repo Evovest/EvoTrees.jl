@@ -14,6 +14,7 @@ mutable struct EvoTreeRegressor <: MMI.Deterministic
     colsample::Float64
     nbins::Int
     alpha::Float64
+    alphas::Vector{Float64}
     monotone_constraints::Dict{Int,Int}
     tree_type::Symbol
     seed::Int
@@ -39,6 +40,7 @@ function EvoTreeRegressor(; kwargs...)
         :colsample => 1.0,
         :nbins => 64,
         :alpha => 0.5,
+        :alphas => [0.1, 0.5, 0.9],
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => :binary,
         :seed => 123,
@@ -54,7 +56,7 @@ function EvoTreeRegressor(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile, :cred_std, :cred_var]
+    _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile, :multiquantile, :cred_std, :cred_var]
     loss = Symbol(args[:loss])
     if loss == :linear
         loss = :mse
@@ -68,7 +70,7 @@ function EvoTreeRegressor(; kwargs...)
         error("Invalid loss. Must be one of: $_loss_list")
     end
 
-    _metric_list = [:mse, :rmse, :mae, :logloss, :poisson, :gamma, :tweedie, :quantile, :gini]
+    _metric_list = [:mse, :rmse, :mae, :logloss, :poisson, :gamma, :tweedie, :quantile, :multiquantile, :gini]
     if isnothing(args[:metric])
         if loss ∈ [:cred_std, :cred_var]
             metric = :mae
@@ -85,6 +87,7 @@ function EvoTreeRegressor(; kwargs...)
     tree_type = Symbol(args[:tree_type])
     device = Symbol(args[:device])
     check_args(args)
+    alphas = Float64.(args[:alphas])
 
     model = EvoTreeRegressor(
         loss,
@@ -102,6 +105,7 @@ function EvoTreeRegressor(; kwargs...)
         args[:colsample],
         args[:nbins],
         args[:alpha],
+        alphas,
         args[:monotone_constraints],
         tree_type,
         args[:seed],
@@ -476,6 +480,19 @@ function check_parameter(::Type{<:T}, value, min_value::Real, max_value::Real, l
     end
 end
 
+function check_alphas(alphas)
+    try
+        alphas_f = Float64.(alphas)
+        @assert !isempty(alphas_f)
+        @assert issorted(alphas_f)
+        amin, amax = extrema(alphas_f)
+        @assert 0.0 < amin && amax < 1.0
+        @assert length(unique(alphas_f)) == length(alphas_f)
+    catch
+        error("Invalid value for parameter `alphas`: $alphas. `alphas` must be a non-empty, strictly increasing vector with values in (0, 1).")
+    end
+end
+
 """
     check_args(args::Dict{Symbol,Any})
 
@@ -498,6 +515,10 @@ function check_args(args::Dict{Symbol,Any})
     check_parameter(Float64, args[:colsample], eps(Float64), one(Float64), :colsample)
     check_parameter(Float64, args[:eta], zero(Float64), typemax(Float64), :eta)
     haskey(args, :alpha) && check_parameter(Float64, args[:alpha], zero(Float64), one(Float64), :alpha)
+    if get(args, :loss, nothing) == :multiquantile
+        haskey(args, :alphas) || error("Missing parameter `alphas` for loss :multiquantile.")
+        check_alphas(args[:alphas])
+    end
 
     try
         tree_type = string(args[:tree_type])
@@ -531,6 +552,10 @@ function check_args(model::EvoTypes)
     check_parameter(Float64, model.colsample, eps(Float64), one(Float64), :colsample)
     check_parameter(Float64, model.eta, zero(Float64), typemax(Float64), :eta)
     hasproperty(model, :alpha) && check_parameter(Float64, model.alpha, zero(Float64), one(Float64), :alpha)
+    if hasproperty(model, :loss) && model.loss == :multiquantile
+        hasproperty(model, :alphas) || error("Missing parameter `alphas` for loss :multiquantile.")
+        check_alphas(model.alphas)
+    end
 
     try
         tree_type = string(model.tree_type)

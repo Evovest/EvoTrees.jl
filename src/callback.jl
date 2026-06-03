@@ -1,4 +1,4 @@
-struct CallBack{B,P,Y,C,D}
+struct CallBack{B,P,Y,C,D,K}
     feval::Function
     x_bin::B
     p::P
@@ -6,6 +6,7 @@ struct CallBack{B,P,Y,C,D}
     w::C
     eval::C
     feattypes::D
+    metric_kwargs::K
 end
 
 function CallBack(
@@ -22,7 +23,6 @@ function CallBack(
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
     _target_name = Symbol(target_name)
 
-    feval = metric_dict[params.metric]
     x_bin = binarize(deval; feature_names=m.info[:feature_names], edges=m.info[:edges])
     nobs = length(Tables.getcolumn(deval, 1))
     p = zeros(T, K, nobs)
@@ -43,8 +43,15 @@ function CallBack(
     else
         y = T.(y_eval)
     end
+    feval = metric_dict[params.metric]
     V = device_array_type(device)
     w = isnothing(weight_name) ? device_ones(device, T, length(y)) : V{T}(Tables.getcolumn(deval, _weight_name))
+    metric_kwargs = (;)
+    if params.metric == :multiquantile
+        alphas_eval = T.(params.alphas)
+        device <: GPU && (alphas_eval = V{T}(alphas_eval))
+        metric_kwargs = (alphas=alphas_eval,)
+    end
 
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
     if !isnothing(offset)
@@ -56,7 +63,7 @@ function CallBack(
         p .+= offset'
     end
 
-    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]))
+    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs)
 end
 
 function CallBack(
@@ -69,7 +76,6 @@ function CallBack(
     offset_eval=nothing) where {L,K}
 
     T = Float32
-    feval = metric_dict[params.metric]
     x_bin = binarize(x_eval; feature_names=m.info[:feature_names], edges=m.info[:edges])
     p = zeros(T, K, size(x_eval, 1))
 
@@ -87,8 +93,15 @@ function CallBack(
     else
         y = T.(y_eval)
     end
+    feval = metric_dict[params.metric]
     V = device_array_type(device)
     w = isnothing(w_eval) ? device_ones(device, T, length(y)) : V{T}(w_eval)
+    metric_kwargs = (;)
+    if params.metric == :multiquantile
+        alphas_eval = T.(params.alphas)
+        device <: GPU && (alphas_eval = V{T}(alphas_eval))
+        metric_kwargs = (alphas=alphas_eval,)
+    end
 
     offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
     if !isnothing(offset)
@@ -100,12 +113,12 @@ function CallBack(
         p .+= offset'
     end
 
-    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]))
+    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs)
 end
 
 function (cb::CallBack)(logger, iter, tree)
     predict!(cb.p, tree, cb.x_bin, cb.feattypes)
-    metric = cb.feval(cb.p, cb.y, cb.w, cb.eval)
+    metric = cb.feval(cb.p, cb.y, cb.w, cb.eval; cb.metric_kwargs...)
     update_logger!(logger, iter, metric)
     return nothing
 end

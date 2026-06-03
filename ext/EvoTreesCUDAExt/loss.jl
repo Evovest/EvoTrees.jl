@@ -104,6 +104,48 @@ function EvoTrees.update_grads!(
 end
 
 #####################
+# MultiQuantile
+#####################
+function kernel_multiquantile_∇!(
+    ∇::CuDeviceMatrix{T},
+    p::CuDeviceMatrix{T},
+    y::CuDeviceVector{T},
+    alphas::CuDeviceVector{T},
+    K::Int,
+) where {T<:AbstractFloat}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= length(y)
+        yi = y[i]
+        w_idx = 2 * K + 1
+        @inbounds wi = ∇[w_idx, i]
+        @inbounds for k in 1:K
+            diff = yi - p[k, i]
+            alpha = alphas[k]
+            ∇[k, i] = diff > 0 ? alpha * wi : (alpha - 1) * wi
+            ∇[K + k, i] = diff
+        end
+    end
+    return
+end
+
+function EvoTrees.update_grads!(
+    ∇::CuMatrix{T},
+    p::CuMatrix{T},
+    y::CuVector{T},
+    ::Type{EvoTrees.MultiQuantile},
+    params::EvoTrees.EvoTypes;
+    MAX_THREADS=1024,
+) where {T<:AbstractFloat}
+    K = length(params.alphas)
+    alphas = CuArray(T.(params.alphas))
+    threads = min(MAX_THREADS, length(y))
+    blocks = cld(length(y), threads)
+    @cuda blocks = blocks threads = threads kernel_multiquantile_∇!(∇, p, y, alphas, K)
+    CUDA.synchronize()
+    return
+end
+
+#####################
 # Logistic
 #####################
 function kernel_logloss_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)

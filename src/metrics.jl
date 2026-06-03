@@ -151,6 +151,30 @@ function wmae(
     return sum(Float64, eval) / sum(Float64, w)
 end
 
+function multiquantile(
+    p::AbstractMatrix{T},
+    y::AbstractVector{T},
+    w::AbstractVector{T},
+    eval::AbstractVector{T};
+    alphas,
+    kwargs...
+) where {T}
+    K = length(alphas)
+    @assert size(p, 1) == K
+    @threads for i in eachindex(y)
+        yi = y[i]
+        wi = w[i]
+        acc = zero(T)
+        @inbounds for k in 1:K
+            diff = yi - p[k, i]
+            alpha = alphas[k]
+            acc += alpha * max(diff, zero(T)) + (1 - alpha) * max(-diff, zero(T))
+        end
+        eval[i] = wi * acc / K
+    end
+    return sum(Float64, eval) / sum(Float64, w)
+end
+
 
 function gini_raw(p::V, y::V) where {V<:AbstractVector}
     _y = y .- minimum(y)
@@ -198,6 +222,7 @@ const metric_dict = Dict(
     :logistic_mle => logistic_mle,
     :wmae => wmae,
     :quantile => wmae,
+    :multiquantile => multiquantile,
     :gini => gini,
 )
 
@@ -212,4 +237,5 @@ is_maximise(::typeof(tweedie)) = false
 is_maximise(::typeof(gaussian_mle)) = true
 is_maximise(::typeof(logistic_mle)) = true
 is_maximise(::typeof(wmae)) = false
+is_maximise(::typeof(multiquantile)) = false
 is_maximise(::typeof(gini)) = true
