@@ -4,7 +4,7 @@ layout: home
 
 hero:
     name: "EvoTrees.jl"
-    tagline: Differentiable tree-based models for tabular data
+    tagline: Boosted tree models for tabular data
     image:
         src: /logo.png
         alt: Evovest
