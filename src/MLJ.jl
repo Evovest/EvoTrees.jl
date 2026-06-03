@@ -167,6 +167,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:gamma`
   - `:tweedie`
   - `:quantile`
+  - `:multiquantile`
   - `:cred_var`: **experimental** credibility-based gains, derived from ratio of spread to process variance.
   - `:cred_std`: **experimental** credibility-based gains, derived from ratio of spread to process std deviation.
 - `metric`:     The evaluation metric used to track evaluation data and serves as a basis for early stopping. Supported metrics are: 
@@ -178,6 +179,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:gamma`:   Gamma deviance. Adapted to regression problem on Gamma like, positively distributed targets.
   - `:tweedie`: Tweedie deviance. Adapted to regression problem on Tweedie like, positively distributed targets with probability mass at `y == 0`.
   - `:quantile`: Loss is an assymetric absolute error, where residuals are penalized as `alpha` or `(1-alpha)` according to their sign.
+  - `:multiquantile`: Loss is an assymetric absolute error, where residuals are penalized as `alpha` or `(1-alpha)` according to their sign.
   - `:gini`: The normalized Gini between pred and target
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
