@@ -1,6 +1,7 @@
 using Random
 using Statistics
 using EvoTrees
+using CUDA
 
 Random.seed!(123)
 

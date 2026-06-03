@@ -60,14 +60,14 @@ code {
 
   --vp-evo-blue: #023572;
   --vp-evo-gray: #c9ccd1;
+  --vp-evo-gray-dark: #454e56;
   --vp-evo-blue-light: #5891d5;
   --vp-evo-blue-dark: #4571a5;
   --vp-evo-green: #26a671;
   --vp-evo-green-hover: #1e855a ;
   --vp-evo-red: #e5616c;
   --vp-evo-yellow: #ffc700;
-  /* --vp-evo-backgorund-alt: #f9f9f9; */
-  --vp-evo-backgorund-alt: #e5616c;
+  --vp-evo-backgorund-alt: #f9f9f9;
   --vp-evo-backgorund-light: #f0f3f7;
   --vp-evo-backgorund-medium: #e6ebf1;
   --vp-evo-backgorund-dark: #c9ccd1;
@@ -98,15 +98,15 @@ code {
 
 /* Component: Button */
 :root {
-  --vp-button-brand-border: var(--vp-evo-blue-light);
-  --vp-button-brand-bg: var(--vp-evo-blue-light);
+  --vp-button-brand-border: var(--vp-evo-green);
+  --vp-button-brand-bg: var(--vp-evo-green);
   --vp-button-brand-hover-border: var(--vp-evo-blue-light);
   --vp-button-brand-hover-bg: var(--vp-evo-blue-light);
   --vp-button-brand-active-border: var(--vp-evo-blue-light);
   --vp-button-brand-active-bg: var(--vp-evo-blue-light);
 
-  --vp-button-alt-border: var(--vp-evo-blue-light);
-  --vp-button-alt-bg: var(--vp-evo-blue-light);
+  --vp-button-alt-border: var(--vp-evo-gray-dark);
+  --vp-button-alt-bg: var(--vp-evo-gray-dark);
   --vp-button-alt-hover-border: var(--vp-evo-blue-light);
   --vp-button-alt-hover-bg: var(--vp-evo-blue-light);
   --vp-button-alt-active-border: var(--vp-evo-blue-light);
@@ -137,15 +137,15 @@ code {
 
 .dark {
   --vp-c-brand: var(--vp-dark-green-light);
-  --vp-button-brand-border: var(--vp-evo-blue-light);
-  --vp-button-brand-bg: var(--vp-evo-blue-light);
+  --vp-button-brand-border: var(--vp-evo-green);
+  --vp-button-brand-bg: var(--vp-evo-green);
   --vp-button-brand-hover-border: var(--vp-evo-blue-light);
   --vp-button-brand-hover-bg: var(--vp-evo-blue-light);
   --vp-button-brand-active-border: var(--vp-evo-blue-light);
   --vp-button-brand-active-bg: var(--vp-evo-blue-light);
 
-  --vp-button-alt-border: var(--vp-evo-blue-light);
-  --vp-button-alt-bg: var(--vp-evo-blue-light);
+  --vp-button-alt-border: var(--vp-evo-gray-dark);
+  --vp-button-alt-bg: var(--vp-evo-gray-dark);
   --vp-button-alt-hover-border: var(--vp-evo-blue-light);
   --vp-button-alt-hover-bg: var(--vp-evo-blue-light);
   --vp-button-alt-active-border: var(--vp-evo-blue-light);
