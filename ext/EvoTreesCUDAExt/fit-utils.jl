@@ -326,6 +326,16 @@ end
     return gain / 2
 end
 
+# Parent gain: MTRegression
+@inline function parent_gain(::Type{EvoTrees.MTRegression}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T}
+    gain = zero(T)
+    for k in 1:K
+        g, h = nodes_sum[k, node], nodes_sum[K+k, node]
+        gain += g^2 / max(h + λw + L2, ε)
+    end
+    return gain / 2
+end
+
 # Parent gain: MAE
 @inline function parent_gain(::Type{EvoTrees.MAE}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T}
     return zero(T)
@@ -407,7 +417,7 @@ end
 @inline function split_gain_multi(
     ::Type{L}, sums_temp, nodes_sum, node, temp_idx,
     K, w_l, w_r, gain_p, lambda, L2, ε::T
-) where {T,L<:Union{EvoTrees.GradientRegression,EvoTrees.MLE2P,EvoTrees.MLogLoss}}
+) where {T,L<:Union{EvoTrees.GradientRegression,EvoTrees.MLE2P,EvoTrees.MLogLoss,EvoTrees.MTRegression}}
     g_val = zero(T)
     for k in 1:K
         g_l = sums_temp[k, temp_idx]

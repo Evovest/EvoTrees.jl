@@ -13,6 +13,7 @@ abstract type LogisticMLE <: MLE2P end
 abstract type Quantile <: LossType end
 abstract type MultiQuantile <: Quantile end
 abstract type MAE <: LossType end
+abstract type MTRegression <: LossType end   # multi-target squared error
 abstract type Cred <: LossType end
 abstract type CredVar <: Cred end
 abstract type CredStd <: Cred end
@@ -29,9 +30,26 @@ const _loss2type_dict = Dict(
     :quantile => Quantile,
     :multiquantile => MultiQuantile,
     :mae => MAE,
+    :mtmse => MTRegression,
     :cred_var => CredVar,
     :cred_std => CredStd
 )
+
+@inline function loss_grad!(∇, p, y, i, ::Type{MTRegression})
+    K = size(p, 1)
+    @inbounds w = ∇[2 * K + 1, i]
+    @inbounds for t in 1:K
+        ∇[t, i] = 2 * (p[t, i] - y[t, i]) * w
+        ∇[K + t, i] = 2 * w
+    end
+    return
+end
+
+function update_grads!(∇::Matrix, p::Matrix, y::AbstractMatrix, ::Type{MTRegression}, params::EvoTypes)
+    @threads for i in axes(y, 2)
+        loss_grad!(∇, p, y, i, MTRegression)
+    end
+end
 
 # MSE
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MSE}, params::EvoTypes) where {T}
@@ -219,6 +237,20 @@ function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V)
            (∑R[1]^2 / max(ϵ, (∑R[3] + lambda * ∑R[5] + L2)) + ∑R[2]^2 / max(ϵ, (∑R[4] + lambda * ∑R[5] + L2))) / 2 -
            (∑[1]^2 / max(ϵ, (∑[3] + lambda * ∑[5] + L2)) + ∑[2]^2 / max(ϵ, (∑[4] + lambda * ∑[5] + L2))) / 2
     return gain
+end
+
+function get_gain(::Type{MTRegression}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {T,V<:AbstractVector}
+    ϵ = eps(T)
+    lambda = params.lambda
+    L2 = params.L2
+    K = (length(∑) - 1) ÷ 2
+    g = zero(T)
+    @inbounds for k in 1:K
+        g += ∑L[k]^2 / max(ϵ, ∑L[k+K] + lambda * ∑L[end] + L2) / 2
+        g += ∑R[k]^2 / max(ϵ, ∑R[k+K] + lambda * ∑R[end] + L2) / 2
+        g -= ∑[k]^2 / max(ϵ, ∑[k+K] + lambda * ∑[end] + L2) / 2
+    end
+    return g
 end
 
 # MultiClassRegression

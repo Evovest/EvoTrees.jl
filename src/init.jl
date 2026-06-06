@@ -57,6 +57,16 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         K = length(params.alphas)
         y = T.(y_train)
         μ = T.(quantile.(Ref(y), params.alphas))
+    elseif L == MTRegression
+        @assert eltype(y_train) <: Real
+        if y_train isa AbstractVector
+            K = 1
+            y = reshape(T.(y_train), 1, :)
+        else
+            K = size(y_train, 1)
+            y = T.(y_train)
+        end
+        μ = T[mean(view(y, k, :)) for k in 1:K]
     else
         @assert eltype(y_train) <: Real
         K = 1
@@ -67,7 +77,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
 
     # force a neutral/zero bias/initial tree when offset is specified
     !isnothing(offset) && (μ .= 0)
-    @assert (length(y) == length(w) && minimum(w) > 0)
+    @assert (size(y, ndims(y)) == length(w) && minimum(w) > 0)
 
     # initialize preds
     pred = zeros(T, K, nobs)
@@ -159,7 +169,7 @@ function init(
     schema = Tables.schema(dtrain)
     _weight_name = isnothing(weight_name) ? Symbol("") : Symbol(weight_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
-    _target_name = Symbol(target_name)
+    _target_names = target_name isa AbstractVector ? Symbol.(target_name) : [Symbol(target_name)]
     if isnothing(feature_names)
         feature_names = Symbol[]
         for i in eachindex(schema.names)
@@ -167,7 +177,7 @@ function init(
                 push!(feature_names, schema.names[i])
             end
         end
-        feature_names = setdiff(feature_names, union([_target_name], [_weight_name], [_offset_name]))
+        feature_names = setdiff(feature_names, union(_target_names, [_weight_name], [_offset_name]))
     else
         isa(feature_names, String) ? feature_names = [feature_names] : nothing
         feature_names = Symbol.(feature_names)
@@ -180,12 +190,16 @@ function init(
 
     T = Float32
     nobs = length(Tables.getcolumn(dtrain, 1))
-    y_train = Tables.getcolumn(dtrain, _target_name)
+    y_train = length(_target_names) == 1 ?
+        Tables.getcolumn(dtrain, _target_names[1]) :
+        permutedims(reduce(hcat, [Tables.getcolumn(dtrain, t) for t in _target_names]))
     V = device_array_type(device)
     w = isnothing(weight_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(dtrain, _weight_name))
     offset = isnothing(offset_name) ? nothing : V{T}(Tables.getcolumn(dtrain, _offset_name))
 
     m, cache = init_core(params, device, dtrain, feature_names, y_train, w, offset)
+
+    m.info[:target_names] = _target_names
 
     return m, cache
 end
@@ -198,7 +212,7 @@ device_array_type(::Type{<:CPU}) = Array
     init(
         params::EvoTypes,
         x_train::AbstractMatrix,
-        y_train::AbstractVector,
+        y_train::AbstractVecOrMat,
         device::Type{<:Device}=CPU;
         feature_names=nothing,
         w_train=nothing,
@@ -210,7 +224,7 @@ Initialise EvoTree
 function init(
     params::EvoTypes,
     x_train::AbstractMatrix,
-    y_train::AbstractVector,
+    y_train::AbstractVecOrMat,
     device::Type{<:Device}=CPU;
     feature_names=nothing,
     w_train=nothing,

@@ -326,3 +326,16 @@ function EvoTrees.update_grads!(
     CUDA.synchronize()
     return
 end
+
+function kernel_mtreg_∇!(∇, p, y)
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    i <= size(y, 2) && EvoTrees.loss_grad!(∇, p, y, i, EvoTrees.MTRegression)
+    return
+end
+function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuMatrix, ::Type{EvoTrees.MTRegression}, params::EvoTrees.EvoTypes; MAX_THREADS=1024)
+    threads = min(MAX_THREADS, size(y, 2))
+    blocks = cld(size(y, 2), threads)
+    @cuda blocks = blocks threads = threads kernel_mtreg_∇!(∇, p, y)
+    CUDA.synchronize()
+    return
+end
