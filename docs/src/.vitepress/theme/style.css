@@ -64,7 +64,7 @@ code {
   --vp-evo-blue-light: #5891d5;
   --vp-evo-blue-dark: #4571a5;
   --vp-evo-green: #26a671;
-  --vp-evo-green-hover: #1e855a ;
+  --vp-evo-green-hover: #1e855a;
   --vp-evo-red: #e5616c;
   --vp-evo-yellow: #ffc700;
   --vp-evo-backgorund-alt: #f9f9f9;
@@ -107,11 +107,13 @@ code {
 
   --vp-button-alt-border: var(--vp-evo-gray-dark);
   --vp-button-alt-bg: var(--vp-evo-gray-dark);
+  --vp-button-alt-text: var(--vp-c-white);
   --vp-button-alt-hover-border: var(--vp-evo-blue-light);
   --vp-button-alt-hover-bg: var(--vp-evo-blue-light);
+  --vp-button-alt-hover-text: var(--vp-c-white);
   --vp-button-alt-active-border: var(--vp-evo-blue-light);
   --vp-button-alt-active-bg: var(--vp-evo-blue-light);
-  --vp-button-alt-text: #ffffff;
+  --vp-button-alt-active-text: var(--vp-c-white);
 }
 
 /* Component: Home */
@@ -119,12 +121,10 @@ code {
   --vp-home-hero-name-color: var(--vp-evo-blue);
 }
 
-/* Hero Section */
+/* Hero Section & dark theme overrides */
 :root.dark {
   --vp-home-hero-name-color: var(--vp-evo-blue-light);
-}
 
-:root.dark {
   /* custom tip */
   --vp-custom-block-tip-border: var(--vp-dark-green-dark);
   --vp-custom-block-tip-text: var(--vp-dark-subtext);
@@ -137,20 +137,6 @@ code {
 
 .dark {
   --vp-c-brand: var(--vp-dark-green-light);
-  --vp-button-brand-border: var(--vp-evo-green);
-  --vp-button-brand-bg: var(--vp-evo-green);
-  --vp-button-brand-hover-border: var(--vp-evo-blue-light);
-  --vp-button-brand-hover-bg: var(--vp-evo-blue-light);
-  --vp-button-brand-active-border: var(--vp-evo-blue-light);
-  --vp-button-brand-active-bg: var(--vp-evo-blue-light);
-
-  --vp-button-alt-border: var(--vp-evo-gray-dark);
-  --vp-button-alt-bg: var(--vp-evo-gray-dark);
-  --vp-button-alt-hover-border: var(--vp-evo-blue-light);
-  --vp-button-alt-hover-bg: var(--vp-evo-blue-light);
-  --vp-button-alt-active-border: var(--vp-evo-blue-light);
-  --vp-button-alt-active-bg: var(--vp-evo-blue-light);
-  --vp-button-alt-text: #ffffff;
   --vp-c-brand-1: var(--vp-dark-green-light);
   --vp-c-brand-2: var(--vp-dark-green-lighter);
   --vp-c-brand-3: var(--vp-dark-green);
