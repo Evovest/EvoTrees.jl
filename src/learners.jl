@@ -340,7 +340,13 @@ function EvoTreeMLE(; kwargs...)
 
     _metric_list = [:gaussian_mle, :logistic_mle]
     if isnothing(args[:metric])
-        metric = loss
+        if loss ∈ [:cred_std, :cred_var]
+            metric = :mae
+        else
+            metric = loss
+        end
+    else
+        metric = Symbol(args[:metric])
     end
     if metric ∉ _metric_list
         error("Invalid metric. Must be one of: $_metric_list")
