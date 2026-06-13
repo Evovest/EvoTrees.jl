@@ -376,6 +376,13 @@ end
     return (s.g_l^2 / d_l + s.g_r^2 / d_r) / 2 - gain_p
 end
 
+# Split gain: MTRegression (K=1 path; mirrors GradientRegression squared-error)
+@inline function split_gain(::Type{EvoTrees.MTRegression}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T}
+    d_l = max(s.h_l + lambda * s.w_l + L2, ε)
+    d_r = max(s.h_r + lambda * s.w_r + L2, ε)
+    return (s.g_l^2 / d_l + s.g_r^2 / d_r) / 2 - gain_p
+end
+
 # Split gain: MAE
 @inline function split_gain(::Type{EvoTrees.MAE}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T}
     μp = s.g_p / s.w_p
@@ -477,6 +484,9 @@ end
 
 # Monotone constraint check: MLogLoss (no constraints)
 @inline check_monotone(::Type{EvoTrees.MLogLoss}, constraint, args...) = false
+
+# Monotone constraint check: MTRegression (no constraints in v1)
+@inline check_monotone(::Type{EvoTrees.MTRegression}, constraint, args...) = false
 
 # Monotone constraint check: MAE (no constraints)
 @inline check_monotone(::Type{EvoTrees.MAE}, constraint, args...) = false
