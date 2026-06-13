@@ -155,6 +155,14 @@ function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where 
     return -params.eta / params.bagging_size * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[5] + params.L2))
 end
 
+function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{MTRegression}, params::EvoTypes) where {T}
+    ϵ = eps(T)
+    K = size(p, 1)
+    @inbounds for t in 1:K
+        p[t, n] = -params.eta / params.bagging_size * ∑[t] / max(ϵ, (∑[t+K] + params.lambda * ∑[end] + params.L2))
+    end
+end
+
 # prediction in Leaf - MultiClassRegression
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MLogLoss,T}
     ϵ = eps(T)

@@ -356,7 +356,7 @@ end
     fit(
         params::EvoTypes{L};
         x_train::AbstractMatrix, 
-        y_train::AbstractVector, 
+        y_train::AbstractVecOrMat, 
         w_train=nothing, 
         offset_train=nothing,
         x_eval=nothing, 
@@ -382,11 +382,11 @@ Main training function. Performs model fitting given configuration `params`, `x_
 # Keyword arguments
 
 - `x_train::Matrix`: training data of size `[#observations, #features]`. 
-- `y_train::Vector`: vector of train targets of length `#observations`.
+- `y_train::VecOrMat`: vector of train targets of length `#observations`, or `(K, #observations)` matrix for multi-target regression.
 - `w_train::Vector`: vector of train weights of length `#observations`. If `nothing`, a vector of ones is assumed.
 - `offset_train::VecOrMat`: offset for the training data. Should match the size of the predictions.
 - `x_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
-- `y_eval::Vector`: vector of evaluation targets of length `#observations`.
+- `y_eval::VecOrMat`: vector of evaluation targets of length `#observations`, or `(K, #observations)` matrix for multi-target regression.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
 - `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
@@ -396,7 +396,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
 function fit(
     params::EvoTypes;
     x_train::AbstractMatrix,
-    y_train::AbstractVector,
+    y_train::AbstractVecOrMat,
     w_train=nothing,
     offset_train=nothing,
     x_eval=nothing,

@@ -205,6 +205,18 @@ function gini(
     return gini_norm(view(p, 1, :), y)
 end
 
+function mtmse(p::AbstractMatrix{T}, y::AbstractMatrix{T}, w::AbstractVector{T}, eval::AbstractVector{T}; kwargs...) where {T}
+    K = size(p, 1)
+    @threads for i in axes(y, 2)
+        acc = zero(T)
+        @inbounds for t in 1:K
+            acc += (p[t, i] - y[t, i])^2
+        end
+        eval[i] = w[i] * acc / K
+    end
+    return sum(Float64, eval) / sum(Float64, w)
+end
+
 const metric_dict = Dict(
     :mse => mse,
     :rmse => rmse,
@@ -224,6 +236,7 @@ const metric_dict = Dict(
     :quantile => wmae,
     :multiquantile => multiquantile,
     :gini => gini,
+    :mtmse => mtmse,
 )
 
 is_maximise(::typeof(mse)) = false
@@ -239,3 +252,4 @@ is_maximise(::typeof(logistic_mle)) = true
 is_maximise(::typeof(wmae)) = false
 is_maximise(::typeof(multiquantile)) = false
 is_maximise(::typeof(gini)) = true
+is_maximise(::typeof(mtmse)) = false

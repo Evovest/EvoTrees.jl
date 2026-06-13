@@ -326,6 +326,16 @@ end
     return gain / 2
 end
 
+# Parent gain: MTRegression
+@inline function parent_gain(::Type{EvoTrees.MTRegression}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T}
+    gain = zero(T)
+    for k in 1:K
+        g, h = nodes_sum[k, node], nodes_sum[K+k, node]
+        gain += g^2 / max(h + λw + L2, ε)
+    end
+    return gain / 2
+end
+
 # Parent gain: MAE
 @inline function parent_gain(::Type{EvoTrees.MAE}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T}
     return zero(T)
@@ -361,6 +371,13 @@ end
 
 # Split gain: MLogLoss
 @inline function split_gain(::Type{EvoTrees.MLogLoss}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T}
+    d_l = max(s.h_l + lambda * s.w_l + L2, ε)
+    d_r = max(s.h_r + lambda * s.w_r + L2, ε)
+    return (s.g_l^2 / d_l + s.g_r^2 / d_r) / 2 - gain_p
+end
+
+# Split gain: MTRegression (K=1 path; mirrors GradientRegression squared-error)
+@inline function split_gain(::Type{EvoTrees.MTRegression}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T}
     d_l = max(s.h_l + lambda * s.w_l + L2, ε)
     d_r = max(s.h_r + lambda * s.w_r + L2, ε)
     return (s.g_l^2 / d_l + s.g_r^2 / d_r) / 2 - gain_p
@@ -407,7 +424,7 @@ end
 @inline function split_gain_multi(
     ::Type{L}, sums_temp, nodes_sum, node, temp_idx,
     K, w_l, w_r, gain_p, lambda, L2, ε::T
-) where {T,L<:Union{EvoTrees.GradientRegression,EvoTrees.MLE2P,EvoTrees.MLogLoss}}
+) where {T,L<:Union{EvoTrees.GradientRegression,EvoTrees.MLE2P,EvoTrees.MLogLoss,EvoTrees.MTRegression}}
     g_val = zero(T)
     for k in 1:K
         g_l = sums_temp[k, temp_idx]
@@ -467,6 +484,9 @@ end
 
 # Monotone constraint check: MLogLoss (no constraints)
 @inline check_monotone(::Type{EvoTrees.MLogLoss}, constraint, args...) = false
+
+# Monotone constraint check: MTRegression (no constraints in v1)
+@inline check_monotone(::Type{EvoTrees.MTRegression}, constraint, args...) = false
 
 # Monotone constraint check: MAE (no constraints)
 @inline check_monotone(::Type{EvoTrees.MAE}, constraint, args...) = false

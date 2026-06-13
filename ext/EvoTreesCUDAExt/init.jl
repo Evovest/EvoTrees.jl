@@ -54,6 +54,16 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         K = length(params.alphas)
         y = T.(y_train)
         μ = T.(EvoTrees.quantile.(Ref(y), params.alphas))
+    elseif L == EvoTrees.MTRegression
+        @assert eltype(y_train) <: Real
+        if y_train isa AbstractVector
+            K = 1
+            y = reshape(T.(y_train), 1, :)
+        else
+            K = size(y_train, 1)
+            y = T.(y_train)
+        end
+        μ = T[sum(view(y, k, :)) / size(y, 2) for k in 1:K]
     else
         @assert eltype(y_train) <: Real
         K = 1
@@ -73,7 +83,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     h∇ = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
     h∇L = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
     h∇R = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
-    @assert (length(y) == length(w) && minimum(w) > 0)
+    @assert (size(y, ndims(y)) == length(w) && minimum(w) > 0)
     ∇[end, :] .= w
 
     nidx = KernelAbstractions.ones(backend, UInt32, nobs)
