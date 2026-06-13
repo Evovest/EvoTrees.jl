@@ -63,7 +63,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
             K = size(y_train, 1)
             y = T.(y_train)
         end
-        μ = T[mean(view(y, k, :)) for k in 1:K]
+        μ = T[sum(view(y, k, :)) / size(y, 2) for k in 1:K]
     else
         @assert eltype(y_train) <: Real
         K = 1
