@@ -20,20 +20,26 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     if L == LogLoss
         @assert eltype(y_train) <: Real && minimum(y_train) >= 0 && maximum(y_train) <= 1
         if y_train isa AbstractVector
-            K = 1; y = reshape(T.(y_train), 1, :)
+            K = 1
+            y = T.(y_train)
+            μ = T[logit(mean(y))]
         else
-            K = size(y_train, 1); y = T.(y_train)
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[logit(mean(view(y, k, :))) for k in 1:K]
         end
-        μ = T[logit(mean(view(y, k, :))) for k in 1:K]
         !isnothing(offset) && (offset .= logit.(offset))
     elseif L in [Poisson, Gamma, Tweedie]
         @assert eltype(y_train) <: Real
         if y_train isa AbstractVector
-            K = 1; y = reshape(T.(y_train), 1, :)
+            K = 1
+            y = T.(y_train)
+            μ = T[log(mean(y))]
         else
-            K = size(y_train, 1); y = T.(y_train)
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[log(mean(view(y, k, :))) for k in 1:K]
         end
-        μ = T[log(mean(view(y, k, :))) for k in 1:K]
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == MLogLoss
         if eltype(y_train) <: CategoricalValue
@@ -72,11 +78,14 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         @assert eltype(y_train) <: Real
         if L <: GradientRegression
             if y_train isa AbstractVector
-                K = 1; y = reshape(T.(y_train), 1, :)
+                K = 1
+                y = T.(y_train)
+                μ = T[mean(y)]
             else
-                K = size(y_train, 1); y = T.(y_train)
+                K = size(y_train, 1)
+                y = T.(y_train)
+                μ = T[mean(view(y, k, :)) for k in 1:K]
             end
-            μ = T[mean(view(y, k, :)) for k in 1:K]
         else
             K = 1
             y = T.(y_train)

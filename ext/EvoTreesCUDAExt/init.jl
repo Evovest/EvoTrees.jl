@@ -17,20 +17,26 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     if L == EvoTrees.LogLoss
         @assert eltype(y_train) <: Real && minimum(y_train) >= 0 && maximum(y_train) <= 1
         if y_train isa AbstractVector
-            K = 1; y = reshape(T.(y_train), 1, :)
+            K = 1
+            y = T.(y_train)
+            μ = T[EvoTrees.logit(sum(y) / length(y))]
         else
-            K = size(y_train, 1); y = T.(y_train)
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[EvoTrees.logit(sum(view(y, k, :)) / size(y, 2)) for k in 1:K]
         end
-        μ = T[EvoTrees.logit(sum(view(y, k, :)) / size(y, 2)) for k in 1:K]
         !isnothing(offset) && (offset .= EvoTrees.logit.(offset))
     elseif L in [EvoTrees.Poisson, EvoTrees.Gamma, EvoTrees.Tweedie]
         @assert eltype(y_train) <: Real
         if y_train isa AbstractVector
-            K = 1; y = reshape(T.(y_train), 1, :)
+            K = 1
+            y = T.(y_train)
+            μ = T[log(sum(y) / length(y))]
         else
-            K = size(y_train, 1); y = T.(y_train)
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[log(sum(view(y, k, :)) / size(y, 2)) for k in 1:K]
         end
-        μ = T[log(sum(view(y, k, :)) / size(y, 2)) for k in 1:K]
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == EvoTrees.MLogLoss
         if eltype(y_train) <: EvoTrees.CategoricalValue
@@ -69,11 +75,14 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         @assert eltype(y_train) <: Real
         if L <: EvoTrees.GradientRegression
             if y_train isa AbstractVector
-                K = 1; y = reshape(T.(y_train), 1, :)
+                K = 1
+                y = T.(y_train)
+                μ = T[sum(y) / length(y)]
             else
-                K = size(y_train, 1); y = T.(y_train)
+                K = size(y_train, 1)
+                y = T.(y_train)
+                μ = T[sum(view(y, k, :)) / size(y, 2) for k in 1:K]
             end
-            μ = T[sum(view(y, k, :)) / size(y, 2) for k in 1:K]
         else
             K = 1
             y = T.(y_train)
