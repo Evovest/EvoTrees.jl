@@ -7,19 +7,30 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     T = Float32
     L = EvoTrees._loss2type_dict[params.loss]
 
+    if (y_train isa AbstractMatrix) && !(L <: EvoTrees.GradientRegression)
+        error("Multi-target (vector target_name) is only supported for single-parameter " *
+              "regression losses (mse, logloss, poisson, gamma, tweedie). Got loss $(params.loss).")
+    end
+
     target_levels = nothing
     target_isordered = false
     if L == EvoTrees.LogLoss
         @assert eltype(y_train) <: Real && minimum(y_train) >= 0 && maximum(y_train) <= 1
-        K = 1
-        y = T.(y_train)
-        μ = [EvoTrees.logit(EvoTrees.mean(y))]
+        if y_train isa AbstractVector
+            K = 1; y = reshape(T.(y_train), 1, :)
+        else
+            K = size(y_train, 1); y = T.(y_train)
+        end
+        μ = T[EvoTrees.logit(sum(view(y, k, :)) / size(y, 2)) for k in 1:K]
         !isnothing(offset) && (offset .= EvoTrees.logit.(offset))
     elseif L in [EvoTrees.Poisson, EvoTrees.Gamma, EvoTrees.Tweedie]
         @assert eltype(y_train) <: Real
-        K = 1
-        y = T.(y_train)
-        μ = fill(log(EvoTrees.mean(y)), 1)
+        if y_train isa AbstractVector
+            K = 1; y = reshape(T.(y_train), 1, :)
+        else
+            K = size(y_train, 1); y = T.(y_train)
+        end
+        μ = T[log(sum(view(y, k, :)) / size(y, 2)) for k in 1:K]
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == EvoTrees.MLogLoss
         if eltype(y_train) <: EvoTrees.CategoricalValue
@@ -56,9 +67,18 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         μ = T.(EvoTrees.quantile.(Ref(y), params.alphas))
     else
         @assert eltype(y_train) <: Real
-        K = 1
-        y = T.(y_train)
-        μ = [EvoTrees.mean(y)]
+        if L <: EvoTrees.GradientRegression
+            if y_train isa AbstractVector
+                K = 1; y = reshape(T.(y_train), 1, :)
+            else
+                K = size(y_train, 1); y = T.(y_train)
+            end
+            μ = T[sum(view(y, k, :)) / size(y, 2) for k in 1:K]
+        else
+            K = 1
+            y = T.(y_train)
+            μ = [sum(y) / length(y)]
+        end
     end
     y = CuArray(y)
     μ = T.(μ)
@@ -73,7 +93,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     h∇ = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
     h∇L = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
     h∇R = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
-    @assert (length(y) == length(w) && minimum(w) > 0)
+    @assert (size(y, ndims(y)) == length(w) && minimum(w) > 0)
     ∇[end, :] .= w
 
     nidx = KernelAbstractions.ones(backend, UInt32, nobs)

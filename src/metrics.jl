@@ -1,12 +1,12 @@
-function mse(
-    p::AbstractMatrix{T},
-    y::AbstractVector{T},
-    w::AbstractVector{T},
-    eval::AbstractVector{T};
-    kwargs...
-) where {T}
-    @threads for i in eachindex(y)
-        eval[i] = w[i] * (p[1, i] - y[i])^2
+function mse(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T}, eval::AbstractVector{T}; kwargs...) where {T}
+    K = size(p, 1)
+    @threads for i in eachindex(w)
+        acc = zero(T)
+        @inbounds for k in 1:K
+            yk = y isa AbstractVector ? y[i] : y[k, i]
+            acc += (p[k, i] - yk)^2
+        end
+        eval[i] = w[i] * acc / K
     end
     return sum(Float64, eval) / sum(Float64, w)
 end

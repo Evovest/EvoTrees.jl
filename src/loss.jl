@@ -34,48 +34,77 @@ const _loss2type_dict = Dict(
 )
 
 # MSE
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MSE}, params::EvoTypes) where {T}
-    @threads for i in eachindex(y)
-        @inbounds ∇[1, i] = 2 * (p[1, i] - y[i]) * ∇[3, i]
-        @inbounds ∇[2, i] = 2 * ∇[3, i]
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{MSE}, params::EvoTypes) where {T}
+    K = size(p, 1)
+    w_row = 2 * K + 1
+    @threads for i in axes(p, 2)
+        @inbounds w = ∇[w_row, i]
+        @inbounds for k in 1:K
+            yk = y isa AbstractVector ? y[i] : y[k, i]
+            ∇[k, i]   = 2 * (p[k, i] - yk) * w
+            ∇[K+k, i] = 2 * w
+        end
     end
 end
 
 # LogLoss - on linear predictor
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{LogLoss}, params::EvoTypes) where {T}
-    @threads for i in eachindex(y)
-        @inbounds pred = sigmoid(p[1, i])
-        @inbounds ∇[1, i] = (pred - y[i]) * ∇[3, i]
-        @inbounds ∇[2, i] = pred * (1 - pred) * ∇[3, i]
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{LogLoss}, params::EvoTypes) where {T}
+    K = size(p, 1)
+    w_row = 2 * K + 1
+    @threads for i in axes(p, 2)
+        @inbounds w = ∇[w_row, i]
+        @inbounds for k in 1:K
+            yk = y isa AbstractVector ? y[i] : y[k, i]
+            pred = sigmoid(p[k, i])
+            ∇[k, i]   = (pred - yk) * w
+            ∇[K+k, i] = pred * (1 - pred) * w
+        end
     end
 end
 
 # Poisson
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{Poisson}, params::EvoTypes) where {T}
-    @threads for i in eachindex(y)
-        @inbounds pred = exp(p[1, i])
-        @inbounds ∇[1, i] = (pred - y[i]) * ∇[3, i]
-        @inbounds ∇[2, i] = pred * ∇[3, i]
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{Poisson}, params::EvoTypes) where {T}
+    K = size(p, 1)
+    w_row = 2 * K + 1
+    @threads for i in axes(p, 2)
+        @inbounds w = ∇[w_row, i]
+        @inbounds for k in 1:K
+            yk = y isa AbstractVector ? y[i] : y[k, i]
+            pred = exp(p[k, i])
+            ∇[k, i]   = (pred - yk) * w
+            ∇[K+k, i] = pred * w
+        end
     end
 end
 
 # Gamma
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{Gamma}, params::EvoTypes) where {T}
-    @threads for i in eachindex(y)
-        @inbounds pred = exp(p[1, i])
-        @inbounds ∇[1, i] = 2 * (1 - y[i] / pred) * ∇[3, i]
-        @inbounds ∇[2, i] = 2 * y[i] / pred * ∇[3, i]
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{Gamma}, params::EvoTypes) where {T}
+    K = size(p, 1)
+    w_row = 2 * K + 1
+    @threads for i in axes(p, 2)
+        @inbounds w = ∇[w_row, i]
+        @inbounds for k in 1:K
+            yk = y isa AbstractVector ? y[i] : y[k, i]
+            pred = exp(p[k, i])
+            ∇[k, i]   = 2 * (1 - yk / pred) * w
+            ∇[K+k, i] = 2 * yk / pred * w
+        end
     end
 end
 
 # Tweedie
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{Tweedie}, params::EvoTypes) where {T}
-    rho = eltype(p)(1.5)
-    @threads for i in eachindex(y)
-        @inbounds pred = exp(p[1, i])
-        @inbounds ∇[1, i] = 2 * (pred^(2 - rho) - y[i] * pred^(1 - rho)) * ∇[3, i]
-        @inbounds ∇[2, i] =
-            2 * ((2 - rho) * pred^(2 - rho) - (1 - rho) * y[i] * pred^(1 - rho)) * ∇[3, i]
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{Tweedie}, params::EvoTypes) where {T}
+    K = size(p, 1)
+    w_row = 2 * K + 1
+    rho = T(1.5)
+    @threads for i in axes(p, 2)
+        @inbounds w = ∇[w_row, i]
+        @inbounds for k in 1:K
+            yk = y isa AbstractVector ? y[i] : y[k, i]
+            pred = exp(p[k, i])
+            ∇[k, i]   = 2 * (pred^(2 - rho) - yk * pred^(1 - rho)) * w
+            ∇[K+k, i] = 2 * ((2 - rho) * pred^(2 - rho) - (1 - rho) * yk * pred^(1 - rho)) * w
+        end
     end
 end
 
@@ -204,9 +233,13 @@ function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V)
     ϵ = eps(T)
     lambda = params.lambda
     L2 = params.L2
-    gain = ∑L[1]^2 / max(ϵ, (∑L[2] + lambda * ∑L[3] + L2)) / 2 +
-           ∑R[1]^2 / max(ϵ, (∑R[2] + lambda * ∑R[3] + L2)) / 2 -
-           ∑[1]^2 / max(ϵ, (∑[2] + lambda * ∑[3] + L2)) / 2
+    K = (length(∑) - 1) ÷ 2
+    gain = zero(T)
+    @inbounds for k in 1:K
+        gain += ∑L[k]^2 / max(ϵ, (∑L[k+K] + lambda * ∑L[end] + L2)) / 2
+        gain += ∑R[k]^2 / max(ϵ, (∑R[k+K] + lambda * ∑R[end] + L2)) / 2
+        gain -= ∑[k]^2  / max(ϵ, (∑[k+K]  + lambda * ∑[end]  + L2)) / 2
+    end
     return gain
 end
 

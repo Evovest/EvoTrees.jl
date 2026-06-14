@@ -324,12 +324,23 @@ function update_hist!(
     js::AbstractVector,
 ) where {L<:GradientRegression}
     hist .= 0
-    @threads for j in js
-        @inbounds @simd for i in is
-            bin = x_bin[i, j]
-            hist[1, bin, j] += ∇[1, i]
-            hist[2, bin, j] += ∇[2, i]
-            hist[3, bin, j] += ∇[3, i]
+    if size(hist, 1) == 3
+        @threads for j in js
+            @inbounds @simd for i in is
+                bin = x_bin[i, j]
+                hist[1, bin, j] += ∇[1, i]
+                hist[2, bin, j] += ∇[2, i]
+                hist[3, bin, j] += ∇[3, i]
+            end
+        end
+    else
+        @threads for j in js
+            @inbounds for i in is
+                bin = x_bin[i, j]
+                @simd for k in axes(∇, 1)
+                    hist[k, bin, j] += ∇[k, i]
+                end
+            end
         end
     end
     return nothing

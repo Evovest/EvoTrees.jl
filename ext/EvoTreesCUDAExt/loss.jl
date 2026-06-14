@@ -326,3 +326,24 @@ function EvoTrees.update_grads!(
     CUDA.synchronize()
     return
 end
+
+function kernel_gradreg_∇!(∇, p, y, ::Type{L}) where {L<:EvoTrees.GradientRegression}
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= size(y, 2)
+        K = size(p, 1)
+        w_row = 2 * K + 1
+        @inbounds w = ∇[w_row, i]
+        @inbounds for k in 1:K
+            ∇[k, i]   = 2 * (p[k, i] - y[k, i]) * w
+            ∇[K+k, i] = 2 * w
+        end
+    end
+    return
+end
+function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuMatrix, ::Type{L}, params::EvoTrees.EvoTypes; MAX_THREADS=1024) where {L<:EvoTrees.GradientRegression}
+    threads = min(MAX_THREADS, size(y, 2))
+    blocks = cld(size(y, 2), threads)
+    @cuda blocks = blocks threads = threads kernel_gradreg_∇!(∇, p, y, L)
+    CUDA.synchronize()
+    return
+end
