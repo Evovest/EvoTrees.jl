@@ -327,6 +327,100 @@ function EvoTrees.update_grads!(
     return
 end
 
+function kernel_gauss_mt_∇!(∇, p, y)
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= size(y, 2)
+        Y = size(p, 1) ÷ 2
+        w_row = 4 * Y + 1
+        @inbounds w = ∇[w_row, i]
+        @inbounds for t in 1:Y
+            gb = 2 * (t - 1)
+            hb = 2 * Y + 2 * (t - 1)
+            μ = p[2t-1, i]
+            ls = p[2t, i]
+            yt = y[t, i]
+            inv = 1 / exp(2 * ls)
+            d = μ - yt
+            ∇[gb+1, i] = d * inv * w
+            ∇[gb+2, i] = (1 - d^2 * inv) * w
+            ∇[hb+1, i] = inv * w
+            ∇[hb+2, i] = 2 * inv * d^2 * w
+        end
+    end
+    return
+end
+
+function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuMatrix, ::Type{EvoTrees.GaussianMLE}, params::EvoTrees.EvoTypes; MAX_THREADS=1024)
+    threads = min(MAX_THREADS, size(y, 2))
+    blocks = cld(size(y, 2), threads)
+    @cuda blocks=blocks threads=threads kernel_gauss_mt_∇!(∇, p, y)
+    CUDA.synchronize()
+    return
+end
+
+function kernel_logistic_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    @inbounds if i <= length(y)
+        w = ∇[5, i]
+        μ = p[1, i]
+        ls = p[2, i]
+        yt = y[i]
+        ∇[1, i] = -tanh((yt - μ) / (2 * exp(ls))) * exp(-ls) * w
+        ∇[2, i] = -(exp(-ls) * (yt - μ) * tanh((yt - μ) / (2 * exp(ls))) - 1) * w
+        ∇[3, i] = sech((yt - μ) / (2 * exp(ls)))^2 / (2 * exp(2 * ls)) * w
+        ∇[4, i] = (exp(-2 * ls) * (μ - yt) *
+                   (μ - yt + exp(ls) * sinh(exp(-ls) * (μ - yt)))) /
+                  (1 + cosh(exp(-ls) * (μ - yt))) * w
+    end
+    return
+end
+
+function EvoTrees.update_grads!(
+    ∇::CuMatrix,
+    p::CuMatrix,
+    y::CuVector,
+    ::Type{EvoTrees.LogisticMLE},
+    params::EvoTrees.EvoTypes;
+    MAX_THREADS=1024,
+)
+    threads = min(MAX_THREADS, length(y))
+    blocks = cld(length(y), threads)
+    @cuda blocks = blocks threads = threads kernel_logistic_∇!(∇, p, y)
+    CUDA.synchronize()
+    return
+end
+
+function kernel_logistic_mt_∇!(∇, p, y)
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= size(y, 2)
+        Y = size(p, 1) ÷ 2
+        w_row = 4 * Y + 1
+        @inbounds w = ∇[w_row, i]
+        @inbounds for t in 1:Y
+            gb = 2 * (t - 1)
+            hb = 2 * Y + 2 * (t - 1)
+            μ = p[2t-1, i]
+            ls = p[2t, i]
+            yt = y[t, i]
+            ∇[gb+1, i] = -tanh((yt - μ) / (2 * exp(ls))) * exp(-ls) * w
+            ∇[gb+2, i] = -(exp(-ls) * (yt - μ) * tanh((yt - μ) / (2 * exp(ls))) - 1) * w
+            ∇[hb+1, i] = sech((yt - μ) / (2 * exp(ls)))^2 / (2 * exp(2 * ls)) * w
+            ∇[hb+2, i] = (exp(-2 * ls) * (μ - yt) *
+                          (μ - yt + exp(ls) * sinh(exp(-ls) * (μ - yt)))) /
+                         (1 + cosh(exp(-ls) * (μ - yt))) * w
+        end
+    end
+    return
+end
+
+function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuMatrix, ::Type{EvoTrees.LogisticMLE}, params::EvoTrees.EvoTypes; MAX_THREADS=1024)
+    threads = min(MAX_THREADS, size(y, 2))
+    blocks = cld(size(y, 2), threads)
+    @cuda blocks=blocks threads=threads kernel_logistic_mt_∇!(∇, p, y)
+    CUDA.synchronize()
+    return
+end
+
 function kernel_gradreg_∇!(∇, p, y, ::Type{EvoTrees.MSE})
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= size(y, 2)

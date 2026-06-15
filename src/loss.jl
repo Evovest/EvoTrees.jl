@@ -171,14 +171,24 @@ end
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{GaussianMLE}, params::EvoTypes) where {T}
-    @threads for i in eachindex(y)
-        # first order
-        @inbounds ∇[1, i] = (p[1, i] - y[i]) / exp(2 * p[2, i]) * ∇[5, i]
-        @inbounds ∇[2, i] = (1 - (p[1, i] - y[i])^2 / exp(2 * p[2, i])) * ∇[5, i]
-        # second order
-        @inbounds ∇[3, i] = ∇[5, i] / exp(2 * p[2, i])
-        @inbounds ∇[4, i] = ∇[5, i] * 2 / exp(2 * p[2, i]) * (p[1, i] - y[i])^2
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{GaussianMLE}, params::EvoTypes) where {T}
+    Y = size(p, 1) ÷ 2
+    w_row = 4 * Y + 1
+    @threads for i in axes(p, 2)
+        @inbounds w = ∇[w_row, i]
+        @inbounds for t in 1:Y
+            gb = 2 * (t - 1)
+            hb = 2 * Y + 2 * (t - 1)
+            μ = p[2t-1, i]
+            ls = p[2t, i]
+            yt = y isa AbstractVector ? y[i] : y[t, i]
+            inv = 1 / exp(2 * ls)
+            d = μ - yt
+            ∇[gb+1, i] = d * inv * w
+            ∇[gb+2, i] = (1 - d^2 * inv) * w
+            ∇[hb+1, i] = inv * w
+            ∇[hb+2, i] = 2 * inv * d^2 * w
+        end
     end
 end
 
@@ -186,27 +196,24 @@ end
 # pdf = 
 # pred[i][1] = μ
 # pred[i][2] = log(s)
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{LogisticMLE}, params::EvoTypes) where {T}
-    @threads for i in eachindex(y)
-        # first order
-        @inbounds ∇[1, i] =
-            -tanh((y[i] - p[1, i]) / (2 * exp(p[2, i]))) * exp(-p[2, i]) * ∇[5, i]
-        @inbounds ∇[2, i] =
-            -(
-                exp(-p[2, i]) *
-                (y[i] - p[1, i]) *
-                tanh((y[i] - p[1, i]) / (2 * exp(p[2, i]))) - 1
-            ) * ∇[5, i]
-        # second order
-        @inbounds ∇[3, i] =
-            sech((y[i] - p[1, i]) / (2 * exp(p[2, i])))^2 / (2 * exp(2 * p[2, i])) *
-            ∇[5, i]
-        @inbounds ∇[4, i] =
-            (
-                exp(-2 * p[2, i]) *
-                (p[1, i] - y[i]) *
-                (p[1, i] - y[i] + exp(p[2, i]) * sinh(exp(-p[2, i]) * (p[1, i] - y[i])))
-            ) / (1 + cosh(exp(-p[2, i]) * (p[1, i] - y[i]))) * ∇[5, i]
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{LogisticMLE}, params::EvoTypes) where {T}
+    Y = size(p, 1) ÷ 2
+    w_row = 4 * Y + 1
+    @threads for i in axes(p, 2)
+        @inbounds w = ∇[w_row, i]
+        @inbounds for t in 1:Y
+            gb = 2 * (t - 1)
+            hb = 2 * Y + 2 * (t - 1)
+            μ = p[2t-1, i]
+            ls = p[2t, i]
+            yt = y isa AbstractVector ? y[i] : y[t, i]
+            ∇[gb+1, i] = -tanh((yt - μ) / (2 * exp(ls))) * exp(-ls) * w
+            ∇[gb+2, i] = -(exp(-ls) * (yt - μ) * tanh((yt - μ) / (2 * exp(ls))) - 1) * w
+            ∇[hb+1, i] = sech((yt - μ) / (2 * exp(ls)))^2 / (2 * exp(2 * ls)) * w
+            ∇[hb+2, i] = (exp(-2 * ls) * (μ - yt) *
+                          (μ - yt + exp(ls) * sinh(exp(-ls) * (μ - yt)))) /
+                         (1 + cosh(exp(-ls) * (μ - yt))) * w
+        end
     end
 end
 
@@ -248,9 +255,20 @@ function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V)
     ϵ = eps(T)
     lambda = params.lambda
     L2 = params.L2
-    gain = (∑L[1]^2 / max(ϵ, (∑L[3] + lambda * ∑L[5] + L2)) + ∑L[2]^2 / max(ϵ, (∑L[4] + lambda * ∑L[5] + L2))) / 2 +
-           (∑R[1]^2 / max(ϵ, (∑R[3] + lambda * ∑R[5] + L2)) + ∑R[2]^2 / max(ϵ, (∑R[4] + lambda * ∑R[5] + L2))) / 2 -
-           (∑[1]^2 / max(ϵ, (∑[3] + lambda * ∑[5] + L2)) + ∑[2]^2 / max(ϵ, (∑[4] + lambda * ∑[5] + L2))) / 2
+    Y = (length(∑) - 1) ÷ 4
+    wsum = ∑[end]
+    wsumL = ∑L[end]
+    wsumR = ∑R[end]
+    gain = zero(T)
+    @inbounds for t in 1:Y
+        gb = 2 * (t - 1)
+        hb = 2 * Y + 2 * (t - 1)
+        for s in 1:2
+            gain += ∑L[gb+s]^2 / max(ϵ, (∑L[hb+s] + lambda * wsumL + L2)) / 2
+            gain += ∑R[gb+s]^2 / max(ϵ, (∑R[hb+s] + lambda * wsumR + L2)) / 2
+            gain -= ∑[gb+s]^2 / max(ϵ, (∑[hb+s] + lambda * wsum + L2)) / 2
+        end
+    end
     return gain
 end
 

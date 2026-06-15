@@ -88,14 +88,17 @@ function predict_kernel!(
 ) where {T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
+    Y = size(pred, 1) ÷ 2
     @inbounds if i <= size(pred, 2)
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
             nid = (nid << 1) + Int(!cond)
         end
-        pred[1, i] += leaf_pred[1, nid]
-        pred[2, i] = max(T(-15), pred[2, i] + leaf_pred[2, nid])
+        @inbounds for t in 1:Y
+            pred[2t-1, i] += leaf_pred[2t-1, nid]
+            pred[2t, i] = max(T(-15), pred[2t, i] + leaf_pred[2t, nid])
+        end
     end
     return nothing
 end
@@ -168,7 +171,7 @@ function EvoTrees._predict(
     elseif L ∈ [EvoTrees.Poisson, EvoTrees.Gamma, EvoTrees.Tweedie]
         pred .= exp.(pred)
     elseif L in [EvoTrees.GaussianMLE, EvoTrees.LogisticMLE]
-        pred[2, :] .= exp.(pred[2, :])
+        pred[2:2:end, :] .= exp.(pred[2:2:end, :])
     elseif L == EvoTrees.MLogLoss
         EvoTrees.softmax!(pred)
     end

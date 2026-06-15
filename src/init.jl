@@ -10,9 +10,9 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     T = Float32
     L = _loss2type_dict[params.loss]
 
-    if (y_train isa AbstractMatrix) && !(L <: GradientRegression)
+    if (y_train isa AbstractMatrix) && !(L <: Union{GradientRegression, MLE2P})
         error("Multi-target (vector target_name) is only supported for single-parameter " *
-              "regression losses (mse, logloss, poisson, gamma, tweedie). Got loss $(params.loss).")
+              "regression losses and MLE losses (gaussian_mle, logistic_mle). Got loss $(params.loss).")
     end
 
     target_levels = nothing
@@ -59,16 +59,40 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
         @assert eltype(y_train) <: Real
-        K = 2
-        y = T.(y_train)
-        μ = [mean(y), log(std(y))]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        if y_train isa AbstractVector
+            K = 2
+            y = T.(y_train)
+            μ = [mean(y), log(std(y))]
+            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        else
+            Y = size(y_train, 1)
+            K = 2 * Y
+            y = T.(y_train)
+            μ = T[]
+            for t in 1:Y
+                yt = view(y, t, :)
+                push!(μ, mean(yt), log(std(yt)))
+            end
+            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+        end
     elseif L == LogisticMLE
         @assert eltype(y_train) <: Real
-        K = 2
-        y = T.(y_train)
-        μ = [mean(y), log(std(y) * sqrt(3) / π)]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        if y_train isa AbstractVector
+            K = 2
+            y = T.(y_train)
+            μ = [mean(y), log(std(y) * sqrt(3) / π)]
+            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        else
+            Y = size(y_train, 1)
+            K = 2 * Y
+            y = T.(y_train)
+            μ = T[]
+            for t in 1:Y
+                yt = view(y, t, :)
+                push!(μ, mean(yt), log(std(yt) * sqrt(3) / π))
+            end
+            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+        end
     elseif L == MultiQuantile
         @assert eltype(y_train) <: Real
         K = length(params.alphas)

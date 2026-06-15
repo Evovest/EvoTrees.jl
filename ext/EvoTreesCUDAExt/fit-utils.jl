@@ -309,11 +309,12 @@ end
 
 # Parent gain: MLE2P
 @inline function parent_gain(::Type{L}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T,L<:EvoTrees.MLE2P}
-    g1, g2 = nodes_sum[1, node], nodes_sum[2, node]
-    h1, h2 = nodes_sum[3, node], nodes_sum[4, node]
-    d1 = max(h1 + λw + L2, ε)
-    d2 = max(h2 + λw + L2, ε)
-    return (g1^2 / d1 + g2^2 / d2) / 2
+    gain = zero(T)
+    for k in 1:K
+        g, h = nodes_sum[k, node], nodes_sum[K+k, node]
+        gain += g^2 / max(h + λw + L2, ε)
+    end
+    return gain / 2
 end
 
 # Parent gain: MLogLoss

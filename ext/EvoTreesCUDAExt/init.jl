@@ -7,9 +7,9 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     T = Float32
     L = EvoTrees._loss2type_dict[params.loss]
 
-    if (y_train isa AbstractMatrix) && !(L <: EvoTrees.GradientRegression)
+    if (y_train isa AbstractMatrix) && !(L <: Union{EvoTrees.GradientRegression, EvoTrees.MLE2P})
         error("Multi-target (vector target_name) is only supported for single-parameter " *
-              "regression losses (mse, logloss, poisson, gamma, tweedie). Got loss $(params.loss).")
+              "regression losses and MLE losses (gaussian_mle, logistic_mle). Got loss $(params.loss).")
     end
 
     target_levels = nothing
@@ -56,16 +56,51 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == EvoTrees.GaussianMLE
         @assert eltype(y_train) <: Real
-        K = 2
-        y = T.(y_train)
-        μ = [EvoTrees.mean(y), log(EvoTrees.std(y))]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        if y_train isa AbstractVector
+            K = 2
+            y = T.(y_train)
+            n = length(y)
+            m = sum(y) / n
+            s = sqrt(sum((y .- m) .^ 2) / max(n - 1, 1))
+            μ = [m, log(s)]
+            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        else
+            Y = size(y_train, 1)
+            K = 2 * Y
+            y = T.(y_train)
+            μ = T[]
+            n_y = size(y, 2)
+            for t in 1:Y
+                yt = view(y, t, :)
+                m_t = sum(yt) / n_y
+                s_t = sqrt(sum((yt .- m_t) .^ 2) / max(n_y - 1, 1))
+                push!(μ, m_t, log(s_t))
+            end
+            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+        end
     elseif L == EvoTrees.LogisticMLE
         @assert eltype(y_train) <: Real
-        K = 2
-        y = T.(y_train)
-        μ = [EvoTrees.mean(y), log(EvoTrees.std(y) * sqrt(3) / π)]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        if y_train isa AbstractVector
+            K = 2
+            y = T.(y_train)
+            m = sum(y) / length(y)
+            s = sqrt(sum((y .- m) .^ 2) / max(length(y) - 1, 1))
+            μ = [m, log(s * sqrt(3) / π)]
+            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        else
+            Y = size(y_train, 1)
+            K = 2 * Y
+            y = T.(y_train)
+            μ = T[]
+            n_y = size(y, 2)
+            for t in 1:Y
+                yt = view(y, t, :)
+                m_t = sum(yt) / n_y
+                s_t = sqrt(sum((yt .- m_t) .^ 2) / max(n_y - 1, 1))
+                push!(μ, m_t, log(s_t * sqrt(3) / π))
+            end
+            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+        end
     elseif L == EvoTrees.MultiQuantile
         @assert eltype(y_train) <: Real
         K = length(params.alphas)
