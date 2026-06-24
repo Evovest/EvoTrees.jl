@@ -12,6 +12,7 @@ using EvoTrees
 using EvoTrees: fit, predict, sigmoid, logit
 
 device = :cpu
+tree_type = :binary
 
 # prepare a dataset
 nobs = 10_000
@@ -44,7 +45,7 @@ deval = dtot[i_eval, :]
 ############################################
 config = EvoTreeRegressor(;
     loss=:mse,
-    tree_type=:binary,
+    tree_type,
     nrounds=200,
     nbins=64,
     L2=0.1,
@@ -55,7 +56,7 @@ config = EvoTreeRegressor(;
     rowsample=0.5,
     colsample=1.0,
     rng=123,
-    device=:cpu,
+    device,
 )
 @time model = fit(
     config,
@@ -66,7 +67,7 @@ config = EvoTreeRegressor(;
     print_every_n=25,
     verbosity=0
 );
-@time pred_mse = model(dtrain; device=:cpu);
+@time pred_mse = model(dtrain; device);
 
 ###########################################
 # plot
@@ -112,7 +113,7 @@ save("docs/src/assets/multi-target-$tree_type-$_device.svg", f)
 ###########################################
 config = EvoTreeMLE(;
     loss=:gaussian_mle,
-    tree_type=:binary,
+    tree_type,
     nrounds=200,
     nbins=64,
     L2=0.1,
@@ -123,7 +124,7 @@ config = EvoTreeMLE(;
     rowsample=0.5,
     colsample=1.0,
     rng=123,
-    device=:cpu,
+    device,
 )
 @time model = fit(
     config,
@@ -134,7 +135,7 @@ config = EvoTreeMLE(;
     print_every_n=25,
     verbosity=0
 );
-@time pred_gaussian = model(dtrain; device=:cpu);
+@time pred_gaussian = model(dtrain; device);
 
 x_perm = sortperm(dtrain.x_num)
 f = Figure()
@@ -183,4 +184,4 @@ lines!(ax,
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
 f
-save("docs/src/assets/multi-target-$tree_type-$_device.svg", f)
+save("docs/src/assets/multi-target-$tree_type-$device.svg", f)
