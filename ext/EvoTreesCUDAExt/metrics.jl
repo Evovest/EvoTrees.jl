@@ -16,6 +16,26 @@ function EvoTrees.mse(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVe
     return sum(eval) / sum(w)
 end
 
+function eval_mse_mt_kernel!(eval, p, y, w)
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= size(y, 2)
+        K = size(p, 1)
+        acc = zero(eltype(eval))
+        @inbounds for k in 1:K
+            acc += (p[k, i] - y[k, i])^2
+        end
+        @inbounds eval[i] = w[i] * acc / K
+    end
+    return nothing
+end
+function EvoTrees.mse(p::CuMatrix{T}, y::CuMatrix{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
+    threads = min(MAX_THREADS, size(y, 2))
+    blocks = cld(size(y, 2), threads)
+    @cuda blocks = blocks threads = threads eval_mse_mt_kernel!(eval, p, y, w)
+    CUDA.synchronize()
+    return sum(eval) / sum(w)
+end
+
 ########################
 # RMSE
 ########################
