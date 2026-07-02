@@ -16,6 +16,26 @@ function EvoTrees.mse(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVe
     return sum(eval) / sum(w)
 end
 
+function eval_mse_mt_kernel!(eval, p, y, w)
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= size(y, 2)
+        K = size(p, 1)
+        acc = zero(eltype(eval))
+        @inbounds for k in 1:K
+            acc += (p[k, i] - y[k, i])^2
+        end
+        @inbounds eval[i] = w[i] * acc / K
+    end
+    return nothing
+end
+function EvoTrees.mse(p::CuMatrix{T}, y::CuMatrix{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
+    threads = min(MAX_THREADS, size(y, 2))
+    blocks = cld(size(y, 2), threads)
+    @cuda blocks = blocks threads = threads eval_mse_mt_kernel!(eval, p, y, w)
+    CUDA.synchronize()
+    return sum(eval) / sum(w)
+end
+
 ########################
 # RMSE
 ########################
@@ -137,6 +157,52 @@ function EvoTrees.gaussian_mle(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, e
     threads = min(MAX_THREADS, length(y))
     blocks = cld(length(y), threads)
     @cuda blocks = blocks threads = threads eval_gaussian_kernel!(eval, p, y, w)
+    CUDA.synchronize()
+    return sum(eval) / sum(w)
+end
+
+function eval_gaussian_mt_kernel!(eval, p, y, w)
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= size(y, 2)
+        Y = size(p, 1) ÷ 2
+        acc = zero(eltype(eval))
+        @inbounds for t in 1:Y
+            μ = p[2t-1, i]
+            ls = p[2t, i]
+            yt = y[t, i]
+            acc += -(ls + (yt - μ)^2 / (2 * exp(2 * ls)))
+        end
+        @inbounds eval[i] = w[i] * acc / Y
+    end
+    return nothing
+end
+function EvoTrees.gaussian_mle(p::CuMatrix{T}, y::CuMatrix{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
+    threads = min(MAX_THREADS, size(y, 2))
+    blocks = cld(size(y, 2), threads)
+    @cuda blocks = blocks threads = threads eval_gaussian_mt_kernel!(eval, p, y, w)
+    CUDA.synchronize()
+    return sum(eval) / sum(w)
+end
+
+function eval_logistic_mt_kernel!(eval, p, y, w)
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= size(y, 2)
+        Y = size(p, 1) ÷ 2
+        acc = zero(eltype(eval))
+        @inbounds for t in 1:Y
+            μ = p[2t-1, i]
+            ls = p[2t, i]
+            yt = y[t, i]
+            acc += log(1 / 4 * sech(exp(-ls) * (yt - μ))^2) - ls
+        end
+        @inbounds eval[i] = w[i] * acc / Y
+    end
+    return nothing
+end
+function EvoTrees.logistic_mle(p::CuMatrix{T}, y::CuMatrix{T}, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
+    threads = min(MAX_THREADS, size(y, 2))
+    blocks = cld(size(y, 2), threads)
+    @cuda blocks = blocks threads = threads eval_logistic_mt_kernel!(eval, p, y, w)
     CUDA.synchronize()
     return sum(eval) / sum(w)
 end

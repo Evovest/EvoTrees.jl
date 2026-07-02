@@ -109,26 +109,42 @@ end
 
 function gaussian_mle(
     p::AbstractMatrix{T},
-    y::AbstractVector{T},
+    y::AbstractVecOrMat{T},
     w::AbstractVector{T},
     eval::AbstractVector{T};
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
-        eval[i] = -w[i] * (p[2, i] + (y[i] - p[1, i])^2 / (2 * exp(2 * p[2, i])))
+    Y = size(p, 1) ÷ 2
+    @threads for i in eachindex(w)
+        acc = zero(T)
+        @inbounds for t in 1:Y
+            μ = p[2t-1, i]
+            ls = p[2t, i]
+            yt = y isa AbstractVector ? y[i] : y[t, i]
+            acc += -(ls + (yt - μ)^2 / (2 * exp(2 * ls)))
+        end
+        eval[i] = w[i] * acc / Y
     end
     return sum(Float64, eval) / sum(Float64, w)
 end
 
 function logistic_mle(
     p::AbstractMatrix{T},
-    y::AbstractVector{T},
+    y::AbstractVecOrMat{T},
     w::AbstractVector{T},
     eval::AbstractVector{T};
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
-        eval[i] = w[i] * (log(1 / 4 * sech(exp(-p[2, i]) * (y[i] - p[1, i]))^2) - p[2, i])
+    Y = size(p, 1) ÷ 2
+    @threads for i in eachindex(w)
+        acc = zero(T)
+        @inbounds for t in 1:Y
+            μ = p[2t-1, i]
+            ls = p[2t, i]
+            yt = y isa AbstractVector ? y[i] : y[t, i]
+            acc += log(1 / 4 * sech(exp(-ls) * (yt - μ))^2) - ls
+        end
+        eval[i] = w[i] * acc / Y
     end
     return sum(Float64, eval) / sum(Float64, w)
 end
