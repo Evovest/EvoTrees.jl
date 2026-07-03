@@ -5,13 +5,12 @@ using Distributions
 using Random
 using CairoMakie
 using DataFrames
-using EvoTrees: predict, sigmoid, logit
 # using ProfileView
-using CUDA
 using EvoTrees
 using EvoTrees: fit, predict, sigmoid, logit
+using CUDA
 
-device = :cpu
+device = :gpu
 tree_type = :binary
 
 # prepare a dataset
@@ -41,72 +40,77 @@ dtrain = dtot[i_train, :]
 deval = dtot[i_eval, :]
 
 ############################################
-# MSE
+# regressions
 ############################################
-config = EvoTreeRegressor(;
-    loss=:mse,
-    tree_type,
-    nrounds=200,
-    nbins=64,
-    L2=0.1,
-    gamma=0.05,
-    eta=0.05,
-    max_depth=6,
-    min_weight=1.0,
-    rowsample=0.5,
-    colsample=1.0,
-    rng=123,
-    device,
-)
-@time model = fit(
-    config,
-    dtrain;
-    feature_names=["x_num"],
-    target_name=["y", "y2"],
-    deval,
-    print_every_n=25,
-    verbosity=0
-);
-@time pred_mse = model(dtrain; device);
+loss_list = [:mse, :logloss, :gamma, :poisson]
+loss = :logloss
 
-###########################################
-# plot
-###########################################
-x_perm = sortperm(dtrain.x_num)
-f = Figure()
-ax = Axis(f[1, 1], xlabel="feature", ylabel="target")
-scatter!(ax,
-    dtrain.x_num[x_perm],
-    dtrain.y[x_perm],
-    markersize=2,
-    label="y",
-    color="#26a671",
-)
-lines!(ax,
-    dtrain.x_num[x_perm],
-    pred_mse[x_perm, 1],
-    linewidth=2,
-    # label="y",
-    color="#26a671",
-)
-scatter!(ax,
-    dtrain.x_num[x_perm],
-    dtrain.y2[x_perm],
-    markersize=2,
-    label="y2",
-    color="#e5616c",
-)
-lines!(ax,
-    dtrain.x_num[x_perm],
-    pred_mse[x_perm, 2],
-    linewidth=2,
-    # label="y2",
-    color="#e5616c",
-)
-Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
-f
-save("docs/src/assets/multi-target-$tree_type-$_device.svg", f)
+for loss in loss_list
+    config = EvoTreeRegressor(;
+        loss,
+        tree_type,
+        nrounds=200,
+        nbins=64,
+        L2=0.1,
+        gamma=0.05,
+        eta=0.05,
+        max_depth=6,
+        min_weight=1.0,
+        rowsample=0.5,
+        colsample=1.0,
+        rng=123,
+        device,
+    )
 
+    @time model = fit(
+        config,
+        dtrain;
+        feature_names=["x_num"],
+        target_name=["y", "y2"],
+        deval,
+        print_every_n=25,
+        verbosity=0
+    );
+    @time pred = model(dtrain; device);
+
+    ###########################################
+    # plot
+    ###########################################
+    x_perm = sortperm(dtrain.x_num)
+    f = Figure()
+    ax = Axis(f[1, 1], xlabel="feature", ylabel="target")
+    scatter!(ax,
+        dtrain.x_num[x_perm],
+        dtrain.y[x_perm],
+        markersize=2,
+        label="y",
+        color="#26a671",
+    )
+    lines!(ax,
+        dtrain.x_num[x_perm],
+        pred[x_perm, 1],
+        linewidth=2,
+        # label="y",
+        color="#26a671",
+    )
+    scatter!(ax,
+        dtrain.x_num[x_perm],
+        dtrain.y2[x_perm],
+        markersize=2,
+        label="y2",
+        color="#e5616c",
+    )
+    lines!(ax,
+        dtrain.x_num[x_perm],
+        pred[x_perm, 2],
+        linewidth=2,
+        # label="y2",
+        color="#e5616c",
+    )
+    Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
+    f
+    save("docs/src/assets/multi-target-$loss-$tree_type-$device.svg", f)
+end
 
 ###########################################
 # gaussian-MLE
