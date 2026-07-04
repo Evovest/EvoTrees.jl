@@ -64,13 +64,16 @@ function predict_kernel!(
 ) where {T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
+    K = size(pred, 1)
     @inbounds if i <= size(pred, 2)
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
             nid = (nid << 1) + Int(!cond)
         end
-        pred[1, i] = clamp(pred[1, i] + leaf_pred[1, nid], T(-15), T(15))
+        @inbounds for k in 1:K
+            pred[k, i] = clamp(pred[k, i] + leaf_pred[k, nid], T(-15), T(15))
+        end
     end
     return nothing
 end

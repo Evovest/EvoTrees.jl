@@ -10,32 +10,44 @@ function mse(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T},
     end
     return sum(Float64, eval) / sum(Float64, w)
 end
-rmse(p::AbstractMatrix{T}, y::AbstractVector, w::AbstractVector, eval::AbstractVector; kwargs...) where {T} =
+rmse(p::AbstractMatrix{T}, y::AbstractVecOrMat, w::AbstractVector, eval::AbstractVector; kwargs...) where {T} =
     sqrt(mse(p, y, w, eval::AbstractVector; kwargs...))
 
 function mae(
     p::AbstractMatrix{T},
-    y::AbstractVector{T},
+    y::AbstractVecOrMat{T},
     w::AbstractVector{T},
     eval::AbstractVector{T};
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
-        eval[i] = w[i] * abs(p[1, i] - y[i])
+    K = size(p, 1)
+    @threads for i in eachindex(w)
+        acc = zero(T)
+        @inbounds for k in 1:K
+            yk = y isa AbstractVector ? y[i] : y[k, i]
+            acc += abs(p[k, i] - yk)
+        end
+        eval[i] = w[i] * acc / K
     end
     return sum(Float64, eval) / sum(Float64, w)
 end
 
 function logloss(
     p::AbstractMatrix{T},
-    y::AbstractVector{T},
+    y::AbstractVecOrMat{T},
     w::AbstractVector{T},
     eval::AbstractVector{T};
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
-        pred = sigmoid(p[1, i])
-        eval[i] = w[i] * (-y[i] * log(pred) + (y[i] - 1) * log(1 - pred))
+    K = size(p, 1)
+    @threads for i in eachindex(w)
+        acc = zero(T)
+        @inbounds for k in 1:K
+            yk = y isa AbstractVector ? y[i] : y[k, i]
+            pred = sigmoid(p[k, i])
+            acc += -yk * log(pred) + (yk - 1) * log(1 - pred)
+        end
+        eval[i] = w[i] * acc / K
     end
     return sum(Float64, eval) / sum(Float64, w)
 end
@@ -60,49 +72,66 @@ end
 
 function poisson(
     p::AbstractMatrix{T},
-    y::AbstractVector{T},
+    y::AbstractVecOrMat{T},
     w::AbstractVector{T},
     eval::AbstractVector{T};
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
-        pred = exp(p[1, i])
-        eval[i] = w[i] * 2 * (y[i] * (log(y[i]) - log(pred)) + pred - y[i])
+    K = size(p, 1)
+    @threads for i in eachindex(w)
+        acc = zero(T)
+        @inbounds for k in 1:K
+            yk = y isa AbstractVector ? y[i] : y[k, i]
+            pred = exp(p[k, i])
+            acc += 2 * (yk * (log(yk) - log(pred)) + pred - yk)
+        end
+        eval[i] = w[i] * acc / K
     end
     return sum(Float64, eval) / sum(Float64, w)
 end
 
 function gamma(
     p::AbstractMatrix{T},
-    y::AbstractVector{T},
+    y::AbstractVecOrMat{T},
     w::AbstractVector{T},
     eval::AbstractVector{T};
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
-        pred = exp(p[1, i])
-        eval[i] = w[i] * 2 * (log(pred / y[i]) + y[i] / pred - 1)
+    K = size(p, 1)
+    @threads for i in eachindex(w)
+        acc = zero(T)
+        @inbounds for k in 1:K
+            yk = y isa AbstractVector ? y[i] : y[k, i]
+            pred = exp(p[k, i])
+            acc += 2 * (log(pred / yk) + yk / pred - 1)
+        end
+        eval[i] = w[i] * acc / K
     end
     return sum(Float64, eval) / sum(Float64, w)
 end
 
 function tweedie(
     p::AbstractMatrix{T},
-    y::AbstractVector{T},
+    y::AbstractVecOrMat{T},
     w::AbstractVector{T},
     eval::AbstractVector{T};
     kwargs...
 ) where {T}
     rho = T(1.5)
-    @threads for i in eachindex(y)
-        pred = exp(p[1, i])
-        eval[i] =
-            w[i] *
-            2 *
-            (
-                y[i]^(2 - rho) / (1 - rho) / (2 - rho) - y[i] * pred^(1 - rho) / (1 - rho) +
-                pred^(2 - rho) / (2 - rho)
-            )
+    K = size(p, 1)
+    @threads for i in eachindex(w)
+        acc = zero(T)
+        @inbounds for k in 1:K
+            yk = y isa AbstractVector ? y[i] : y[k, i]
+            pred = exp(p[k, i])
+            acc +=
+                2 *
+                (
+                    yk^(2 - rho) / (1 - rho) / (2 - rho) - yk * pred^(1 - rho) / (1 - rho) +
+                    pred^(2 - rho) / (2 - rho)
+                )
+        end
+        eval[i] = w[i] * acc / K
     end
     return sum(Float64, eval) / sum(Float64, w)
 end
@@ -151,18 +180,22 @@ end
 
 function wmae(
     p::AbstractMatrix{T},
-    y::AbstractVector{T},
+    y::AbstractVecOrMat{T},
     w::AbstractVector{T},
     eval::AbstractVector{T};
     alpha=0.5,
     kwargs...
 ) where {T}
-    @threads for i in eachindex(y)
-        eval[i] =
-            w[i] * (
-                alpha * max(y[i] - p[1, i], zero(T)) +
-                (1 - alpha) * max(p[1, i] - y[i], zero(T))
-            )
+    K = size(p, 1)
+    @threads for i in eachindex(w)
+        acc = zero(T)
+        @inbounds for k in 1:K
+            yk = y isa AbstractVector ? y[i] : y[k, i]
+            acc +=
+                alpha * max(yk - p[k, i], zero(T)) +
+                (1 - alpha) * max(p[k, i] - yk, zero(T))
+        end
+        eval[i] = w[i] * acc / K
     end
     return sum(Float64, eval) / sum(Float64, w)
 end

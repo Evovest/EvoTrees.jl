@@ -421,23 +421,43 @@ function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuMatrix, ::Type{
     return
 end
 
-function kernel_gradreg_∇!(∇, p, y, ::Type{EvoTrees.MSE})
+@inline gradreg_grad_hess(::Type{EvoTrees.MSE}, pk, yk) = (2 * (pk - yk), 2 * one(pk))
+@inline function gradreg_grad_hess(::Type{EvoTrees.LogLoss}, pk, yk)
+    pred = EvoTrees.sigmoid(pk)
+    return (pred - yk, pred * (1 - pred))
+end
+@inline gradreg_grad_hess(::Type{EvoTrees.Poisson}, pk, yk) = (exp(pk) - yk, exp(pk))
+@inline function gradreg_grad_hess(::Type{EvoTrees.Gamma}, pk, yk)
+    pred = exp(pk)
+    return (2 * (1 - yk / pred), 2 * yk / pred)
+end
+@inline function gradreg_grad_hess(::Type{EvoTrees.Tweedie}, pk, yk)
+    rho = oftype(pk, 1.5)
+    pred = exp(pk)
+    return (
+        2 * (pred^(2 - rho) - yk * pred^(1 - rho)),
+        2 * ((2 - rho) * pred^(2 - rho) - (1 - rho) * yk * pred^(1 - rho)),
+    )
+end
+
+function kernel_gradreg_∇!(∇, p, y, ::Type{L}) where {L<:EvoTrees.GradientRegression}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= size(y, 2)
         K = size(p, 1)
         w_row = 2 * K + 1
         @inbounds w = ∇[w_row, i]
         @inbounds for k in 1:K
-            ∇[k, i]   = 2 * (p[k, i] - y[k, i]) * w
-            ∇[K+k, i] = 2 * w
+            g, h = gradreg_grad_hess(L, p[k, i], y[k, i])
+            ∇[k, i] = g * w
+            ∇[K+k, i] = h * w
         end
     end
     return
 end
-function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuMatrix, ::Type{EvoTrees.MSE}, params::EvoTrees.EvoTypes; MAX_THREADS=1024)
+function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuMatrix, ::Type{L}, params::EvoTrees.EvoTypes; MAX_THREADS=1024) where {L<:EvoTrees.GradientRegression}
     threads = min(MAX_THREADS, size(y, 2))
     blocks = cld(size(y, 2), threads)
-    @cuda blocks = blocks threads = threads kernel_gradreg_∇!(∇, p, y, EvoTrees.MSE)
+    @cuda blocks = blocks threads = threads kernel_gradreg_∇!(∇, p, y, L)
     CUDA.synchronize()
     return
 end

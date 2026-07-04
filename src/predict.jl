@@ -21,7 +21,9 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, featty
             cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
             nid = nid << 1 + !cond
         end
-        @inbounds pred[1, i] = clamp(pred[1, i] + tree.pred[1, nid], T(-15), T(15))
+        @inbounds for k in axes(pred, 1)
+            pred[k, i] = clamp(pred[k, i] + tree.pred[k, nid], T(-15), T(15))
+        end
     end
     return nothing
 end
