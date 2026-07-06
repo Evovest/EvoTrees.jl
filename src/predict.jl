@@ -183,7 +183,12 @@ end
 # MAE
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MAE,T}
     ϵ = eps(T)
-    p[1, n] = params.eta / params.bagging_size * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
+    K = size(p, 1)
+    w = ∑[end]
+    denom = max(ϵ, (w + params.lambda * w + params.L2))
+    @inbounds for k in 1:K
+        p[k, n] = params.eta / params.bagging_size * ∑[k] / denom
+    end
 end
 function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MAE,T}
     ϵ = eps(T)
@@ -193,7 +198,11 @@ end
 # Quantile
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes, ∇, is) where {L<:Quantile,T}
     ϵ = eps(T)
-    p[1, n] = params.eta / params.bagging_size * quantile(view(∇, 2, is), params.alpha) / (1 + params.lambda + params.L2 / ∑[3])
+    K = size(p, 1)
+    denom = 1 + params.lambda + params.L2 / ∑[end]
+    @inbounds for k in 1:K
+        p[k, n] = params.eta / params.bagging_size * quantile(view(∇, K + k, is), params.alpha) / max(ϵ, denom)
+    end
 end
 
 # MultiQuantile

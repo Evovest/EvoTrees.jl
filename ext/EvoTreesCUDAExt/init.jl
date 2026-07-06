@@ -7,7 +7,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     T = Float32
     L = EvoTrees._loss2type_dict[params.loss]
 
-    if (y_train isa AbstractMatrix) && !(L <: Union{EvoTrees.GradientRegression, EvoTrees.MLE2P})
+    if (y_train isa AbstractMatrix) && !(L <: Union{EvoTrees.GradientRegression, EvoTrees.MLE2P, EvoTrees.MAE, EvoTrees.Quantile})
         error("Multi-target (vector target_name) is only supported for single-parameter " *
               "regression losses and MLE losses (gaussian_mle, logistic_mle). Got loss $(params.loss).")
     end
@@ -106,6 +106,17 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         K = length(params.alphas)
         y = T.(y_train)
         μ = T.(EvoTrees.quantile.(Ref(y), params.alphas))
+    elseif L <: Union{EvoTrees.MAE,EvoTrees.Quantile}
+        @assert eltype(y_train) <: Real
+        if y_train isa AbstractVector
+            K = 1
+            y = T.(y_train)
+            μ = T[sum(y) / length(y)]
+        else
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[sum(view(y, k, :)) / size(y, 2) for k in 1:K]
+        end
     else
         @assert eltype(y_train) <: Real
         if L <: EvoTrees.GradientRegression

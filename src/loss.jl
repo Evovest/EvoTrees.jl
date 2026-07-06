@@ -33,77 +33,44 @@ const _loss2type_dict = Dict(
     :cred_std => CredStd
 )
 
-# MSE
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{MSE}, params::EvoTypes) where {T}
-    K = size(p, 1)
-    w_row = 2 * K + 1
-    @threads for i in axes(p, 2)
-        @inbounds w = ∇[w_row, i]
-        @inbounds for k in 1:K
-            yk = y isa AbstractVector ? y[i] : y[k, i]
-            ∇[k, i]   = 2 * (p[k, i] - yk) * w
-            ∇[K+k, i] = 2 * w
-        end
-    end
+@inline _target(y::AbstractVector, k, i) = y[i]
+@inline _target(y::AbstractMatrix, k, i) = y[k, i]
+
+@inline gradreg_grad_hess(::Type{MSE}, pk, yk) = (2 * (pk - yk), 2 * one(pk))
+
+@inline function gradreg_grad_hess(::Type{LogLoss}, pk, yk)
+    pred = sigmoid(pk)
+    return (pred - yk, pred * (1 - pred))
 end
 
-# LogLoss - on linear predictor
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{LogLoss}, params::EvoTypes) where {T}
-    K = size(p, 1)
-    w_row = 2 * K + 1
-    @threads for i in axes(p, 2)
-        @inbounds w = ∇[w_row, i]
-        @inbounds for k in 1:K
-            yk = y isa AbstractVector ? y[i] : y[k, i]
-            pred = sigmoid(p[k, i])
-            ∇[k, i]   = (pred - yk) * w
-            ∇[K+k, i] = pred * (1 - pred) * w
-        end
-    end
+@inline function gradreg_grad_hess(::Type{Poisson}, pk, yk)
+    pred = exp(pk)
+    return (pred - yk, pred)
 end
 
-# Poisson
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{Poisson}, params::EvoTypes) where {T}
-    K = size(p, 1)
-    w_row = 2 * K + 1
-    @threads for i in axes(p, 2)
-        @inbounds w = ∇[w_row, i]
-        @inbounds for k in 1:K
-            yk = y isa AbstractVector ? y[i] : y[k, i]
-            pred = exp(p[k, i])
-            ∇[k, i]   = (pred - yk) * w
-            ∇[K+k, i] = pred * w
-        end
-    end
+@inline function gradreg_grad_hess(::Type{Gamma}, pk, yk)
+    pred = exp(pk)
+    return (2 * (1 - yk / pred), 2 * yk / pred)
 end
 
-# Gamma
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{Gamma}, params::EvoTypes) where {T}
-    K = size(p, 1)
-    w_row = 2 * K + 1
-    @threads for i in axes(p, 2)
-        @inbounds w = ∇[w_row, i]
-        @inbounds for k in 1:K
-            yk = y isa AbstractVector ? y[i] : y[k, i]
-            pred = exp(p[k, i])
-            ∇[k, i]   = 2 * (1 - yk / pred) * w
-            ∇[K+k, i] = 2 * yk / pred * w
-        end
-    end
+@inline function gradreg_grad_hess(::Type{Tweedie}, pk, yk)
+    rho = oftype(pk, 1.5)
+    pred = exp(pk)
+    return (
+        2 * (pred^(2 - rho) - yk * pred^(1 - rho)),
+        2 * ((2 - rho) * pred^(2 - rho) - (1 - rho) * yk * pred^(1 - rho)),
+    )
 end
 
-# Tweedie
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{Tweedie}, params::EvoTypes) where {T}
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:GradientRegression}
     K = size(p, 1)
     w_row = 2 * K + 1
-    rho = T(1.5)
     @threads for i in axes(p, 2)
         @inbounds w = ∇[w_row, i]
         @inbounds for k in 1:K
-            yk = y isa AbstractVector ? y[i] : y[k, i]
-            pred = exp(p[k, i])
-            ∇[k, i]   = 2 * (pred^(2 - rho) - yk * pred^(1 - rho)) * w
-            ∇[K+k, i] = 2 * ((2 - rho) * pred^(2 - rho) - (1 - rho) * yk * pred^(1 - rho)) * w
+            g, h = gradreg_grad_hess(L, p[k, i], _target(y, k, i))
+            ∇[k, i] = g * w
+            ∇[K+k, i] = h * w
         end
     end
 end
@@ -129,18 +96,29 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector, ::Type{MLogLoss}
 end
 
 # MAE
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MAE}, params::EvoTypes) where {T}
-    @threads for i in eachindex(y)
-        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{MAE}, params::EvoTypes) where {T}
+    K = size(p, 1)
+    w_row = 2 * K + 1
+    @threads for i in axes(p, 2)
+        @inbounds w = ∇[w_row, i]
+        @inbounds for k in 1:K
+            ∇[k, i] = (_target(y, k, i) - p[k, i]) * w
+            ∇[K+k, i] = zero(T)
+        end
     end
 end
 
 # Quantile
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{Quantile}, params::EvoTypes) where {T}
-    @threads for i in eachindex(y)
-        diff = (y[i] - p[1, i])
-        @inbounds ∇[1, i] = diff > 0 ? params.alpha * ∇[3, i] : (params.alpha - 1) * ∇[3, i]
-        @inbounds ∇[2, i] = diff
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{Quantile}, params::EvoTypes) where {T}
+    K = size(p, 1)
+    w_row = 2 * K + 1
+    @threads for i in axes(p, 2)
+        @inbounds w = ∇[w_row, i]
+        @inbounds for k in 1:K
+            diff = _target(y, k, i) - p[k, i]
+            ∇[k, i] = diff > 0 ? params.alpha * w : (params.alpha - 1) * w
+            ∇[K+k, i] = diff
+        end
     end
 end
 
@@ -171,32 +149,27 @@ end
 # Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{GaussianMLE}, params::EvoTypes) where {T}
-    Y = size(p, 1) ÷ 2
-    w_row = 4 * Y + 1
-    @threads for i in axes(p, 2)
-        @inbounds w = ∇[w_row, i]
-        @inbounds for t in 1:Y
-            gb = 2 * (t - 1)
-            hb = 2 * Y + 2 * (t - 1)
-            μ = p[2t-1, i]
-            ls = p[2t, i]
-            yt = y isa AbstractVector ? y[i] : y[t, i]
-            inv = 1 / exp(2 * ls)
-            d = μ - yt
-            ∇[gb+1, i] = d * inv * w
-            ∇[gb+2, i] = (1 - d^2 * inv) * w
-            ∇[hb+1, i] = inv * w
-            ∇[hb+2, i] = 2 * inv * d^2 * w
-        end
-    end
+@inline function mle2p_grad_hess(::Type{GaussianMLE}, μ, ls, yt)
+    inv = 1 / exp(2 * ls)
+    d = μ - yt
+    return (d * inv, 1 - d^2 * inv, inv, 2 * inv * d^2)
 end
 
 # LogisticProb - https://en.wikipedia.org/wiki/Logistic_distribution
 # pdf = 
 # pred[i][1] = μ
 # pred[i][2] = log(s)
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{LogisticMLE}, params::EvoTypes) where {T}
+@inline function mle2p_grad_hess(::Type{LogisticMLE}, μ, ls, yt)
+    return (
+        -tanh((yt - μ) / (2 * exp(ls))) * exp(-ls),
+        -(exp(-ls) * (yt - μ) * tanh((yt - μ) / (2 * exp(ls))) - 1),
+        sech((yt - μ) / (2 * exp(ls)))^2 / (2 * exp(2 * ls)),
+        (exp(-2 * ls) * (μ - yt) * (μ - yt + exp(ls) * sinh(exp(-ls) * (μ - yt)))) /
+        (1 + cosh(exp(-ls) * (μ - yt))),
+    )
+end
+
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:MLE2P}
     Y = size(p, 1) ÷ 2
     w_row = 4 * Y + 1
     @threads for i in axes(p, 2)
@@ -206,13 +179,11 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
             hb = 2 * Y + 2 * (t - 1)
             μ = p[2t-1, i]
             ls = p[2t, i]
-            yt = y isa AbstractVector ? y[i] : y[t, i]
-            ∇[gb+1, i] = -tanh((yt - μ) / (2 * exp(ls))) * exp(-ls) * w
-            ∇[gb+2, i] = -(exp(-ls) * (yt - μ) * tanh((yt - μ) / (2 * exp(ls))) - 1) * w
-            ∇[hb+1, i] = sech((yt - μ) / (2 * exp(ls)))^2 / (2 * exp(2 * ls)) * w
-            ∇[hb+2, i] = (exp(-2 * ls) * (μ - yt) *
-                          (μ - yt + exp(ls) * sinh(exp(-ls) * (μ - yt)))) /
-                         (1 + cosh(exp(-ls) * (μ - yt))) * w
+            g1, g2, h1, h2 = mle2p_grad_hess(L, μ, ls, _target(y, t, i))
+            ∇[gb+1, i] = g1 * w
+            ∇[gb+2, i] = g2 * w
+            ∇[hb+1, i] = h1 * w
+            ∇[hb+2, i] = h2 * w
         end
     end
 end
@@ -290,16 +261,34 @@ end
 # MAE
 function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:MAE,T,V<:AbstractVector}
     ϵ = eps(T)
-    gain = abs(∑L[1] / ∑L[3] - ∑[1] / ∑[3]) * ∑L[3] / max(ϵ, (1 + params.lambda + params.L2 / ∑L[3])) +
-           abs(∑R[1] / ∑R[3] - ∑[1] / ∑[3]) * ∑R[3] / max(ϵ, (1 + params.lambda + params.L2 / ∑R[3]))
+    K = (length(∑) - 1) ÷ 2
+    w_p = ∑[end]
+    w_l = ∑L[end]
+    w_r = ∑R[end]
+    d_l = max(ϵ, (1 + params.lambda + params.L2 / w_l))
+    d_r = max(ϵ, (1 + params.lambda + params.L2 / w_r))
+    gain = zero(T)
+    @inbounds for k in 1:K
+        gain += abs(∑L[k] / w_l - ∑[k] / w_p) * w_l / d_l
+        gain += abs(∑R[k] / w_r - ∑[k] / w_p) * w_r / d_r
+    end
     return gain
 end
 
 # Quantile
 function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:Quantile,T,V<:AbstractVector}
     ϵ = eps(T)
-    gain = abs(∑L[1] / ∑L[3] - ∑[1] / ∑[3]) * ∑L[3] / max(ϵ, (1 + params.lambda + params.L2 / ∑L[3])) +
-           abs(∑R[1] / ∑R[3] - ∑[1] / ∑[3]) * ∑R[3] / max(ϵ, (1 + params.lambda + params.L2 / ∑R[3]))
+    K = (length(∑) - 1) ÷ 2
+    w_p = ∑[end]
+    w_l = ∑L[end]
+    w_r = ∑R[end]
+    d_l = max(ϵ, (1 + params.lambda + params.L2 / w_l))
+    d_r = max(ϵ, (1 + params.lambda + params.L2 / w_r))
+    gain = zero(T)
+    @inbounds for k in 1:K
+        gain += abs(∑L[k] / w_l - ∑[k] / w_p) * w_l / d_l
+        gain += abs(∑R[k] / w_r - ∑[k] / w_p) * w_r / d_r
+    end
     return gain
 end
 
