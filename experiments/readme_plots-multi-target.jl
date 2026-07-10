@@ -12,6 +12,7 @@ using CUDA
 
 device = :gpu
 tree_type = :binary
+path = joinpath(@__DIR__, "..", "docs", "src", "assets")
 
 # prepare a dataset
 nobs = 10_000
@@ -42,8 +43,8 @@ deval = dtot[i_eval, :]
 ############################################
 # regressions
 ############################################
-loss_list = [:mse, :logloss, :gamma, :poisson]
-loss = :logloss
+loss_list = [:mse, :logloss, :gamma, :poisson, :tweedie, :mae, :quantile]
+# loss_list = [:cred_std, :cred_var]
 
 for loss in loss_list
     config = EvoTreeRegressor(;
@@ -109,7 +110,7 @@ for loss in loss_list
     )
     Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
     f
-    save("docs/src/assets/multi-target-$loss-$tree_type-$device.svg", f)
+    save("$path/multi-target-$loss-$tree_type-$device.svg", f)
 end
 
 ###########################################
@@ -188,4 +189,5 @@ lines!(ax,
 )
 Legend(f[2, 1], ax; halign=:left, orientation=:horizontal)
 f
-save("docs/src/assets/multi-target-$tree_type-$device.svg", f)
+save("$path/multi-target-gaussian_mle-$tree_type-$device.svg", f)
+
