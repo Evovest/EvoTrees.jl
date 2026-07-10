@@ -442,6 +442,23 @@ end
 @inline function split_gain_multi(
     ::Type{L}, sums_temp, nodes_sum, node, temp_idx,
     K, w_l, w_r, gain_p, lambda, L2, ε::T
+) where {T,L<:Union{EvoTrees.MAE,EvoTrees.Quantile}}
+    w_p = nodes_sum[2 * K + 1, node]
+    d_l = max(1 + lambda + L2 / w_l, ε)
+    d_r = max(1 + lambda + L2 / w_r, ε)
+    gain = zero(T)
+    for k in 1:K
+        g_l = sums_temp[k, temp_idx]
+        g_r = nodes_sum[k, node] - g_l
+        gain += abs(g_l / w_l - nodes_sum[k, node] / w_p) * w_l / d_l
+        gain += abs(g_r / w_r - nodes_sum[k, node] / w_p) * w_r / d_r
+    end
+    return gain - gain_p
+end
+
+@inline function split_gain_multi(
+    ::Type{L}, sums_temp, nodes_sum, node, temp_idx,
+    K, w_l, w_r, gain_p, lambda, L2, ε::T
 ) where {T,L}
     return T(-Inf)
 end
