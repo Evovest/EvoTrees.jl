@@ -14,6 +14,7 @@ using Test
         include("tables.jl")
         include("monotonic.jl")
         include("missings.jl")
+        include("multi-target.jl")
     end
 
     @testset "MLJ" begin
