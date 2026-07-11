@@ -331,13 +331,6 @@ end
     return sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV))
 end
 
-@inline function _get_cred(L::Type{<:Cred}, params::EvoTypes, ∑::AbstractVector{T}) where {T}
-    ϵ = eps(T)
-    K = (length(∑) - 1) ÷ 2
-    w = ∑[end]
-    return _cred_Z(L, ∑[1], ∑[K+1], w, ϵ)
-end
-
 function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Cred,T}
     ϵ = eps(T)
     K = (length(∑) - 1) ÷ 2

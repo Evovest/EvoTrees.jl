@@ -1,6 +1,6 @@
 ## package loading
 using EvoTrees
-using EvoTrees: _get_cred, _loss2type_dict, update_grads!, Cred, EvoTypes, GradientRegression
+using EvoTrees: _cred_Z, _loss2type_dict, update_grads!, Cred, EvoTypes, GradientRegression
 using DataFrames
 using Distributions
 using Statistics: mean, std
@@ -32,7 +32,8 @@ function get_simul_metric(metric_name="cred"; nobs, loss, spread=1.0, sd=1.0)
     ∑ = get_∑(p, y, L, config)
 
     if metric_name == "cred"
-        metric = _get_cred(L, config, ∑)
+        ϵ = eps(eltype(∑))
+        metric = _cred_Z(L, ∑[1], ∑[2], ∑[end], ϵ)
     elseif metric_name == "gain"
         metric = _get_gain(L, config, ∑)
     else
@@ -68,7 +69,8 @@ function get_data(; loss, nobs, spread=1.0, sd=1.0)
     data[:gC] = data[:gL] + data[:gR]
 
     if L <: Cred
-        data[:ZR] = _get_cred(L, config, ∑R)
+        ϵ = eps(eltype(∑R))
+        data[:ZR] = _cred_Z(L, ∑R[1], ∑R[2], ∑R[end], ϵ)
     else
         data[:ZR] = NaN
     end

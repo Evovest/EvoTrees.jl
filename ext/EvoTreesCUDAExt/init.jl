@@ -8,9 +8,10 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     L = EvoTrees._loss2type_dict[params.loss]
 
     if (y_train isa AbstractMatrix) && !(L <: Union{EvoTrees.GradientRegression, EvoTrees.MLE2P, EvoTrees.MAE, EvoTrees.Quantile, EvoTrees.Cred})
-        error("Multi-target (vector target_name) is only supported for single-parameter " *
-              "regression losses, MLE losses (gaussian_mle, logistic_mle), MAE, quantile, " *
-              "and credibility losses (cred_var, cred_std). Got loss $(params.loss).")
+        error("Multi-target (matrix target) is supported for gradient-regression losses " *
+              "(mse, logloss, poisson, gamma, tweedie), mae, quantile, the MLE losses " *
+              "(gaussian_mle, logistic_mle), and credibility losses (cred_var, cred_std). " *
+              "Got loss $(params.loss).")
     end
 
     target_levels = nothing
