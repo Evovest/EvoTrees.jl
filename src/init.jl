@@ -10,11 +10,12 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     T = Float32
     L = _loss2type_dict[params.loss]
 
-    if (y_train isa AbstractMatrix) && !(L <: Union{GradientRegression, MLE2P, MAE, Quantile})
-        error("Multi-target (vector target_name) is only supported for single-parameter " *
-              "regression losses and MLE losses (gaussian_mle, logistic_mle). Got loss $(params.loss).")
+    if (y_train isa AbstractMatrix) && !(L <: Union{GradientRegression, MLE2P, MAE, Quantile, Cred})
+        error("Multi-target (matrix target) is supported for gradient-regression losses " *
+              "(mse, logloss, poisson, gamma, tweedie), mae, quantile, the MLE losses " *
+              "(gaussian_mle, logistic_mle), and credibility losses (cred_var, cred_std). " *
+              "Got loss $(params.loss).")
     end
-
     target_levels = nothing
     target_isordered = false
     if L == LogLoss
@@ -99,6 +100,18 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         y = T.(y_train)
         μ = T.(quantile.(Ref(y), params.alphas))
     elseif L <: Union{MAE,Quantile}
+        @assert eltype(y_train) <: Real
+        if y_train isa AbstractVector
+            K = 1
+            y = T.(y_train)
+            μ = T[mean(y)]
+        else
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[mean(view(y, k, :)) for k in 1:K]
+        end
+    
+    elseif L <: Cred
         @assert eltype(y_train) <: Real
         if y_train isa AbstractVector
             K = 1

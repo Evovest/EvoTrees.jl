@@ -339,11 +339,14 @@ end
 
 # Parent gain: Cred
 @inline function parent_gain(::Type{L}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T,L<:EvoTrees.Cred}
-    μ = nodes_sum[1, node] / w_p
-    VHM = μ^2
-    EVPV = max(nodes_sum[2, node] / w_p - VHM, ε)
-    Z = VHM / (VHM + EVPV)
-    return Z * abs(nodes_sum[1, node]) / (1 + L2 / w_p)
+    gain = zero(T)
+    for k in 1:K
+        m1 = nodes_sum[k, node]
+        m2 = nodes_sum[K+k, node]
+        Z = EvoTrees._cred_Z(L, m1, m2, w_p, ε)
+        gain += Z * abs(m1) / (1 + L2 / w_p)
+    end
+    return gain
 end
 
 # Split gain: GradientRegression
@@ -389,18 +392,10 @@ end
 
 # Split gain: Cred
 @inline function split_gain(::Type{L}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T,L<:EvoTrees.Cred}
-    μl = s.g_l / s.w_l
-    VHM_l = μl^2
-    EVPV_l = max(s.h_l / s.w_l - VHM_l, ε)
-    Z_l = VHM_l / (VHM_l + EVPV_l)
+    Z_l = EvoTrees._cred_Z(L, s.g_l, s.h_l, s.w_l, ε)
     gain_l = Z_l * abs(s.g_l) / (1 + L2 / s.w_l)
-
-    μr = s.g_r / s.w_r
-    VHM_r = μr^2
-    EVPV_r = max(s.h_r / s.w_r - VHM_r, ε)
-    Z_r = VHM_r / (VHM_r + EVPV_r)
+    Z_r = EvoTrees._cred_Z(L, s.g_r, s.h_r, s.w_r, ε)
     gain_r = Z_r * abs(s.g_r) / (1 + L2 / s.w_r)
-
     return gain_l + gain_r - gain_p
 end
 
@@ -452,6 +447,24 @@ end
         g_r = nodes_sum[k, node] - g_l
         gain += abs(g_l / w_l - nodes_sum[k, node] / w_p) * w_l / d_l
         gain += abs(g_r / w_r - nodes_sum[k, node] / w_p) * w_r / d_r
+    end
+    return gain - gain_p
+end
+
+@inline function split_gain_multi(
+    ::Type{L}, sums_temp, nodes_sum, node, temp_idx,
+    K, w_l, w_r, gain_p, lambda, L2, ε::T
+) where {T,L<:EvoTrees.Cred}
+    gain = zero(T)
+    for k in 1:K
+        m1_l = sums_temp[k, temp_idx]
+        m2_l = sums_temp[K+k, temp_idx]
+        m1_r = nodes_sum[k, node] - m1_l
+        m2_r = nodes_sum[K+k, node] - m2_l
+        Z_l = EvoTrees._cred_Z(L, m1_l, m2_l, w_l, ε)
+        Z_r = EvoTrees._cred_Z(L, m1_r, m2_r, w_r, ε)
+        gain += Z_l * abs(m1_l) / (1 + L2 / w_l)
+        gain += Z_r * abs(m1_r) / (1 + L2 / w_r)
     end
     return gain - gain_p
 end

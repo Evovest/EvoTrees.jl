@@ -139,10 +139,16 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MultiQ
 end
 
 # Credibility-based
-function update_grads!(∇::Matrix, p::Matrix{T}, y::Vector{T}, ::Type{<:Cred}, params::EvoTypes) where {T}
-    @threads for i in eachindex(y)
-        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
-        @inbounds ∇[2, i] = (y[i] - p[1, i])^2 * ∇[3, i]
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{<:Cred}, params::EvoTypes) where {T}
+    K = size(p, 1)
+    w_row = 2 * K + 1
+    @threads for i in axes(p, 2)
+        @inbounds w = ∇[w_row, i]
+        @inbounds for k in 1:K
+            d = _target(y, k, i) - p[k, i]
+            ∇[k, i] = d * w
+            ∇[K+k, i] = d^2 * w
+        end
     end
 end
 
@@ -310,37 +316,54 @@ function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V)
 end
 
 # CredVar: ratio of variance
-# VHM = E²[X] = (∑1 / ∑3)²
-# EVPV = E[X^2] - E²[X] = ∑2 / ∑3 - VHM
-@inline function _get_cred(::Type{CredVar}, params::EvoTypes, ∑::AbstractVector{T}) where {T}
-    ϵ = eps(eltype(∑))
-    VHM = (∑[1] / ∑[3])^2
-    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM))
+# VHM = E²[X] = (m1 / w)²
+# EVPV = E[X^2] - E²[X] = m2 / w - VHM
+@inline function _cred_Z(::Type{CredVar}, m1, m2, w, ϵ)
+    VHM = (m1 / w)^2
+    EVPV = max(ϵ, m2 / w - VHM)
     return VHM / (VHM + EVPV)
 end
 
-# CredStd: ratio of std dev 
-# VHM = E²[X] = (∑1 / ∑3)²
-# EVPV = E[X^2] - E²[X] = ∑2 / ∑3 - VHM
-@inline function _get_cred(::Type{CredStd}, params::EvoTypes, ∑::AbstractVector{T}) where {T}
-    ϵ = eps(eltype(∑))
-    VHM = (∑[1] / ∑[3])^2
-    EVPV = max(ϵ, (∑[2] / ∑[3] - VHM))
+# CredStd: ratio of std dev
+@inline function _cred_Z(::Type{CredStd}, m1, m2, w, ϵ)
+    VHM = (m1 / w)^2
+    EVPV = max(ϵ, m2 / w - VHM)
     return sqrt(VHM) / (sqrt(VHM) + sqrt(EVPV))
 end
 
-# gain for Cred
-function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Cred,T}
-    Z = _get_cred(L, params, ∑)
-    return Z * abs(∑[1]) / (1 + params.L2 / ∑[3])
+@inline function _get_cred(L::Type{<:Cred}, params::EvoTypes, ∑::AbstractVector{T}) where {T}
+    ϵ = eps(T)
+    K = (length(∑) - 1) ÷ 2
+    w = ∑[end]
+    return _cred_Z(L, ∑[1], ∑[K+1], w, ϵ)
 end
-# gain for Cred
+
+function get_gain(::Type{L}, params::EvoTypes, ∑::AbstractVector{T}) where {L<:Cred,T}
+    ϵ = eps(T)
+    K = (length(∑) - 1) ÷ 2
+    w = ∑[end]
+    g = zero(T)
+    @inbounds for k in 1:K
+        Z = _cred_Z(L, ∑[k], ∑[K+k], w, ϵ)
+        g += Z * abs(∑[k]) / (1 + params.L2 / w)
+    end
+    return g
+end
+
 function get_gain(::Type{L}, params::EvoTypes, ∑::Vector{T}, ∑L::V, ∑R::V) where {L<:Cred,T,V<:AbstractVector}
-    Z = _get_cred(L, params, ∑)
-    ZL = _get_cred(L, params, ∑L)
-    ZR = _get_cred(L, params, ∑R)
-    gain = ZL * abs(∑L[1]) / (1 + params.L2 / ∑L[3]) +
-           ZR * abs(∑R[1]) / (1 + params.L2 / ∑R[3]) -
-           Z * abs(∑[1]) / (1 + params.L2 / ∑[3])
+    ϵ = eps(T)
+    K = (length(∑) - 1) ÷ 2
+    w = ∑[end]
+    w_l = ∑L[end]
+    w_r = ∑R[end]
+    gain = zero(T)
+    @inbounds for k in 1:K
+        Z = _cred_Z(L, ∑[k], ∑[K+k], w, ϵ)
+        ZL = _cred_Z(L, ∑L[k], ∑L[K+k], w_l, ϵ)
+        ZR = _cred_Z(L, ∑R[k], ∑R[K+k], w_r, ϵ)
+        gain += ZL * abs(∑L[k]) / (1 + params.L2 / w_l)
+        gain += ZR * abs(∑R[k]) / (1 + params.L2 / w_r)
+        gain -= Z * abs(∑[k]) / (1 + params.L2 / w)
+    end
     return gain
 end

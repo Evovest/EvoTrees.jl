@@ -35,24 +35,30 @@ end
 #####################
 # Credibility
 #####################
-function kernel_cred_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector)
+function kernel_cred_∇!(∇::CuDeviceMatrix{T}, p::CuDeviceMatrix{T}, y) where {T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-    if i <= length(y)
-        @inbounds ∇[1, i] = (y[i] - p[1, i]) * ∇[3, i]
-        @inbounds ∇[2, i] = (y[i] - p[1, i])^2 * ∇[3, i]
+    if i <= size(p, 2)
+        K = size(p, 1)
+        w_row = 2 * K + 1
+        @inbounds w = ∇[w_row, i]
+        @inbounds for k in 1:K
+            d = _cuda_target(y, k, i) - p[k, i]
+            ∇[k, i] = d * w
+            ∇[K+k, i] = d^2 * w
+        end
     end
     return
 end
 function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
-    y::CuVector,
+    y::Union{CuVector,CuMatrix},
     ::Type{<:EvoTrees.Cred},
     params::EvoTrees.EvoTypes;
     MAX_THREADS=1024,
 )
-    threads = min(MAX_THREADS, length(y))
-    blocks = cld(length(y), threads)
+    threads = min(MAX_THREADS, size(p, 2))
+    blocks = cld(size(p, 2), threads)
     @cuda blocks = blocks threads = threads kernel_cred_∇!(∇, p, y)
     CUDA.synchronize()
     return
