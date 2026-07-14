@@ -4,6 +4,7 @@ mutable struct EvoTreeRegressor <: MMI.Deterministic
     nrounds::Int
     bagging_size::Int
     early_stopping_rounds::Int
+    early_stopping_tolerance::Float64
     L2::Float64
     lambda::Float64
     gamma::Float64
@@ -30,6 +31,7 @@ function EvoTreeRegressor(; kwargs...)
         :nrounds => 100,
         :bagging_size => 1,
         :early_stopping_rounds => typemax(Int),
+        :early_stopping_tolerance => 0.0,
         :L2 => 1.0,
         :lambda => 0.0,
         :gamma => 0.0,
@@ -95,6 +97,7 @@ function EvoTreeRegressor(; kwargs...)
         args[:nrounds],
         args[:bagging_size],
         args[:early_stopping_rounds],
+        args[:early_stopping_tolerance],
         args[:L2],
         args[:lambda],
         args[:gamma],
@@ -121,6 +124,7 @@ mutable struct EvoTreeCount <: MMI.Probabilistic
     nrounds::Int
     bagging_size::Int
     early_stopping_rounds::Int
+    early_stopping_tolerance::Float64
     L2::Float64
     lambda::Float64
     gamma::Float64
@@ -143,6 +147,7 @@ function EvoTreeCount(; kwargs...)
         :nrounds => 100,
         :bagging_size => 1,
         :early_stopping_rounds => typemax(Int),
+        :early_stopping_tolerance => 0.0,
         :L2 => 1.0,
         :lambda => 0.0,
         :gamma => 0.0,
@@ -180,6 +185,7 @@ function EvoTreeCount(; kwargs...)
         args[:nrounds],
         args[:bagging_size],
         args[:early_stopping_rounds],
+        args[:early_stopping_tolerance],
         args[:L2],
         args[:lambda],
         args[:gamma],
@@ -204,6 +210,7 @@ mutable struct EvoTreeClassifier <: MMI.Probabilistic
     nrounds::Int
     bagging_size::Int
     early_stopping_rounds::Int
+    early_stopping_tolerance::Float64
     L2::Float64
     lambda::Float64
     gamma::Float64
@@ -225,6 +232,7 @@ function EvoTreeClassifier(; kwargs...)
         :nrounds => 100,
         :bagging_size => 1,
         :early_stopping_rounds => typemax(Int),
+        :early_stopping_tolerance => 0.0,
         :L2 => 1.0,
         :lambda => 0.0,
         :gamma => 0.0,
@@ -261,6 +269,7 @@ function EvoTreeClassifier(; kwargs...)
         args[:nrounds],
         args[:bagging_size],
         args[:early_stopping_rounds],
+        args[:early_stopping_tolerance],
         args[:L2],
         args[:lambda],
         args[:gamma],
@@ -284,6 +293,7 @@ mutable struct EvoTreeMLE <: MMI.Probabilistic
     nrounds::Int
     bagging_size::Int
     early_stopping_rounds::Int
+    early_stopping_tolerance::Float64
     L2::Float64
     lambda::Float64
     gamma::Float64
@@ -308,6 +318,7 @@ function EvoTreeMLE(; kwargs...)
         :nrounds => 100,
         :bagging_size => 1,
         :early_stopping_rounds => typemax(Int),
+        :early_stopping_tolerance => 0.0,
         :L2 => 1.0,
         :lambda => 0.0,
         :gamma => 0.0,
@@ -356,6 +367,7 @@ function EvoTreeMLE(; kwargs...)
         args[:nrounds],
         args[:bagging_size],
         args[:early_stopping_rounds],
+        args[:early_stopping_tolerance],
         args[:L2],
         args[:lambda],
         args[:gamma],
@@ -380,6 +392,7 @@ mutable struct EvoTreeGaussian <: MMI.Probabilistic
     nrounds::Int
     bagging_size::Int
     early_stopping_rounds::Int
+    early_stopping_tolerance::Float64
     L2::Float64
     lambda::Float64
     gamma::Float64
@@ -401,6 +414,7 @@ function EvoTreeGaussian(; kwargs...)
         :nrounds => 100,
         :bagging_size => 1,
         :early_stopping_rounds => typemax(Int),
+        :early_stopping_tolerance => 0.0,
         :L2 => 1.0,
         :lambda => 0.0,
         :gamma => 0.0,
@@ -438,6 +452,7 @@ function EvoTreeGaussian(; kwargs...)
         args[:nrounds],
         args[:bagging_size],
         args[:early_stopping_rounds],
+        args[:early_stopping_tolerance],
         args[:L2],
         args[:lambda],
         args[:gamma],
@@ -509,6 +524,7 @@ function check_args(args::Dict{Symbol,Any})
     check_parameter(Float64, args[:lambda], zero(Float64), typemax(Float64), :lambda)
     check_parameter(Float64, args[:gamma], zero(Float64), typemax(Float64), :gamma)
     check_parameter(Float64, args[:min_weight], zero(Float64), typemax(Float64), :min_weight)
+    check_parameter(Float64, args[:early_stopping_tolerance], zero(Float64), typemax(Float64), :early_stopping_tolerance)
 
     # check bounded parameters
     check_parameter(Float64, args[:rowsample], eps(Float64), one(Float64), :rowsample)
@@ -546,6 +562,7 @@ function check_args(model::EvoTypes)
     check_parameter(Float64, model.lambda, zero(Float64), typemax(Float64), :lambda)
     check_parameter(Float64, model.gamma, zero(Float64), typemax(Float64), :gamma)
     check_parameter(Float64, model.min_weight, zero(Float64), typemax(Float64), :min_weight)
+    check_parameter(Float64, model.early_stopping_tolerance, zero(Float64), typemax(Float64), :early_stopping_tolerance)
 
     # check bounded parameters
     check_parameter(Float64, model.rowsample, eps(Float64), one(Float64), :rowsample)
