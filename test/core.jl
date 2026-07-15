@@ -56,6 +56,52 @@ y_train, y_eval = Y[i_train], Y[i_eval]
     @test mse_gain_pct < -0.75
 end
 
+@testset "EvoTreeRegressor - MSE early stopping tolerance" begin
+    seed!(321)
+    n = 1_000
+    x = randn(n, 1)
+    y = x[:, 1] .+ 0.1 .* randn(n)
+    idx = sample(1:n, n, replace=false)
+    n_train = floor(Int, 0.8 * n)
+    x_train_es, y_train_es = x[idx[1:n_train], :], y[idx[1:n_train]]
+    x_eval_es, y_eval_es = x[idx[n_train+1:end], :], y[idx[n_train+1:end]]
+
+    params_strict = EvoTreeRegressor(
+        loss=:mse,
+        nrounds=50,
+        early_stopping_rounds=5,
+        early_stopping_tolerance=0.0,
+        eta=0.05,
+        seed=123,
+    )
+    params_tolerant = EvoTreeRegressor(
+        loss=:mse,
+        nrounds=50,
+        early_stopping_rounds=5,
+        early_stopping_tolerance=0.01,
+        eta=0.05,
+        seed=123,
+    )
+
+    m_strict = fit(params_strict; x_train=x_train_es, y_train=y_train_es, x_eval=x_eval_es, y_eval=y_eval_es, verbosity=0)
+    m_tolerant = fit(params_tolerant; x_train=x_train_es, y_train=y_train_es, x_eval=x_eval_es, y_eval=y_eval_es, verbosity=0)
+    m_default = fit(
+        EvoTreeRegressor(loss=:mse, nrounds=50, early_stopping_rounds=5, eta=0.05, seed=123);
+        x_train=x_train_es,
+        y_train=y_train_es,
+        x_eval=x_eval_es,
+        y_eval=y_eval_es,
+        verbosity=0,
+    )
+
+    @test length(m_tolerant.trees) < length(m_strict.trees)
+    @test length(m_strict.trees) == params_strict.nrounds + 1
+    @test m_tolerant.info[:logger][:iter_since_best] >= params_tolerant.early_stopping_rounds
+    @test m_tolerant.info[:logger][:best_iter] < m_strict.info[:logger][:best_iter]
+    @test length(m_default.trees) == length(m_strict.trees)
+    @test predict(m_default, x_eval_es) == predict(m_strict, x_eval_es)
+end
+
 @testset "EvoTreeRegressor - logloss" begin
     params1 = EvoTreeRegressor(
         loss=:logloss,
