@@ -21,13 +21,15 @@ function CallBack(
     T = Float32
     _weight_name = isnothing(weight_name) ? Symbol("") : Symbol(weight_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
-    _target_name = Symbol(target_name)
+    _target_names = target_name isa AbstractVector ? Symbol.(target_name) : [Symbol(target_name)]
 
     x_bin = binarize(deval; feature_names=m.info[:feature_names], edges=m.info[:edges])
     nobs = length(Tables.getcolumn(deval, 1))
     p = zeros(T, K, nobs)
 
-    y_eval = Tables.getcolumn(deval, _target_name)
+    y_eval = length(_target_names) == 1 ?
+        Tables.getcolumn(deval, _target_names[1]) :
+        permutedims(reduce(hcat, [Tables.getcolumn(deval, t) for t in _target_names]))
 
     if L == MLogLoss
         if eltype(y_eval) <: CategoricalValue
@@ -45,7 +47,7 @@ function CallBack(
     end
     feval = metric_dict[params.metric]
     V = device_array_type(device)
-    w = isnothing(weight_name) ? device_ones(device, T, length(y)) : V{T}(Tables.getcolumn(deval, _weight_name))
+    w = isnothing(weight_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(deval, _weight_name))
     metric_kwargs = (;)
     if params.metric == :multiquantile
         alphas_eval = T.(params.alphas)
@@ -95,7 +97,7 @@ function CallBack(
     end
     feval = metric_dict[params.metric]
     V = device_array_type(device)
-    w = isnothing(w_eval) ? device_ones(device, T, length(y)) : V{T}(w_eval)
+    w = isnothing(w_eval) ? device_ones(device, T, size(x_eval, 1)) : V{T}(w_eval)
     metric_kwargs = (;)
     if params.metric == :multiquantile
         alphas_eval = T.(params.alphas)

@@ -10,19 +10,37 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     T = Float32
     L = _loss2type_dict[params.loss]
 
+    if (y_train isa AbstractMatrix) && !(L <: Union{GradientRegression, MLE2P, MAE, Quantile, Cred})
+        error("Multi-target (matrix target) is supported for gradient-regression losses " *
+              "(mse, logloss, poisson, gamma, tweedie), mae, quantile, the MLE losses " *
+              "(gaussian_mle, logistic_mle), and credibility losses (cred_var, cred_std). " *
+              "Got loss $(params.loss).")
+    end
     target_levels = nothing
     target_isordered = false
     if L == LogLoss
         @assert eltype(y_train) <: Real && minimum(y_train) >= 0 && maximum(y_train) <= 1
-        K = 1
-        y = T.(y_train)
-        μ = [logit(mean(y))]
+        if y_train isa AbstractVector
+            K = 1
+            y = T.(y_train)
+            μ = T[logit(mean(y))]
+        else
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[logit(mean(view(y, k, :))) for k in 1:K]
+        end
         !isnothing(offset) && (offset .= logit.(offset))
     elseif L in [Poisson, Gamma, Tweedie]
         @assert eltype(y_train) <: Real
-        K = 1
-        y = T.(y_train)
-        μ = fill(log(mean(y)), 1)
+        if y_train isa AbstractVector
+            K = 1
+            y = T.(y_train)
+            μ = T[log(mean(y))]
+        else
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[log(mean(view(y, k, :))) for k in 1:K]
+        end
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == MLogLoss
         if eltype(y_train) <: CategoricalValue
@@ -42,32 +60,91 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == GaussianMLE
         @assert eltype(y_train) <: Real
-        K = 2
-        y = T.(y_train)
-        μ = [mean(y), log(std(y))]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        if y_train isa AbstractVector
+            K = 2
+            y = T.(y_train)
+            μ = [mean(y), log(std(y))]
+            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        else
+            Y = size(y_train, 1)
+            K = 2 * Y
+            y = T.(y_train)
+            μ = T[]
+            for t in 1:Y
+                yt = view(y, t, :)
+                push!(μ, mean(yt), log(std(yt)))
+            end
+            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+        end
     elseif L == LogisticMLE
         @assert eltype(y_train) <: Real
-        K = 2
-        y = T.(y_train)
-        μ = [mean(y), log(std(y) * sqrt(3) / π)]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        if y_train isa AbstractVector
+            K = 2
+            y = T.(y_train)
+            μ = [mean(y), log(std(y) * sqrt(3) / π)]
+            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        else
+            Y = size(y_train, 1)
+            K = 2 * Y
+            y = T.(y_train)
+            μ = T[]
+            for t in 1:Y
+                yt = view(y, t, :)
+                push!(μ, mean(yt), log(std(yt) * sqrt(3) / π))
+            end
+            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+        end
     elseif L == MultiQuantile
         @assert eltype(y_train) <: Real
         K = length(params.alphas)
         y = T.(y_train)
         μ = T.(quantile.(Ref(y), params.alphas))
+    elseif L <: Union{MAE,Quantile}
+        @assert eltype(y_train) <: Real
+        if y_train isa AbstractVector
+            K = 1
+            y = T.(y_train)
+            μ = T[mean(y)]
+        else
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[mean(view(y, k, :)) for k in 1:K]
+        end
+    
+    elseif L <: Cred
+        @assert eltype(y_train) <: Real
+        if y_train isa AbstractVector
+            K = 1
+            y = T.(y_train)
+            μ = T[mean(y)]
+        else
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[mean(view(y, k, :)) for k in 1:K]
+        end
     else
         @assert eltype(y_train) <: Real
-        K = 1
-        y = T.(y_train)
-        μ = [mean(y)]
+        if L <: GradientRegression
+            if y_train isa AbstractVector
+                K = 1
+                y = T.(y_train)
+                μ = T[mean(y)]
+            else
+                K = size(y_train, 1)
+                y = T.(y_train)
+                μ = T[mean(view(y, k, :)) for k in 1:K]
+            end
+        else
+            K = 1
+            y = T.(y_train)
+            μ = [mean(y)]
+        end
     end
     μ = T.(μ)
 
     # force a neutral/zero bias/initial tree when offset is specified
     !isnothing(offset) && (μ .= 0)
-    @assert (length(y) == length(w) && minimum(w) > 0)
+    @assert (size(y, ndims(y)) == length(w) && minimum(w) > 0)
 
     # initialize preds
     pred = zeros(T, K, nobs)
@@ -159,7 +236,7 @@ function init(
     schema = Tables.schema(dtrain)
     _weight_name = isnothing(weight_name) ? Symbol("") : Symbol(weight_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
-    _target_name = Symbol(target_name)
+    _target_names = target_name isa AbstractVector ? Symbol.(target_name) : [Symbol(target_name)]
     if isnothing(feature_names)
         feature_names = Symbol[]
         for i in eachindex(schema.names)
@@ -167,7 +244,7 @@ function init(
                 push!(feature_names, schema.names[i])
             end
         end
-        feature_names = setdiff(feature_names, union([_target_name], [_weight_name], [_offset_name]))
+        feature_names = setdiff(feature_names, union(_target_names, [_weight_name], [_offset_name]))
     else
         isa(feature_names, String) ? feature_names = [feature_names] : nothing
         feature_names = Symbol.(feature_names)
@@ -180,12 +257,16 @@ function init(
 
     T = Float32
     nobs = length(Tables.getcolumn(dtrain, 1))
-    y_train = Tables.getcolumn(dtrain, _target_name)
+    y_train = length(_target_names) == 1 ?
+        Tables.getcolumn(dtrain, _target_names[1]) :
+        permutedims(reduce(hcat, [Tables.getcolumn(dtrain, t) for t in _target_names]))
     V = device_array_type(device)
     w = isnothing(weight_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(dtrain, _weight_name))
     offset = isnothing(offset_name) ? nothing : V{T}(Tables.getcolumn(dtrain, _offset_name))
 
     m, cache = init_core(params, device, dtrain, feature_names, y_train, w, offset)
+
+    m.info[:target_names] = _target_names
 
     return m, cache
 end
@@ -198,7 +279,7 @@ device_array_type(::Type{<:CPU}) = Array
     init(
         params::EvoTypes,
         x_train::AbstractMatrix,
-        y_train::AbstractVector,
+        y_train::AbstractVecOrMat,
         device::Type{<:Device}=CPU;
         feature_names=nothing,
         w_train=nothing,
@@ -210,7 +291,7 @@ Initialise EvoTree
 function init(
     params::EvoTypes,
     x_train::AbstractMatrix,
-    y_train::AbstractVector,
+    y_train::AbstractVecOrMat,
     device::Type{<:Device}=CPU;
     feature_names=nothing,
     w_train=nothing,

@@ -6,7 +6,9 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, featty
             cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
             nid = nid << 1 + !cond
         end
-        @inbounds pred[1, i] += tree.pred[1, nid]
+        @inbounds for k in axes(pred, 1)
+            pred[k, i] += tree.pred[k, nid]
+        end
     end
     return nothing
 end
@@ -19,12 +21,15 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, featty
             cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
             nid = nid << 1 + !cond
         end
-        @inbounds pred[1, i] = clamp(pred[1, i] + tree.pred[1, nid], T(-15), T(15))
+        @inbounds for k in axes(pred, 1)
+            pred[k, i] = clamp(pred[k, i] + tree.pred[k, nid], T(-15), T(15))
+        end
     end
     return nothing
 end
 
 function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, feattypes::Vector{Bool}) where {L<:MLE2P,K,T}
+    Y = size(pred, 1) ÷ 2
     @threads for i in axes(x_bin, 1)
         nid = 1
         @inbounds while tree.split[nid]
@@ -32,8 +37,10 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, featty
             cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
             nid = nid << 1 + !cond
         end
-        @inbounds pred[1, i] += tree.pred[1, nid]
-        @inbounds pred[2, i] = max(T(-15), pred[2, i] + tree.pred[2, nid])
+        @inbounds for t in 1:Y
+            pred[2t-1, i] += tree.pred[2t-1, nid]
+            pred[2t, i] = max(T(-15), pred[2t, i] + tree.pred[2t, nid])
+        end
     end
     return nothing
 end
@@ -107,7 +114,7 @@ function _predict(
     elseif L ∈ [Poisson, Gamma, Tweedie]
         pred .= exp.(pred)
     elseif L in [GaussianMLE, LogisticMLE]
-        pred[2, :] .= exp.(pred[2, :])
+        pred[2:2:end, :] .= exp.(pred[2:2:end, :])
     elseif L == MLogLoss
         softmax!(pred)
     end
@@ -128,7 +135,10 @@ end
 # GradientRegression predictions
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:GradientRegression,T}
     ϵ = eps(T)
-    p[1, n] = -params.eta / params.bagging_size * ∑[1] / max(ϵ, (∑[2] + params.lambda * ∑[3] + params.L2))
+    K = size(p, 1)
+    @inbounds for k in 1:K
+        p[k, n] = -params.eta / params.bagging_size * ∑[k] / max(ϵ, (∑[k+K] + params.lambda * ∑[end] + params.L2))
+    end
 end
 function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:GradientRegression,T}
     ϵ = eps(T)
@@ -137,7 +147,11 @@ end
 
 # Cred predictions
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:Cred,T}
-    p[1, n] = params.eta / params.bagging_size * ∑[1] / (∑[3] + params.L2)
+    K = size(p, 1)
+    w = ∑[end]
+    @inbounds for k in 1:K
+        p[k, n] = params.eta / params.bagging_size * ∑[k] / (w + params.L2)
+    end
     return nothing
 end
 function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:Cred,T}
@@ -147,8 +161,14 @@ end
 # prediction in Leaf - MLE2P
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MLE2P,T}
     ϵ = eps(T)
-    p[1, n] = -params.eta / params.bagging_size * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[5] + params.L2))
-    p[2, n] = -params.eta / params.bagging_size * ∑[2] / max(ϵ, (∑[4] + params.lambda * ∑[5] + params.L2))
+    Y = size(p, 1) ÷ 2
+    wsum = ∑[end]
+    @inbounds for t in 1:Y
+        gb = 2 * (t - 1)
+        hb = 2 * Y + 2 * (t - 1)
+        p[2t-1, n] = -params.eta / params.bagging_size * ∑[gb+1] / max(ϵ, (∑[hb+1] + params.lambda * wsum + params.L2))
+        p[2t, n] = -params.eta / params.bagging_size * ∑[gb+2] / max(ϵ, (∑[hb+2] + params.lambda * wsum + params.L2))
+    end
 end
 function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MLE2P,T}
     ϵ = eps(T)
@@ -167,7 +187,12 @@ end
 # MAE
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MAE,T}
     ϵ = eps(T)
-    p[1, n] = params.eta / params.bagging_size * ∑[1] / max(ϵ, (∑[3] + params.lambda * ∑[3] + params.L2))
+    K = size(p, 1)
+    w = ∑[end]
+    denom = max(ϵ, (w + params.lambda * w + params.L2))
+    @inbounds for k in 1:K
+        p[k, n] = params.eta / params.bagging_size * ∑[k] / denom
+    end
 end
 function pred_scalar(∑::AbstractVector{T}, ::Type{L}, params::EvoTypes) where {L<:MAE,T}
     ϵ = eps(T)
@@ -177,7 +202,11 @@ end
 # Quantile
 function pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTypes, ∇, is) where {L<:Quantile,T}
     ϵ = eps(T)
-    p[1, n] = params.eta / params.bagging_size * quantile(view(∇, 2, is), params.alpha) / (1 + params.lambda + params.L2 / ∑[3])
+    K = size(p, 1)
+    denom = 1 + params.lambda + params.L2 / ∑[end]
+    @inbounds for k in 1:K
+        p[k, n] = params.eta / params.bagging_size * quantile(view(∇, K + k, is), params.alpha) / max(ϵ, denom)
+    end
 end
 
 # MultiQuantile

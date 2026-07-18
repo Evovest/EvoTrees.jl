@@ -7,19 +7,38 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     T = Float32
     L = EvoTrees._loss2type_dict[params.loss]
 
+    if (y_train isa AbstractMatrix) && !(L <: Union{EvoTrees.GradientRegression, EvoTrees.MLE2P, EvoTrees.MAE, EvoTrees.Quantile, EvoTrees.Cred})
+        error("Multi-target (matrix target) is supported for gradient-regression losses " *
+              "(mse, logloss, poisson, gamma, tweedie), mae, quantile, the MLE losses " *
+              "(gaussian_mle, logistic_mle), and credibility losses (cred_var, cred_std). " *
+              "Got loss $(params.loss).")
+    end
+
     target_levels = nothing
     target_isordered = false
     if L == EvoTrees.LogLoss
         @assert eltype(y_train) <: Real && minimum(y_train) >= 0 && maximum(y_train) <= 1
-        K = 1
-        y = T.(y_train)
-        μ = [EvoTrees.logit(EvoTrees.mean(y))]
+        if y_train isa AbstractVector
+            K = 1
+            y = T.(y_train)
+            μ = T[EvoTrees.logit(sum(y) / length(y))]
+        else
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[EvoTrees.logit(sum(view(y, k, :)) / size(y, 2)) for k in 1:K]
+        end
         !isnothing(offset) && (offset .= EvoTrees.logit.(offset))
     elseif L in [EvoTrees.Poisson, EvoTrees.Gamma, EvoTrees.Tweedie]
         @assert eltype(y_train) <: Real
-        K = 1
-        y = T.(y_train)
-        μ = fill(log(EvoTrees.mean(y)), 1)
+        if y_train isa AbstractVector
+            K = 1
+            y = T.(y_train)
+            μ = T[log(sum(y) / length(y))]
+        else
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[log(sum(view(y, k, :)) / size(y, 2)) for k in 1:K]
+        end
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == EvoTrees.MLogLoss
         if eltype(y_train) <: EvoTrees.CategoricalValue
@@ -39,26 +58,95 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         !isnothing(offset) && (offset .= log.(offset))
     elseif L == EvoTrees.GaussianMLE
         @assert eltype(y_train) <: Real
-        K = 2
-        y = T.(y_train)
-        μ = [EvoTrees.mean(y), log(EvoTrees.std(y))]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        if y_train isa AbstractVector
+            K = 2
+            y = T.(y_train)
+            n = length(y)
+            m = sum(y) / n
+            s = sqrt(sum((y .- m) .^ 2) / max(n - 1, 1))
+            μ = [m, log(s)]
+            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        else
+            Y = size(y_train, 1)
+            K = 2 * Y
+            y = T.(y_train)
+            μ = T[]
+            n_y = size(y, 2)
+            for t in 1:Y
+                yt = view(y, t, :)
+                m_t = sum(yt) / n_y
+                s_t = sqrt(sum((yt .- m_t) .^ 2) / max(n_y - 1, 1))
+                push!(μ, m_t, log(s_t))
+            end
+            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+        end
     elseif L == EvoTrees.LogisticMLE
         @assert eltype(y_train) <: Real
-        K = 2
-        y = T.(y_train)
-        μ = [EvoTrees.mean(y), log(EvoTrees.std(y) * sqrt(3) / π)]
-        !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        if y_train isa AbstractVector
+            K = 2
+            y = T.(y_train)
+            m = sum(y) / length(y)
+            s = sqrt(sum((y .- m) .^ 2) / max(length(y) - 1, 1))
+            μ = [m, log(s * sqrt(3) / π)]
+            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        else
+            Y = size(y_train, 1)
+            K = 2 * Y
+            y = T.(y_train)
+            μ = T[]
+            n_y = size(y, 2)
+            for t in 1:Y
+                yt = view(y, t, :)
+                m_t = sum(yt) / n_y
+                s_t = sqrt(sum((yt .- m_t) .^ 2) / max(n_y - 1, 1))
+                push!(μ, m_t, log(s_t * sqrt(3) / π))
+            end
+            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+        end
     elseif L == EvoTrees.MultiQuantile
         @assert eltype(y_train) <: Real
         K = length(params.alphas)
         y = T.(y_train)
         μ = T.(EvoTrees.quantile.(Ref(y), params.alphas))
+    elseif L <: Union{EvoTrees.MAE,EvoTrees.Quantile}
+        @assert eltype(y_train) <: Real
+        if y_train isa AbstractVector
+            K = 1
+            y = T.(y_train)
+            μ = T[sum(y) / length(y)]
+        else
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[sum(view(y, k, :)) / size(y, 2) for k in 1:K]
+        end
+    elseif L <: EvoTrees.Cred
+        @assert eltype(y_train) <: Real
+        if y_train isa AbstractVector
+            K = 1
+            y = T.(y_train)
+            μ = T[sum(y) / length(y)]
+        else
+            K = size(y_train, 1)
+            y = T.(y_train)
+            μ = T[sum(view(y, k, :)) / size(y, 2) for k in 1:K]
+        end
     else
         @assert eltype(y_train) <: Real
-        K = 1
-        y = T.(y_train)
-        μ = [EvoTrees.mean(y)]
+        if L <: EvoTrees.GradientRegression
+            if y_train isa AbstractVector
+                K = 1
+                y = T.(y_train)
+                μ = T[sum(y) / length(y)]
+            else
+                K = size(y_train, 1)
+                y = T.(y_train)
+                μ = T[sum(view(y, k, :)) / size(y, 2) for k in 1:K]
+            end
+        else
+            K = 1
+            y = T.(y_train)
+            μ = [sum(y) / length(y)]
+        end
     end
     y = CuArray(y)
     μ = T.(μ)
@@ -73,7 +161,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     h∇ = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
     h∇L = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
     h∇R = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
-    @assert (length(y) == length(w) && minimum(w) > 0)
+    @assert (size(y, ndims(y)) == length(w) && minimum(w) > 0)
     ∇[end, :] .= w
 
     nidx = KernelAbstractions.ones(backend, UInt32, nobs)

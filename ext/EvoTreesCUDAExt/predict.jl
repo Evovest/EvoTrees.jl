@@ -37,13 +37,16 @@ function predict_kernel!(
 ) where {T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
+    K = size(pred, 1)
     @inbounds if i <= size(pred, 2)
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
             nid = (nid << 1) + Int(!cond)
         end
-        pred[1, i] += leaf_pred[1, nid]
+        @inbounds for k in 1:K
+            pred[k, i] += leaf_pred[k, nid]
+        end
     end
     return nothing
 end
@@ -61,13 +64,16 @@ function predict_kernel!(
 ) where {T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
+    K = size(pred, 1)
     @inbounds if i <= size(pred, 2)
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
             nid = (nid << 1) + Int(!cond)
         end
-        pred[1, i] = clamp(pred[1, i] + leaf_pred[1, nid], T(-15), T(15))
+        @inbounds for k in 1:K
+            pred[k, i] = clamp(pred[k, i] + leaf_pred[k, nid], T(-15), T(15))
+        end
     end
     return nothing
 end
@@ -85,14 +91,17 @@ function predict_kernel!(
 ) where {T}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     nid = 1
+    Y = size(pred, 1) ÷ 2
     @inbounds if i <= size(pred, 2)
         @inbounds while split[nid]
             feat = feats[nid]
             cond = feattypes[feat] ? x_bin[i, feat] <= cond_bins[nid] : x_bin[i, feat] == cond_bins[nid]
             nid = (nid << 1) + Int(!cond)
         end
-        pred[1, i] += leaf_pred[1, nid]
-        pred[2, i] = max(T(-15), pred[2, i] + leaf_pred[2, nid])
+        @inbounds for t in 1:Y
+            pred[2t-1, i] += leaf_pred[2t-1, nid]
+            pred[2t, i] = max(T(-15), pred[2t, i] + leaf_pred[2t, nid])
+        end
     end
     return nothing
 end
@@ -165,7 +174,7 @@ function EvoTrees._predict(
     elseif L ∈ [EvoTrees.Poisson, EvoTrees.Gamma, EvoTrees.Tweedie]
         pred .= exp.(pred)
     elseif L in [EvoTrees.GaussianMLE, EvoTrees.LogisticMLE]
-        pred[2, :] .= exp.(pred[2, :])
+        pred[2:2:end, :] .= exp.(pred[2:2:end, :])
     elseif L == EvoTrees.MLogLoss
         EvoTrees.softmax!(pred)
     end
@@ -206,5 +215,9 @@ end
 
 function EvoTrees.pred_leaf_cpu!(p::Matrix, n, ∑::AbstractVector{T}, ::Type{L}, params::EvoTrees.EvoTypes, ∇::CuMatrix, is) where {L<:EvoTrees.Quantile,T}
     ϵ = eps(T)
-    p[1, n] = params.eta / params.bagging_size * quantile_gpu(view(∇, 2, is), params.alpha) / (1 + params.lambda + params.L2 / ∑[3])
+    K = size(p, 1)
+    denom = 1 + params.lambda + params.L2 / ∑[end]
+    @inbounds for k in 1:K
+        p[k, n] = params.eta / params.bagging_size * quantile_gpu(view(∇, K + k, is), params.alpha) / max(ϵ, denom)
+    end
 end
