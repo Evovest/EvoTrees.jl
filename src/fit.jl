@@ -328,7 +328,7 @@ function fit(
     if !isnothing(deval)
         deval = Tables.columntable(deval)
         cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name)
-        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds)
+        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
     else
@@ -420,7 +420,7 @@ function fit(
     end
     if logging_flag
         cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval)
-        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds)
+        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
     else

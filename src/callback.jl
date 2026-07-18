@@ -123,11 +123,12 @@ function (cb::CallBack)(logger, iter, tree)
     return nothing
 end
 
-function init_logger(; metric, maximise, early_stopping_rounds)
+function init_logger(; metric, maximise, early_stopping_rounds, early_stopping_tolerance=0.0)
     logger = Dict(
         :name => String(metric),
         :maximise => maximise,
         :early_stopping_rounds => early_stopping_rounds,
+        :early_stopping_tolerance => early_stopping_tolerance,
         :nrounds => 0,
         :iter => Int[],
         :metrics => Float64[],
@@ -145,8 +146,10 @@ function update_logger!(logger, iter, metric)
     if iter == 0
         logger[:best_metric] = metric
     else
-        if (logger[:maximise] && metric > logger[:best_metric]) ||
-           (!logger[:maximise] && metric < logger[:best_metric])
+        tol = logger[:early_stopping_tolerance]
+        improved = logger[:maximise] ? (metric > logger[:best_metric] + tol) :
+                                       (metric < logger[:best_metric] - tol)
+        if improved
             logger[:best_metric] = metric
             logger[:best_iter] = iter
             logger[:iter_since_best] = 0
