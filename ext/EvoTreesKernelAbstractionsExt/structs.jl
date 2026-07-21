@@ -1,7 +1,7 @@
 """
 	CacheBaseGPU <: EvoTrees.CacheGPU
 
-GPU training cache holding preallocated buffers used during tree growth.
+Backend-neutral GPU training cache holding preallocated buffers used during tree growth.
 
 ### Quick reference (selected buffers)
 - `h∇`: gradient histogram, indexed as `[2K+1, nbins, n_feats, node]`
@@ -43,7 +43,7 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
 
     tree_split_gpu::CuVector{Bool}
     tree_cond_bin_gpu::CuVector{UInt8}
-    tree_feat_gpu::CuVector{UInt32}
+    tree_feat_gpu::CuVector{Int32}
     tree_gain_gpu::CuVector{Float64}
     tree_pred_gpu::CuMatrix{Float32}
     nodes_sum_gpu::CuArray{Float64,2}
@@ -51,8 +51,8 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     n_next_gpu::CuVector{Int32}
     n_next_active_gpu::CuVector{Int32}
     best_gain_gpu::CuVector{Float64}
-    best_bin_gpu::CuVector{UInt8}
-    best_feat_gpu::CuVector{UInt32}
+    best_bin_gpu::CuVector{Int32}
+    best_feat_gpu::CuVector{Int32}
     build_nodes_gpu::CuVector{Int32}
     subtract_nodes_gpu::CuVector{Int32}
     build_count::CuVector{Int32}

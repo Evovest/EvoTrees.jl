@@ -1,8 +1,9 @@
-function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, data, feature_names, y_train, w, offset)
+function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.GPU}, data, feature_names, y_train, w, offset)
 
     rng = Xoshiro(params.seed)
     edges, featbins, feattypes = EvoTrees.get_edges(data; feature_names, nbins=params.nbins, rng)
-    x_bin = CuArray(EvoTrees.binarize(data; feature_names, edges))
+    backend = _gpu_backend(device)
+    x_bin = _to_device(backend, EvoTrees.binarize(data; feature_names, edges))
     nobs, nfeats = size(x_bin)
     T = Float32
     L = EvoTrees._loss2type_dict[params.loss]
@@ -148,14 +149,13 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
             μ = [sum(y) / length(y)]
         end
     end
-    y = CuArray(y)
+    y = _to_device(backend, y)
     μ = T.(μ)
     !isnothing(offset) && (μ .= 0)
 
-    backend = KernelAbstractions.get_backend(x_bin)
     pred = KernelAbstractions.zeros(backend, T, K, nobs)
-    pred .= CuArray(μ)
-    !isnothing(offset) && (pred .+= CuArray(offset'))
+    pred .= _to_device(backend, μ)
+    !isnothing(offset) && (pred .+= _to_device(backend, collect(offset')))
 
     ∇ = KernelAbstractions.zeros(backend, T, 2 * K + 1, nobs)
     h∇ = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
@@ -165,7 +165,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     ∇[end, :] .= w
 
     nidx = KernelAbstractions.ones(backend, UInt32, nobs)
-    is_full = CuArray{UInt32}(1:nobs)
+    is_full = _to_device(backend, collect(UInt32, 1:nobs))
     mask_cpu = zeros(UInt8, nobs)
     mask_gpu = KernelAbstractions.zeros(backend, UInt8, nobs)
     js_ = UInt32.(collect(1:nfeats))
@@ -191,12 +191,12 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
     bias = [EvoTrees.Tree{L,K}(μ)]
     m = EvoTree{L,K}(L, K, bias, info)
 
-    cond_feats = zeros(Int, 2^(params.max_depth - 1) - 1)
+    cond_feats = zeros(UInt32, 2^(params.max_depth - 1) - 1)
     cond_bins = zeros(UInt8, 2^(params.max_depth - 1) - 1)
-    cond_feats_gpu = CuArray(cond_feats)
-    cond_bins_gpu = CuArray(cond_bins)
-    feattypes_gpu = CuArray(feattypes)
-    monotone_constraints_gpu = CuArray(monotone_constraints)
+    cond_feats_gpu = _to_device(backend, cond_feats)
+    cond_bins_gpu = _to_device(backend, cond_bins)
+    feattypes_gpu = _to_device(backend, feattypes)
+    monotone_constraints_gpu = _to_device(backend, monotone_constraints)
 
     max_tree_nodes = 2^params.max_depth - 1
     left_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)

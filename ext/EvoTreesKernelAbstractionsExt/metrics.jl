@@ -33,27 +33,25 @@ end
 ########################
 # Pointwise metrics
 ########################
-@inline _metric_target_count(p, y::CuDeviceVector) = 1
-@inline _metric_target_count(p, y::CuDeviceMatrix) = size(p, 1)
+@inline _metric_target_count(p, y::AbstractVector) = 1
+@inline _metric_target_count(p, y::AbstractMatrix) = size(p, 1)
 
-function eval_metric_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y, w::CuDeviceVector{T}, ::Type{M}, alpha::T) where {T<:AbstractFloat,M}
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-    if i <= length(w)
+@kernel function eval_metric_kernel!(eval, @Const(p), @Const(y), @Const(w), ::Type{M}, alpha) where {M}
+    i = @index(Global, Linear)
+    @inbounds if i <= length(w)
         K = _metric_target_count(p, y)
-        acc = zero(T)
-        @inbounds for k in 1:K
-            acc += _metric_value(M, p[k, i], _cuda_target(y, k, i), alpha)
+        acc = zero(eltype(eval))
+        for k in 1:K
+            acc += _metric_value(M, p[k, i], _dev_target(y, k, i), alpha)
         end
-        @inbounds eval[i] = w[i] * acc / K
+        eval[i] = w[i] * acc / K
     end
-    return nothing
 end
 
-function _eval_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}, ::Type{M}; MAX_THREADS=1024, alpha=0.5, kwargs...) where {T<:AbstractFloat,M}
-    threads = min(MAX_THREADS, length(w))
-    blocks = cld(length(w), threads)
-    @cuda blocks = blocks threads = threads eval_metric_kernel!(eval, p, y, w, M, T(alpha))
-    CUDA.synchronize()
+function _eval_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}, ::Type{M}; alpha=0.5, kwargs...) where {T<:AbstractFloat,M}
+    backend = get_backend(eval)
+    eval_metric_kernel!(backend)(eval, p, y, w, M, T(alpha); ndrange=length(w))
+    KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
 
@@ -72,25 +70,16 @@ EvoTrees.wmae(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T},
 ########################
 # MultiQuantile
 ########################
-function eval_multiquantile_kernel!(
-    eval::CuDeviceVector{T},
-    p::CuDeviceMatrix{T},
-    y::CuDeviceVector{T},
-    w::CuDeviceVector{T},
-    alphas::CuDeviceVector{T},
-    K::Int,
-) where {T<:AbstractFloat}
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-    if i <= length(y)
+@kernel function eval_multiquantile_kernel!(eval, @Const(p), @Const(y), @Const(w), @Const(alphas), K::Int)
+    i = @index(Global, Linear)
+    @inbounds if i <= length(y)
         yi = y[i]
-        acc = zero(T)
-        @inbounds for k in 1:K
-            alpha = alphas[k]
-            acc += _metric_value(EvoTrees.Quantile, p[k, i], yi, alpha)
+        acc = zero(eltype(eval))
+        for k in 1:K
+            acc += _metric_value(EvoTrees.Quantile, p[k, i], yi, alphas[k])
         end
-        @inbounds eval[i] = w[i] * acc / K
+        eval[i] = w[i] * acc / K
     end
-    return nothing
 end
 
 function EvoTrees.multiquantile(
@@ -98,16 +87,14 @@ function EvoTrees.multiquantile(
     y::CuVector{T},
     w::CuVector{T},
     eval::CuVector{T};
-    MAX_THREADS=1024,
     alphas,
     kwargs...
 ) where {T<:AbstractFloat}
     K = length(alphas)
-    alphas_dev = alphas isa CuVector ? alphas : CuArray(T.(alphas))
-    threads = min(MAX_THREADS, length(y))
-    blocks = cld(length(y), threads)
-    @cuda blocks = blocks threads = threads eval_multiquantile_kernel!(eval, p, y, w, alphas_dev, K)
-    CUDA.synchronize()
+    backend = get_backend(eval)
+    alphas_dev = alphas isa CuVector ? alphas : _to_device(backend, T.(alphas))
+    eval_multiquantile_kernel!(backend)(eval, p, y, w, alphas_dev, K; ndrange=length(y))
+    KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
 
@@ -126,27 +113,25 @@ EvoTrees.tweedie(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{
 ########################
 # Two-parameter MLE metrics
 ########################
-@inline _mle2p_target_count(p, y::CuDeviceVector) = 1
-@inline _mle2p_target_count(p, y::CuDeviceMatrix) = size(p, 1) ÷ 2
+@inline _mle2p_target_count(p, y::AbstractVector) = 1
+@inline _mle2p_target_count(p, y::AbstractMatrix) = size(p, 1) ÷ 2
 
-function eval_mle2p_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y, w::CuDeviceVector{T}, ::Type{M}) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-    if i <= length(w)
+@kernel function eval_mle2p_kernel!(eval, @Const(p), @Const(y), @Const(w), ::Type{M}) where {M<:EvoTrees.MLE2P}
+    i = @index(Global, Linear)
+    @inbounds if i <= length(w)
         Y = _mle2p_target_count(p, y)
-        acc = zero(T)
-        @inbounds for t in 1:Y
-            acc += _mle2p_metric_value(M, p[2t-1, i], p[2t, i], _cuda_target(y, t, i))
+        acc = zero(eltype(eval))
+        for t in 1:Y
+            acc += _mle2p_metric_value(M, p[2t-1, i], p[2t, i], _dev_target(y, t, i))
         end
-        @inbounds eval[i] = w[i] * acc / Y
+        eval[i] = w[i] * acc / Y
     end
-    return nothing
 end
 
-function _eval_mle2p_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}, ::Type{M}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
-    threads = min(MAX_THREADS, length(w))
-    blocks = cld(length(w), threads)
-    @cuda blocks = blocks threads = threads eval_mle2p_kernel!(eval, p, y, w, M)
-    CUDA.synchronize()
+function _eval_mle2p_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}, ::Type{M}; kwargs...) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
+    backend = get_backend(eval)
+    eval_mle2p_kernel!(backend)(eval, p, y, w, M; ndrange=length(w))
+    KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
 
@@ -159,24 +144,21 @@ EvoTrees.logistic_mle(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVe
 ########################
 # mlogloss
 ########################
-function eval_mlogloss_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y::CuDeviceVector, w::CuDeviceVector{T}) where {T<:AbstractFloat}
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+@kernel function eval_mlogloss_kernel!(eval, @Const(p), @Const(y), @Const(w))
+    i = @index(Global, Linear)
     K = size(p, 1)
-    if i <= length(y)
-        isum = zero(T)
-        @inbounds for k in 1:K
+    @inbounds if i <= length(y)
+        isum = zero(eltype(eval))
+        for k in 1:K
             isum += exp(p[k, i])
         end
-        @inbounds eval[i] = w[i] * (log(isum) - p[y[i], i])
+        eval[i] = w[i] * (log(isum) - p[y[i], i])
     end
-    return nothing
 end
 
-function EvoTrees.mlogloss(p::CuMatrix{T}, y::CuVector, w::CuVector{T}, eval::CuVector{T}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat}
-    threads = min(MAX_THREADS, length(y))
-    blocks = cld(length(y), threads)
-    @cuda blocks = blocks threads = threads eval_mlogloss_kernel!(eval, p, y, w)
-    CUDA.synchronize()
+function EvoTrees.mlogloss(p::CuMatrix{T}, y::CuVector, w::CuVector{T}, eval::CuVector{T}; kwargs...) where {T<:AbstractFloat}
+    backend = get_backend(eval)
+    eval_mlogloss_kernel!(backend)(eval, p, y, w; ndrange=length(y))
+    KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
-

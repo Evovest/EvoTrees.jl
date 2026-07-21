@@ -1,6 +1,20 @@
 abstract type Device end
 abstract type CPU <: Device end
 abstract type GPU <: Device end
+abstract type CUDADevice <: GPU end
+abstract type ROCmDevice <: GPU end
+abstract type MetalDevice <: GPU end
+
+function device_type(device)
+    name = Symbol(device)
+    name === :cpu && return CPU
+    name in (:gpu, :cuda) && return CUDADevice
+    name in (:rocm, :amd) && return ROCmDevice
+    name === :metal && return MetalDevice
+    throw(ArgumentError("device must be one of :cpu, :gpu, :cuda, :rocm, :amd, or :metal; got :$name"))
+end
+
+function gpu_backend end
 
 """
     TrainNode{S,V,M}
@@ -114,8 +128,7 @@ struct EvoTree{L,K}
     info::Dict{Symbol,Any}
 end
 function (m::EvoTree)(data; ntree_limit=length(m.trees), device=:cpu)
-    @assert Symbol(device) ∈ [:cpu, :gpu]
-    _device = Symbol(device) == :cpu ? CPU : GPU
+    _device = device_type(device)
     return _predict(m, data, _device; ntree_limit)
 end
 

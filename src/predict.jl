@@ -60,6 +60,8 @@ function predict!(pred::Matrix{T}, tree::Tree{L,K}, x_bin::Matrix{UInt8}, featty
     end
     return nothing
 end
+function predict_leaf_index! end
+function _predict_leaf_indices end
 
 """
     predict!(pred::Matrix, tree::Tree, X)
@@ -89,8 +91,7 @@ Predictions from an EvoTree model - sums the predictions from all trees composin
 Use `ntree_limit=N` to only predict with the first `N` trees.
 """
 function predict(m::EvoTree, data; ntree_limit=length(m.trees), device=:cpu)
-    @assert Symbol(device) ∈ [:cpu, :gpu]
-    _device = Symbol(device) == :cpu ? CPU : GPU
+    _device = device_type(device)
     _predict(m, data, _device; ntree_limit)
 end
 

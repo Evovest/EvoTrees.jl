@@ -321,7 +321,7 @@ function fit(
 
     @assert Tables.istable(dtrain) "fit(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
     dtrain = Tables.columntable(dtrain)
-    _device = params.device == :gpu ? GPU : CPU
+    _device = device_type(params.device)
     m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name)
 
     # initialize callback and logger if deval is provided
@@ -408,7 +408,7 @@ function fit(
     verbosity=1
 )
 
-    _device = params.device == :gpu ? GPU : CPU
+    _device = device_type(params.device)
     m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train)
 
     # initialize callback and logger if tracking eval data
