@@ -43,7 +43,7 @@ deval = dtot[i_eval, :]
 ############################################
 # regressions
 ############################################
-loss_list = [:mse, :logloss, :gamma, :poisson, :tweedie, :mae, :quantile]
+loss_list = [:mse, :logloss, :gamma, :poisson, :tweedie, :mae, :quantile, :cred_std, :cred_var]
 # loss_list = [:cred_std, :cred_var]
 
 for loss in loss_list
@@ -59,7 +59,7 @@ for loss in loss_list
         min_weight=1.0,
         rowsample=0.5,
         colsample=1.0,
-        rng=123,
+        seed=123,
         device,
     )
 
@@ -128,7 +128,7 @@ config = EvoTreeMLE(;
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
-    rng=123,
+    seed=123,
     device,
 )
 @time model = fit(
