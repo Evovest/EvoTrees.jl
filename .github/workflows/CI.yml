@@ -6,7 +6,7 @@ on:
   push:
     branches:
       - main
-    tags: '*'
+    tags: "*"
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
@@ -15,19 +15,19 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.10'
-          - '1' # Leave this line unchanged. '1' will automatically expand to the latest stable 1.x release of Julia.
-          # - 'nightly' 
+          - "1.10"
+          - "1" # Leave this line unchanged. '1' will automatically expand to the latest stable 1.x release of Julia.
+          # - 'nightly'
         os:
           - ubuntu-latest
         arch:
           - x64
         include:
           - os: windows-latest
-            version: '1'
+            version: "1"
             arch: x64
           - os: macOS-latest
-            version: '1'
+            version: "1"
             arch: x64
     steps:
       - uses: actions/checkout@v4
