@@ -148,6 +148,9 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
 
     edges, featbins, feattypes = get_edges(data; feature_names, nbins=params.nbins, rng)
     x_bin = binarize(data; feature_names, edges)
+    # observation-major copy: all features of one observation are contiguous,
+    # which is the layout the depth >= 2 histogram build reads.
+    x_bin_T = permutedims(x_bin)
     nobs, nfeats = size(x_bin)
 
     T = Float32
@@ -199,17 +202,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     h∇ = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
     h∇L = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
     h∇R = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
-    nodes = [
-        TrainNode(
-            zero(Float64),
-            view(is, 1:0),
-            zeros(Float64, 2 * K + 1),
-            view(h∇, :, :, :, n),
-            view(h∇L, :, :, :, n),
-            view(h∇R, :, :, :, n),
-            zeros(nbins, nfeats),
-        ) for n = 1:nnodes
-    ]
+    nodes = [TrainNode(zero(Float64), view(is, 1:0), zeros(Float64, 2 * K + 1), view(h∇, :, :, :, n), view(h∇L, :, :, :, n), view(h∇R, :, :, :, n), zeros(nbins, nfeats)) for n = 1:nnodes]
     bias = [Tree{L,K}(μ)]
     m = EvoTree{L,K}(L, K, bias, info)
 
@@ -221,6 +214,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         rng,
         K,
         x_bin,
+        x_bin_T,
         y,
         w,
         pred,
