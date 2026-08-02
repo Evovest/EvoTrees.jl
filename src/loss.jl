@@ -33,8 +33,21 @@ const _loss2type_dict = Dict(
     :cred_std => CredStd
 )
 
-@inline _target(y::AbstractVector, k, i) = y[i]
-@inline _target(y::AbstractMatrix, k, i) = y[k, i]
+################################################################################
+# Backend-agnostic scalar math.
+#
+# Everything below is scalars-in / scalars-out, allocation-free and `@inline`d.
+# It is called both by the threaded CPU `update_grads!` loops in this file and
+# by the KernelAbstractions kernels in `ext/EvoTreesKernelAbstractionsExt/`, so
+# that each loss expression has exactly one definition in the package.
+#
+# `@propagate_inbounds` (rather than plain `@inline`) on the accessors is load
+# bearing: without it the caller's `@inbounds` does not reach these bodies, and
+# the bounds check survives into device code as a `throw` branch.
+################################################################################
+
+Base.@propagate_inbounds _target(y::AbstractVector, k, i) = y[i]
+Base.@propagate_inbounds _target(y::AbstractMatrix, k, i) = y[k, i]
 
 @inline gradreg_grad_hess(::Type{MSE}, pk, yk) = (2 * (pk - yk), 2 * one(pk))
 
@@ -62,6 +75,28 @@ end
     )
 end
 
+@inline mae_grad_hess(pk, yk) = (yk - pk, zero(pk))
+
+@inline function cred_grad_hess(pk, yk)
+    d = yk - pk
+    return (d, d^2)
+end
+
+# Quantile keeps the raw residual in the hessian slot -- it is consumed later
+# when computing leaf quantiles -- so the second element is deliberately *not*
+# weight-scaled by the caller.
+@inline function quantile_grad_diff(pk, yk, alpha)
+    diff = yk - pk
+    return (diff > 0 ? alpha : alpha - one(alpha), diff)
+end
+
+# MLogLoss. `isum` is the softmax denominator for observation `i`; it spans all
+# K classes and so is accumulated by the caller before this is applied per-class.
+@inline function mlogloss_grad_hess(pk, isum, is_target)
+    prob = exp(pk) / isum
+    return (is_target ? prob - one(prob) : prob, (1 - prob) / isum)
+end
+
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:GradientRegression}
     K = size(p, 1)
     w_row = 2 * K + 1
@@ -83,14 +118,11 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector, ::Type{MLogLoss}
         @inbounds for k = 1:K
             isum += exp(p[k, i])
         end
+        @inbounds w = ∇[end, i]
         @inbounds for k = 1:K
-            iexp = exp(p[k, i])
-            if k == y[i]
-                ∇[k, i] = (iexp / isum - 1) * ∇[end, i]
-            else
-                ∇[k, i] = iexp / isum * ∇[end, i]
-            end
-            ∇[k+K, i] = 1 / isum * (1 - iexp / isum) * ∇[end, i]
+            g, h = mlogloss_grad_hess(p[k, i], isum, k == y[i])
+            ∇[k, i] = g * w
+            ∇[k+K, i] = h * w
         end
     end
 end
@@ -102,8 +134,9 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
     @threads for i in axes(p, 2)
         @inbounds w = ∇[w_row, i]
         @inbounds for k in 1:K
-            ∇[k, i] = (_target(y, k, i) - p[k, i]) * w
-            ∇[K+k, i] = zero(T)
+            g, h = mae_grad_hess(p[k, i], _target(y, k, i))
+            ∇[k, i] = g * w
+            ∇[K+k, i] = h * w
         end
     end
 end
@@ -115,8 +148,8 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
     @threads for i in axes(p, 2)
         @inbounds w = ∇[w_row, i]
         @inbounds for k in 1:K
-            diff = _target(y, k, i) - p[k, i]
-            ∇[k, i] = diff > 0 ? params.alpha * w : (params.alpha - 1) * w
+            g, diff = quantile_grad_diff(p[k, i], _target(y, k, i), params.alpha)
+            ∇[k, i] = g * w
             ∇[K+k, i] = diff
         end
     end
@@ -130,9 +163,8 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::Vector{T}, ::Type{MultiQ
         yi = y[i]
         @inbounds wi = ∇[w_idx, i]
         @inbounds for k in 1:K
-            diff = yi - p[k, i]
-            alpha = params.alphas[k]
-            ∇[k, i] = diff > 0 ? alpha * wi : (alpha - 1) * wi
+            g, diff = quantile_grad_diff(p[k, i], yi, params.alphas[k])
+            ∇[k, i] = g * wi
             ∇[K + k, i] = diff
         end
     end
@@ -145,9 +177,9 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
     @threads for i in axes(p, 2)
         @inbounds w = ∇[w_row, i]
         @inbounds for k in 1:K
-            d = _target(y, k, i) - p[k, i]
-            ∇[k, i] = d * w
-            ∇[K+k, i] = d^2 * w
+            g, h = cred_grad_hess(p[k, i], _target(y, k, i))
+            ∇[k, i] = g * w
+            ∇[K+k, i] = h * w
         end
     end
 end
