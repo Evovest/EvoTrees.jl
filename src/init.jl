@@ -1,15 +1,13 @@
-function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset)
+"""
+    _init_target(::Type{L}, y_train, params, offset, ::Type{T})
 
-    # binarize data into quantiles
-    rng = Xoshiro(params.seed)
-
-    edges, featbins, feattypes = get_edges(data; feature_names, nbins=params.nbins, rng)
-    x_bin = binarize(data; feature_names, edges)
-    nobs, nfeats = size(x_bin)
-
-    T = Float32
-    L = _loss2type_dict[params.loss]
-
+Shared (device-agnostic) target/bias initialization: validates the target,
+derives the output dimension `K`, the converted target `y` (host arrays;
+device inits copy to their backend afterwards), and the initial bias `μ`.
+Mutates `offset` in place into link space when provided. Single source of
+truth for CPU (`src/init.jl`) and GPU (`ext/.../init.jl`) initialization.
+"""
+function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
     if (y_train isa AbstractMatrix) && !(L <: Union{GradientRegression, MLE2P, MAE, Quantile, Cred})
         error("Multi-target (matrix target) is supported for gradient-regression losses " *
               "(mse, logloss, poisson, gamma, tweedie), mae, quantile, the MLE losses " *
@@ -110,7 +108,6 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
             y = T.(y_train)
             μ = T[mean(view(y, k, :)) for k in 1:K]
         end
-    
     elseif L <: Cred
         @assert eltype(y_train) <: Real
         if y_train isa AbstractVector
@@ -141,6 +138,22 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         end
     end
     μ = T.(μ)
+    return K, y, μ, target_levels, target_isordered
+end
+
+function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset)
+
+    # binarize data into quantiles
+    rng = Xoshiro(params.seed)
+
+    edges, featbins, feattypes = get_edges(data; feature_names, nbins=params.nbins, rng)
+    x_bin = binarize(data; feature_names, edges)
+    nobs, nfeats = size(x_bin)
+
+    T = Float32
+    L = _loss2type_dict[params.loss]
+
+    K, y, μ, target_levels, target_isordered = _init_target(L, y_train, params, offset, T)
 
     # force a neutral/zero bias/initial tree when offset is specified
     !isnothing(offset) && (μ .= 0)
