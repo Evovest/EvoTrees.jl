@@ -145,7 +145,7 @@ Mark each node id in `active_nodes` as active by setting `mask[node] = 1`.
 end
 
 # Build histograms for active nodes
-function update_hist_gpu!(h∇, ∇, x_bin, nidx, js, is, active_nodes, K, target_mask, backend)
+function EvoTrees.update_hist!(h∇, ∇, x_bin, nidx, js, is, active_nodes, K, target_mask, backend)
     n_active = length(active_nodes)
 
     clear_mask_kernel!(backend)(target_mask; ndrange=length(target_mask))
@@ -208,31 +208,27 @@ Ties are broken by node id.
 end
 
 """
-	subtract_hist_kernel!(h∇, subtract_nodes)
+	subtract_hist_kernel!(h, js, nodes)
 
-Compute histograms for nodes in `subtract_nodes` via subtraction:
-`h∇[:,:,:,child] = h∇[:,:,:,parent] - h∇[:,:,:,sibling]`.
+Sibling subtraction over `h` reshaped to `(2K+1)*nbins × nfeats × nnodes`.
+The 3D ndrange drops the per-element index decode.
 """
-@kernel function subtract_hist_kernel!(h∇, @Const(subtract_nodes))
-    gidx = @index(Global)
-    n_k, n_b, n_j = size(h∇, 1), size(h∇, 2), size(h∇, 3)
-    n_elements_per_node = n_k * n_b * n_j
-    node_idx = (gidx - 1) ÷ n_elements_per_node + 1
-
-    @inbounds if node_idx <= length(subtract_nodes)
-        remainder = (gidx - 1) % n_elements_per_node
-        j = remainder ÷ (n_k * n_b) + 1
-        remainder = remainder % (n_k * n_b)
-        b = remainder ÷ n_k + 1
-        k = remainder % n_k + 1
-
-        node = subtract_nodes[node_idx]
-        if node > 0
-            parent = node >> 1
-            sibling = node ⊻ 1
-            h∇[k, b, j, node] = h∇[k, b, j, parent] - h∇[k, b, j, sibling]
+@kernel function subtract_hist_kernel!(h, @Const(js), @Const(nodes))
+    i, jj, nn = @index(Global, NTuple)
+    @inbounds begin
+        n = nodes[nn]
+        if n > 1
+            j = js[jj]
+            h[i, j, n] = h[i, j, n>>1] - h[i, j, n⊻1]
         end
     end
+end
+
+function EvoTrees.subtract_hist!(h∇::GPUArraysCore.AbstractGPUArray{<:Any,4}, nodes, js)
+    backend = get_backend(h∇)
+    h = reshape(h∇, :, size(h∇, 3), size(h∇, 4))
+    subtract_hist_kernel!(backend)(h, js, nodes; ndrange=(size(h, 1), length(js), length(nodes)))
+    KernelAbstractions.synchronize(backend)
 end
 
 """

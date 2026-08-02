@@ -192,15 +192,32 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         :feattypes => feattypes,
     )
 
-    # initialize model
-    nodes = [TrainNode(nfeats, params.nbins, K, view(is, 1:0)) for n = 1:2^params.max_depth-1]
+    # Shared 4D hist storage (same layout as KA GPU cache). Each TrainNode
+    # holds a contiguous view into trailing node dimension.
+    nnodes = 2^params.max_depth - 1
+    nbins = params.nbins
+    h∇ = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
+    h∇L = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
+    h∇R = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
+    nodes = [
+        TrainNode(
+            zero(Float64),
+            view(is, 1:0),
+            zeros(Float64, 2 * K + 1),
+            view(h∇, :, :, :, n),
+            view(h∇L, :, :, :, n),
+            view(h∇R, :, :, :, n),
+            zeros(nbins, nfeats),
+        ) for n = 1:nnodes
+    ]
     bias = [Tree{L,K}(μ)]
     m = EvoTree{L,K}(L, K, bias, info)
 
     # build cache
     Y = typeof(y)
     N = typeof(first(nodes))
-    cache = CacheBaseCPU{Y,N}(
+    H = typeof(h∇)
+    cache = CacheBaseCPU{Y,N,H}(
         rng,
         K,
         x_bin,
@@ -214,6 +231,9 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         right,
         js,
         ∇,
+        h∇,
+        h∇L,
+        h∇R,
         feature_names,
         featbins,
         feattypes,
