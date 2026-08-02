@@ -312,6 +312,26 @@ function split_set_single!(
 end
 
 """
+    subtract_hist!(h∇, nodes, js)
+
+`h∇[:, :, j, n] = h∇[:, :, j, n >> 1] - h∇[:, :, j, n ⊻ 1]` for `n ∈ nodes`, `j ∈ js`.
+Reshaped so the `(2K+1, nbins)` plane is one contiguous `@simd` run. Backends
+add methods on this signature.
+"""
+function subtract_hist!(h∇::Array, nodes, js)
+    h = reshape(h∇, :, size(h∇, 3), size(h∇, 4))
+    @threads for n in nodes
+        np, ns = n >> 1, n ⊻ 1
+        @inbounds for j in js
+            @simd for i in axes(h, 1)
+                h[i, j, n] = h[i, j, np] - h[i, j, ns]
+            end
+        end
+    end
+    return nothing
+end
+
+"""
     update_hist!
         GradientRegression
 """
@@ -375,7 +395,9 @@ end
 """
     get_best_split(
         ::Type{L},
+        h∇, h∇L, h∇R,
         node::TrainNode,
+        n,
         js,
         params::EvoTypes,
         feattypes::Vector{Bool},
@@ -386,16 +408,20 @@ Generic fallback
 """
 function get_best_split(
     ::Type{L},
+    h∇,
+    h∇L,
+    h∇R,
     node::TrainNode,
+    n::Integer,
     js,
     params::EvoTypes,
     feattypes::Vector{Bool},
     monotone_constraints,
 ) where {L<:LossType}
 
-    h = view(node.h, :, :, js)
-    hL = view(node.hL, :, :, js)
-    hR = view(node.hR, :, :, js)
+    h = view(h∇, :, :, js, n)
+    hL = view(h∇L, :, :, js, n)
+    hR = view(h∇R, :, :, js, n)
     constraints = view(monotone_constraints, js)
     num_flags = view(feattypes, js)
     ∑ = node.∑
@@ -443,7 +469,9 @@ end
 """
     update_gains!(
         ::Type{L},
+        h∇, h∇L, h∇R,
         node::TrainNode,
+        n,
         js,
         params::EvoTypes,
         feattypes::Vector{Bool},
@@ -452,16 +480,20 @@ end
 """
 function update_gains!(
     ::Type{L},
+    h∇,
+    h∇L,
+    h∇R,
     node::TrainNode,
+    n::Integer,
     js,
     params::EvoTypes,
     feattypes::Vector{Bool},
     monotone_constraints,
 ) where {L<:LossType}
 
-    h = view(node.h, :, :, js)
-    hL = view(node.hL, :, :, js)
-    hR = view(node.hR, :, :, js)
+    h = view(h∇, :, :, js, n)
+    hL = view(h∇L, :, :, js, n)
+    hR = view(h∇R, :, :, js, n)
     gains = view(node.gains, :, js)
     constraints = view(monotone_constraints, js)
     num_flags = view(feattypes, js)

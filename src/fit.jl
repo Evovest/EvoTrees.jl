@@ -21,6 +21,9 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
         grow!(
             tree,
             cache.nodes,
+            cache.h∇,
+            cache.h∇L,
+            cache.h∇R,
             params,
             cache.∇,
             cache.js,
@@ -43,6 +46,9 @@ end
 function grow_tree!(
     tree::Tree{L,K},
     nodes::Vector{N},
+    h∇,
+    h∇L,
+    h∇R,
     params::EvoTypes,
     ∇::Matrix,
     js,
@@ -81,17 +87,11 @@ function grow_tree!(
             @threads for n ∈ n_current[1:2:end]
                 update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
             end
-            @threads for n ∈ n_current[2:2:end]
-                if n % 2 == 0
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                else
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                end
-            end
+            subtract_hist!(h∇, view(n_current, 2:2:lastindex(n_current)), js)
             sort!(n_current)
             @threads for n ∈ n_current
                 tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
-                best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
+                best_gain, best_feat, best_bin = get_best_split(L, h∇, h∇L, h∇R, nodes[n], n, js, params, feattypes, monotone_constraints)
                 if best_bin != 0
                     tree.gain[n] = best_gain
                     tree.cond_bin[n] = best_bin
@@ -120,8 +120,8 @@ function grow_tree!(
                     offset += length(nodes[n].is)
 
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
+                    @views nodes[n<<1].∑ .= h∇L[:, best_bin, best_feat, n]
+                    @views nodes[n<<1+1].∑ .= h∇R[:, best_bin, best_feat, n]
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
@@ -150,6 +150,9 @@ end
 function grow_otree!(
     tree::Tree{L,K},
     nodes::Vector{N},
+    h∇,
+    h∇L,
+    h∇R,
     params::EvoTypes,
     ∇::Matrix,
     js,
@@ -187,17 +190,11 @@ function grow_otree!(
             @threads for n ∈ n_current[1:2:end]
                 update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
             end
-            @threads for n ∈ n_current[2:2:end]
-                if n % 2 == 0
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                else
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                end
-            end
+            subtract_hist!(h∇, view(n_current, 2:2:lastindex(n_current)), js)
             sort!(n_current)
             @threads for n ∈ n_current
                 tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
-                update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
+                update_gains!(L, h∇, h∇L, h∇R, nodes[n], n, js, params, feattypes, monotone_constraints)
             end
 
             # initialize gains for node 1 in which all gains of a given depth will be accumulated
@@ -243,8 +240,8 @@ function grow_otree!(
                     offset += length(nodes[n].is)
 
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
+                    @views nodes[n<<1].∑ .= h∇L[:, best_bin, best_feat, n]
+                    @views nodes[n<<1+1].∑ .= h∇R[:, best_bin, best_feat, n]
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
