@@ -1,35 +1,3 @@
-@inline _metric_value(::Type{EvoTrees.MSE}, pk, yk, alpha) = (pk - yk)^2
-@inline _metric_value(::Type{EvoTrees.MAE}, pk, yk, alpha) = abs(pk - yk)
-
-@inline function _metric_value(::Type{EvoTrees.Quantile}, pk, yk, alpha)
-    return alpha * max(yk - pk, zero(pk)) + (1 - alpha) * max(pk - yk, zero(pk))
-end
-
-@inline function _metric_value(::Type{EvoTrees.LogLoss}, pk, yk, alpha)
-    pred = EvoTrees.sigmoid(pk)
-    return -yk * log(pred) + (yk - 1) * log(1 - pred)
-end
-
-@inline function _metric_value(::Type{EvoTrees.Poisson}, pk, yk, alpha)
-    pred = exp(pk)
-    ϵ = eps(typeof(pk)(1e-7))
-    return 2 * (yk * log(yk / pred + ϵ) + pred - yk)
-end
-
-@inline function _metric_value(::Type{EvoTrees.Gamma}, pk, yk, alpha)
-    pred = exp(pk)
-    return 2 * (log(pred / yk) + yk / pred - 1)
-end
-
-@inline function _metric_value(::Type{EvoTrees.Tweedie}, pk, yk, alpha)
-    rho = oftype(pk, 1.5)
-    pred = exp(pk)
-    return 2 * (yk^(2 - rho) / (1 - rho) / (2 - rho) - yk * pred^(1 - rho) / (1 - rho) + pred^(2 - rho) / (2 - rho))
-end
-
-@inline _mle2p_metric_value(::Type{EvoTrees.GaussianMLE}, μ, ls, yt) = -(ls + (yt - μ)^2 / (2 * exp(2 * ls)))
-@inline _mle2p_metric_value(::Type{EvoTrees.LogisticMLE}, μ, ls, yt) = log(1 / 4 * sech(exp(-ls) * (yt - μ) / 2)^2) - ls
-
 ########################
 # Pointwise metrics
 ########################
@@ -42,7 +10,7 @@ end
         K = _metric_target_count(p, y)
         acc = zero(eltype(eval))
         for k in 1:K
-            acc += _metric_value(M, p[k, i], _dev_target(y, k, i), alpha)
+            acc += EvoTrees._metric_value(M, p[k, i], EvoTrees._target(y, k, i), alpha)
         end
         eval[i] = w[i] * acc / K
     end
@@ -76,7 +44,7 @@ EvoTrees.wmae(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T},
         yi = y[i]
         acc = zero(eltype(eval))
         for k in 1:K
-            acc += _metric_value(EvoTrees.Quantile, p[k, i], yi, alphas[k])
+            acc += EvoTrees._metric_value(EvoTrees.Quantile, p[k, i], yi, alphas[k])
         end
         eval[i] = w[i] * acc / K
     end
@@ -122,7 +90,7 @@ EvoTrees.tweedie(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{
         Y = _mle2p_target_count(p, y)
         acc = zero(eltype(eval))
         for t in 1:Y
-            acc += _mle2p_metric_value(M, p[2t-1, i], p[2t, i], _dev_target(y, t, i))
+            acc += EvoTrees._mle2p_metric_value(M, p[2t-1, i], p[2t, i], EvoTrees._target(y, t, i))
         end
         eval[i] = w[i] * acc / Y
     end
