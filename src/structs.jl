@@ -52,6 +52,7 @@ struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4}} <: Cache
     rng::Xoshiro
     K::UInt8
     x_bin::Matrix{UInt8}
+    x_bin_T::Matrix{UInt8}
     y::Y
     w::Vector{Float32}
     pred::Matrix{Float32}
