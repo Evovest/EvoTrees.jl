@@ -48,10 +48,11 @@ abstract type Cache end
 abstract type CacheCPU <: Cache end
 abstract type CacheGPU <: Cache end
 
-struct CacheBaseCPU{Y,N<:TrainNode} <: CacheCPU
+struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4}} <: CacheCPU
     rng::Xoshiro
     K::UInt8
     x_bin::Matrix{UInt8}
+    x_bin_T::Matrix{UInt8}
     y::Y
     w::Vector{Float32}
     pred::Matrix{Float32}
@@ -62,6 +63,9 @@ struct CacheBaseCPU{Y,N<:TrainNode} <: CacheCPU
     right::Vector{UInt32}
     js::Vector{UInt32}
     ∇::Matrix{Float32}
+    h∇::H
+    h∇L::H
+    h∇R::H
     feature_names::Vector{Symbol}
     featbins::Vector{UInt8}
     feattypes::Vector{Bool}

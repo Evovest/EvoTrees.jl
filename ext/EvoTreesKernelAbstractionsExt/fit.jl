@@ -91,7 +91,7 @@ function grow_tree!(
         KernelAbstractions.synchronize(backend)
         n_active = 0
     else
-        update_hist_gpu!(
+        EvoTrees.update_hist!(
             cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
             view(cache.anodes_gpu, 1:1), cache.K, cache.target_mask_buf, backend,
         )
@@ -163,7 +163,7 @@ function grow_tree!(
 
             # Build histograms for smaller children
             if build_count_val > 0
-                update_hist_gpu!(
+                EvoTrees.update_hist!(
                     cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
                     view(cache.build_nodes_gpu, 1:build_count_val),
                     cache.K, cache.target_mask_buf, backend,
@@ -171,14 +171,8 @@ function grow_tree!(
             end
 
             # Compute larger children via subtraction
-            if subtract_count_val > 0
-                subtract_hist_kernel!(backend)(
-                    cache.h∇,
-                    view(cache.subtract_nodes_gpu, 1:subtract_count_val);
-                    ndrange=subtract_count_val * size(cache.h∇, 1) * size(cache.h∇, 2) * size(cache.h∇, 3),
-                )
-                KernelAbstractions.synchronize(backend)
-            end
+            subtract_count_val > 0 && EvoTrees.subtract_hist!(
+                cache.h∇, view(cache.subtract_nodes_gpu, 1:subtract_count_val), cache.js)
 
             compute_nodes_sum_kernel!(backend)(
                 cache.nodes_sum_gpu, cache.h∇, active_nodes, cache.js, cache.K;

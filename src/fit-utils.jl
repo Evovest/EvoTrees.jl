@@ -312,17 +312,63 @@ function split_set_single!(
 end
 
 """
-    update_hist!
-        GradientRegression
+    subtract_hist!(h∇, nodes, js)
+
+`h∇[:, :, j, n] = h∇[:, :, j, n >> 1] - h∇[:, :, j, n ⊻ 1]` for `n ∈ nodes`, `j ∈ js`.
+Reshaped so the `(2K+1, nbins)` plane is one contiguous `@simd` run. Backends
+add methods on this signature.
 """
-function update_hist!(
-    ::Type{L},
-    hist::Array,
-    ∇::Matrix,
-    x_bin::Matrix,
-    is::AbstractVector,
-    js::AbstractVector,
-) where {L<:GradientRegression}
+function subtract_hist!(h∇::Array, nodes, js)
+    h = reshape(h∇, :, size(h∇, 3), size(h∇, 4))
+    @threads for n in nodes
+        np, ns = n >> 1, n ⊻ 1
+        @inbounds for j in js
+            @simd for i in axes(h, 1)
+                h[i, j, n] = h[i, j, np] - h[i, j, ns]
+            end
+        end
+    end
+    return nothing
+end
+
+# Software prefetch (LLVM `llvm.prefetch`, read / locality T0 / data cache).
+# Mirrors XGBoost's PREFETCH_READ_T0 in RowsWiseBuildHistKernel.
+@static if VERSION >= v"1.11"
+    @inline _prefetch(p::Ptr{UInt8}) = ccall("llvm.prefetch.p0", llvmcall, Cvoid,
+        (Ptr{UInt8}, Int32, Int32, Int32), p, Int32(0), Int32(3), Int32(1))
+else
+    @inline _prefetch(p::Ptr{UInt8}) = ccall("llvm.prefetch.p0i8", llvmcall, Cvoid,
+        (Ptr{UInt8}, Int32, Int32, Int32), p, Int32(0), Int32(3), Int32(1))
+end
+
+const PREFETCH_ROWS = 10
+
+"""
+    update_hist!(hist, ∇, x_bin, x_bin_T, is, js, depth)
+
+Accumulate gradients into one node's histogram slice.
+
+Two internal bodies, selected at run time:
+
+  - `_hist_feat_major!` walks one feature at a time over `x_bin` and threads
+    over `js`. Used at `depth == 1`, where there is a single node and the
+    outer node loop cannot supply parallelism, and for `2K+1 != 3`.
+  - `_hist_obs_major!` walks one observation at a time over `x_bin_T`, where
+    all of a row's bins are contiguous, and software-prefetches
+    `PREFETCH_ROWS` ahead. Serial; the caller threads over nodes.
+
+Both accumulate in ascending `is` order, so results are bitwise identical.
+"""
+function update_hist!(hist, ∇, x_bin, x_bin_T, is, js, depth)
+    if depth > 1 && size(hist, 1) == 3
+        _hist_obs_major!(hist, ∇, x_bin_T, is, js)
+    else
+        _hist_feat_major!(hist, ∇, x_bin, is, js)
+    end
+    return nothing
+end
+
+function _hist_feat_major!(hist, ∇, x_bin, is, js)
     hist .= 0
     if size(hist, 1) == 3
         @threads for j in js
@@ -346,36 +392,41 @@ function update_hist!(
     return nothing
 end
 
-"""
-    update_hist!
-        
-Generic fallback - Softmax
-"""
-function update_hist!(
-    ::Type{L},
-    hist::Array,
-    ∇::Matrix,
-    x_bin::Matrix,
-    is::AbstractVector,
-    js::AbstractVector,
-) where {L}
+function _hist_obs_major!(hist, ∇::Matrix{T}, x_bin_T::Matrix{UInt8}, is, js) where {T}
     hist .= 0
-    @threads for j in js
-        @inbounds for i in is
-            bin = x_bin[i, j]
-            @inbounds @simd for k in axes(∇, 1)
-                hist[k, bin, j] += ∇[k, i]
+    nfeats = size(x_bin_T, 1)
+    stride = size(∇, 1) * sizeof(T)
+    pxb = Ptr{UInt8}(pointer(x_bin_T))
+    pgr = Ptr{UInt8}(pointer(∇))
+    n = length(is)
+    GC.@preserve x_bin_T ∇ begin
+        @inbounds for idx in 1:n
+            i = Int(is[idx])
+            if idx + PREFETCH_ROWS <= n
+                ip = Int(is[idx+PREFETCH_ROWS])
+                pb = pxb + (ip - 1) * nfeats
+                _prefetch(pb)
+                nfeats > 64 && _prefetch(pb + 64)
+                _prefetch(pgr + (ip - 1) * stride)
+            end
+            g1, g2, g3 = ∇[1, i], ∇[2, i], ∇[3, i]
+            for j in js
+                bin = x_bin_T[j, i]
+                hist[1, bin, j] += g1
+                hist[2, bin, j] += g2
+                hist[3, bin, j] += g3
             end
         end
     end
     return nothing
 end
 
-
 """
     get_best_split(
         ::Type{L},
+        h∇, h∇L, h∇R,
         node::TrainNode,
+        n,
         js,
         params::EvoTypes,
         feattypes::Vector{Bool},
@@ -386,16 +437,20 @@ Generic fallback
 """
 function get_best_split(
     ::Type{L},
+    h∇,
+    h∇L,
+    h∇R,
     node::TrainNode,
+    n::Integer,
     js,
     params::EvoTypes,
     feattypes::Vector{Bool},
     monotone_constraints,
 ) where {L<:LossType}
 
-    h = view(node.h, :, :, js)
-    hL = view(node.hL, :, :, js)
-    hR = view(node.hR, :, :, js)
+    h = view(h∇, :, :, js, n)
+    hL = view(h∇L, :, :, js, n)
+    hR = view(h∇R, :, :, js, n)
     constraints = view(monotone_constraints, js)
     num_flags = view(feattypes, js)
     ∑ = node.∑
@@ -443,7 +498,9 @@ end
 """
     update_gains!(
         ::Type{L},
+        h∇, h∇L, h∇R,
         node::TrainNode,
+        n,
         js,
         params::EvoTypes,
         feattypes::Vector{Bool},
@@ -452,16 +509,20 @@ end
 """
 function update_gains!(
     ::Type{L},
+    h∇,
+    h∇L,
+    h∇R,
     node::TrainNode,
+    n::Integer,
     js,
     params::EvoTypes,
     feattypes::Vector{Bool},
     monotone_constraints,
 ) where {L<:LossType}
 
-    h = view(node.h, :, :, js)
-    hL = view(node.hL, :, :, js)
-    hR = view(node.hR, :, :, js)
+    h = view(h∇, :, :, js, n)
+    hL = view(h∇L, :, :, js, n)
+    hR = view(h∇R, :, :, js, n)
     gains = view(node.gains, :, js)
     constraints = view(monotone_constraints, js)
     num_flags = view(feattypes, js)

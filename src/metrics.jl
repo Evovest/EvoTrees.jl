@@ -1,6 +1,3 @@
-@inline _metric_target(y::AbstractVector, k, i) = y[i]
-@inline _metric_target(y::AbstractMatrix, k, i) = y[k, i]
-
 @inline _metric_value(::Type{MSE}, pk, yk, alpha) = (pk - yk)^2
 @inline _metric_value(::Type{MAE}, pk, yk, alpha) = abs(pk - yk)
 
@@ -15,7 +12,8 @@ end
 
 @inline function _metric_value(::Type{Poisson}, pk, yk, alpha)
     pred = exp(pk)
-    return 2 * (yk * (log(yk) - log(pred)) + pred - yk)
+    ϵ = eps(typeof(pk)(1e-7))
+    return 2 * (yk * log(yk / pred + ϵ) + pred - yk)
 end
 
 @inline function _metric_value(::Type{Gamma}, pk, yk, alpha)
@@ -42,7 +40,7 @@ function _eval_metric(
     @threads for i in eachindex(w)
         acc = zero(T)
         @inbounds for k in 1:K
-            acc += _metric_value(M, p[k, i], _metric_target(y, k, i), alpha)
+            acc += _metric_value(M, p[k, i], _target(y, k, i), alpha)
         end
         eval[i] = w[i] * acc / K
     end
@@ -100,7 +98,7 @@ function _eval_mle2p_metric(
     @threads for i in eachindex(w)
         acc = zero(T)
         @inbounds for t in 1:Y
-            acc += _mle2p_metric_value(M, p[2t-1, i], p[2t, i], _metric_target(y, t, i))
+            acc += _mle2p_metric_value(M, p[2t-1, i], p[2t, i], _target(y, t, i))
         end
         eval[i] = w[i] * acc / Y
     end
