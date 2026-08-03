@@ -344,23 +344,23 @@ end
 const PREFETCH_ROWS = 10
 
 """
-    update_hist!(hist, ∇, x_bin, x_bin_T, is, js, depth)
+    update_hist!(hist, ∇, x_bin, x_bin_T, is, js, obs_major)
 
 Accumulate gradients into one node's histogram slice.
 
 Two internal bodies, selected at run time:
 
   - `_hist_feat_major!` walks one feature at a time over `x_bin` and threads
-    over `js`. Used at `depth == 1`, where there is a single node and the
-    outer node loop cannot supply parallelism, and for `2K+1 != 3`.
+    over `js`. Used when the caller has fewer build nodes than threads, so the
+    outer node loop cannot saturate them, and for `2K+1 != 3`.
   - `_hist_obs_major!` walks one observation at a time over `x_bin_T`, where
     all of a row's bins are contiguous, and software-prefetches
     `PREFETCH_ROWS` ahead. Serial; the caller threads over nodes.
 
 Both accumulate in ascending `is` order, so results are bitwise identical.
 """
-function update_hist!(hist, ∇, x_bin, x_bin_T, is, js, depth)
-    if depth > 1 && size(hist, 1) == 3
+function update_hist!(hist, ∇, x_bin, x_bin_T, is, js, obs_major::Bool)
+    if obs_major && size(hist, 1) == 3
         _hist_obs_major!(hist, ∇, x_bin_T, is, js)
     else
         _hist_feat_major!(hist, ∇, x_bin, is, js)
