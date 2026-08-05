@@ -341,73 +341,109 @@ else
         (Ptr{UInt8}, Int32, Int32, Int32), p, Int32(0), Int32(3), Int32(1))
 end
 
-const PREFETCH_ROWS = 10
-
 """
-    update_hist!(hist, ∇, x_bin, x_bin_T, is, js, obs_major)
+    update_hist!(nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
 
-Accumulate gradients into one node's histogram slice.
+Accumulate gradients into `nodes[n].h` for each `n` in `build_nodes`.
 
-Two internal bodies, selected at run time:
-
-  - `_hist_feat_major!` walks one feature at a time over `x_bin` and threads
-    over `js`. Used when the caller has fewer build nodes than threads, so the
-    outer node loop cannot saturate them, and for `2K+1 != 3`.
-  - `_hist_obs_major!` walks one observation at a time over `x_bin_T`, where
-    all of a row's bins are contiguous, and software-prefetches
-    `PREFETCH_ROWS` ahead. Serial; the caller threads over nodes.
-
-Both accumulate in ascending `is` order, so results are bitwise identical.
+For `size(h, 1) == 3`, build observation-major over `x_bin_T` with a
+`(node × row_block)` schedule and reduce from `h∇_tls`. Task count is capped by
+`HIST_TASKS` (independent of `nthreads()`), so reduction order is reproducible
+across machines but not bit-identical to a serial scan of `is`. For
+`size(h, 1) != 3`, build feature-major over `x_bin` with a `(node × feature)`
+schedule.
 """
-function update_hist!(hist, ∇, x_bin, x_bin_T, is, js, obs_major::Bool)
-    if obs_major && size(hist, 1) == 3
-        _hist_obs_major!(hist, ∇, x_bin_T, is, js)
-    else
-        _hist_feat_major!(hist, ∇, x_bin, is, js)
+function update_hist!(nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
+    isempty(build_nodes) && return nothing
+    n_build = length(build_nodes)
+
+    if size(nodes[first(build_nodes)].h, 1) != 3
+        nj = length(js)
+        @threads for n in build_nodes
+            fill!(nodes[n].h, 0)
+        end
+        @threads for t = 1:(n_build * nj)
+            ni, ji = fldmod1(t, nj)
+            n = build_nodes[ni]
+            _hist_feat!(nodes[n].h, ∇, x_bin, nodes[n].is, js[ji])
+        end
+        return nothing
+    end
+
+    stride = max(1, HIST_TASKS ÷ n_build)
+    nblocks = [min(stride, max(1, cld(length(nodes[n].is), MIN_BLOCK_ROWS))) for n in build_nodes]
+    if all(isone, nblocks)
+        @threads for n in build_nodes
+            hist = nodes[n].h
+            fill!(hist, 0)
+            is_n = nodes[n].is
+            isempty(is_n) || _hist_obs!(hist, ∇, x_bin_T, is_n, js, 1, length(is_n))
+        end
+        return nothing
+    end
+
+    ntasks = n_build * stride
+    @assert length(h∇_tls) >= ntasks
+    @threads for n in build_nodes
+        fill!(nodes[n].h, 0)
+    end
+    @threads for tid in 1:ntasks
+        ni, bi = fldmod1(tid, stride)
+        bi > nblocks[ni] && continue
+        is_n = nodes[build_nodes[ni]].is
+        nobs = length(is_n)
+        chunk = cld(nobs, nblocks[ni])
+        lo = (bi - 1) * chunk + 1
+        hi = min(bi * chunk, nobs)
+        partial = h∇_tls[tid]
+        fill!(partial, 0)
+        lo <= hi && _hist_obs!(partial, ∇, x_bin_T, is_n, js, lo, hi)
+    end
+    @threads for j in js
+        for ni in 1:n_build
+            hist = nodes[build_nodes[ni]].h
+            for bi in 1:nblocks[ni]
+                @inbounds @views hist[:, :, j] .+= h∇_tls[(ni - 1) * stride + bi][:, :, j]
+            end
+        end
     end
     return nothing
 end
 
-function _hist_feat_major!(hist, ∇, x_bin, is, js)
-    hist .= 0
-    if size(hist, 1) == 3
-        @threads for j in js
-            @inbounds @simd for i in is
-                bin = x_bin[i, j]
-                hist[1, bin, j] += ∇[1, i]
-                hist[2, bin, j] += ∇[2, i]
-                hist[3, bin, j] += ∇[3, i]
-            end
-        end
-    else
-        @threads for j in js
-            @inbounds for i in is
-                bin = x_bin[i, j]
-                @simd for k in axes(∇, 1)
-                    hist[k, bin, j] += ∇[k, i]
-                end
-            end
+"""
+    _hist_feat!(hist, ∇, x_bin, is, j)
+
+Add feature `j` for rows `is` into `hist[:, :, j]`.
+"""
+@inline function _hist_feat!(hist, ∇, x_bin, is, j)
+    @inbounds for i in is
+        bin = x_bin[i, j]
+        @simd for k in axes(∇, 1)
+            hist[k, bin, j] += ∇[k, i]
         end
     end
     return nothing
 end
 
-function _hist_obs_major!(hist, ∇::Matrix{T}, x_bin_T::Matrix{UInt8}, is, js) where {T}
-    hist .= 0
+"""
+    _hist_obs!(hist, ∇, x_bin_T, is, js, idx0, idx1)
+
+Add rows `is[idx0:idx1]` into `hist` from observation-major `x_bin_T`.
+"""
+function _hist_obs!(hist, ∇::Matrix{T}, x_bin_T::Matrix{UInt8}, is, js, idx0, idx1) where {T}
     nfeats = size(x_bin_T, 1)
-    stride = size(∇, 1) * sizeof(T)
+    gstride = size(∇, 1) * sizeof(T)
     pxb = Ptr{UInt8}(pointer(x_bin_T))
     pgr = Ptr{UInt8}(pointer(∇))
-    n = length(is)
     GC.@preserve x_bin_T ∇ begin
-        @inbounds for idx in 1:n
+        @inbounds for idx in idx0:idx1
             i = Int(is[idx])
-            if idx + PREFETCH_ROWS <= n
+            if idx + PREFETCH_ROWS <= idx1
                 ip = Int(is[idx+PREFETCH_ROWS])
                 pb = pxb + (ip - 1) * nfeats
                 _prefetch(pb)
                 nfeats > 64 && _prefetch(pb + 64)
-                _prefetch(pgr + (ip - 1) * stride)
+                _prefetch(pgr + (ip - 1) * gstride)
             end
             g1, g2, g3 = ∇[1, i], ∇[2, i], ∇[3, i]
             for j in js
