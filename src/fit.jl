@@ -86,8 +86,12 @@ function grow_tree!(
             end
         else
             # look for best split for each node
-            @threads for n ∈ n_current[1:2:end]
-                update_hist!(nodes[n].h, ∇, x_bin, x_bin_T, nodes[n].is, js, depth)
+            build_nodes = view(n_current, 1:2:lastindex(n_current))
+            # obs-major is serial per node, so it only pays once the node loop
+            # can saturate the threads. Shallow levels stay feature-parallel.
+            obs_major = length(build_nodes) >= nthreads()
+            @threads for n ∈ build_nodes
+                update_hist!(nodes[n].h, ∇, x_bin, x_bin_T, nodes[n].is, js, obs_major)
             end
             subtract_hist!(h∇, view(n_current, 2:2:lastindex(n_current)), js)
             sort!(n_current)
@@ -190,8 +194,12 @@ function grow_otree!(
             end
         else
             # look for best split for each node
-            @threads for n ∈ n_current[1:2:end]
-                update_hist!(nodes[n].h, ∇, x_bin, x_bin_T, nodes[n].is, js, depth)
+            build_nodes = view(n_current, 1:2:lastindex(n_current))
+            # obs-major is serial per node, so it only pays once the node loop
+            # can saturate the threads. Shallow levels stay feature-parallel.
+            obs_major = length(build_nodes) >= nthreads()
+            @threads for n ∈ build_nodes
+                update_hist!(nodes[n].h, ∇, x_bin, x_bin_T, nodes[n].is, js, obs_major)
             end
             subtract_hist!(h∇, view(n_current, 2:2:lastindex(n_current)), js)
             sort!(n_current)
