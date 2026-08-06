@@ -162,7 +162,7 @@ function EvoTrees.update_hist!(h∇, ∇, x_bin, nidx, js, is, active_nodes, K, 
         KernelAbstractions.synchronize(backend)
     end
 
-    chunk_size = 16
+    chunk_size = EvoTrees.HIST_OBS_CHUNK
     n_obs_chunks = cld(length(is), chunk_size)
     num_threads = length(js) * n_obs_chunks
 

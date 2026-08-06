@@ -16,6 +16,14 @@ end
 
 function gpu_backend end
 
+# Hist tuning knobs collected here so both backends' chunking constants sit together.
+# PREFETCH_ROWS / HIST_TASKS / MIN_BLOCK_ROWS: CPU obs-major hist.
+# HIST_OBS_CHUNK: GPU hist_kernel! row chunk.
+const PREFETCH_ROWS = 10
+const HIST_OBS_CHUNK = 16
+const HIST_TASKS = 64
+const MIN_BLOCK_ROWS = 2_048
+
 """
     TrainNode{S,V,M}
     
@@ -48,7 +56,7 @@ abstract type Cache end
 abstract type CacheCPU <: Cache end
 abstract type CacheGPU <: Cache end
 
-struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4}} <: CacheCPU
+struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4},HT<:AbstractArray{<:AbstractFloat,3}} <: CacheCPU
     rng::Xoshiro
     K::UInt8
     x_bin::Matrix{UInt8}
@@ -66,6 +74,7 @@ struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4}} <: Cache
     h∇::H
     h∇L::H
     h∇R::H
+    h∇_tls::Vector{HT}
     feature_names::Vector{Symbol}
     featbins::Vector{UInt8}
     feattypes::Vector{Bool}
