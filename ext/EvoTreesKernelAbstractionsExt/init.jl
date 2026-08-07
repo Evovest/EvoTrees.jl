@@ -91,6 +91,10 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
     # Layout: [2K+1, n_sampled_feats * max_tree_nodes]; col = (node_idx-1)*n_sampled_feats + feat_idx.
     split_sums_temp_gpu = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, n_sampled_feats * max_tree_nodes)
 
+    # Oblivious level-gain buffers: sum over nodes per (bin, sampled feature).
+    obliv_gains_gpu = KernelAbstractions.zeros(backend, Float64, params.nbins, n_sampled_feats)
+    obliv_count_gpu = KernelAbstractions.zeros(backend, Int32, params.nbins, n_sampled_feats)
+
     Y = typeof(y)
     N = typeof(first(nodes))
     cache = CacheBaseGPU{Y,N}(
@@ -142,7 +146,9 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
         node_counts_gpu,
         sums_temp_gpu, gains_per_feat_gpu,
         bins_per_feat_gpu,
-        split_sums_temp_gpu
+        split_sums_temp_gpu,
+        obliv_gains_gpu,
+        obliv_count_gpu
     )
 
     return m, cache
