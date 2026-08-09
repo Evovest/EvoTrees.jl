@@ -10,7 +10,8 @@ function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, param
         copyto!(cache.js, js_cpu)
 
         tree = EvoTrees.Tree{L,K}(params.max_depth)
-        grow_tree!(tree, params, cache, is)
+        grow! = params.tree_type == :oblivious ? grow_otree! : grow_tree!
+        grow!(tree, params, cache, is, js_cpu)
         push!(m.trees, tree)
         EvoTrees.predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
     end
@@ -20,11 +21,9 @@ function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, param
 end
 
 """
-	grow_otree!(tree, params, cache, is)
+	grow_otree!(tree, params, cache, is, js_cpu)
 
-Grow an oblivious tree on GPU.
-
-GPU oblivious-tree growth is not implemented yet; falls back to `grow_tree!` and emits a warning.
+Grow an oblivious tree on GPU (one shared split per depth).
 
 Mutates:
 - `tree`: the resulting tree structure and leaf predictions
@@ -35,15 +34,96 @@ function grow_otree!(
     params::EvoTrees.EvoTypes,
     cache::EvoTrees.CacheGPU,
     is::CuVector,
+    js_cpu::AbstractVector,
 ) where {L,K}
-    @warn "Oblivious tree GPU implementation not yet available, using standard tree" maxlog = 1
-    grow_tree!(tree, params, cache, is)
+    grow_tree!(tree, params, cache, is, js_cpu, Val(true))
 end
 
 """
-	grow_tree!(tree, params, cache, is)
+	_select_binary_split!(cache, backend, L, params, active_nodes, n_feats, n_active)
+
+Best split per active node into `best_gain` / `best_bin` / `best_feat`.
+"""
+function _select_binary_split!(
+    cache::EvoTrees.CacheGPU, backend, ::Type{L}, params::EvoTrees.EvoTypes,
+    active_nodes, n_feats::Int, n_active::Int,
+) where {L}
+    gains = view(cache.gains_per_feat_gpu, 1:n_feats, 1:n_active)
+    bins = view(cache.bins_per_feat_gpu, 1:n_feats, 1:n_active)
+
+    find_best_split_parallel_kernel!(backend)(
+        L, gains, bins,
+        cache.h∇, cache.nodes_sum_gpu, active_nodes,
+        cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
+        params.lambda, params.L2, params.min_weight,
+        cache.K, n_feats, cache.split_sums_temp_gpu;
+        ndrange=n_active * n_feats,
+    )
+
+    reduce_best_split_kernel!(backend)(
+        view(cache.best_gain_gpu, 1:n_active),
+        view(cache.best_bin_gpu, 1:n_active),
+        view(cache.best_feat_gpu, 1:n_active),
+        gains, bins, cache.js, n_feats;
+        ndrange=n_active,
+    )
+    return nothing
+end
+
+"""
+	_select_obliv_split!(cache, backend, L, params, active_nodes, n_feats, n_active, js_cpu)
+
+One shared split for the depth, broadcast into every active-node `best_*` slot.
+`js_cpu` is the host copy of `cache.js` for this tree.
+"""
+function _select_obliv_split!(
+    cache::EvoTrees.CacheGPU, backend, ::Type{L}, params::EvoTrees.EvoTypes,
+    active_nodes, n_feats::Int, n_active::Int, js_cpu,
+) where {L}
+    gains = view(cache.obliv_gains_gpu, :, 1:n_feats)
+    counts = view(cache.obliv_count_gpu, :, 1:n_feats)
+    gains .= 0
+    counts .= 0
+
+    accumulate_obliv_gains_kernel!(backend)(
+        L, gains, counts,
+        cache.h∇, cache.nodes_sum_gpu, active_nodes,
+        cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
+        params.lambda, params.L2, params.min_weight,
+        cache.K, n_feats, cache.split_sums_temp_gpu;
+        ndrange=n_active * n_feats,
+    )
+
+    # nbins × n_feats is small; host findmax is simpler than a device reduce.
+    g_host = Array(gains)
+    c_host = Array(counts)
+    @inbounds for i in eachindex(g_host)
+        c_host[i] == Int32(n_active) || (g_host[i] = -Inf)
+    end
+
+    best_gain, idx = findmax(g_host)
+    best_bin = Int32(idx[1])
+    best_feat = Int32(js_cpu[idx[2]])
+    if !isfinite(best_gain)
+        best_gain, best_bin, best_feat = -Inf, Int32(0), Int32(0)
+    end
+
+    broadcast_obliv_split_kernel!(backend)(
+        view(cache.best_gain_gpu, 1:n_active),
+        view(cache.best_bin_gpu, 1:n_active),
+        view(cache.best_feat_gpu, 1:n_active),
+        Float64(best_gain), best_bin, best_feat;
+        ndrange=n_active,
+    )
+    return nothing
+end
+
+"""
+	grow_tree!(tree, params, cache, is, js_cpu)
+	grow_tree!(tree, params, cache, is, js_cpu, ::Val{oblivious})
 
 Grow a binary decision tree on GPU, level-by-level (breadth-first).
+Pass `Val(true)` for oblivious (shared split per depth).
 
 Mutates:
 - `tree`: split structure and leaf predictions (copied back from GPU buffers)
@@ -54,7 +134,19 @@ function grow_tree!(
     params::EvoTrees.EvoTypes,
     cache::EvoTrees.CacheGPU,
     is::CuVector,
+    js_cpu::AbstractVector,
 ) where {L,K}
+    grow_tree!(tree, params, cache, is, js_cpu, Val(false))
+end
+
+function grow_tree!(
+    tree::EvoTrees.Tree{L,K},
+    params::EvoTrees.EvoTypes,
+    cache::EvoTrees.CacheGPU,
+    is::CuVector,
+    js_cpu::AbstractVector,
+    ::Val{OBLIVIOUS},
+) where {L,K,OBLIVIOUS}
 
     backend = KernelAbstractions.get_backend(cache.x_bin)
 
@@ -102,29 +194,11 @@ function grow_tree!(
         )
         KernelAbstractions.synchronize(backend)
 
-        find_best_split_parallel_kernel!(backend)(
-            L,
-            view(cache.gains_per_feat_gpu, 1:n_feats, 1:1),
-            view(cache.bins_per_feat_gpu, 1:n_feats, 1:1),
-            cache.h∇, cache.nodes_sum_gpu,
-            view(cache.anodes_gpu, 1:1),
-            cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
-            params.lambda, params.L2, params.min_weight,
-            cache.K, n_feats, cache.split_sums_temp_gpu;
-            ndrange=n_feats,
-        )
-        KernelAbstractions.synchronize(backend)
-
-        reduce_best_split_kernel!(backend)(
-            view(cache.best_gain_gpu, 1:1),
-            view(cache.best_bin_gpu, 1:1),
-            view(cache.best_feat_gpu, 1:1),
-            view(cache.gains_per_feat_gpu, 1:n_feats, 1:1),
-            view(cache.bins_per_feat_gpu, 1:n_feats, 1:1),
-            cache.js, n_feats;
-            ndrange=1,
-        )
-        KernelAbstractions.synchronize(backend)
+        if OBLIVIOUS
+            _select_obliv_split!(cache, backend, L, params, view(cache.anodes_gpu, 1:1), n_feats, 1, js_cpu)
+        else
+            _select_binary_split!(cache, backend, L, params, view(cache.anodes_gpu, 1:1), n_feats, 1)
+        end
 
         n_active = 1
     end
@@ -180,29 +254,11 @@ function grow_tree!(
             )
             KernelAbstractions.synchronize(backend)
 
-            find_best_split_parallel_kernel!(backend)(
-                L,
-                view(cache.gains_per_feat_gpu, 1:n_feats, 1:n_active),
-                view(cache.bins_per_feat_gpu, 1:n_feats, 1:n_active),
-                cache.h∇, cache.nodes_sum_gpu,
-                active_nodes,
-                cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
-                params.lambda, params.L2, params.min_weight,
-                cache.K, n_feats, cache.split_sums_temp_gpu;
-                ndrange=n_active * n_feats,
-            )
-            KernelAbstractions.synchronize(backend)
-
-            reduce_best_split_kernel!(backend)(
-                view(cache.best_gain_gpu, 1:n_active),
-                view(cache.best_bin_gpu, 1:n_active),
-                view(cache.best_feat_gpu, 1:n_active),
-                view(cache.gains_per_feat_gpu, 1:n_feats, 1:n_active),
-                view(cache.bins_per_feat_gpu, 1:n_feats, 1:n_active),
-                cache.js, n_feats;
-                ndrange=n_active,
-            )
-            KernelAbstractions.synchronize(backend)
+            if OBLIVIOUS
+                _select_obliv_split!(cache, backend, L, params, active_nodes, n_feats, n_active, js_cpu)
+            else
+                _select_binary_split!(cache, backend, L, params, active_nodes, n_feats, n_active)
+            end
         end
 
         # Apply splits
