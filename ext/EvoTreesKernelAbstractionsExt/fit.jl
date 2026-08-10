@@ -46,7 +46,7 @@ Best split per active node into `best_gain` / `best_bin` / `best_feat`.
 """
 function _select_binary_split!(
     cache::EvoTrees.CacheGPU, backend, ::Type{L}, params::EvoTrees.EvoTypes,
-    active_nodes, n_feats::Int, n_active::Int,
+    active_nodes, n_feats::Integer, n_active::Integer,
 ) where {L}
     gains = view(cache.gains_per_feat_gpu, 1:n_feats, 1:n_active)
     bins = view(cache.bins_per_feat_gpu, 1:n_feats, 1:n_active)
@@ -78,7 +78,7 @@ One shared split for the depth, broadcast into every active-node `best_*` slot.
 """
 function _select_obliv_split!(
     cache::EvoTrees.CacheGPU, backend, ::Type{L}, params::EvoTrees.EvoTypes,
-    active_nodes, n_feats::Int, n_active::Int, js_cpu,
+    active_nodes, n_feats::Integer, n_active::Integer, js_cpu,
 ) where {L}
     gains = view(cache.obliv_gains_gpu, :, 1:n_feats)
     counts = view(cache.obliv_count_gpu, :, 1:n_feats)
@@ -276,7 +276,7 @@ function grow_tree!(
         )
         KernelAbstractions.synchronize(backend)
 
-        n_active = Array(cache.n_next_active_gpu)[1]
+        n_active = Int(Array(cache.n_next_active_gpu)[1])
         if n_active > 0
             copyto!(view(cache.anodes_gpu, 1:n_active), view(cache.n_next_gpu, 1:n_active))
         end
