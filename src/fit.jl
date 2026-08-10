@@ -45,6 +45,7 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
 end
 
 # grow a single tree
+# `h∇_tls` is only used by `HistByRowBlock` (see `CacheBaseCPU.h∇_tls`).
 function grow_tree!(
     tree::Tree{L,K},
     nodes::Vector{N},

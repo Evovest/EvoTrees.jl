@@ -344,44 +344,57 @@ end
 """
     update_hist!(nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
 
-Accumulate gradients into `nodes[n].h` for each `n` in `build_nodes`.
+Build `nodes[n].h` for each `n` in `build_nodes`. Dispatches on `hist_strategy`:
 
-For `size(h, 1) == 3`, build observation-major over `x_bin_T` with a
-`(node × row_block)` schedule and reduce from `h∇_tls`. Task count is capped by
-`HIST_TASKS` (independent of `nthreads()`), so reduction order is reproducible
-across machines but not bit-identical to a serial scan of `is`. For
-`size(h, 1) != 3`, build feature-major over `x_bin` with a `(node × feature)`
-schedule.
+| strategy         | kernel        | layout    | h∇_tls |
+|:-----------------|:--------------|:----------|:-------|
+| `HistByFeature`  | `_hist_feat!` | `x_bin`   | no     |
+| `HistByNode`     | `_hist_obs!`  | `x_bin_T` | no     |
+| `HistByRowBlock` | `_hist_obs!`  | `x_bin_T` | yes    |
 """
 function update_hist!(nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
     isempty(build_nodes) && return nothing
-    n_build = length(build_nodes)
+    _build_hist!(hist_strategy(build_nodes, nodes), nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
+end
 
-    if size(nodes[first(build_nodes)].h, 1) != 3
-        nj = length(js)
-        @threads for n in build_nodes
-            fill!(nodes[n].h, 0)
-        end
-        @threads for t = 1:(n_build * nj)
-            ni, ji = fldmod1(t, nj)
-            n = build_nodes[ni]
-            _hist_feat!(nodes[n].h, ∇, x_bin, nodes[n].is, js[ji])
-        end
-        return nothing
-    end
-
-    stride = max(1, HIST_TASKS ÷ n_build)
+function _hist_blocks(build_nodes, nodes)
+    stride = max(1, HIST_TASKS ÷ length(build_nodes))
     nblocks = [min(stride, max(1, cld(length(nodes[n].is), MIN_BLOCK_ROWS))) for n in build_nodes]
-    if all(isone, nblocks)
-        @threads for n in build_nodes
-            hist = nodes[n].h
-            fill!(hist, 0)
-            is_n = nodes[n].is
-            isempty(is_n) || _hist_obs!(hist, ∇, x_bin_T, is_n, js, 1, length(is_n))
-        end
-        return nothing
-    end
+    return stride, nblocks
+end
 
+function hist_strategy(build_nodes, nodes)
+    size(nodes[first(build_nodes)].h, 1) == 3 || return HistByFeature()
+    _, nblocks = _hist_blocks(build_nodes, nodes)
+    return any(>(1), nblocks) ? HistByRowBlock() : HistByNode()
+end
+
+function _build_hist!(::HistByFeature, nodes, build_nodes, ∇, x_bin, _x_bin_T, js, _h∇_tls)
+    n_build, nj = length(build_nodes), length(js)
+    @threads for n in build_nodes
+        fill!(nodes[n].h, 0)
+    end
+    @threads for t = 1:(n_build * nj)
+        ni, ji = fldmod1(t, nj)
+        n = build_nodes[ni]
+        _hist_feat!(nodes[n].h, ∇, x_bin, nodes[n].is, js[ji])
+    end
+    return nothing
+end
+
+function _build_hist!(::HistByNode, nodes, build_nodes, ∇, _x_bin, x_bin_T, js, _h∇_tls)
+    @threads for n in build_nodes
+        hist = nodes[n].h
+        fill!(hist, 0)
+        is_n = nodes[n].is
+        isempty(is_n) || _hist_obs!(hist, ∇, x_bin_T, is_n, js, 1, length(is_n))
+    end
+    return nothing
+end
+
+function _build_hist!(::HistByRowBlock, nodes, build_nodes, ∇, _x_bin, x_bin_T, js, h∇_tls)
+    n_build = length(build_nodes)
+    stride, nblocks = _hist_blocks(build_nodes, nodes)
     ntasks = n_build * stride
     @assert length(h∇_tls) >= ntasks
     @threads for n in build_nodes
