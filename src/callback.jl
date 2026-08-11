@@ -54,13 +54,17 @@ function CallBack(
         device <: GPU && (alphas_eval = V{T}(alphas_eval))
         metric_kwargs = (alphas=alphas_eval,)
     end
-
+    
+    if params.metric == :student_mle
+        metric_kwargs = (nu = Float64(_nu(params)),)
+    end
+    
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
     if !isnothing(offset)
         L == LogLoss && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
         L == MLogLoss && (offset .= log.(offset))
-        L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
+        L in [GaussianMLE, LogisticMLE, StudentMLE] && (offset[:, 2] .= log.(offset[:, 2]))
         offset = T.(offset)
         p .+= offset'
     end
@@ -104,13 +108,15 @@ function CallBack(
         device <: GPU && (alphas_eval = V{T}(alphas_eval))
         metric_kwargs = (alphas=alphas_eval,)
     end
-
+    if params.metric == :student_mle
+        metric_kwargs = (nu = Float64(_nu(params)),)
+    end
     offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
     if !isnothing(offset)
         L == LogLoss && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
         L == MLogLoss && (offset .= log.(offset))
-        L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
+        L in [GaussianMLE, LogisticMLE, StudentMLE] && (offset[:, 2] .= log.(offset[:, 2]))
         offset = T.(offset)
         p .+= offset'
     end

@@ -307,6 +307,7 @@ mutable struct EvoTreeMLE <: MMI.Probabilistic
     tree_type::Symbol
     seed::Int
     device::Symbol
+    nu::Float64
 end
 
 function EvoTreeMLE(; kwargs...)
@@ -331,7 +332,8 @@ function EvoTreeMLE(; kwargs...)
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => :binary,
         :seed => 123,
-        :device => :cpu
+        :device => :cpu,
+        :nu => 4.0
     )
 
     args_ignored = setdiff(keys(kwargs), keys(args))
@@ -343,13 +345,13 @@ function EvoTreeMLE(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    _loss_list = [:gaussian_mle, :logistic_mle]
+    _loss_list = [:gaussian_mle, :logistic_mle, :student_mle]
     loss = Symbol(args[:loss])
     if loss ∉ _loss_list
         error("Invalid loss. Must be one of: $_loss_list")
     end
 
-    _metric_list = [:gaussian_mle, :logistic_mle]
+    _metric_list = [:gaussian_mle, :logistic_mle, :student_mle]
     if isnothing(args[:metric])
         if loss ∈ [:cred_std, :cred_var]
             metric = :mae
@@ -386,7 +388,8 @@ function EvoTreeMLE(; kwargs...)
         args[:monotone_constraints],
         tree_type,
         args[:seed],
-        device
+        device,
+        args[:nu]
     )
 
     return model
@@ -541,7 +544,10 @@ function check_args(args::Dict{Symbol,Any})
         haskey(args, :alphas) || error("Missing parameter `alphas` for loss :multiquantile.")
         check_alphas(args[:alphas])
     end
-
+    if get(args, :loss, nothing) == :student_mle
+        haskey(args, :nu) || error("Missing parameter `nu` for loss :student_mle.")
+        args[:nu] > 2 || error("`nu` must be > 2 (finite variance). Got $(args[:nu]).")
+    end
     try
         tree_type = string(args[:tree_type])
         @assert tree_type ∈ ["binary", "oblivious"]
@@ -579,7 +585,10 @@ function check_args(model::EvoTypes)
         hasproperty(model, :alphas) || error("Missing parameter `alphas` for loss :multiquantile.")
         check_alphas(model.alphas)
     end
-
+    if hasproperty(model, :loss) && model.loss == :student_mle
+        hasproperty(model, :nu) || error("Missing parameter `nu` for loss :student_mle.")
+        model.nu > 2 || error("`nu` must be > 2 (finite variance). Got $(model.nu).")
+    end
     try
         tree_type = string(model.tree_type)
         @assert tree_type ∈ ["binary", "oblivious"]

@@ -94,6 +94,26 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
             end
             !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
         end
+    elseif L == StudentMLE
+        @assert eltype(y_train) <: Real
+        # sample sd -> t scale:  sd = σ√(ν/(ν-2))  =>  σ = sd·√((ν-2)/ν)
+        s = sqrt((params.nu - 2) / params.nu)
+        if y_train isa AbstractVector
+            K = 2
+            y = T.(y_train)
+            μ = [mean(y), log(std(y) * s)]
+            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+        else
+            Y = size(y_train, 1)
+            K = 2 * Y
+            y = T.(y_train)
+            μ = T[]
+            for t in 1:Y
+                yt = view(y, t, :)
+                push!(μ, mean(yt), log(std(yt) * s))
+            end
+            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+        end
     elseif L == MultiQuantile
         @assert eltype(y_train) <: Real
         K = length(params.alphas)
@@ -177,6 +197,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         :edges => edges,
         :featbins => featbins,
         :feattypes => feattypes,
+        :nu => _nu(params),
     )
 
     # initialize model

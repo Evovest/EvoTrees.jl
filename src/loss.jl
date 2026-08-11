@@ -10,6 +10,7 @@ abstract type Tweedie <: GradientRegression end
 abstract type MLogLoss <: LossType end
 abstract type GaussianMLE <: MLE2P end
 abstract type LogisticMLE <: MLE2P end
+abstract type StudentMLE  <: MLE2P end 
 abstract type Quantile <: LossType end
 abstract type MultiQuantile <: Quantile end
 abstract type MAE <: LossType end
@@ -26,6 +27,7 @@ const _loss2type_dict = Dict(
     :mlogloss => MLogLoss,
     :gaussian_mle => GaussianMLE,
     :logistic_mle => LogisticMLE,
+    :student_mle  => StudentMLE,
     :quantile => Quantile,
     :multiquantile => MultiQuantile,
     :mae => MAE,
@@ -175,9 +177,44 @@ end
     )
 end
 
+# StudentT (location-scale, ν fixed) - https://en.wikipedia.org/wiki/Student%27s_t-distribution
+# Robust-likelihood use, the weight (ν+1)/(ν+d²) and the ν=4 default:
+#   Lange, Little & Taylor (1989), "Robust Statistical Modeling Using the t Distribution",
+#   JASA 84(408), 881-896. https://www.tandfonline.com/doi/abs/10.1080/01621459.1989.10478852
+# -log f = const + ls + (ν+1)/2 * log(1 + d²/(ν σ²)),  d = μ - y,  σ = exp(ls)
+# h_μ is the FISHER information (ν+1)/((ν+3)σ²), not the observed hessian: the observed one
+# is inv*(ν+1)*(ν-u)/(ν+u)² which turns negative for |z| > √ν, and get_gain divides by
+# ∑h + λ∑w + L2. Verified numerically: E[(∂log f/∂μ)²]σ² = (ν+1)/(ν+3) exactly, → 1 as ν → ∞.
+# ν → ∞ collapses every line below onto GaussianMLE — the cheapest check on this kernel.
+# pred[i][1] = μ
+# pred[i][2] = log(σ)
+@inline function mle2p_grad_hess(::Type{StudentMLE}, μ, ls, yt, ν)
+    inv = exp(-2 * ls)          # 1/σ²
+    d = μ - yt
+    u = d^2 * inv               # squared standardised residual, z²
+    a = (ν + 1) / (ν + u)       # the robustness weight; → 1 as ν → ∞
+    return (
+        d * inv * a,                        # g_μ    → d*inv
+        1 - u * a,                          # g_ls   → 1 - d²*inv
+        inv * (ν + 1) / (ν + 3),            # h_μ    → inv        (Fisher, see below)
+        2 * u * ν * (ν + 1) / (ν + u)^2,    # h_ls   → 2*inv*d²
+    )
+end
+
+# ν is only meaningful for StudentMLE. The other two accept and ignore it so that
+# update_grads! stays a single call site with no branching on L inside the loop.
+@inline mle2p_grad_hess(::Type{GaussianMLE}, μ, ls, yt, _) = mle2p_grad_hess(GaussianMLE, μ, ls, yt)
+@inline mle2p_grad_hess(::Type{LogisticMLE}, μ, ls, yt, _) = mle2p_grad_hess(LogisticMLE, μ, ls, yt)
+
+# EvoTypes includes EvoTreeGaussian, which has no `nu` field — hence the guard rather
+# than a bare params.nu. `hasproperty` on a concrete type is constant-folded, so this
+# compiles away to either a field load or the literal 4.0.
+@inline _nu(params::EvoTypes) = hasproperty(params, :nu) ? params.nu : 4.0
+
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:MLE2P}
     Y = size(p, 1) ÷ 2
     w_row = 4 * Y + 1
+    ν = T(_nu(params))          # hoisted: loop-invariant, and T keeps the kernel in Float32
     @threads for i in axes(p, 2)
         @inbounds w = ∇[w_row, i]
         @inbounds for t in 1:Y
@@ -185,7 +222,7 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
             hb = 2 * Y + 2 * (t - 1)
             μ = p[2t-1, i]
             ls = p[2t, i]
-            g1, g2, h1, h2 = mle2p_grad_hess(L, μ, ls, _target(y, t, i))
+            g1, g2, h1, h2 = mle2p_grad_hess(L, μ, ls, _target(y, t, i), ν)
             ∇[gb+1, i] = g1 * w
             ∇[gb+2, i] = g2 * w
             ∇[hb+1, i] = h1 * w

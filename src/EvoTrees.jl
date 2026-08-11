@@ -18,6 +18,7 @@ using Tables
 using CategoricalArrays
 using Tables
 using BSON
+using SpecialFunctions: loggamma
 
 using NetworkLayout
 using RecipesBase

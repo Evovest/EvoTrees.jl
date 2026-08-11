@@ -113,7 +113,7 @@ function _predict(
         pred .= sigmoid.(pred)
     elseif L ∈ [Poisson, Gamma, Tweedie]
         pred .= exp.(pred)
-    elseif L in [GaussianMLE, LogisticMLE]
+    elseif L in [GaussianMLE, LogisticMLE, StudentMLE]
         pred[2:2:end, :] .= exp.(pred[2:2:end, :])
     elseif L == MLogLoss
         softmax!(pred)

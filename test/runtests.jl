@@ -15,6 +15,7 @@ using Test
         include("monotonic.jl")
         include("missings.jl")
         include("multi-target.jl")
+        include("studentmle.jl")
     end
 
     @testset "MLJ" begin

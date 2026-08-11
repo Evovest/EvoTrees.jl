@@ -88,19 +88,29 @@ wmae(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T}, eval::A
 @inline _mle2p_metric_value(::Type{GaussianMLE}, μ, ls, yt) = -(ls + (yt - μ)^2 / (2 * exp(2 * ls)))
 @inline _mle2p_metric_value(::Type{LogisticMLE}, μ, ls, yt) = log(1 / 4 * sech(exp(-ls) * (yt - μ))^2) - ls
 
+_student_const(ν) = loggamma((ν + 1) / 2) - loggamma(ν / 2) - 0.5 * log(ν * π)
+@inline function _mle2p_metric_value(::Type{StudentMLE}, μ, ls, yt, ν)
+    u = (yt - μ)^2 * exp(-2 * ls)
+    return _student_const(ν) - ls - (ν + 1) / 2 * log1p(u / ν)
+end
+@inline _mle2p_metric_value(::Type{GaussianMLE}, μ, ls, yt, _) = _mle2p_metric_value(GaussianMLE, μ, ls, yt)
+@inline _mle2p_metric_value(::Type{LogisticMLE}, μ, ls, yt, _) = _mle2p_metric_value(LogisticMLE, μ, ls, yt)
+
 function _eval_mle2p_metric(
     p::AbstractMatrix{T},
     y::AbstractVecOrMat{T},
     w::AbstractVector{T},
     eval::AbstractVector{T},
     ::Type{M};
+    nu=4.0,
     kwargs...
 ) where {T,M<:MLE2P}
     Y = size(p, 1) ÷ 2
+    ν = T(nu)
     @threads for i in eachindex(w)
         acc = zero(T)
         @inbounds for t in 1:Y
-            acc += _mle2p_metric_value(M, p[2t-1, i], p[2t, i], _metric_target(y, t, i))
+            acc += _mle2p_metric_value(M, p[2t-1, i], p[2t, i], _metric_target(y, t, i), ν)
         end
         eval[i] = w[i] * acc / Y
     end
@@ -111,6 +121,8 @@ gaussian_mle(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T},
     _eval_mle2p_metric(p, y, w, eval, GaussianMLE; kwargs...)
 logistic_mle(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T}, eval::AbstractVector{T}; kwargs...) where {T} =
     _eval_mle2p_metric(p, y, w, eval, LogisticMLE; kwargs...)
+student_mle(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T}, eval::AbstractVector{T}; kwargs...) where {T} =
+    _eval_mle2p_metric(p, y, w, eval, StudentMLE; kwargs...)
 
 function multiquantile(
     p::AbstractMatrix{T},
@@ -184,6 +196,7 @@ const metric_dict = Dict(
     :quantile => wmae,
     :multiquantile => multiquantile,
     :gini => gini,
+    :student_mle => student_mle,
 )
 
 is_maximise(::typeof(mse)) = false
@@ -199,3 +212,4 @@ is_maximise(::typeof(logistic_mle)) = true
 is_maximise(::typeof(wmae)) = false
 is_maximise(::typeof(multiquantile)) = false
 is_maximise(::typeof(gini)) = true
+is_maximise(::typeof(student_mle)) = true
