@@ -15,6 +15,7 @@ using Test
         include("monotonic.jl")
         include("missings.jl")
         include("multi-target.jl")
+        include("fit_callbacks.jl")
     end
 
     @testset "MLJ" begin

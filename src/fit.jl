@@ -273,6 +273,18 @@ end
 # A no-op on the CPU, but on the GPU we perform garbage collection
 post_fit_gc(::Type{<:CPU}) = nothing
 
+function _resolve_fit_callbacks(callbacks)
+    callbacks === nothing && return ()
+    return callbacks isa Tuple || callbacks isa AbstractVector ? callbacks : (callbacks,)
+end
+
+function _run_fit_callbacks(callbacks, model, logger, iteration)
+    for callback in callbacks
+        callback(model, logger, iteration)
+    end
+    return nothing
+end
+
 """
     fit(
         params::EvoTypes, 
@@ -282,6 +294,7 @@ post_fit_gc(::Type{<:CPU}) = nothing
         weight_name=nothing,
         offset_name=nothing,
         deval=nothing,
+        callbacks=(),
         print_every_n=9999,
         verbosity=1
         )
@@ -304,6 +317,9 @@ Main training function. Performs model fitting given configuration `params`, `dt
 - `weight_name = nothing`: name of the variable containing weights. If `nothing`, common weights on one will be used.
 - `offset_name = nothing`: name of the offset variable.
 - `deval`: A Tables compatible evaluation data containing features and target variables. 
+- `callbacks`: callback or collection of callbacks invoked as `callback(model, logger, iteration)`
+  after every completed boosting round and validation-metric update. The iteration-zero
+  baseline is not emitted. Exceptions propagate and return values are ignored.
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
 """
@@ -315,11 +331,13 @@ function fit(
     weight_name=nothing,
     offset_name=nothing,
     deval=nothing,
+    callbacks=(),
     print_every_n=9999,
     verbosity=1,
 )
 
     @assert Tables.istable(dtrain) "fit(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
+    fit_callbacks = _resolve_fit_callbacks(callbacks)
     dtrain = Tables.columntable(dtrain)
     _device = params.device == :gpu ? GPU : CPU
     m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name)
@@ -342,6 +360,9 @@ function fit(
             if i % print_every_n == 0 && verbosity > 0
                 @info "iter $i" metric = logger[:metrics][end]
             end
+        end
+        _run_fit_callbacks(fit_callbacks, m, logger, i)
+        if !isnothing(logger)
             (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
         end
     end
@@ -364,6 +385,7 @@ end
         w_eval=nothing, 
         offset_eval=nothing,
         feature_names=nothing,
+        callbacks=(),
         early_stopping_rounds=9999,
         print_every_n=9999,
         verbosity=1
@@ -390,6 +412,9 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
 - `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
+- `callbacks`: callback or collection of callbacks invoked as `callback(model, logger, iteration)`
+  after every completed boosting round and validation-metric update. The iteration-zero
+  baseline is not emitted. Exceptions propagate and return values are ignored.
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
 """
@@ -404,10 +429,12 @@ function fit(
     w_eval=nothing,
     offset_eval=nothing,
     feature_names=nothing,
+    callbacks=(),
     print_every_n=9999,
     verbosity=1
 )
 
+    fit_callbacks = _resolve_fit_callbacks(callbacks)
     _device = params.device == :gpu ? GPU : CPU
     m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train)
 
@@ -434,6 +461,9 @@ function fit(
             if i % print_every_n == 0 && verbosity > 0
                 @info "iter $i" metric = logger[:metrics][end]
             end
+        end
+        _run_fit_callbacks(fit_callbacks, m, logger, i)
+        if !isnothing(logger)
             (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
         end
     end
