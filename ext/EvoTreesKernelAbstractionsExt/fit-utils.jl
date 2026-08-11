@@ -544,7 +544,28 @@ Base.@propagate_inbounds function _init_split_scan(
 end
 
 """
-	_eval_split_bin(L, h∇, nodes_sum, node, f, b, is_numeric, constraint, acc…, w_p, gain_p, …)
+	_eval_split_bin(
+		::Type{L},
+		h∇,
+		nodes_sum,
+		node,
+		f,
+		b,
+		is_numeric,
+		constraint,
+		acc1,
+		acc2,
+		accw,
+		w_p,
+		gain_p,
+		lambda,
+		L2,
+		min_weight,
+		K,
+		sums_temp,
+		temp_idx,
+		ε,
+	)
 
 Advance left-side hist sums to bin `b` and return `(gain, acc1, acc2, accw)`.
 Ineligible bins get `gain = -Inf` but still update the accumulators.
@@ -671,7 +692,23 @@ Notes:
 end
 
 """
-	accumulate_obliv_gains_kernel!(L, gains_accum, count_accum, h∇, nodes_sum, active_nodes, js, feattypes, monotone_constraints, lambda, L2, min_weight, K, n_feats, sums_temp)
+	accumulate_obliv_gains_kernel!(
+		::Type{L},
+		gains_accum,
+		count_accum,
+		h∇,
+		nodes_sum,
+		active_nodes,
+		js,
+		feattypes,
+		monotone_constraints,
+		lambda,
+		L2,
+		min_weight,
+		K,
+		n_feats,
+		sums_temp,
+	)
 
 Sum eligible bin gains across active nodes into `gains_accum[bin, f]` and bump
 `count_accum[bin, f]`. A split is valid only when `count_accum == n_active`.
