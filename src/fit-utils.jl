@@ -363,6 +363,8 @@ function _hist_blocks(build_nodes, nodes)
     return stride, nblocks
 end
 
+# Obs-major is single-target only, tested as `size(h, 1) == 2K+1 == 3`.
+# Row-blocking kicks in once nodes are large enough to split (see `MIN_BLOCK_ROWS`).
 function hist_strategy(build_nodes, nodes)
     size(nodes[first(build_nodes)].h, 1) == 3 || return HistByFeature()
     _, nblocks = _hist_blocks(build_nodes, nodes)
@@ -442,6 +444,7 @@ end
     _hist_obs!(hist, ∇, x_bin_T, is, js, idx0, idx1)
 
 Add rows `is[idx0:idx1]` into `hist` from observation-major `x_bin_T`.
+Single-target only (`K == 1`): reads `∇[1:3, i]` directly. Guarded by `hist_strategy`.
 """
 function _hist_obs!(hist, ∇::Matrix{T}, x_bin_T::Matrix{UInt8}, is, js, idx0, idx1) where {T}
     nfeats = size(x_bin_T, 1)

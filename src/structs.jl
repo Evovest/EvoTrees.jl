@@ -19,10 +19,10 @@ function gpu_backend end
 # Hist tuning knobs collected here so both backends' chunking constants sit together.
 # PREFETCH_ROWS / HIST_TASKS / MIN_BLOCK_ROWS: CPU obs-major hist.
 # HIST_OBS_CHUNK: GPU hist_kernel! row chunk.
-const PREFETCH_ROWS = 10
+const PREFETCH_ROWS = 10      # rows ahead to prefetch; ~L1 latency / per-row work
 const HIST_OBS_CHUNK = 16
-const HIST_TASKS = 64
-const MIN_BLOCK_ROWS = 2_048
+const HIST_TASKS = 64         # task pool for row-blocked builds; also sizes h∇_tls
+const MIN_BLOCK_ROWS = 2_048  # don't row-block below this; raise if small-node builds regress
 
 abstract type HistStrategy end
 struct HistByFeature <: HistStrategy end   # _hist_feat!; parallel over (node × feature)
