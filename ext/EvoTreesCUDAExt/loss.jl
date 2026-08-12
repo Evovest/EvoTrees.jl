@@ -304,6 +304,87 @@ function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuMatrix, ::Type{
     return
 end
 
+################################################################################
+# StudentT (location-scale, ν fixed) - mirrors mle2p_grad_hess(::Type{StudentMLE}, ...)
+# in src/loss.jl.
+#
+# h_μ is the FISHER information inv*(ν+1)/(ν+3), not the observed hessian - the observed one
+# goes negative for |z| > √ν and get_gain divides by ∑h.
+#
+# ν -> Inf collapses every line onto kernel_gauss_∇!: a -> 1, (ν+1)/(ν+3) -> 1,
+# ν(ν+1)/(ν+u)² -> 1. phase0-parity.jl test 2 is exactly that check.
+# pred[i][1] = μ
+# pred[i][2] = log(σ)
+################################################################################
+function kernel_student_∇!(∇::CuDeviceMatrix, p::CuDeviceMatrix, y::CuDeviceVector, ν)
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    @inbounds if i <= length(y)
+        w = ∇[5, i]
+        μ = p[1, i]
+        ls = p[2, i]
+        inv = exp(-2 * ls)
+        d = μ - y[i]
+        u = d^2 * inv
+        a = (ν + 1) / (ν + u)
+        ∇[1, i] = d * inv * a * w
+        ∇[2, i] = (1 - u * a) * w
+        ∇[3, i] = inv * (ν + 1) / (ν + 3) * w
+        ∇[4, i] = 2 * u * ν * (ν + 1) / (ν + u)^2 * w
+    end
+    return
+end
+
+function EvoTrees.update_grads!(
+    ∇::CuMatrix,
+    p::CuMatrix,
+    y::CuVector,
+    ::Type{EvoTrees.StudentMLE},
+    params::EvoTrees.EvoTypes;
+    MAX_THREADS=1024,
+)
+    threads = min(MAX_THREADS, length(y))
+    blocks = cld(length(y), threads)
+    # eltype(p), NOT Float64. A Float64 literal captured in a Float32 kernel silently promotes
+    # every expression it touches and costs a large fraction of the throughput.
+    ν = eltype(p)(EvoTrees._nu(params))
+    @cuda blocks = blocks threads = threads kernel_student_∇!(∇, p, y, ν)
+    CUDA.synchronize()
+    return
+end
+
+function kernel_student_mt_∇!(∇, p, y, ν)
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i <= size(y, 2)
+        Y = size(p, 1) ÷ 2
+        w_row = 4 * Y + 1
+        @inbounds w = ∇[w_row, i]
+        @inbounds for t in 1:Y
+            gb = 2 * (t - 1)
+            hb = 2 * Y + 2 * (t - 1)
+            μ = p[2t-1, i]
+            ls = p[2t, i]
+            inv = exp(-2 * ls)
+            d = μ - y[t, i]
+            u = d^2 * inv
+            a = (ν + 1) / (ν + u)
+            ∇[gb+1, i] = d * inv * a * w
+            ∇[gb+2, i] = (1 - u * a) * w
+            ∇[hb+1, i] = inv * (ν + 1) / (ν + 3) * w
+            ∇[hb+2, i] = 2 * u * ν * (ν + 1) / (ν + u)^2 * w
+        end
+    end
+    return
+end
+
+function EvoTrees.update_grads!(∇::CuMatrix, p::CuMatrix, y::CuMatrix, ::Type{EvoTrees.StudentMLE}, params::EvoTrees.EvoTypes; MAX_THREADS=1024)
+    threads = min(MAX_THREADS, size(y, 2))
+    blocks = cld(size(y, 2), threads)
+    ν = eltype(p)(EvoTrees._nu(params))
+    @cuda blocks=blocks threads=threads kernel_student_mt_∇!(∇, p, y, ν)
+    CUDA.synchronize()
+    return
+end
+
 @inline gradreg_grad_hess(::Type{EvoTrees.MSE}, pk, yk) = (2 * (pk - yk), 2 * one(pk))
 @inline function gradreg_grad_hess(::Type{EvoTrees.LogLoss}, pk, yk)
     pred = EvoTrees.sigmoid(pk)

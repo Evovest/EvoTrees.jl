@@ -30,6 +30,18 @@ end
 @inline _mle2p_metric_value(::Type{EvoTrees.GaussianMLE}, μ, ls, yt) = -(ls + (yt - μ)^2 / (2 * exp(2 * ls)))
 @inline _mle2p_metric_value(::Type{EvoTrees.LogisticMLE}, μ, ls, yt) = log(1 / 4 * sech(exp(-ls) * (yt - μ))^2) - ls
 
+# StudentMLE. `loggamma` has no device implementation, so `_student_const(ν)` - which depends
+# on ν alone - is evaluated host-side in _eval_mle2p_metric and arrives as `cst`. That is the
+# ONLY structural difference from src/metrics.jl, where the 5-arg form computes it inline.
+@inline function _mle2p_metric_value(::Type{EvoTrees.StudentMLE}, μ, ls, yt, ν, cst)
+    u = (yt - μ)^2 * exp(-2 * ls)
+    return cst - ls - (ν + 1) / 2 * log1p(u / ν)
+end
+@inline _mle2p_metric_value(::Type{EvoTrees.GaussianMLE}, μ, ls, yt, _, _) =
+    _mle2p_metric_value(EvoTrees.GaussianMLE, μ, ls, yt)
+@inline _mle2p_metric_value(::Type{EvoTrees.LogisticMLE}, μ, ls, yt, _, _) =
+    _mle2p_metric_value(EvoTrees.LogisticMLE, μ, ls, yt)
+
 ########################
 # Pointwise metrics
 ########################
@@ -129,23 +141,32 @@ EvoTrees.tweedie(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{
 @inline _mle2p_target_count(p, y::CuDeviceVector) = 1
 @inline _mle2p_target_count(p, y::CuDeviceMatrix) = size(p, 1) ÷ 2
 
-function eval_mle2p_kernel!(eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y, w::CuDeviceVector{T}, ::Type{M}) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
+function eval_mle2p_kernel!(
+    eval::CuDeviceVector{T}, p::CuDeviceMatrix{T}, y, w::CuDeviceVector{T}, ::Type{M}, ν::T, cst::T
+) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
     i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
     if i <= length(w)
         Y = _mle2p_target_count(p, y)
         acc = zero(T)
         @inbounds for t in 1:Y
-            acc += _mle2p_metric_value(M, p[2t-1, i], p[2t, i], _cuda_target(y, t, i))
+            acc += _mle2p_metric_value(M, p[2t-1, i], p[2t, i], _cuda_target(y, t, i), ν, cst)
         end
         @inbounds eval[i] = w[i] * acc / Y
     end
     return nothing
 end
 
-function _eval_mle2p_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}, ::Type{M}; MAX_THREADS=1024, kwargs...) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
+function _eval_mle2p_metric(
+    p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T},
+    ::Type{M}; nu=4.0, MAX_THREADS=1024, kwargs...
+) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
     threads = min(MAX_THREADS, length(w))
     blocks = cld(length(w), threads)
-    @cuda blocks = blocks threads = threads eval_mle2p_kernel!(eval, p, y, w, M)
+    # `nu` arrives from CallBack's metric_kwargs when params.metric == :student_mle, and
+    # defaults to 4.0 otherwise (where it is inert - Gaussian and Logistic ignore both args).
+    ν = T(nu)
+    cst = T(EvoTrees._student_const(nu))
+    @cuda blocks = blocks threads = threads eval_mle2p_kernel!(eval, p, y, w, M, ν, cst)
     CUDA.synchronize()
     return sum(eval) / sum(w)
 end
@@ -155,6 +176,9 @@ EvoTrees.gaussian_mle(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVe
 
 EvoTrees.logistic_mle(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}; kwargs...) where {T<:AbstractFloat} =
     _eval_mle2p_metric(p, y, w, eval, EvoTrees.LogisticMLE; kwargs...)
+
+EvoTrees.student_mle(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}; kwargs...) where {T<:AbstractFloat} =
+    _eval_mle2p_metric(p, y, w, eval, EvoTrees.StudentMLE; kwargs...)
 
 ########################
 # mlogloss
