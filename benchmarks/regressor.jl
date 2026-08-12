@@ -12,7 +12,7 @@ run_evo = true
 run_xgb = false
 nrounds = 200
 
-loss = :mse
+loss = :gaussian_mle
 tree_type = :binary
 T = Float32
 nthreads = Base.Threads.nthreads()
@@ -20,14 +20,14 @@ nthreads = Base.Threads.nthreads()
 device_list = [:cpu, :gpu]
 # device_list = [:gpu]
 
-nobs_list = Int.([1e5, 1e6, 1e7])
-# nobs_list = Int.([1e5])
+# nobs_list = Int.([1e5, 1e6, 1e7])
+nobs_list = Int.([1e6])
 
-nfeats_list = [10, 100]
-# nfeats_list = [10]
+# nfeats_list = [10, 100]
+nfeats_list = [100]
 
-max_depth_list = [6, 11]
-# max_depth_list = [6]
+# max_depth_list = [6, 11]
+max_depth_list = [11]
 
 # nobs = first(nobs_list)
 # nfeats = first(nfeats_list)
@@ -55,7 +55,8 @@ for _device in device_list
                     @info "EvoTrees"
                     loss == :mse ? metric = :mae : metric = loss
 
-                    params_evo = EvoTreeRegressor(;
+                    # EvoTreeRegressor | EvoTreeMLE
+                    params_evo = EvoTreeMLE(;
                         loss,
                         metric,
                         nrounds,

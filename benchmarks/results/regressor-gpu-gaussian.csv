@@ -1,0 +1,2 @@
+device,nobs,nfeats,max_depth,train_evo,infer_evo
+gpu,1000000,100,11,7.394754425,0.359495072

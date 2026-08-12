@@ -10,7 +10,7 @@ using CairoMakie
 # using ProfileView
 
 # prepare a dataset
-tree_type = :binary # binary/oblivious
+tree_type = :oblivious # binary/oblivious
 _device = :gpu
 
 Random.seed!(123)
