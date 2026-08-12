@@ -13,7 +13,7 @@ function get_edges(X::AbstractMatrix{T}; nbins, rng=Random.MersenneTwister(), kw
     featbins = Vector{UInt8}(undef, nfeats)
     feattypes = Vector{Bool}(undef, nfeats)
     @threads for j in 1:size(X, 2)
-        edges[j] = quantile(view(X, idx, j), (1:nbins-1) / nbins)
+        edges[j] = quantile(view(X, idx, j), (1:(nbins-1)) / nbins)
         if length(edges[j]) == 1
             edges[j] = [minimum(view(X, idx, j))]
         end
@@ -44,7 +44,7 @@ function get_edges(df; feature_names, nbins, rng=Random.MersenneTwister(), kwarg
             featbins[j] <= nbins || error("
             Max categorical levels is limited to `nbins` ($nbins). Feature $(feature_names[j]) has $(featbins[j]) levels. Consider using larger `nbins`, up to 255.")
         elseif eltype(col) <: Real
-            edges[j] = unique(quantile(col, (1:nbins-1) / nbins))
+            edges[j] = unique(quantile(col, (1:(nbins-1)) / nbins))
             featbins[j] = length(edges[j]) + 1
             feattypes[j] = true
         else
@@ -269,8 +269,8 @@ function split_set_threads!(
     end
 
     return (
-        view(is, offset+1:offset+sum_lefts),
-        view(is, offset+sum_lefts+1:offset+length(is_view)),
+        view(is, (offset+1):(offset+sum_lefts)),
+        view(is, (offset+sum_lefts+1):(offset+length(is_view))),
     )
 end
 
@@ -306,8 +306,8 @@ function split_set_single!(
     end
 
     return (
-        view(is, offset+1:offset+count_left),
-        view(is, offset+count_left+1:offset+length(is_view)),
+        view(is, (offset+1):(offset+count_left)),
+        view(is, (offset+count_left+1):(offset+length(is_view))),
     )
 end
 
@@ -344,44 +344,59 @@ end
 """
     update_hist!(nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
 
-Accumulate gradients into `nodes[n].h` for each `n` in `build_nodes`.
+Build `nodes[n].h` for each `n` in `build_nodes`. Dispatches on `hist_strategy`:
 
-For `size(h, 1) == 3`, build observation-major over `x_bin_T` with a
-`(node × row_block)` schedule and reduce from `h∇_tls`. Task count is capped by
-`HIST_TASKS` (independent of `nthreads()`), so reduction order is reproducible
-across machines but not bit-identical to a serial scan of `is`. For
-`size(h, 1) != 3`, build feature-major over `x_bin` with a `(node × feature)`
-schedule.
+| strategy         | kernel        | layout    | h∇_tls |
+|:-----------------|:--------------|:----------|:-------|
+| `HistByFeature`  | `_hist_feat!` | `x_bin`   | no     |
+| `HistByNode`     | `_hist_obs!`  | `x_bin_T` | no     |
+| `HistByRowBlock` | `_hist_obs!`  | `x_bin_T` | yes    |
 """
 function update_hist!(nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
     isempty(build_nodes) && return nothing
-    n_build = length(build_nodes)
+    _build_hist!(hist_strategy(build_nodes, nodes), nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
+end
 
-    if size(nodes[first(build_nodes)].h, 1) != 3
-        nj = length(js)
-        @threads for n in build_nodes
-            fill!(nodes[n].h, 0)
-        end
-        @threads for t = 1:(n_build * nj)
-            ni, ji = fldmod1(t, nj)
-            n = build_nodes[ni]
-            _hist_feat!(nodes[n].h, ∇, x_bin, nodes[n].is, js[ji])
-        end
-        return nothing
-    end
-
-    stride = max(1, HIST_TASKS ÷ n_build)
+function _hist_blocks(build_nodes, nodes)
+    stride = max(1, HIST_TASKS ÷ length(build_nodes))
     nblocks = [min(stride, max(1, cld(length(nodes[n].is), MIN_BLOCK_ROWS))) for n in build_nodes]
-    if all(isone, nblocks)
-        @threads for n in build_nodes
-            hist = nodes[n].h
-            fill!(hist, 0)
-            is_n = nodes[n].is
-            isempty(is_n) || _hist_obs!(hist, ∇, x_bin_T, is_n, js, 1, length(is_n))
-        end
-        return nothing
-    end
+    return stride, nblocks
+end
 
+# Obs-major is single-target only, tested as `size(h, 1) == 2K+1 == 3`.
+# Row-blocking kicks in once nodes are large enough to split (see `MIN_BLOCK_ROWS`).
+function hist_strategy(build_nodes, nodes)
+    size(nodes[first(build_nodes)].h, 1) == 3 || return HistByFeature()
+    _, nblocks = _hist_blocks(build_nodes, nodes)
+    return any(>(1), nblocks) ? HistByRowBlock() : HistByNode()
+end
+
+function _build_hist!(::HistByFeature, nodes, build_nodes, ∇, x_bin, _x_bin_T, js, _h∇_tls)
+    n_build, nj = length(build_nodes), length(js)
+    @threads for n in build_nodes
+        fill!(nodes[n].h, 0)
+    end
+    @threads for t = 1:(n_build*nj)
+        ni, ji = fldmod1(t, nj)
+        n = build_nodes[ni]
+        _hist_feat!(nodes[n].h, ∇, x_bin, nodes[n].is, js[ji])
+    end
+    return nothing
+end
+
+function _build_hist!(::HistByNode, nodes, build_nodes, ∇, _x_bin, x_bin_T, js, _h∇_tls)
+    @threads for n in build_nodes
+        hist = nodes[n].h
+        fill!(hist, 0)
+        is_n = nodes[n].is
+        isempty(is_n) || _hist_obs!(hist, ∇, x_bin_T, is_n, js, 1, length(is_n))
+    end
+    return nothing
+end
+
+function _build_hist!(::HistByRowBlock, nodes, build_nodes, ∇, _x_bin, x_bin_T, js, h∇_tls)
+    n_build = length(build_nodes)
+    stride, nblocks = _hist_blocks(build_nodes, nodes)
     ntasks = n_build * stride
     @assert length(h∇_tls) >= ntasks
     @threads for n in build_nodes
@@ -403,7 +418,7 @@ function update_hist!(nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
         for ni in 1:n_build
             hist = nodes[build_nodes[ni]].h
             for bi in 1:nblocks[ni]
-                @inbounds @views hist[:, :, j] .+= h∇_tls[(ni - 1) * stride + bi][:, :, j]
+                @inbounds @views hist[:, :, j] .+= h∇_tls[(ni-1)*stride+bi][:, :, j]
             end
         end
     end
@@ -429,6 +444,7 @@ end
     _hist_obs!(hist, ∇, x_bin_T, is, js, idx0, idx1)
 
 Add rows `is[idx0:idx1]` into `hist` from observation-major `x_bin_T`.
+Single-target only (`K == 1`): reads `∇[1:3, i]` directly. Guarded by `hist_strategy`.
 """
 function _hist_obs!(hist, ∇::Matrix{T}, x_bin_T::Matrix{UInt8}, is, js, idx0, idx1) where {T}
     nfeats = size(x_bin_T, 1)
@@ -484,9 +500,9 @@ function get_best_split(
     monotone_constraints,
 ) where {L<:LossType}
 
-    h = view(h∇, :, :, js, n)
-    hL = view(h∇L, :, :, js, n)
-    hR = view(h∇R, :, :, js, n)
+    h = view(h∇,:,:,js,n)
+    hL = view(h∇L,:,:,js,n)
+    hR = view(h∇R,:,:,js,n)
     constraints = view(monotone_constraints, js)
     num_flags = view(feattypes, js)
     ∑ = node.∑
@@ -500,10 +516,10 @@ function get_best_split(
     @inbounds for j in axes(h, 3) # loop over features
         constraint = constraints[j]
         if num_flags[j]
-            cumsum!(view(hL, :, :, j), view(hL, :, :, j); dims=2)
-            view(hR, :, :, j) .= view(hL, :, nbins, j) .- view(hL, :, :, j)
+            cumsum!(view(hL,:,:,j), view(hL,:,:,j); dims=2)
+            view(hR,:,:,j) .= view(hL, :, nbins, j) .- view(hL,:,:,j)
         else
-            view(hR, :, :, j) .= ∑ .- view(hL, :, :, j)
+            view(hR,:,:,j) .= ∑ .- view(hL,:,:,j)
         end
         @inbounds for bin in axes(h, 2) # loop over bins
             if hL[end, bin, j] > params.min_weight && hR[end, bin, j] > params.min_weight
@@ -556,9 +572,9 @@ function update_gains!(
     monotone_constraints,
 ) where {L<:LossType}
 
-    h = view(h∇, :, :, js, n)
-    hL = view(h∇L, :, :, js, n)
-    hR = view(h∇R, :, :, js, n)
+    h = view(h∇,:,:,js,n)
+    hL = view(h∇L,:,:,js,n)
+    hR = view(h∇R,:,:,js,n)
     gains = view(node.gains, :, js)
     constraints = view(monotone_constraints, js)
     num_flags = view(feattypes, js)
@@ -571,10 +587,10 @@ function update_gains!(
     @inbounds for j in axes(h, 3)
         constraint = constraints[j]
         if num_flags[j]
-            cumsum!(view(hL, :, :, j), view(hL, :, :, j); dims=2)
-            view(hR, :, :, j) .= view(hL, :, nbins, j) .- view(hL, :, :, j)
+            cumsum!(view(hL,:,:,j), view(hL,:,:,j); dims=2)
+            view(hR,:,:,j) .= view(hL, :, nbins, j) .- view(hL,:,:,j)
         else
-            view(hR, :, :, j) .= ∑ .- view(hL, :, :, j)
+            view(hR,:,:,j) .= ∑ .- view(hL,:,:,j)
         end
         @inbounds for bin in axes(h, 2)
             if hL[end, bin, j] > params.min_weight && hR[end, bin, j] > params.min_weight
