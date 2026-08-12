@@ -51,6 +51,8 @@ function MMI.update(
     cache = (core=cache.core, model=deepcopy(model))
     report = (features=cache.core.feature_names,)
   else
+    verbosity > 0 &&
+      @info "Only `nrounds` supports warm restart. Retraining from scratch."
     fitresult, cache, report = MMI.fit(model, verbosity, A, y, w)
   end
   return fitresult, cache, report
