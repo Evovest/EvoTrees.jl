@@ -10,6 +10,7 @@ EvoTrees.fit
 
 ```@docs
 EvoTrees.predict
+EvoTrees.predict_leaf_idx
 ```
 
 ## SHAP

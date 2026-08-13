@@ -134,7 +134,7 @@ function multiquantile(
 end
 
 
-function gini_raw(p::V, y::V) where {V<:AbstractVector}
+function gini_raw(p::AbstractVector, y::AbstractVector)
     _y = y .- minimum(y)
     if length(_y) < 2
         return 0.0
@@ -150,7 +150,7 @@ function gini_norm(p::AbstractVector, y::AbstractVector)
     if length(y) < 2
         return 0.0
     end
-    return gini_raw(y, p) / gini_raw(y, y)
+    return gini_raw(p, y) / gini_raw(y, y)
 end
 
 function gini(

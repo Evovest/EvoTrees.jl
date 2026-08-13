@@ -123,6 +123,55 @@ function _predict(
     return pred
 end
 
+function predict_leaf_idx!(
+    leaf_idx::AbstractVector,
+    tree::Tree{L,K},
+    x_bin::Matrix{UInt8},
+    feattypes::Vector{Bool},
+) where {L,K}
+    @threads for i in axes(x_bin, 1)
+        nid = 1
+        @inbounds while tree.split[nid]
+            feat = tree.feat[nid]
+            cond = feattypes[feat] ? x_bin[i, feat] <= tree.cond_bin[nid] : x_bin[i, feat] == tree.cond_bin[nid]
+            nid = nid << 1 + !cond
+        end
+        @inbounds leaf_idx[i] = nid
+    end
+    return nothing
+end
+
+"""
+    predict_leaf_idx(m::EvoTree, data; ntree_limit=length(m.trees))
+
+Return the index of the leaf into which each observation falls, for each tree of the model.
+
+The result is a `Matrix{UInt32}` of size `(nobs, ntree_limit)`, where `[i, j]` is the index of
+the leaf reached by observation `i` in tree `j`. Indices refer to the node numbering of
+`m.trees[j]`: the root is `1`, and the children of node `n` are `2n` and `2n + 1`.
+Use `ntree_limit=N` to only use the first `N` trees.
+
+Leaf indices are a categorical encoding of the partition of the feature space learned by the
+model, and can be used as features for a downstream model.
+
+```julia
+leaf_idx = EvoTrees.predict_leaf_idx(m, x)
+```
+"""
+function predict_leaf_idx(m::EvoTree, data; ntree_limit=length(m.trees))
+    Tables.istable(data) ? data = Tables.columntable(data) : nothing
+    ntrees = length(m.trees)
+    ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
+    x_bin = binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges])
+    nobs = size(x_bin, 1)
+    leaf_idx = zeros(UInt32, nobs, ntree_limit)
+    feattypes = m.info[:feattypes]
+    for j = 1:ntree_limit
+        predict_leaf_idx!(view(leaf_idx, :, j), m.trees[j], x_bin, feattypes)
+    end
+    return leaf_idx
+end
+
 function softmax!(p::AbstractMatrix)
     @threads for i in axes(p, 2)
         _p = view(p, :, i)
