@@ -20,14 +20,14 @@ nthreads = Base.Threads.nthreads()
 device_list = [:cpu, :gpu]
 # device_list = [:gpu]
 
-# nobs_list = Int.([1e5, 1e6, 1e7])
-nobs_list = Int.([1e6])
+nobs_list = Int.([1e5, 1e6, 1e7])
+# nobs_list = Int.([1e6])
 
-# nfeats_list = [10, 100]
-nfeats_list = [100]
+nfeats_list = [10, 100]
+# nfeats_list = [100]
 
-# max_depth_list = [6, 11]
-max_depth_list = [11]
+max_depth_list = [6, 11]
+# max_depth_list = [11]
 
 # nobs = first(nobs_list)
 # nfeats = first(nfeats_list)
@@ -133,6 +133,6 @@ for _device in device_list
         end
     end
     select!(df, Cols(:device, :nobs, :nfeats, :max_depth, r"train_", r"infer_"))
-    path = joinpath(@__DIR__, "results", "regressor-$_device.csv")
+    path = joinpath(@__DIR__, "results", "regressor-$loss-$_device.csv")
     CSV.write(path, df)
 end
