@@ -11,6 +11,7 @@ using Test
     @testset "Internal API" begin
         include("core.jl")
         include("predict-leaf-idx.jl")
+        include("metrics.jl")
         include("oblivious.jl")
         include("tables.jl")
         include("monotonic.jl")
