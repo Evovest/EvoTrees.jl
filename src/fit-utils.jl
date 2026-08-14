@@ -342,131 +342,57 @@ else
 end
 
 """
-    update_hist!(nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
+    update_hist!(nodes, build_nodes, ∇, x_bin_T, js, ::Val{NK})
 
-Build `nodes[n].h` for each `n` in `build_nodes`. Dispatches on `hist_strategy`:
-
-| strategy         | kernel        | layout    | h∇_tls |
-|:-----------------|:--------------|:----------|:-------|
-| `HistByFeature`  | `_hist_feat!` | `x_bin`   | no     |
-| `HistByNode`     | `_hist_obs!`  | `x_bin_T` | no     |
-| `HistByRowBlock` | `_hist_obs!`  | `x_bin_T` | yes    |
+Build `nodes[n].h` for each `n` in `build_nodes`. Threads over
+(node × feature tile); tiles write disjoint `h[:, :, j]` slices.
+`NK == 2K+1` is hist width (`Val` so the inner loop unrolls).
 """
-function update_hist!(nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
+function update_hist!(nodes, build_nodes, ∇, x_bin_T, js, ::Val{NK}) where {NK}
     isempty(build_nodes) && return nothing
-    _build_hist!(hist_strategy(build_nodes, nodes), nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
-end
-
-function _hist_blocks(build_nodes, nodes)
-    stride = max(1, HIST_TASKS ÷ length(build_nodes))
-    nblocks = [min(stride, max(1, cld(length(nodes[n].is), MIN_BLOCK_ROWS))) for n in build_nodes]
-    return stride, nblocks
-end
-
-# Obs-major is single-target only, tested as `size(h, 1) == 2K+1 == 3`.
-# Row-blocking kicks in once nodes are large enough to split (see `MIN_BLOCK_ROWS`).
-function hist_strategy(build_nodes, nodes)
-    size(nodes[first(build_nodes)].h, 1) == 3 || return HistByFeature()
-    _, nblocks = _hist_blocks(build_nodes, nodes)
-    return any(>(1), nblocks) ? HistByRowBlock() : HistByNode()
-end
-
-function _build_hist!(::HistByFeature, nodes, build_nodes, ∇, x_bin, _x_bin_T, js, _h∇_tls)
-    n_build, nj = length(build_nodes), length(js)
-    @threads for n in build_nodes
-        fill!(nodes[n].h, 0)
-    end
-    @threads for t = 1:(n_build * nj)
-        ni, ji = fldmod1(t, nj)
-        n = build_nodes[ni]
-        _hist_feat!(nodes[n].h, ∇, x_bin, nodes[n].is, js[ji])
-    end
-    return nothing
-end
-
-function _build_hist!(::HistByNode, nodes, build_nodes, ∇, _x_bin, x_bin_T, js, _h∇_tls)
-    @threads for n in build_nodes
-        hist = nodes[n].h
-        fill!(hist, 0)
-        is_n = nodes[n].is
-        isempty(is_n) || _hist_obs!(hist, ∇, x_bin_T, is_n, js, 1, length(is_n))
-    end
-    return nothing
-end
-
-function _build_hist!(::HistByRowBlock, nodes, build_nodes, ∇, _x_bin, x_bin_T, js, h∇_tls)
-    n_build = length(build_nodes)
-    stride, nblocks = _hist_blocks(build_nodes, nodes)
-    ntasks = n_build * stride
-    @assert length(h∇_tls) >= ntasks
-    @threads for n in build_nodes
-        fill!(nodes[n].h, 0)
-    end
-    @threads for tid in 1:ntasks
-        ni, bi = fldmod1(tid, stride)
-        bi > nblocks[ni] && continue
-        is_n = nodes[build_nodes[ni]].is
-        nobs = length(is_n)
-        chunk = cld(nobs, nblocks[ni])
-        lo = (bi - 1) * chunk + 1
-        hi = min(bi * chunk, nobs)
-        partial = h∇_tls[tid]
-        fill!(partial, 0)
-        lo <= hi && _hist_obs!(partial, ∇, x_bin_T, is_n, js, lo, hi)
-    end
-    @threads for j in js
-        for ni in 1:n_build
-            hist = nodes[build_nodes[ni]].h
-            for bi in 1:nblocks[ni]
-                @inbounds @views hist[:, :, j] .+= h∇_tls[(ni - 1) * stride + bi][:, :, j]
-            end
+    nj, n_build = length(js), length(build_nodes)
+    tile = cld(nj, max(1, cld(nthreads(), n_build)))
+    ntiles = cld(nj, tile)
+    @threads for t = 1:(n_build * ntiles)
+        ni, ti = fldmod1(t, ntiles)
+        node = nodes[build_nodes[ni]]
+        jt = view(js, (ti - 1) * tile + 1:min(ti * tile, nj))
+        @inbounds for j in jt
+            @views fill!(node.h[:, :, j], 0)
         end
+        _hist!(node.h, ∇, x_bin_T, node.is, jt, Val(NK))
     end
     return nothing
 end
 
 """
-    _hist_feat!(hist, ∇, x_bin, is, j)
+    _hist!(h, ∇, x_bin_T, is, js, ::Val{NK})
 
-Add feature `j` for rows `is` into `hist[:, :, j]`.
+Add rows `is`, features `js`, into `h` from observation-major `x_bin_T`.
 """
-@inline function _hist_feat!(hist, ∇, x_bin, is, j)
-    @inbounds for i in is
-        bin = x_bin[i, j]
-        @simd for k in axes(∇, 1)
-            hist[k, bin, j] += ∇[k, i]
-        end
-    end
-    return nothing
-end
-
-"""
-    _hist_obs!(hist, ∇, x_bin_T, is, js, idx0, idx1)
-
-Add rows `is[idx0:idx1]` into `hist` from observation-major `x_bin_T`.
-Single-target only (`K == 1`): reads `∇[1:3, i]` directly. Guarded by `hist_strategy`.
-"""
-function _hist_obs!(hist, ∇::Matrix{T}, x_bin_T::Matrix{UInt8}, is, js, idx0, idx1) where {T}
+function _hist!(h, ∇::Matrix{T}, x_bin_T::Matrix{UInt8}, is, js, ::Val{NK}) where {T,NK}
+    @assert size(∇, 1) == NK
     nfeats = size(x_bin_T, 1)
-    gstride = size(∇, 1) * sizeof(T)
+    gstride = NK * sizeof(T)
     pxb = Ptr{UInt8}(pointer(x_bin_T))
     pgr = Ptr{UInt8}(pointer(∇))
+    n = length(is)
     GC.@preserve x_bin_T ∇ begin
-        @inbounds for idx in idx0:idx1
+        @inbounds for idx in 1:n
             i = Int(is[idx])
-            if idx + PREFETCH_ROWS <= idx1
+            if idx + PREFETCH_ROWS <= n
                 ip = Int(is[idx+PREFETCH_ROWS])
                 pb = pxb + (ip - 1) * nfeats
                 _prefetch(pb)
                 nfeats > 64 && _prefetch(pb + 64)
                 _prefetch(pgr + (ip - 1) * gstride)
             end
-            g1, g2, g3 = ∇[1, i], ∇[2, i], ∇[3, i]
+            g = ntuple(k -> ∇[k, i], Val(NK))
             for j in js
                 bin = x_bin_T[j, i]
-                hist[1, bin, j] += g1
-                hist[2, bin, j] += g2
-                hist[3, bin, j] += g3
+                for k in 1:NK
+                    h[k, bin, j] += g[k]
+                end
             end
         end
     end

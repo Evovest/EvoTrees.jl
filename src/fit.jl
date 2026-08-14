@@ -34,7 +34,6 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
             cache.x_bin_T,
             cache.feattypes,
             cache.monotone_constraints,
-            cache.h∇_tls,
         )
         push!(m.trees, tree)
         predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
@@ -45,7 +44,6 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
 end
 
 # grow a single tree
-# `h∇_tls` is only used by `HistByRowBlock` (see `CacheBaseCPU.h∇_tls`).
 function grow_tree!(
     tree::Tree{L,K},
     nodes::Vector{N},
@@ -62,7 +60,6 @@ function grow_tree!(
     x_bin_T,
     feattypes::Vector{Bool},
     monotone_constraints,
-    h∇_tls,
 ) where {L,K,N}
 
     # initialize
@@ -90,7 +87,7 @@ function grow_tree!(
         else
             # look for best split for each node
             build_nodes = view(n_current, 1:2:lastindex(n_current))
-            update_hist!(nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
+            update_hist!(nodes, build_nodes, ∇, x_bin_T, js, Val(2K + 1))
             subtract_hist!(h∇, view(n_current, 2:2:lastindex(n_current)), js)
             sort!(n_current)
             @threads for n ∈ n_current
@@ -167,7 +164,6 @@ function grow_otree!(
     x_bin_T,
     feattypes::Vector{Bool},
     monotone_constraints,
-    h∇_tls,
 ) where {L,K,N}
 
     # initialize
@@ -194,7 +190,7 @@ function grow_otree!(
         else
             # look for best split for each node
             build_nodes = view(n_current, 1:2:lastindex(n_current))
-            update_hist!(nodes, build_nodes, ∇, x_bin, x_bin_T, js, h∇_tls)
+            update_hist!(nodes, build_nodes, ∇, x_bin_T, js, Val(2K + 1))
             subtract_hist!(h∇, view(n_current, 2:2:lastindex(n_current)), js)
             sort!(n_current)
             @threads for n ∈ n_current

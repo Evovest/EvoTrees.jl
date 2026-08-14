@@ -148,8 +148,6 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
 
     edges, featbins, feattypes = get_edges(data; feature_names, nbins=params.nbins, rng)
     x_bin = binarize(data; feature_names, edges)
-    # observation-major copy: all features of one observation are contiguous,
-    # which is the layout the depth >= 2 histogram build reads.
     x_bin_T = permutedims(x_bin)
     nobs, nfeats = size(x_bin)
 
@@ -202,8 +200,6 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     h∇ = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
     h∇L = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
     h∇R = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
-    n_tls = K == 1 ? HIST_TASKS : 0
-    h∇_tls = [zeros(Float64, 2 * K + 1, nbins, nfeats) for _ in 1:n_tls]
     nodes = [TrainNode(zero(Float64), view(is, 1:0), zeros(Float64, 2 * K + 1), view(h∇, :, :, :, n), view(h∇L, :, :, :, n), view(h∇R, :, :, :, n), zeros(nbins, nfeats)) for n = 1:nnodes]
     bias = [Tree{L,K}(μ)]
     m = EvoTree{L,K}(L, K, bias, info)
@@ -212,8 +208,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     Y = typeof(y)
     N = typeof(first(nodes))
     H = typeof(h∇)
-    HT = eltype(h∇_tls)
-    cache = CacheBaseCPU{Y,N,H,HT}(
+    cache = CacheBaseCPU{Y,N,H}(
         rng,
         K,
         x_bin,
@@ -231,7 +226,6 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         h∇,
         h∇L,
         h∇R,
-        h∇_tls,
         feature_names,
         featbins,
         feattypes,

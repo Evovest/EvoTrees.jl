@@ -16,18 +16,9 @@ end
 
 function gpu_backend end
 
-# Hist tuning knobs collected here so both backends' chunking constants sit together.
-# PREFETCH_ROWS / HIST_TASKS / MIN_BLOCK_ROWS: CPU obs-major hist.
-# HIST_OBS_CHUNK: GPU hist_kernel! row chunk.
-const PREFETCH_ROWS = 10      # rows ahead to prefetch; ~L1 latency / per-row work
+# PREFETCH_ROWS: CPU hist. HIST_OBS_CHUNK: GPU hist_kernel! row chunk.
+const PREFETCH_ROWS = 10
 const HIST_OBS_CHUNK = 16
-const HIST_TASKS = 64         # task pool for row-blocked builds; also sizes h∇_tls
-const MIN_BLOCK_ROWS = 2_048  # don't row-block below this; raise if small-node builds regress
-
-abstract type HistStrategy end
-struct HistByFeature <: HistStrategy end   # _hist_feat!; parallel over (node × feature)
-struct HistByNode <: HistStrategy end      # _hist_obs!; one task per build node
-struct HistByRowBlock <: HistStrategy end  # _hist_obs! + TLS; parallel over row blocks
 
 """
     TrainNode{S,V,M}
@@ -61,7 +52,7 @@ abstract type Cache end
 abstract type CacheCPU <: Cache end
 abstract type CacheGPU <: Cache end
 
-struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4},HT<:AbstractArray{<:AbstractFloat,3}} <: CacheCPU
+struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4}} <: CacheCPU
     rng::Xoshiro
     K::UInt8
     x_bin::Matrix{UInt8}
@@ -79,8 +70,6 @@ struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4},HT<:Abstr
     h∇::H
     h∇L::H
     h∇R::H
-    # HistByRowBlock only: private per-task hist buffers (empty when K > 1).
-    h∇_tls::Vector{HT}
     feature_names::Vector{Symbol}
     featbins::Vector{UInt8}
     feattypes::Vector{Bool}
