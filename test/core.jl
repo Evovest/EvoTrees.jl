@@ -56,6 +56,52 @@ y_train, y_eval = Y[i_train], Y[i_eval]
     @test mse_gain_pct < -0.75
 end
 
+@testset "EvoTreeRegressor - MSE early stopping tolerance" begin
+    seed!(321)
+    n = 1_000
+    x = randn(n, 1)
+    y = x[:, 1] .+ 0.1 .* randn(n)
+    idx = sample(1:n, n, replace=false)
+    n_train = floor(Int, 0.8 * n)
+    x_train_es, y_train_es = x[idx[1:n_train], :], y[idx[1:n_train]]
+    x_eval_es, y_eval_es = x[idx[n_train+1:end], :], y[idx[n_train+1:end]]
+
+    params_strict = EvoTreeRegressor(
+        loss=:mse,
+        nrounds=50,
+        early_stopping_rounds=5,
+        early_stopping_tolerance=0.0,
+        eta=0.05,
+        seed=123,
+    )
+    params_tolerant = EvoTreeRegressor(
+        loss=:mse,
+        nrounds=50,
+        early_stopping_rounds=5,
+        early_stopping_tolerance=0.01,
+        eta=0.05,
+        seed=123,
+    )
+
+    m_strict = fit(params_strict; x_train=x_train_es, y_train=y_train_es, x_eval=x_eval_es, y_eval=y_eval_es, verbosity=0)
+    m_tolerant = fit(params_tolerant; x_train=x_train_es, y_train=y_train_es, x_eval=x_eval_es, y_eval=y_eval_es, verbosity=0)
+    m_default = fit(
+        EvoTreeRegressor(loss=:mse, nrounds=50, early_stopping_rounds=5, eta=0.05, seed=123);
+        x_train=x_train_es,
+        y_train=y_train_es,
+        x_eval=x_eval_es,
+        y_eval=y_eval_es,
+        verbosity=0,
+    )
+
+    @test length(m_tolerant.trees) < length(m_strict.trees)
+    @test length(m_strict.trees) == params_strict.nrounds + 1
+    @test m_tolerant.info[:logger][:iter_since_best] >= params_tolerant.early_stopping_rounds
+    @test m_tolerant.info[:logger][:best_iter] < m_strict.info[:logger][:best_iter]
+    @test length(m_default.trees) == length(m_strict.trees)
+    @test predict(m_default, x_eval_es) == predict(m_strict, x_eval_es)
+end
+
 @testset "EvoTreeRegressor - logloss" begin
     params1 = EvoTreeRegressor(
         loss=:logloss,
@@ -218,6 +264,41 @@ end
     mse_error = mean(abs.(preds .- y_eval) .^ 2)
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
+end
+
+@testset "EvoTreeRegressor - MultiQuantile" begin
+    alphas = [0.2, 0.5, 0.8]
+    params1 = EvoTreeRegressor(
+        loss=:multiquantile,
+        alphas=alphas,
+        nrounds=50,
+        nbins=16,
+        lambda=0.5,
+        gamma=0.0,
+        eta=0.1,
+        max_depth=6,
+        min_weight=1.0,
+        rowsample=0.5,
+        colsample=1.0,
+        seed=123,
+    )
+
+    model, cache = EvoTrees.init(params1, x_train, y_train)
+    preds_ini = EvoTrees.predict(model, x_eval)
+    @test size(preds_ini) == (length(y_eval), length(alphas))
+
+    model = fit(
+        params1;
+        x_train,
+        y_train,
+        x_eval,
+        y_eval,
+        print_every_n=100
+    )
+
+    preds = EvoTrees.predict(model, x_eval)
+    @test size(preds) == (length(y_eval), length(alphas))
+    @test !any(isnan.(preds))
 end
 
 @testset "EvoTreeCount - Count" begin
@@ -433,6 +514,14 @@ end
                 @test_throws Exception EvoTreeRegressor(; zip([key], [val])...)
             end
         end
+    end
+
+    @testset "check_args EvoTreeRegressor - MultiQuantile" begin
+        @test_throws Exception EvoTreeRegressor(loss=:multiquantile, alphas=[0.6, 0.4])
+        @test_throws Exception EvoTreeRegressor(loss=:multiquantile, alphas=[0.0, 0.5])
+        @test_throws Exception EvoTreeRegressor(loss=:multiquantile, alphas=[0.5, 0.5])
+        config = EvoTreeRegressor(loss=:multiquantile, alphas=[0.5], nrounds=1)
+        @test check_args(config) === nothing
     end
 
     # Test all EvoTypes that they have *some* checks in place

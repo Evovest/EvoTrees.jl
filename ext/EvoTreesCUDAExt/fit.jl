@@ -61,7 +61,7 @@ function grow_tree!(
     ∇_gpu = cache.∇
     if L <: EvoTrees.MAE
         ∇_gpu = copy(cache.∇)
-        ∇_gpu[2, :] .= 1.0f0
+        ∇_gpu[(cache.K+1):(2*cache.K), :] .= 1.0f0
     end
 
     # Initialize cache arrays

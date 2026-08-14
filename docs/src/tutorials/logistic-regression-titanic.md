@@ -58,7 +58,7 @@ feature_names = setdiff(names(df), [target_name])
 ## Training
 
 Now we are ready to train our model. We will first define a model configuration using the [`EvoTreeRegressor`](@ref) model constructor. 
-Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass optional `deval` arguments, which enables the tracking of an evaluation metric and early stopping. 
+Then, we'll use [`EvoTrees.fit`](@ref) to train a boosted tree model. We'll pass optional `deval` arguments, which enables the tracking of an evaluation metric and early stopping. 
 
 ```julia
 config = EvoTreeRegressor(

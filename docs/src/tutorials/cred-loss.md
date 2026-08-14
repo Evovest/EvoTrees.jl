@@ -15,9 +15,20 @@ Key observations:
 - **the gain scales quadratically with the spread**: moving from a spread of 1.0 to 0.1 between the 2nd and 3rd row results in a drop by 100x of the gain: from 50.0 to 0.5.
 
 
-| ![](../assets/cred-loss/dist-mse-1A.png) | ![](../assets/cred-loss/dist-mse-1B.png) |
-|:----------------------:|:----------------------:|
-| ![](../assets/cred-loss/dist-mse-2A.png) | ![](../assets/cred-loss/dist-mse-3A.png) |
+```@raw html
+<table>
+    <tbody>
+        <tr>
+            <td><img src="../assets/cred-loss/dist-mse-1A.png" alt="MSE distribution 1A" width="100%" loading="lazy"></td>
+            <td><img src="../assets/cred-loss/dist-mse-1B.png" alt="MSE distribution 1B" width="100%" loading="lazy"></td>
+        </tr>
+        <tr>
+            <td><img src="../assets/cred-loss/dist-mse-2A.png" alt="MSE distribution 2A" width="100%" loading="lazy"></td>
+            <td><img src="../assets/cred-loss/dist-mse-3A.png" alt="MSE distribution 3A" width="100%" loading="lazy"></td>
+        </tr>
+    </tbody>
+</table>
+```
 
 ## Credibility-based gains
 
@@ -51,23 +62,41 @@ Just like the gradient-based MSE error, the gain grows linearly with the number 
 However, a smaller volatility results in an increased gain, as shown in 2nd vs 1st row.
 
 
-| ![](../assets/cred-loss/dist-cred_std-1A.png) | ![](../assets/cred-loss/dist-cred_std-1B.png) |
-|:----------------------:|:----------------------:|
-| ![](../assets/cred-loss/dist-cred_std-2A.png) | ![](../assets/cred-loss/dist-cred_std-3A.png) |
+```@raw html
+<table>
+    <tbody>
+        <tr>
+            <td><img src="../assets/cred-loss/dist-cred_std-1A.png" alt="cred_std distribution 1A" width="100%" loading="lazy"></td>
+            <td><img src="../assets/cred-loss/dist-cred_std-1B.png" alt="cred_std distribution 1B" width="100%" loading="lazy"></td>
+        </tr>
+        <tr>
+            <td><img src="../assets/cred-loss/dist-cred_std-2A.png" alt="cred_std distribution 2A" width="100%" loading="lazy"></td>
+            <td><img src="../assets/cred-loss/dist-cred_std-3A.png" alt="cred_std distribution 3A" width="100%" loading="lazy"></td>
+        </tr>
+    </tbody>
+</table>
+```
 
 ### Simulation grid
 
 The chart below show the associated credibility and gain for a given node split candidate for various spreads and standards deviations.
 
-````julia
+```julia
 nobs = 1000
 sd_list = [0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5]
 spread_list = [0.01, 0.05, 0.1, 0.2, 0.5, 1]
-````
+```
 
-| ![](../assets/cred-loss/heatmap-cred-cred_std.png) | ![](../assets/cred-loss/heatmap-gain-cred_std.png) |
-|:----------------------:|:----------------------:|
-|  |  |
+```@raw html
+<table>
+    <tbody>
+        <tr>
+            <td><img src="../assets/cred-loss/heatmap-cred-cred_std.png" alt="Heatmap credibility cred_std" width="100%" loading="lazy"></td>
+            <td><img src="../assets/cred-loss/heatmap-gain-cred_std.png" alt="Heatmap gain cred_std" width="100%" loading="lazy"></td>
+        </tr>
+    </tbody>
+</table>
+```
 
 ### Illustration of different cred-based decision between `cred_std` to `MSE`
 
@@ -75,9 +104,16 @@ Despite both `mse` and `cred_std` resulting in the same prediction, which matche
 
 The following illustrates a minimal scenario of 2 features, each with only 2 levels.
 
-| ![](../assets/cred-loss/dist-mse-cred-x1.png) | ![](../assets/cred-loss/dist-mse-cred-x2.png) |
-|:----------------------:|:----------------------:|
-|  |  |
+```@raw html
+<table>
+    <tbody>
+        <tr>
+            <td><img src="../assets/cred-loss/dist-mse-cred-x1.png" alt="MSE versus cred feature x1" width="100%" loading="lazy"></td>
+            <td><img src="../assets/cred-loss/dist-mse-cred-x2.png" alt="MSE versus cred feature x2" width="100%" loading="lazy"></td>
+        </tr>
+    </tbody>
+</table>
+```
 
 ```julia
 config = EvoTreeRegressor(loss=:mse, nrounds=1, max_depth=2)

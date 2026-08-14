@@ -1,24 +1,25 @@
 # Public API
 
-## fit_evotree
+## Fit
 
 ```@docs
 EvoTrees.fit
 ```
 
-## predict
+## Predict
 
 ```@docs
 EvoTrees.predict
+EvoTrees.predict_leaf_idx
 ```
 
-## shap
+## SHAP
 
 ```@docs
 EvoTrees.shap
 ```
 
-## importance
+## Importance
 
 ```@docs
 EvoTrees.importance

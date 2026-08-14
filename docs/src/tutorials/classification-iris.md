@@ -38,7 +38,7 @@ deval = df[setdiff(1:nrow(df), train_indices), :]
 ## Training
 
 Now we are ready to train our model. We will first define a model configuration using the [`EvoTreeClassifier`](@ref) model constructor. 
-Then, we'll use [`fit_evotree`](@ref) to train a boosted tree model. We'll pass optional `x_eval` and `y_eval` arguments, which enable the usage of early stopping. 
+Then, we'll use [`EvoTrees.fit`](@ref) to train a boosted tree model. We'll pass optional `x_eval` and `y_eval` arguments, which enable the usage of early stopping. 
 
 ```julia
 config = EvoTreeClassifier(

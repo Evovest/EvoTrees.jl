@@ -167,6 +167,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:gamma`
   - `:tweedie`
   - `:quantile`
+  - `:multiquantile`
   - `:cred_var`: **experimental** credibility-based gains, derived from ratio of spread to process variance.
   - `:cred_std`: **experimental** credibility-based gains, derived from ratio of spread to process std deviation.
 - `metric`:     The evaluation metric used to track evaluation data and serves as a basis for early stopping. Supported metrics are: 
@@ -178,6 +179,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:gamma`:   Gamma deviance. Adapted to regression problem on Gamma like, positively distributed targets.
   - `:tweedie`: Tweedie deviance. Adapted to regression problem on Tweedie like, positively distributed targets with probability mass at `y == 0`.
   - `:quantile`: Loss is an assymetric absolute error, where residuals are penalized as `alpha` or `(1-alpha)` according to their sign.
+  - `:multiquantile`: Loss is an assymetric absolute error, where residuals are penalized as `alpha` or `(1-alpha)` according to their sign.
   - `:gini`: The normalized Gini between pred and target
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
@@ -210,10 +212,10 @@ Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeReg
 
 ## Training model
 
-A model is built using [`fit_evotree`](@ref):
+A model is trained using [`fit`](@ref):
 
 ```julia
-model = fit_evotree(config; x_train, y_train, kwargs...)
+model = fit(config; x_train, y_train, kwargs...)
 ```
 
 ## Inference
@@ -278,7 +280,7 @@ using EvoTrees
 config = EvoTreeRegressor(max_depth=5, nbins=32, nrounds=100)
 nobs, nfeats = 1_000, 5
 x_train, y_train = randn(nobs, nfeats), rand(nobs)
-model = fit_evotree(config; x_train, y_train)
+model = fit(config; x_train, y_train)
 preds = EvoTrees.predict(model, x_train)
 ```
 
@@ -330,10 +332,10 @@ Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeCla
 
 ## Training model
 
-A model is built using [`fit_evotree`](@ref):
+A model is trained using [`fit`](@ref):
 
 ```julia
-model = fit_evotree(config; x_train, y_train, kwargs...)
+model = fit(config; x_train, y_train, kwargs...)
 ```
 
 ## Inference
@@ -402,7 +404,7 @@ using EvoTrees
 config = EvoTreeClassifier(max_depth=5, nbins=32, nrounds=100)
 nobs, nfeats = 1_000, 5
 x_train, y_train = randn(nobs, nfeats), rand(1:3, nobs)
-model = fit_evotree(config; x_train, y_train)
+model = fit(config; x_train, y_train)
 preds = EvoTrees.predict(model, x_train)
 ```
 
@@ -458,10 +460,10 @@ Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeCou
 
 ## Training model
 
-A model is built using [`fit_evotree`](@ref):
+A model is trained using [`fit`](@ref):
 
 ```julia
-model = fit_evotree(config; x_train, y_train, kwargs...)
+model = fit(config; x_train, y_train, kwargs...)
 ```
 
 ## Inference
@@ -531,7 +533,7 @@ using EvoTrees
 config = EvoTreeCount(max_depth=5, nbins=32, nrounds=100)
 nobs, nfeats = 1_000, 5
 x_train, y_train = randn(nobs, nfeats), rand(0:2, nobs)
-model = fit_evotree(config; x_train, y_train)
+model = fit(config; x_train, y_train)
 preds = EvoTrees.predict(model, x_train)
 ```
 
@@ -591,10 +593,10 @@ Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeGau
 
 ## Training model
 
-A model is built using [`fit_evotree`](@ref):
+A model is trained using [`fit`](@ref):
 
 ```julia
-model = fit_evotree(config; x_train, y_train, kwargs...)
+model = fit(config; x_train, y_train, kwargs...)
 ```
 
 ## Inference
@@ -670,7 +672,7 @@ using EvoTrees
 params = EvoTreeGaussian(max_depth=5, nbins=32, nrounds=100)
 nobs, nfeats = 1_000, 5
 x_train, y_train = randn(nobs, nfeats), rand(nobs)
-model = fit_evotree(params; x_train, y_train)
+model = fit(params; x_train, y_train)
 preds = EvoTrees.predict(model, x_train)
 ```
 
@@ -731,10 +733,10 @@ Provide keyword arguments to override hyper-parameter defaults, as in EvoTreeMLE
 
 ## Training model
 
-A model is built using [`fit_evotree`](@ref):
+A model is trained using [`fit`](@ref):
 
 ```julia
-model = fit_evotree(config; x_train, y_train, kwargs...)
+model = fit(config; x_train, y_train, kwargs...)
 ```
 
 ## Inference
@@ -810,7 +812,7 @@ using EvoTrees
 config = EvoTreeMLE(max_depth=5, nbins=32, nrounds=100)
 nobs, nfeats = 1_000, 5
 x_train, y_train = randn(nobs, nfeats), rand(nobs)
-model = fit_evotree(config; x_train, y_train)
+model = fit(config; x_train, y_train)
 preds = EvoTrees.predict(model, x_train)
 ```
 

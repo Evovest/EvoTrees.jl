@@ -6,7 +6,7 @@ The following provides minimal examples of usage of the various loss functions a
 
 Minimal example to fit a noisy sinus wave.
 
-![](../assets/regression-sinus-binary-cpu.png)
+![](../assets/regression-sinus-binary-cpu.svg)
 
 ```julia
 using EvoTrees
@@ -81,7 +81,7 @@ pred_eval_poisson = model(x_eval)
 
 ## Quantile Regression
 
-![](../assets/quantiles-sinus-binary-cpu.png)
+![](../assets/quantiles-sinus-binary-cpu.svg)
 
 ```julia
 # q50
@@ -120,7 +120,7 @@ pred_train_q80 = model(x_train)
 
 ## Gaussian Max Likelihood
 
-![](../assets/gaussian-sinus-binary-cpu.png)
+![](../assets/gaussian-sinus-binary-cpu.svg)
 
 ```julia
 config = EvoTreeMLE(

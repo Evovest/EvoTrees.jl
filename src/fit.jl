@@ -284,7 +284,7 @@ post_fit_gc(::Type{<:CPU}) = nothing
         deval=nothing,
         print_every_n=9999,
         verbosity=1
-)
+        )
 
 Main training function. Performs model fitting given configuration `params`, `dtrain`, `target_name` and other optional kwargs. 
 
@@ -328,7 +328,7 @@ function fit(
     if !isnothing(deval)
         deval = Tables.columntable(deval)
         cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name)
-        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds)
+        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
     else
@@ -356,7 +356,7 @@ end
     fit(
         params::EvoTypes{L};
         x_train::AbstractMatrix, 
-        y_train::AbstractVector, 
+        y_train::AbstractVecOrMat, 
         w_train=nothing, 
         offset_train=nothing,
         x_eval=nothing, 
@@ -366,7 +366,8 @@ end
         feature_names=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
-        verbosity=1)
+        verbosity=1
+        )
 
 Main training function. Performs model fitting given configuration `params`, `x_train`, `y_train` and other optional kwargs. 
 
@@ -381,11 +382,11 @@ Main training function. Performs model fitting given configuration `params`, `x_
 # Keyword arguments
 
 - `x_train::Matrix`: training data of size `[#observations, #features]`. 
-- `y_train::Vector`: vector of train targets of length `#observations`.
+- `y_train::VecOrMat`: vector or matrix of train targets of length `#observations` or size `(#targets, #observations)`.
 - `w_train::Vector`: vector of train weights of length `#observations`. If `nothing`, a vector of ones is assumed.
 - `offset_train::VecOrMat`: offset for the training data. Should match the size of the predictions.
 - `x_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
-- `y_eval::Vector`: vector of evaluation targets of length `#observations`.
+- `y_eval::VecOrMat`: vector or matrix of evaluation targets of length `#observations` or size `(#targets, #observations)`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
 - `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
@@ -395,7 +396,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
 function fit(
     params::EvoTypes;
     x_train::AbstractMatrix,
-    y_train::AbstractVector,
+    y_train::AbstractVecOrMat,
     w_train=nothing,
     offset_train=nothing,
     x_eval=nothing,
@@ -419,7 +420,7 @@ function fit(
     end
     if logging_flag
         cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval)
-        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds)
+        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
     else
