@@ -28,7 +28,7 @@ end
 end
 
 @inline _mle2p_metric_value(::Type{EvoTrees.GaussianMLE}, μ, ls, yt) = -(ls + (yt - μ)^2 / (2 * exp(2 * ls)))
-@inline _mle2p_metric_value(::Type{EvoTrees.LogisticMLE}, μ, ls, yt) = log(1 / 4 * sech(exp(-ls) * (yt - μ))^2) - ls
+@inline _mle2p_metric_value(::Type{EvoTrees.LogisticMLE}, μ, ls, yt) = log(1 / 4 * sech(exp(-ls) * (yt - μ) / 2)^2) - ls
 
 ########################
 # Pointwise metrics
