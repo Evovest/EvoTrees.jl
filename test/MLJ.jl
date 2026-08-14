@@ -297,8 +297,11 @@ MLJBase.update(model, 2, f, c, data...);
 @testset "update cold restart" begin
 
     seed = 123
-    X = MLJBase.table(rand(200, 3))
-    y = rand(200)
+    # Use a local RNG: the suite seeds the global RNG in core.jl, so drawing from it
+    # here would shift the stream for every test that follows.
+    rng = Xoshiro(42)
+    X = MLJBase.table(rand(rng, 200, 3))
+    y = rand(rng, 200)
 
     # Changing any hyperparameter other than `nrounds` invalidates the trees already
     # grown, so `update` must discard them and refit rather than continue boosting.
