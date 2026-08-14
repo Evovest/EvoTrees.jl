@@ -84,7 +84,7 @@ wmae(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T}, eval::A
     _eval_metric(p, y, w, eval, Quantile; kwargs...)
 
 @inline _mle2p_metric_value(::Type{GaussianMLE}, μ, ls, yt) = -(ls + (yt - μ)^2 / (2 * exp(2 * ls)))
-@inline _mle2p_metric_value(::Type{LogisticMLE}, μ, ls, yt) = log(1 / 4 * sech(exp(-ls) * (yt - μ))^2) - ls
+@inline _mle2p_metric_value(::Type{LogisticMLE}, μ, ls, yt) = log(1 / 4 * sech(exp(-ls) * (yt - μ) / 2)^2) - ls
 
 function _eval_mle2p_metric(
     p::AbstractMatrix{T},

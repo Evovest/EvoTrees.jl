@@ -12,7 +12,7 @@ run_evo = true
 run_xgb = false
 nrounds = 200
 
-loss = :gaussian_mle
+loss = :gaussian_mle # mse | gaussian_mle
 tree_type = :binary
 T = Float32
 nthreads = Base.Threads.nthreads()
