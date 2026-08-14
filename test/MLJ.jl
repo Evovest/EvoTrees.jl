@@ -409,3 +409,10 @@ end
     yhat = predict(mach, X)
     @assert isordered(yhat)
 end
+
+@testset "MLJ - single-class target" begin
+    X = (; x=rand(Xoshiro(11), 10))
+    y = coerce(fill("a", 10), OrderedFactor)
+    mach = machine(EvoTreeClassifier(), X, y)
+    @test_throws Exception fit!(mach, verbosity=0)
+end
