@@ -198,9 +198,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     nnodes = 2^params.max_depth - 1
     nbins = params.nbins
     h∇ = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
-    h∇L = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
-    h∇R = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
-    nodes = [TrainNode(zero(Float64), view(is, 1:0), zeros(Float64, 2 * K + 1), view(h∇, :, :, :, n), view(h∇L, :, :, :, n), view(h∇R, :, :, :, n), zeros(nbins, nfeats)) for n = 1:nnodes]
+    nodes = [TrainNode(zero(Float64), view(is, 1:0), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), view(h∇, :, :, :, n), zeros(nbins, nfeats)) for n = 1:nnodes]
     bias = [Tree{L,K}(μ)]
     m = EvoTree{L,K}(L, K, bias, info)
 
@@ -224,8 +222,6 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         js,
         ∇,
         h∇,
-        h∇L,
-        h∇R,
         feature_names,
         featbins,
         feattypes,
