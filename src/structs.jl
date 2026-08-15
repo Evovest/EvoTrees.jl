@@ -29,23 +29,22 @@ mutable struct TrainNode{S,V,M,A}
     gain::Float64
     is::S
     ∑::V
+    ∑L::V
+    ∑R::V
     h::A
-    hL::A
-    hR::A
     gains::M
 end
 
 function TrainNode(nfeats, nbins, K, is)
-    node = TrainNode(
+    TrainNode(
         zero(Float64),
         is,
         zeros(Float64, 2 * K + 1),
-        zeros(Float64, 2 * K + 1, nbins, nfeats),
-        zeros(Float64, 2 * K + 1, nbins, nfeats),
-        zeros(Float64, 2 * K + 1, nbins, nfeats),
-        zeros(nbins, nfeats)
+        zeros(Float64, 2 * K + 1),
+        zeros(Float64, 2 * K + 1),
+        zeros(Float64, 0, 0, 0),
+        zeros(nbins, nfeats),
     )
-    return node
 end
 
 abstract type Cache end
@@ -68,8 +67,6 @@ struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4}} <: Cache
     js::Vector{UInt32}
     ∇::Matrix{Float32}
     h∇::H
-    h∇L::H
-    h∇R::H
     feature_names::Vector{Symbol}
     featbins::Vector{UInt8}
     feattypes::Vector{Bool}

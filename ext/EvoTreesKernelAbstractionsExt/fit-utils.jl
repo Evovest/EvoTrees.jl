@@ -275,204 +275,13 @@ Writes into `nodes_sum[:, node]` for each node in `active_nodes`.
     end
 end
 
-# Split statistics for gain computation
-struct SplitStats{T}
-    g_l::T
-    h_l::T
-    w_l::T
-    g_r::T
-    h_r::T
-    w_r::T
-    g_p::T
-    h_p::T
-    w_p::T
-end
+"""
+    check_monotone(L, constraint, g_l, h_l, g_r, h_r, w_l, w_r, lambda, L2, ε) -> Bool
 
-# Parent gain: GradientRegression
-@inline function parent_gain(::Type{L}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T,L<:EvoTrees.GradientRegression}
-    if K == 1
-        g, h = nodes_sum[1, node], nodes_sum[2, node]
-        return g^2 / max(h + λw + L2, ε) / 2
-    else
-        gain = zero(T)
-        for k in 1:K
-            g, h = nodes_sum[k, node], nodes_sum[K+k, node]
-            gain += g^2 / max(h + λw + L2, ε)
-        end
-        return gain / 2
-    end
-end
-
-# Parent gain: MLE2P
-@inline function parent_gain(::Type{L}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T,L<:EvoTrees.MLE2P}
-    gain = zero(T)
-    for k in 1:K
-        g, h = nodes_sum[k, node], nodes_sum[K+k, node]
-        gain += g^2 / max(h + λw + L2, ε)
-    end
-    return gain / 2
-end
-
-# Parent gain: MLogLoss
-@inline function parent_gain(::Type{EvoTrees.MLogLoss}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T}
-    gain = zero(T)
-    for k in 1:K
-        g, h = nodes_sum[k, node], nodes_sum[K+k, node]
-        gain += g^2 / max(h + λw + L2, ε)
-    end
-    return gain / 2
-end
-
-# Parent gain: MAE
-@inline function parent_gain(::Type{EvoTrees.MAE}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T}
-    return zero(T)
-end
-
-# Parent gain: Quantile
-@inline function parent_gain(::Type{<:EvoTrees.Quantile}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T}
-    return zero(T)
-end
-
-# Parent gain: Cred
-@inline function parent_gain(::Type{L}, nodes_sum, node, K, λw, L2, w_p, ε::T) where {T,L<:EvoTrees.Cred}
-    gain = zero(T)
-    for k in 1:K
-        m1 = nodes_sum[k, node]
-        m2 = nodes_sum[K+k, node]
-        Z = EvoTrees._cred_Z(L, m1, m2, w_p, ε)
-        gain += Z * abs(m1) / (1 + L2 / w_p)
-    end
-    return gain
-end
-
-# Split gain: GradientRegression
-@inline function split_gain(::Type{L}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T,L<:EvoTrees.GradientRegression}
-    d_l = max(s.h_l + lambda * s.w_l + L2, ε)
-    d_r = max(s.h_r + lambda * s.w_r + L2, ε)
-    return (s.g_l^2 / d_l + s.g_r^2 / d_r) / 2 - gain_p
-end
-
-# Split gain: MLE2P
-@inline function split_gain(::Type{L}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T,L<:EvoTrees.MLE2P}
-    d_l = max(s.h_l + lambda * s.w_l + L2, ε)
-    d_r = max(s.h_r + lambda * s.w_r + L2, ε)
-    return (s.g_l^2 / d_l + s.g_r^2 / d_r) / 2 - gain_p
-end
-
-# Split gain: MLogLoss
-@inline function split_gain(::Type{EvoTrees.MLogLoss}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T}
-    d_l = max(s.h_l + lambda * s.w_l + L2, ε)
-    d_r = max(s.h_r + lambda * s.w_r + L2, ε)
-    return (s.g_l^2 / d_l + s.g_r^2 / d_r) / 2 - gain_p
-end
-
-# Split gain: MAE
-@inline function split_gain(::Type{EvoTrees.MAE}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T}
-    μp = s.g_p / s.w_p
-    μl = s.g_l / s.w_l
-    μr = s.g_r / s.w_r
-    d_l = max(1 + lambda + L2 / s.w_l, ε)
-    d_r = max(1 + lambda + L2 / s.w_r, ε)
-    return abs(μl - μp) * s.w_l / d_l + abs(μr - μp) * s.w_r / d_r
-end
-
-# Split gain: Quantile
-@inline function split_gain(::Type{<:EvoTrees.Quantile}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T}
-    μp = s.g_p / s.w_p
-    μl = s.g_l / s.w_l
-    μr = s.g_r / s.w_r
-    d_l = max(1 + lambda + L2 / s.w_l, ε)
-    d_r = max(1 + lambda + L2 / s.w_r, ε)
-    return abs(μl - μp) * s.w_l / d_l + abs(μr - μp) * s.w_r / d_r
-end
-
-# Split gain: Cred
-@inline function split_gain(::Type{L}, s::SplitStats{T}, gain_p, lambda, L2, ε) where {T,L<:EvoTrees.Cred}
-    Z_l = EvoTrees._cred_Z(L, s.g_l, s.h_l, s.w_l, ε)
-    gain_l = Z_l * abs(s.g_l) / (1 + L2 / s.w_l)
-    Z_r = EvoTrees._cred_Z(L, s.g_r, s.h_r, s.w_r, ε)
-    gain_r = Z_r * abs(s.g_r) / (1 + L2 / s.w_r)
-    return gain_l + gain_r - gain_p
-end
-
-# Split gain for K>1: GradientRegression/MLE2P/MLogLoss
-@inline function split_gain_multi(
-    ::Type{L}, sums_temp, nodes_sum, node, temp_idx,
-    K, w_l, w_r, gain_p, lambda, L2, ε::T
-) where {T,L<:Union{EvoTrees.GradientRegression,EvoTrees.MLE2P,EvoTrees.MLogLoss}}
-    g_val = zero(T)
-    for k in 1:K
-        g_l = sums_temp[k, temp_idx]
-        h_l = sums_temp[K+k, temp_idx]
-        g_r = nodes_sum[k, node] - g_l
-        h_r = nodes_sum[K+k, node] - h_l
-        d_l = max(h_l + lambda * w_l + L2, ε)
-        d_r = max(h_r + lambda * w_r + L2, ε)
-        g_val += (g_l^2 / d_l + g_r^2 / d_r) / 2
-    end
-    return g_val - gain_p
-end
-
-@inline function split_gain_multi(
-    ::Type{EvoTrees.MultiQuantile}, sums_temp, nodes_sum, node, temp_idx,
-    K, w_l, w_r, gain_p, lambda, L2, ε::T
-) where {T}
-    w_p = nodes_sum[2 * K + 1, node]
-    d_l = max(1 + lambda + L2 / w_l, ε)
-    d_r = max(1 + lambda + L2 / w_r, ε)
-    gain = zero(T)
-    for k in 1:K
-        g_l = sums_temp[k, temp_idx]
-        g_r = nodes_sum[k, node] - g_l
-        gain += abs(g_l / w_l - nodes_sum[k, node] / w_p) * w_l / d_l
-        gain += abs(g_r / w_r - nodes_sum[k, node] / w_p) * w_r / d_r
-    end
-    return gain - gain_p
-end
-
-@inline function split_gain_multi(
-    ::Type{L}, sums_temp, nodes_sum, node, temp_idx,
-    K, w_l, w_r, gain_p, lambda, L2, ε::T
-) where {T,L<:Union{EvoTrees.MAE,EvoTrees.Quantile}}
-    w_p = nodes_sum[2 * K + 1, node]
-    d_l = max(1 + lambda + L2 / w_l, ε)
-    d_r = max(1 + lambda + L2 / w_r, ε)
-    gain = zero(T)
-    for k in 1:K
-        g_l = sums_temp[k, temp_idx]
-        g_r = nodes_sum[k, node] - g_l
-        gain += abs(g_l / w_l - nodes_sum[k, node] / w_p) * w_l / d_l
-        gain += abs(g_r / w_r - nodes_sum[k, node] / w_p) * w_r / d_r
-    end
-    return gain - gain_p
-end
-
-@inline function split_gain_multi(
-    ::Type{L}, sums_temp, nodes_sum, node, temp_idx,
-    K, w_l, w_r, gain_p, lambda, L2, ε::T
-) where {T,L<:EvoTrees.Cred}
-    gain = zero(T)
-    for k in 1:K
-        m1_l = sums_temp[k, temp_idx]
-        m2_l = sums_temp[K+k, temp_idx]
-        m1_r = nodes_sum[k, node] - m1_l
-        m2_r = nodes_sum[K+k, node] - m2_l
-        Z_l = EvoTrees._cred_Z(L, m1_l, m2_l, w_l, ε)
-        Z_r = EvoTrees._cred_Z(L, m1_r, m2_r, w_r, ε)
-        gain += Z_l * abs(m1_l) / (1 + L2 / w_l)
-        gain += Z_r * abs(m1_r) / (1 + L2 / w_r)
-    end
-    return gain - gain_p
-end
-
-@inline function split_gain_multi(
-    ::Type{L}, sums_temp, nodes_sum, node, temp_idx,
-    K, w_l, w_r, gain_p, lambda, L2, ε::T
-) where {T,L}
-    return T(-Inf)
-end
-
-# Monotone constraint check: GradientRegression
+Return `true` if the split violates `constraint` and should be skipped.
+Always `false` when `constraint == 0`, and for losses that do not support
+monotone constraints.
+"""
 @inline function check_monotone(::Type{L}, constraint, g_l, h_l, g_r, h_r, w_l, w_r, lambda, L2, ε) where {L<:EvoTrees.GradientRegression}
     constraint == 0 && return false
     d_l = max(h_l + lambda * w_l + L2, ε)
@@ -482,7 +291,6 @@ end
     return (constraint == -1 && pred_l <= pred_r) || (constraint == 1 && pred_l >= pred_r)
 end
 
-# Monotone constraint check: MLE2P
 @inline function check_monotone(::Type{L}, constraint, g_l, h_l, g_r, h_r, w_l, w_r, lambda, L2, ε) where {L<:EvoTrees.MLE2P}
     constraint == 0 && return false
     d_l = max(h_l + lambda * w_l + L2, ε)
@@ -492,147 +300,83 @@ end
     return (constraint == -1 && pred_l <= pred_r) || (constraint == 1 && pred_l >= pred_r)
 end
 
-# Monotone constraint check: MLogLoss (no constraints)
 @inline check_monotone(::Type{EvoTrees.MLogLoss}, constraint, args...) = false
-
-# Monotone constraint check: MAE (no constraints)
 @inline check_monotone(::Type{EvoTrees.MAE}, constraint, args...) = false
-
-# Monotone constraint check: Quantile (no constraints)
 @inline check_monotone(::Type{<:EvoTrees.Quantile}, constraint, args...) = false
-
-# Monotone constraint check: Cred (no constraints)
 @inline check_monotone(::Type{L}, constraint, args...) where {L<:EvoTrees.Cred} = false
 
-# Accumulate histogram for K=1
-@inline function accumulate_hist_k1(h∇, f, b, node, is_numeric, acc1, acc2, accw)
-    if is_numeric
-        return (acc1 + h∇[1, b, f, node], acc2 + h∇[2, b, f, node], accw + h∇[3, b, f, node])
-    else
-        return (h∇[1, b, f, node], h∇[2, b, f, node], h∇[3, b, f, node])
-    end
-end
-
-# Accumulate histogram for K>1
-@inline function accumulate_hist_kn!(sums_temp, h∇, f, b, node, K, is_numeric, temp_idx)
-    @inbounds for kk in 1:(2*K+1)
-        if is_numeric
-            sums_temp[kk, temp_idx] += h∇[kk, b, f, node]
-        else
-            sums_temp[kk, temp_idx] = h∇[kk, b, f, node]
-        end
-    end
-end
-
 """
-	_init_split_scan(L, h∇, nodes_sum, node, js, f_idx, feattypes, monotone_constraints, lambda, L2, K, ε)
+    _eval_split_bin(L, h∇, nodes_sum, node, f, b, ...) -> (gain, acc1, acc2, accw)
 
-Return `(f, is_numeric, constraint, w_p, gain_p, b_max)` for scanning split candidates on one `(node, feature)`.
-"""
-Base.@propagate_inbounds function _init_split_scan(
-    ::Type{L}, h∇, nodes_sum, node, js, f_idx, feattypes, monotone_constraints,
-    lambda::T, L2::T, K::Int, ε::T,
-) where {T,L}
-    f = js[f_idx]
-    is_numeric = feattypes[f]
-    constraint = monotone_constraints[f]
-    w_p = nodes_sum[2*K+1, node]
-    gain_p = parent_gain(L, nodes_sum, node, K, lambda * w_p, L2, w_p, ε)
-    nbins = size(h∇, 2)
-    b_max = is_numeric ? (nbins - 1) : nbins
-    return f, is_numeric, constraint, w_p, gain_p, b_max
-end
+Advance left-side histogram sums to bin `b` and return net split gain
+(`split_gain - gain_p`).
 
-"""
-	_eval_split_bin(
-		::Type{L},
-		h∇,
-		nodes_sum,
-		node,
-		f,
-		b,
-		is_numeric,
-		constraint,
-		acc1,
-		acc2,
-		accw,
-		w_p,
-		gain_p,
-		lambda,
-		L2,
-		min_weight,
-		K,
-		sums_temp,
-		temp_idx,
-		ε,
-	)
-
-Advance left-side hist sums to bin `b` and return `(gain, acc1, acc2, accw)`.
-Ineligible bins get `gain = -Inf` but still update the accumulators.
+`K == 1` keeps `g`, `h`, `w` in `acc1`, `acc2`, `accw`. `K > 1` writes column
+`temp_idx` of `sums_temp`. Ineligible bins return `-Inf` but still update the
+accumulators.
 """
 Base.@propagate_inbounds function _eval_split_bin(
-    ::Type{L}, h∇, nodes_sum, node, f, b, is_numeric, constraint,
-    acc1::T, acc2::T, accw::T, w_p::T, gain_p::T,
-    lambda::T, L2::T, min_weight::T, K::Int, sums_temp, temp_idx::Int, ε::T,
+    ::Type{L},
+    h∇,
+    nodes_sum,
+    node,
+    f,
+    b,
+    is_numeric,
+    constraint,
+    acc1::T,
+    acc2::T,
+    accw::T,
+    w_p::T,
+    gain_p::T,
+    lambda::T,
+    L2::T,
+    min_weight::T,
+    K::Int,
+    sums_temp,
+    temp_idx::Int,
+    ε::T,
 ) where {T,L}
     if K == 1
-        acc1, acc2, accw = accumulate_hist_k1(h∇, f, b, node, is_numeric, acc1, acc2, accw)
+        acc1, acc2, accw = EvoTrees._accumulate_hist_k1(
+            h∇, f, b, node, is_numeric, acc1, acc2, accw,
+        )
         w_l, w_r = accw, w_p - accw
         (w_l < min_weight || w_r < min_weight) && return (T(-Inf), acc1, acc2, accw)
-
-        g_l, h_l = acc1, acc2
-        g_r = nodes_sum[1, node] - g_l
-        h_r = nodes_sum[2, node] - h_l
-        g_p = nodes_sum[1, node]
-        h_p = nodes_sum[2, node]
-        check_monotone(L, constraint, g_l, h_l, g_r, h_r, w_l, w_r, lambda, L2, ε) &&
-            return (T(-Inf), acc1, acc2, accw)
-
-        stats = SplitStats(g_l, h_l, w_l, g_r, h_r, w_r, g_p, h_p, w_p)
-        return (split_gain(L, stats, gain_p, lambda, L2, ε), acc1, acc2, accw)
+        check_monotone(
+            L, constraint,
+            acc1, acc2,
+            nodes_sum[1, node] - acc1, nodes_sum[2, node] - acc2,
+            w_l, w_r, lambda, L2, ε,
+        ) && return (T(-Inf), acc1, acc2, accw)
+        ∑ = (nodes_sum[1, node], nodes_sum[2, node], nodes_sum[3, node])
+        ∑L = (acc1, acc2, accw)
+        gain = EvoTrees.split_gain(L, ∑, ∑L, w_l, w_r, lambda, L2, ε) - gain_p
+        return (gain, acc1, acc2, accw)
     else
-        accumulate_hist_kn!(sums_temp, h∇, f, b, node, K, is_numeric, temp_idx)
+        EvoTrees._acc_left!(sums_temp, temp_idx, h∇, f, b, node, 2 * K + 1, is_numeric)
         w_l = sums_temp[2*K+1, temp_idx]
         w_r = w_p - w_l
         (w_l < min_weight || w_r < min_weight) && return (T(-Inf), acc1, acc2, accw)
-
-        g_l1 = sums_temp[1, temp_idx]
-        h_l1 = sums_temp[K+1, temp_idx]
-        g_r1 = nodes_sum[1, node] - g_l1
-        h_r1 = nodes_sum[K+1, node] - h_l1
-        check_monotone(L, constraint, g_l1, h_l1, g_r1, h_r1, w_l, w_r, lambda, L2, ε) &&
-            return (T(-Inf), acc1, acc2, accw)
-
-        g = split_gain_multi(L, sums_temp, nodes_sum, node, temp_idx, K, w_l, w_r, gain_p, lambda, L2, ε)
-        return (g, acc1, acc2, accw)
+        check_monotone(
+            L, constraint,
+            sums_temp[1, temp_idx], sums_temp[K+1, temp_idx],
+            nodes_sum[1, node] - sums_temp[1, temp_idx],
+            nodes_sum[K+1, node] - sums_temp[K+1, temp_idx],
+            w_l, w_r, lambda, L2, ε,
+        ) && return (T(-Inf), acc1, acc2, accw)
+        gain = EvoTrees.split_gain(
+            L, nodes_sum, node, sums_temp, temp_idx, K, w_l, w_r, lambda, L2, ε,
+        ) - gain_p
+        return (gain, acc1, acc2, accw)
     end
 end
 
 """
-	_clear_split_sums!(sums_temp, temp_idx, K)
+    find_best_split_parallel_kernel!(L, gains, bins, h∇, nodes_sum, active_nodes, js, feattypes, monotone_constraints, lambda, L2, min_weight, K, n_feats, sums_temp)
 
-Zero the per-thread multi-target scratch column before a feature scan (`K > 1`).
-"""
-Base.@propagate_inbounds function _clear_split_sums!(sums_temp, temp_idx, K)
-    if K > 1
-        for kk in 1:(2*K+1)
-            sums_temp[kk, temp_idx] = zero(eltype(sums_temp))
-        end
-    end
-    return nothing
-end
-
-"""
-	find_best_split_parallel_kernel!(L, gains, bins, h∇, nodes_sum, active_nodes, js, feattypes, monotone_constraints, lambda, L2, min_weight, K, n_feats, sums_temp)
-
-Evaluate all candidate split bins for each (active node, feature) pair and store:
-- `gains[f_idx, n_idx]`: best gain
-- `bins[f_idx, n_idx]`: best bin threshold/category id (0 if none)
-
-Notes:
-- Numeric features scan bins `1:nbins-1` (cumulative left).
-- Categorical features scan bins `1:nbins` (one-vs-rest per bin).
-- Monotone constraints apply only to `GradientRegression` and `MLE2P` losses.
+One thread per `(active node, feature)`. Write the best bin into `gains[f, n]`
+and `bins[f, n]` (`0` if none).
 """
 @kernel function find_best_split_parallel_kernel!(
     ::Type{L},
@@ -664,12 +408,12 @@ Notes:
             gains[f_idx, n_idx] = T(-Inf)
             bins[f_idx, n_idx] = Int32(0)
         else
-            f, is_numeric, constraint, w_p, gain_p, b_max = _init_split_scan(
+            f, is_numeric, constraint, w_p, gain_p, b_max = EvoTrees._init_split_scan(
                 L, h∇, nodes_sum, node, js, f_idx, feattypes, monotone_constraints,
                 lambda, L2, K, ε,
             )
             temp_idx = (n_idx - 1) * n_feats + f_idx
-            _clear_split_sums!(sums_temp, temp_idx, K)
+            EvoTrees._clear_split_sums!(sums_temp, temp_idx, K)
 
             g_best, b_best = T(-Inf), Int32(0)
             acc1, acc2, accw = zero(T), zero(T), zero(T)
@@ -692,26 +436,11 @@ Notes:
 end
 
 """
-	accumulate_obliv_gains_kernel!(
-		::Type{L},
-		gains_accum,
-		count_accum,
-		h∇,
-		nodes_sum,
-		active_nodes,
-		js,
-		feattypes,
-		monotone_constraints,
-		lambda,
-		L2,
-		min_weight,
-		K,
-		n_feats,
-		sums_temp,
-	)
+    accumulate_obliv_gains_kernel!(L, gains_accum, count_accum, h∇, nodes_sum, active_nodes, js, feattypes, monotone_constraints, lambda, L2, min_weight, K, n_feats, sums_temp)
 
-Sum eligible bin gains across active nodes into `gains_accum[bin, f]` and bump
-`count_accum[bin, f]`. A split is valid only when `count_accum == n_active`.
+Sum eligible bin gains across active nodes into `gains_accum[bin, f]` and
+increment `count_accum[bin, f]`. A split is valid only when
+`count_accum[bin, f] == n_active`.
 """
 @kernel function accumulate_obliv_gains_kernel!(
     ::Type{L},
@@ -740,12 +469,12 @@ Sum eligible bin gains across active nodes into `gains_accum[bin, f]` and bump
         node = active_nodes[n_idx]
 
         if node != 0
-            f, is_numeric, constraint, w_p, gain_p, b_max = _init_split_scan(
+            f, is_numeric, constraint, w_p, gain_p, b_max = EvoTrees._init_split_scan(
                 L, h∇, nodes_sum, node, js, f_idx, feattypes, monotone_constraints,
                 lambda, L2, K, ε,
             )
             temp_idx = (n_idx - 1) * n_feats + f_idx
-            _clear_split_sums!(sums_temp, temp_idx, K)
+            EvoTrees._clear_split_sums!(sums_temp, temp_idx, K)
 
             acc1, acc2, accw = zero(T), zero(T), zero(T)
             for b in 1:b_max

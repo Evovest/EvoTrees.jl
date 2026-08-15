@@ -19,8 +19,6 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
 
     ∇ = KernelAbstractions.zeros(backend, T, 2 * K + 1, nobs)
     h∇ = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
-    h∇L = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
-    h∇R = KernelAbstractions.zeros(backend, Float64, 2 * K + 1, maximum(featbins), length(featbins), 2^params.max_depth - 1)
     @assert (size(y, ndims(y)) == length(w) && minimum(w) > 0)
     ∇[end, :] .= w
 
@@ -113,8 +111,6 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
         js,
         ∇,
         h∇,
-        h∇L,
-        h∇R,
         feature_names,
         edges,
         featbins,

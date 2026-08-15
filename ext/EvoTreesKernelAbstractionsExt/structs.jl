@@ -27,8 +27,6 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     js::CuVector{UInt32}
     ∇::CuMatrix
     h∇::CuArray
-    h∇L::CuArray
-    h∇R::CuArray
     feature_names::Vector{Symbol}
     edges::Vector
     featbins::Vector
