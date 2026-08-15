@@ -400,115 +400,70 @@ function _hist!(h, ∇::Matrix{T}, x_bin_T::Matrix{UInt8}, is, js, ::Val{NK}) wh
 end
 
 """
-    get_best_split(::Type{L}, h∇, node, n, js, params, feattypes, monotone_constraints)
+    _scan_node!(sink, ::Type{L}, h∇, node, n, js, params, feattypes, monotone_constraints)
 
-Walk bins with running left/right accumulators. Right is the node total minus
-left (GPU convention). No `hL`/`hR` materialization.
+Walk eligible split bins of `node`. `sink(gain, j, bin)` is called for each
+candidate. Right stats are `parent - left`; `node.∑R` is filled only when a
+monotone constraint is active.
 """
-function get_best_split(
-    ::Type{L},
-    h∇,
-    node::TrainNode,
-    n::Integer,
-    js,
-    params::EvoTypes,
-    feattypes::Vector{Bool},
-    monotone_constraints,
-) where {L<:LossType}
-
+@inline function _scan_node!(sink::F, ::Type{L}, h∇, node, n, js, params, feattypes, monotone_constraints) where {F,L}
     ∑, ∑L, ∑R = node.∑, node.∑L, node.∑R
     NK = length(∑)
-    best_gain = params.gamma
-    best_feat = zero(Int)
-    best_bin = zero(Int)
-
+    ϵ = eps(Float64)
+    lambda, L2, min_weight = params.lambda, params.L2, params.min_weight
+    gain_p = node_gain(L, ∑, lambda, L2, ϵ)
+    w_p = ∑[NK]
     @inbounds for j in js
         constraint = monotone_constraints[j]
         is_numeric = feattypes[j]
         fill!(∑L, 0)
-        for bin in axes(h∇, 2)
-            if is_numeric
-                @simd for k in 1:NK
-                    ∑L[k] += h∇[k, bin, j, n]
-                end
-            else
-                @simd for k in 1:NK
-                    ∑L[k] = h∇[k, bin, j, n]
-                end
-            end
-            @simd for k in 1:NK
-                ∑R[k] = ∑[k] - ∑L[k]
-            end
-            if ∑L[NK] > params.min_weight && ∑R[NK] > params.min_weight
+        b_max = is_numeric ? size(h∇, 2) - 1 : size(h∇, 2)
+        for bin in 1:b_max
+            _acc_left!(∑L, h∇, j, bin, n, is_numeric)
+            w_l = ∑L[NK]
+            w_r = w_p - w_l
+            if w_l > min_weight && w_r > min_weight
                 if constraint != 0
+                    @simd for k in 1:NK
+                        ∑R[k] = ∑[k] - ∑L[k]
+                    end
                     predL = pred_scalar(∑L, L, params)
                     predR = pred_scalar(∑R, L, params)
                 end
                 if (constraint == 0) ||
                    (constraint == -1 && predL > predR) ||
                    (constraint == 1 && predL < predR)
-                    gain = get_gain(L, params, ∑, ∑L, ∑R)
-                    if gain > best_gain
-                        best_gain = gain
-                        best_feat = j
-                        best_bin = bin
-                    end
+                    sink(split_gain(L, ∑, ∑L, w_l, w_r, lambda, L2, ϵ) - gain_p, j, bin)
                 end
             end
         end
     end
-    return (best_gain, best_feat, best_bin)
+    return nothing
+end
+
+"""
+    get_best_split(::Type{L}, h∇, node, n, js, params, feattypes, monotone_constraints)
+
+Return `(gain, feat, bin)` for the best split of `node`, or `(gamma, 0, 0)` if
+none exceeds `params.gamma`.
+"""
+function get_best_split(::Type{L}, h∇, node, n, js, params, feattypes, monotone_constraints) where {L<:LossType}
+    best = Ref((Float64(params.gamma), 0, 0))
+    _scan_node!(L, h∇, node, n, js, params, feattypes, monotone_constraints) do gain, j, bin
+        gain > best[][1] && (best[] = (gain, Int(j), Int(bin)))
+    end
+    return best[]
 end
 
 """
     update_gains!(::Type{L}, h∇, node, n, js, params, feattypes, monotone_constraints)
 
-Same scan as `get_best_split`, writing the gain matrix for oblivious trees.
+Write eligible split gains into `node.gains` (oblivious trees).
 """
-function update_gains!(
-    ::Type{L},
-    h∇,
-    node::TrainNode,
-    n::Integer,
-    js,
-    params::EvoTypes,
-    feattypes::Vector{Bool},
-    monotone_constraints,
-) where {L<:LossType}
-
-    ∑, ∑L, ∑R = node.∑, node.∑L, node.∑R
-    NK = length(∑)
+function update_gains!(::Type{L}, h∇, node, n, js, params, feattypes, monotone_constraints) where {L<:LossType}
     @views node.gains[:, js] .= 0
-
-    @inbounds for j in js
-        constraint = monotone_constraints[j]
-        is_numeric = feattypes[j]
-        fill!(∑L, 0)
-        for bin in axes(h∇, 2)
-            if is_numeric
-                @simd for k in 1:NK
-                    ∑L[k] += h∇[k, bin, j, n]
-                end
-            else
-                @simd for k in 1:NK
-                    ∑L[k] = h∇[k, bin, j, n]
-                end
-            end
-            @simd for k in 1:NK
-                ∑R[k] = ∑[k] - ∑L[k]
-            end
-            if ∑L[NK] > params.min_weight && ∑R[NK] > params.min_weight
-                if constraint != 0
-                    predL = pred_scalar(∑L, L, params)
-                    predR = pred_scalar(∑R, L, params)
-                end
-                if (constraint == 0) ||
-                   (constraint == -1 && predL > predR) ||
-                   (constraint == 1 && predL < predR)
-                    node.gains[bin, j] = get_gain(L, params, ∑, ∑L, ∑R)
-                end
-            end
-        end
+    _scan_node!(L, h∇, node, n, js, params, feattypes, monotone_constraints) do gain, j, bin
+        node.gains[bin, j] = gain
     end
     return nothing
 end
@@ -518,7 +473,7 @@ end
 
 Left-child sums from the parent hist at the winning `(feature, bin)`.
 Numeric: bins `1:bin`. Categorical: that bin only.
-Right child is `parent ∑ − left`.
+Right child is `parent ∑ - left`.
 """
 function _child_sums!(∑L, h∇, f::Integer, bin::Integer, n::Integer, is_numeric::Bool)
     fill!(∑L, 0)

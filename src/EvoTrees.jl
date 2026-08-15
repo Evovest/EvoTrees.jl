@@ -30,6 +30,7 @@ import Base: depwarn
 
 include("learners.jl")
 include("loss.jl")
+include("split.jl")
 include("metrics.jl")
 include("structs.jl")
 include("predict.jl")
