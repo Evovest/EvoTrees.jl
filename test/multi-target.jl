@@ -36,14 +36,18 @@ using EvoTrees: fit, predict, sigmoid, logit
         @test mean((pred[:, 2] .- dtrain.y2).^2) < base[2] * 0.9
     end
 
-    # gaussian MLE: (μ, logσ) per target → 4 columns, means at 1 and 3
-    config = EvoTreeMLE(; loss=:gaussian_mle, nrounds=200, nbins=64, L2=0.1, gamma=0.05,
-        eta=0.05, max_depth=6, min_weight=1.0, rowsample=0.5, rng=123, device=:cpu)
-    model = fit(config, dtrain; feature_names=["x_num"], target_name=["y", "y2"], verbosity=0)
-    pred = model(dtrain; device=:cpu)
+    # MLE: (μ, σ) per target → 4 columns, means at 1 and 3, positive scales at 2 and 4
+    @testset for loss in [:gaussian_mle, :logistic_mle]
+        config = EvoTreeMLE(; loss, nrounds=200, nbins=64, L2=0.1, gamma=0.05,
+            eta=0.05, max_depth=6, min_weight=1.0, rowsample=0.5, rng=123, device=:cpu)
+        model = fit(config, dtrain; feature_names=["x_num"], target_name=["y", "y2"], verbosity=0)
+        pred = model(dtrain; device=:cpu)
 
-    @test size(pred, 2) == 4
-    @test all(isfinite, pred)
-    @test mean((pred[:, 1] .- dtrain.y).^2)  < base[1] * 0.9
-    @test mean((pred[:, 3] .- dtrain.y2).^2) < base[2] * 0.9
+        @test size(pred, 2) == 4
+        @test all(isfinite, pred)
+        @test all(>(0), pred[:, 2])
+        @test all(>(0), pred[:, 4])
+        @test mean((pred[:, 1] .- dtrain.y).^2)  < base[1] * 0.9
+        @test mean((pred[:, 3] .- dtrain.y2).^2) < base[2] * 0.9
+    end
 end

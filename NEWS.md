@@ -1,5 +1,10 @@
 # NEWS
 
+## v0.19
+### MLE losses: Fisher information and softplus scale
+- `:gaussian_mle` and `:logistic_mle` now take Newton steps with the **Fisher information** (expected Hessian) rather than the observed Hessian. The Fisher matrix is diagonal and positive definite for these location-scale families, which stabilizes split finding and leaf weights.
+- The unconstrained scale parameter is now `softplus(φ)` rather than `exp(φ)`. `predict` still returns the positive scale (`σ` / `s`); saved models and scale offsets from the previous `log` parametrization are not compatible.
+
 ## v0.18
 
 ## Refactor of GPU training backend

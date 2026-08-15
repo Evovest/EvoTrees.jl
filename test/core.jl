@@ -332,9 +332,8 @@ end
     @test mse_gain_pct < -0.75
 end
 
-@testset "EvoTreeMLE - Gaussian" begin
-    params1 = EvoTreeMLE(
-        loss=:gaussian_mle,
+@testset "EvoTreeMLE" begin
+    mle_kwargs = (
         nrounds=100,
         nbins=16,
         lambda=0.0,
@@ -346,88 +345,32 @@ end
         colsample=1.0,
         seed=123,
     )
+    configs = [
+        EvoTreeMLE(; loss=:gaussian_mle, mle_kwargs...),
+        EvoTreeMLE(; loss=:logistic_mle, mle_kwargs...),
+        EvoTreeGaussian(; mle_kwargs...),
+    ]
+    @testset "$(nameof(typeof(params1))) $(params1.loss)" for params1 in configs
+        model, cache = EvoTrees.init(params1, x_train, y_train)
+        preds_ini = EvoTrees.predict(model, x_eval)
+        @test size(preds_ini, 2) == 2
+        @test all(>(0), preds_ini[:, 2])
+        mse_error_ini = mean(abs.(preds_ini[:, 1] .- y_eval) .^ 2)
+        model = fit(
+            params1;
+            x_train,
+            y_train,
+            x_eval,
+            y_eval,
+            print_every_n=100
+        )
 
-    model, cache = EvoTrees.init(params1, x_train, y_train)
-    preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
-    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit(
-        params1;
-        x_train,
-        y_train,
-        x_eval,
-        y_eval,
-        print_every_n=100
-    )
-
-    preds = EvoTrees.predict(model, x_eval)[:, 1]
-    mse_error = mean(abs.(preds .- y_eval) .^ 2)
-    mse_gain_pct = mse_error / mse_error_ini - 1
-    @test mse_gain_pct < -0.75
-end
-
-@testset "EvoTreeMLE - Logistic" begin
-    params1 = EvoTreeMLE(
-        loss=:logistic_mle,
-        nrounds=100,
-        nbins=16,
-        lambda=0.0,
-        gamma=0.0,
-        eta=0.1,
-        max_depth=6,
-        min_weight=10.0,
-        rowsample=0.5,
-        colsample=1.0,
-        seed=123,
-    )
-
-    model, cache = EvoTrees.init(params1, x_train, y_train)
-    preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
-    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit(
-        params1;
-        x_train,
-        y_train,
-        x_eval,
-        y_eval,
-        print_every_n=100
-    )
-
-    preds = EvoTrees.predict(model, x_eval)[:, 1]
-    mse_error = mean(abs.(preds .- y_eval) .^ 2)
-    mse_gain_pct = mse_error / mse_error_ini - 1
-    @test mse_gain_pct < -0.75
-end
-
-@testset "EvoTreeGaussian - Gaussian" begin
-    params1 = EvoTreeGaussian(
-        nrounds=100,
-        nbins=16,
-        lambda=0.0,
-        gamma=0.0,
-        eta=0.1,
-        max_depth=6,
-        min_weight=10.0,
-        rowsample=0.5,
-        colsample=1.0,
-        seed=123,
-    )
-
-    model, cache = EvoTrees.init(params1, x_train, y_train)
-    preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
-    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit(
-        params1;
-        x_train,
-        y_train,
-        x_eval,
-        y_eval,
-        print_every_n=100
-    )
-
-    preds = EvoTrees.predict(model, x_eval)[:, 1]
-    mse_error = mean(abs.(preds .- y_eval) .^ 2)
-    mse_gain_pct = mse_error / mse_error_ini - 1
-    @test mse_gain_pct < -0.75
+        preds = EvoTrees.predict(model, x_eval)
+        @test all(>(0), preds[:, 2])
+        mse_error = mean(abs.(preds[:, 1] .- y_eval) .^ 2)
+        mse_gain_pct = mse_error / mse_error_ini - 1
+        @test mse_gain_pct < -0.75
+    end
 end
 
 @testset "EvoTrees - Feature Importance" begin

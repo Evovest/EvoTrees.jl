@@ -64,8 +64,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
             n = length(y)
             m = sum(y) / n
             s = sqrt(sum((y .- m) .^ 2) / max(n - 1, 1))
-            μ = [m, log(s)]
-            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+            μ = [m, EvoTrees.invsoftplus(s)]
+            !isnothing(offset) && EvoTrees.unconstrain_mle_scale!(offset)
         else
             Y = size(y_train, 1)
             K = 2 * Y
@@ -76,9 +76,9 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
                 yt = view(y, t, :)
                 m_t = sum(yt) / n_y
                 s_t = sqrt(sum((yt .- m_t) .^ 2) / max(n_y - 1, 1))
-                push!(μ, m_t, log(s_t))
+                push!(μ, m_t, EvoTrees.invsoftplus(s_t))
             end
-            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+            !isnothing(offset) && EvoTrees.unconstrain_mle_scale!(offset)
         end
     elseif L == EvoTrees.LogisticMLE
         @assert eltype(y_train) <: Real
@@ -87,8 +87,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
             y = T.(y_train)
             m = sum(y) / length(y)
             s = sqrt(sum((y .- m) .^ 2) / max(length(y) - 1, 1))
-            μ = [m, log(s * sqrt(3) / π)]
-            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+            μ = [m, EvoTrees.invsoftplus(s * sqrt(3) / π)]
+            !isnothing(offset) && EvoTrees.unconstrain_mle_scale!(offset)
         else
             Y = size(y_train, 1)
             K = 2 * Y
@@ -99,9 +99,9 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
                 yt = view(y, t, :)
                 m_t = sum(yt) / n_y
                 s_t = sqrt(sum((yt .- m_t) .^ 2) / max(n_y - 1, 1))
-                push!(μ, m_t, log(s_t * sqrt(3) / π))
+                push!(μ, m_t, EvoTrees.invsoftplus(s_t * sqrt(3) / π))
             end
-            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+            !isnothing(offset) && EvoTrees.unconstrain_mle_scale!(offset)
         end
     elseif L == EvoTrees.MultiQuantile
         @assert eltype(y_train) <: Real

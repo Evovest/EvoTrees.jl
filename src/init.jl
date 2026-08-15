@@ -63,8 +63,8 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         if y_train isa AbstractVector
             K = 2
             y = T.(y_train)
-            μ = [mean(y), log(std(y))]
-            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+            μ = [mean(y), invsoftplus(std(y))]
+            !isnothing(offset) && unconstrain_mle_scale!(offset)
         else
             Y = size(y_train, 1)
             K = 2 * Y
@@ -72,17 +72,17 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
             μ = T[]
             for t in 1:Y
                 yt = view(y, t, :)
-                push!(μ, mean(yt), log(std(yt)))
+                push!(μ, mean(yt), invsoftplus(std(yt)))
             end
-            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+            !isnothing(offset) && unconstrain_mle_scale!(offset)
         end
     elseif L == LogisticMLE
         @assert eltype(y_train) <: Real
         if y_train isa AbstractVector
             K = 2
             y = T.(y_train)
-            μ = [mean(y), log(std(y) * sqrt(3) / π)]
-            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+            μ = [mean(y), invsoftplus(std(y) * sqrt(3) / π)]
+            !isnothing(offset) && unconstrain_mle_scale!(offset)
         else
             Y = size(y_train, 1)
             K = 2 * Y
@@ -90,9 +90,9 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
             μ = T[]
             for t in 1:Y
                 yt = view(y, t, :)
-                push!(μ, mean(yt), log(std(yt) * sqrt(3) / π))
+                push!(μ, mean(yt), invsoftplus(std(yt) * sqrt(3) / π))
             end
-            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+            !isnothing(offset) && unconstrain_mle_scale!(offset)
         end
     elseif L == MultiQuantile
         @assert eltype(y_train) <: Real

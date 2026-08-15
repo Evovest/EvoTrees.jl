@@ -27,8 +27,9 @@ end
     return 2 * (yk^(2 - rho) / (1 - rho) / (2 - rho) - yk * pred^(1 - rho) / (1 - rho) + pred^(2 - rho) / (2 - rho))
 end
 
-@inline _mle2p_metric_value(::Type{EvoTrees.GaussianMLE}, μ, ls, yt) = -(ls + (yt - μ)^2 / (2 * exp(2 * ls)))
-@inline _mle2p_metric_value(::Type{EvoTrees.LogisticMLE}, μ, ls, yt) = log(1 / 4 * sech(exp(-ls) * (yt - μ) / 2)^2) - ls
+@inline function _mle2p_metric_value(::Type{M}, μ, φ, yt) where {M<:EvoTrees.MLE2P}
+    return EvoTrees._mle2p_metric_value(M, μ, φ, yt)
+end
 
 ########################
 # Pointwise metrics

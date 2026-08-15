@@ -152,27 +152,39 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
     end
 end
 
-# Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
-# pred[i][1] = μ
-# pred[i][2] = log(σ)
-@inline function mle2p_grad_hess(::Type{GaussianMLE}, μ, ls, yt)
-    inv = 1 / exp(2 * ls)
+# Two-parameter MLE: unconstrained scale φ with σ = softplus(φ) (s for Logistic).
+# Second-order terms are Fisher information (expected Hessian), not the observed Hessian.
+# Location-scale families are orthogonal, so the Fisher matrix is diagonal and PD.
+
+# Gaussian N(μ, σ²) - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
+# I_μμ = 1/σ², I_σσ = 2/σ², I_φφ = I_σσ (σ')²
+@inline function mle2p_grad_hess(::Type{GaussianMLE}, μ, φ, yt)
+    σ = softplus(φ)
+    σ′ = sigmoid(φ)
+    invσ = 1 / σ
+    invσ2 = invσ * invσ
     d = μ - yt
-    return (d * inv, 1 - d^2 * inv, inv, 2 * inv * d^2)
+    z2 = d * d * invσ2
+    gμ = d * invσ2
+    gφ = (1 - z2) * σ′ * invσ
+    hμ = invσ2
+    hφ = 2 * (σ′ * invσ)^2
+    return (gμ, gφ, hμ, hφ)
 end
 
-# LogisticProb - https://en.wikipedia.org/wiki/Logistic_distribution
-# pdf = 
-# pred[i][1] = μ
-# pred[i][2] = log(s)
-@inline function mle2p_grad_hess(::Type{LogisticMLE}, μ, ls, yt)
-    return (
-        -tanh((yt - μ) / (2 * exp(ls))) * exp(-ls),
-        -(exp(-ls) * (yt - μ) * tanh((yt - μ) / (2 * exp(ls))) - 1),
-        sech((yt - μ) / (2 * exp(ls)))^2 / (2 * exp(2 * ls)),
-        (exp(-2 * ls) * (μ - yt) * (μ - yt + exp(ls) * sinh(exp(-ls) * (μ - yt)))) /
-        (1 + cosh(exp(-ls) * (μ - yt))),
-    )
+# Logistic(μ, s) - https://en.wikipedia.org/wiki/Logistic_distribution
+# I_μμ = 1/(3s²), I_ss = (π² + 3)/(9s²), I_φφ = I_ss (s')²
+@inline function mle2p_grad_hess(::Type{LogisticMLE}, μ, φ, yt)
+    s = softplus(φ)
+    s′ = sigmoid(φ)
+    invs = 1 / s
+    z = (yt - μ) * invs
+    th = tanh(z / 2)
+    gμ = -th * invs
+    gφ = (1 - z * th) * s′ * invs
+    hμ = invs * invs / 3
+    hφ = (oftype(s, π)^2 + 3) / 9 * (s′ * invs)^2
+    return (gμ, gφ, hμ, hφ)
 end
 
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:MLE2P}
@@ -184,8 +196,8 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
             gb = 2 * (t - 1)
             hb = 2 * Y + 2 * (t - 1)
             μ = p[2t-1, i]
-            ls = p[2t, i]
-            g1, g2, h1, h2 = mle2p_grad_hess(L, μ, ls, _target(y, t, i))
+            φ = p[2t, i]
+            g1, g2, h1, h2 = mle2p_grad_hess(L, μ, φ, _target(y, t, i))
             ∇[gb+1, i] = g1 * w
             ∇[gb+2, i] = g2 * w
             ∇[hb+1, i] = h1 * w
@@ -207,6 +219,28 @@ function sigmoid(x::AbstractArray{T}) where {T<:AbstractFloat}
 end
 @inline function sigmoid(x::T) where {T<:AbstractFloat}
     @fastmath 1 / (1 + exp(-x))
+end
+
+# σ = log(1 + exp(φ)), overflow-safe
+function softplus(x::AbstractArray{T}) where {T<:AbstractFloat}
+    return softplus.(x)
+end
+@inline function softplus(x::T) where {T<:AbstractFloat}
+    ax = abs(x)
+    return max(x, zero(T)) + log1p(exp(-ax))
+end
+
+# inverse: φ = log(exp(σ) - 1), overflow-safe for σ > 0
+function invsoftplus(x::AbstractArray{T}) where {T<:AbstractFloat}
+    return invsoftplus.(x)
+end
+@inline function invsoftplus(x::T) where {T<:AbstractFloat}
+    return x + log(-expm1(-x))
+end
+
+@inline function unconstrain_mle_scale!(offset::AbstractArray)
+    @views offset[:, 2:2:end] .= invsoftplus.(offset[:, 2:2:end])
+    return offset
 end
 
 ##############################

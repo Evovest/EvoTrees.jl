@@ -174,7 +174,7 @@ function EvoTrees._predict(
     elseif L ∈ [EvoTrees.Poisson, EvoTrees.Gamma, EvoTrees.Tweedie]
         pred .= exp.(pred)
     elseif L in [EvoTrees.GaussianMLE, EvoTrees.LogisticMLE]
-        pred[2:2:end, :] .= exp.(pred[2:2:end, :])
+        pred[2:2:end, :] .= EvoTrees.softplus.(pred[2:2:end, :])
     elseif L == EvoTrees.MLogLoss
         EvoTrees.softmax!(pred)
     end
