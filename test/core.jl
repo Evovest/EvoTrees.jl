@@ -557,4 +557,34 @@ end
         )
     end
 
+    @testset "importance with no splits" begin
+        rng = Xoshiro(11)
+        x = rand(rng, 300, 4)
+        y = rand(rng, 300)
+
+        # A model with no split anywhere has zero total gain. Normalising by that total
+        # would give NaN for every feature, so the zeros are returned as they are.
+        for config in (
+            EvoTreeRegressor(nrounds=5, max_depth=1),
+            EvoTreeRegressor(nrounds=0),
+            EvoTreeRegressor(nrounds=5, max_depth=4, gamma=1e9),
+        )
+            m = fit(config; x_train=x, y_train=y)
+            imp = EvoTrees.importance(m)
+            @test !any(isnan(v) for (_, v) in imp)
+            @test all(v == 0 for (_, v) in imp)
+            @test length(imp) == 4
+        end
+
+        # A model that does split still normalises to one.
+        m = fit(EvoTreeRegressor(nrounds=20, max_depth=4); x_train=x, y_train=y)
+        imp = EvoTrees.importance(m)
+        @test sum(v for (_, v) in imp) ≈ 1
+        @test issorted([v for (_, v) in imp]; rev=true)
+
+        # Ordering is stable across calls, and duplicate names are not collapsed.
+        @test first.(EvoTrees.importance(m)) == first.(EvoTrees.importance(m))
+        @test length(EvoTrees.importance(m; feature_names=[:a, :a, :b, :c])) == 4
+    end
+
 end

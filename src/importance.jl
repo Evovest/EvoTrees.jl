@@ -19,8 +19,12 @@ function importance(model::EvoTree; feature_names=model.info[:feature_names])
         importance!(gain, tree)
     end
 
-    gain .= gain ./ sum(gain)
-    pairs = collect(Dict(zip(Symbol.(feature_names), gain)))
+    # A model can contain no split at all (`max_depth = 1`, `nrounds = 0`, or a `gamma` high
+    # enough to reject every candidate), in which case the total gain is zero and normalising
+    # would return `NaN` for every feature.
+    total = sum(gain)
+    total > 0 && (gain ./= total)
+    pairs = [Symbol(name) => g for (name, g) in zip(feature_names, gain)]
     sort!(pairs, by=x -> -x[2])
 
     return pairs
