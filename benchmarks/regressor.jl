@@ -12,7 +12,7 @@ run_evo = true
 run_xgb = false
 nrounds = 200
 
-loss = :mse # mse | gaussian_mle
+loss = :gaussian_mle # mse | gaussian_mle
 tree_type = :binary
 T = Float32
 nthreads = Base.Threads.nthreads()
@@ -56,7 +56,7 @@ for _device in device_list
                     loss == :mse ? metric = :mae : metric = loss
 
                     # EvoTreeRegressor | EvoTreeMLE
-                    params_evo = EvoTreeRegressor(;
+                    params_evo = EvoTreeMLE(;
                         loss,
                         metric,
                         nrounds,
