@@ -27,7 +27,7 @@ nfeats_list = [10, 100]
 # nfeats_list = [100]
 
 max_depth_list = [6, 11]
-# max_depth_list = [6]
+# max_depth_list = [11]
 
 # nobs = first(nobs_list)
 # nfeats = first(nfeats_list)

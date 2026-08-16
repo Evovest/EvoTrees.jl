@@ -16,6 +16,10 @@ end
 
 function gpu_backend end
 
+# PREFETCH_ROWS: CPU hist. HIST_OBS_CHUNK: GPU hist_kernel! row chunk.
+const PREFETCH_ROWS = 10
+const HIST_OBS_CHUNK = 16
+
 """
     TrainNode{S,V,M}
     
@@ -25,33 +29,33 @@ mutable struct TrainNode{S,V,M,A}
     gain::Float64
     is::S
     ∑::V
+    ∑L::V
+    ∑R::V
     h::A
-    hL::A
-    hR::A
     gains::M
 end
 
 function TrainNode(nfeats, nbins, K, is)
-    node = TrainNode(
+    TrainNode(
         zero(Float64),
         is,
         zeros(Float64, 2 * K + 1),
-        zeros(Float64, 2 * K + 1, nbins, nfeats),
-        zeros(Float64, 2 * K + 1, nbins, nfeats),
-        zeros(Float64, 2 * K + 1, nbins, nfeats),
-        zeros(nbins, nfeats)
+        zeros(Float64, 2 * K + 1),
+        zeros(Float64, 2 * K + 1),
+        zeros(Float64, 0, 0, 0),
+        zeros(nbins, nfeats),
     )
-    return node
 end
 
 abstract type Cache end
 abstract type CacheCPU <: Cache end
 abstract type CacheGPU <: Cache end
 
-struct CacheBaseCPU{Y,N<:TrainNode} <: CacheCPU
+struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4}} <: CacheCPU
     rng::Xoshiro
     K::UInt8
     x_bin::Matrix{UInt8}
+    x_bin_T::Matrix{UInt8}
     y::Y
     w::Vector{Float32}
     pred::Matrix{Float32}
@@ -62,6 +66,7 @@ struct CacheBaseCPU{Y,N<:TrainNode} <: CacheCPU
     right::Vector{UInt32}
     js::Vector{UInt32}
     ∇::Matrix{Float32}
+    h∇::H
     feature_names::Vector{Symbol}
     featbins::Vector{UInt8}
     feattypes::Vector{Bool}
