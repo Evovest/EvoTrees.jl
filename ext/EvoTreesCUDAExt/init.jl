@@ -53,6 +53,10 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
             @error "Invalid target eltype: $(eltype(y_train))"
         end
         K = length(target_levels)
+        K < 2 && error(
+            "Classification requires a target with at least 2 levels, got $K: " *
+            "$(string.(target_levels)). A single-class problem is not meaningful."
+        )
         μ = T.(log.(EvoTrees.proportions(y, UInt32(1):UInt32(K))))
         μ .-= maximum(μ)
         !isnothing(offset) && (offset .= log.(offset))
