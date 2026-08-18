@@ -13,7 +13,7 @@ function get_edges(X::AbstractMatrix{T}; nbins, rng=Random.MersenneTwister(), kw
     featbins = Vector{UInt8}(undef, nfeats)
     feattypes = Vector{Bool}(undef, nfeats)
     @threads for j in 1:size(X, 2)
-        edges[j] = quantile(view(X, idx, j), (1:nbins-1) / nbins)
+        edges[j] = quantile(view(X, idx, j), (1:(nbins-1)) / nbins)
         if length(edges[j]) == 1
             edges[j] = [minimum(view(X, idx, j))]
         end
@@ -44,7 +44,7 @@ function get_edges(df; feature_names, nbins, rng=Random.MersenneTwister(), kwarg
             featbins[j] <= nbins || error("
             Max categorical levels is limited to `nbins` ($nbins). Feature $(feature_names[j]) has $(featbins[j]) levels. Consider using larger `nbins`, up to 255.")
         elseif eltype(col) <: Real
-            edges[j] = unique(quantile(col, (1:nbins-1) / nbins))
+            edges[j] = unique(quantile(col, (1:(nbins-1)) / nbins))
             featbins[j] = length(edges[j]) + 1
             feattypes[j] = true
         else
@@ -269,8 +269,8 @@ function split_set_threads!(
     end
 
     return (
-        view(is, offset+1:offset+sum_lefts),
-        view(is, offset+sum_lefts+1:offset+length(is_view)),
+        view(is, (offset+1):(offset+sum_lefts)),
+        view(is, (offset+sum_lefts+1):(offset+length(is_view))),
     )
 end
 
@@ -306,8 +306,8 @@ function split_set_single!(
     end
 
     return (
-        view(is, offset+1:offset+count_left),
-        view(is, offset+count_left+1:offset+length(is_view)),
+        view(is, (offset+1):(offset+count_left)),
+        view(is, (offset+count_left+1):(offset+length(is_view))),
     )
 end
 
@@ -347,10 +347,10 @@ function update_hist!(nodes, build_nodes, ∇, x_bin_T, js, ::Val{NK}) where {NK
     nj, n_build = length(js), length(build_nodes)
     tile = cld(nj, max(1, cld(nthreads(), n_build)))
     ntiles = cld(nj, tile)
-    @threads for t = 1:(n_build * ntiles)
+    @threads for t = 1:(n_build*ntiles)
         ni, ti = fldmod1(t, ntiles)
         node = nodes[build_nodes[ni]]
-        jt = view(js, (ti - 1) * tile + 1:min(ti * tile, nj))
+        jt = view(js, ((ti-1)*tile+1):min(ti*tile, nj))
         @inbounds for j in jt
             @views fill!(node.h[:, :, j], 0)
         end
