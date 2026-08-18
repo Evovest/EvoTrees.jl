@@ -331,15 +331,9 @@ function subtract_hist!(h∇::Array, nodes, js)
     return nothing
 end
 
-# Software prefetch (LLVM `llvm.prefetch`, read / locality T0 / data cache).
-# Mirrors XGBoost's PREFETCH_READ_T0 in RowsWiseBuildHistKernel.
-@static if VERSION >= v"1.11"
-    @inline _prefetch(p::Ptr{UInt8}) = ccall("llvm.prefetch.p0", llvmcall, Cvoid,
-        (Ptr{UInt8}, Int32, Int32, Int32), p, Int32(0), Int32(3), Int32(1))
-else
-    @inline _prefetch(p::Ptr{UInt8}) = ccall("llvm.prefetch.p0i8", llvmcall, Cvoid,
-        (Ptr{UInt8}, Int32, Int32, Int32), p, Int32(0), Int32(3), Int32(1))
-end
+# llvm.prefetch: read, T0, data cache. llvmcall mangles this from Ref{Int8}, not Ptr.
+@inline _prefetch(p::Ptr{UInt8}) = ccall("llvm.prefetch", llvmcall, Cvoid,
+    (Ref{Int8}, Int32, Int32, Int32), Ptr{Int8}(p), Int32(0), Int32(3), Int32(1))
 
 """
     update_hist!(nodes, build_nodes, ∇, x_bin_T, js, ::Val{NK})
