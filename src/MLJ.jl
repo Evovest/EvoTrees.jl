@@ -5,7 +5,7 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
   feature_names = collect(Tables.schema(A).names)
 
   T = Float32
-  device = model.device == :gpu ? GPU : CPU
+  device = device_type(model.device)
   V = device_array_type(device)
   w = isnothing(w) ? device_ones(device, T, nobs) : V{T}(w)
   fitresult, cache = init_core(model, device, A, feature_names, y, w, nothing)

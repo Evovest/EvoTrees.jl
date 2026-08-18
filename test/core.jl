@@ -479,4 +479,25 @@ end
         end
     end
 
+    @testset "classifier target levels" begin
+        rng = Xoshiro(7)
+        x = rand(rng, 40, 3)
+
+        for (y, k) in ((repeat(["a", "b", "c"], 20)[1:40], 3), (repeat(["a", "b"], 20), 2))
+            m = fit(EvoTreeClassifier(nrounds=3); x_train=x, y_train=y)
+            @test m.K == k
+            @test size(predict(m, x)) == (40, k)
+        end
+
+        # A single-level target is not a meaningful classification problem, and is
+        # rejected at fit rather than producing a degenerate model.
+        @test_throws ErrorException fit(
+            EvoTreeClassifier(nrounds=3); x_train=x, y_train=fill("a", 40)
+        )
+        @test_throws ErrorException fit(
+            EvoTreeClassifier(nrounds=3); x_train=x,
+            y_train=categorical(fill("a", 40), levels=["a"]),
+        )
+    end
+
 end

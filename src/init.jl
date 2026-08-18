@@ -1,15 +1,13 @@
-function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset)
+"""
+    _init_target(::Type{L}, y_train, params, offset, ::Type{T})
 
-    # binarize data into quantiles
-    rng = Xoshiro(params.seed)
-
-    edges, featbins, feattypes = get_edges(data; feature_names, nbins=params.nbins, rng)
-    x_bin = binarize(data; feature_names, edges)
-    nobs, nfeats = size(x_bin)
-
-    T = Float32
-    L = _loss2type_dict[params.loss]
-
+Shared (device-agnostic) target/bias initialization: validates the target,
+derives the output dimension `K`, the converted target `y` (host arrays;
+device inits copy to their backend afterwards), and the initial bias `μ`.
+Mutates `offset` in place into link space when provided. Single source of
+truth for CPU (`src/init.jl`) and GPU (`ext/.../init.jl`) initialization.
+"""
+function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
     if (y_train isa AbstractMatrix) && !(L <: Union{GradientRegression, MLE2P, MAE, Quantile, Cred})
         error("Multi-target (matrix target) is supported for gradient-regression losses " *
               "(mse, logloss, poisson, gamma, tweedie), mae, quantile, the MLE losses " *
@@ -55,6 +53,10 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
             @error "Invalid target eltype: $(eltype(y_train))"
         end
         K = length(target_levels)
+        K < 2 && error(
+            "Classification requires a target with at least 2 levels, got $K: " *
+            "$(string.(target_levels)). A single-class problem is not meaningful."
+        )
         μ = T.(log.(proportions(y, UInt32(1):UInt32(K))))
         μ .-= maximum(μ)
         !isnothing(offset) && (offset .= log.(offset))
@@ -110,7 +112,6 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
             y = T.(y_train)
             μ = T[mean(view(y, k, :)) for k in 1:K]
         end
-    
     elseif L <: Cred
         @assert eltype(y_train) <: Real
         if y_train isa AbstractVector
@@ -141,6 +142,23 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         end
     end
     μ = T.(μ)
+    return K, y, μ, target_levels, target_isordered
+end
+
+function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset)
+
+    # binarize data into quantiles
+    rng = Xoshiro(params.seed)
+
+    edges, featbins, feattypes = get_edges(data; feature_names, nbins=params.nbins, rng)
+    x_bin = binarize(data; feature_names, edges)
+    x_bin_T = permutedims(x_bin)
+    nobs, nfeats = size(x_bin)
+
+    T = Float32
+    L = _loss2type_dict[params.loss]
+
+    K, y, μ, target_levels, target_isordered = _init_target(L, y_train, params, offset, T)
 
     # force a neutral/zero bias/initial tree when offset is specified
     !isnothing(offset) && (μ .= 0)
@@ -179,18 +197,24 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         :feattypes => feattypes,
     )
 
-    # initialize model
-    nodes = [TrainNode(nfeats, params.nbins, K, view(is, 1:0)) for n = 1:2^params.max_depth-1]
+    # Shared 4D hist storage (same layout as KA GPU cache). Each TrainNode
+    # holds a contiguous view into trailing node dimension.
+    nnodes = 2^params.max_depth - 1
+    nbins = params.nbins
+    h∇ = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
+    nodes = [TrainNode(zero(Float64), view(is, 1:0), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), view(h∇, :, :, :, n), zeros(nbins, nfeats)) for n = 1:nnodes]
     bias = [Tree{L,K}(μ)]
     m = EvoTree{L,K}(L, K, bias, info)
 
     # build cache
     Y = typeof(y)
     N = typeof(first(nodes))
-    cache = CacheBaseCPU{Y,N}(
+    H = typeof(h∇)
+    cache = CacheBaseCPU{Y,N,H}(
         rng,
         K,
         x_bin,
+        x_bin_T,
         y,
         w,
         pred,
@@ -201,6 +225,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         right,
         js,
         ∇,
+        h∇,
         feature_names,
         featbins,
         feattypes,

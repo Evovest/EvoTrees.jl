@@ -21,6 +21,7 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
         grow!(
             tree,
             cache.nodes,
+            cache.h∇,
             params,
             cache.∇,
             cache.js,
@@ -28,8 +29,9 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
             cache.left,
             cache.right,
             cache.x_bin,
+            cache.x_bin_T,
             cache.feattypes,
-            cache.monotone_constraints
+            cache.monotone_constraints,
         )
         push!(m.trees, tree)
         predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
@@ -43,6 +45,7 @@ end
 function grow_tree!(
     tree::Tree{L,K},
     nodes::Vector{N},
+    h∇,
     params::EvoTypes,
     ∇::Matrix,
     js,
@@ -50,8 +53,9 @@ function grow_tree!(
     left,
     right,
     x_bin,
+    x_bin_T,
     feattypes::Vector{Bool},
-    monotone_constraints
+    monotone_constraints,
 ) where {L,K,N}
 
     # initialize
@@ -78,20 +82,13 @@ function grow_tree!(
             end
         else
             # look for best split for each node
-            @threads for n ∈ n_current[1:2:end]
-                update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
-            end
-            @threads for n ∈ n_current[2:2:end]
-                if n % 2 == 0
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                else
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                end
-            end
+            build_nodes = view(n_current, 1:2:lastindex(n_current))
+            update_hist!(nodes, build_nodes, ∇, x_bin_T, js, Val(2K + 1))
+            subtract_hist!(h∇, view(n_current, 2:2:lastindex(n_current)), js)
             sort!(n_current)
             @threads for n ∈ n_current
                 tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
-                best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
+                best_gain, best_feat, best_bin = get_best_split(L, h∇, nodes[n], n, js, params, feattypes, monotone_constraints)
                 if best_bin != 0
                     tree.gain[n] = best_gain
                     tree.cond_bin[n] = best_bin
@@ -120,8 +117,8 @@ function grow_tree!(
                     offset += length(nodes[n].is)
 
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
+                    _child_sums!(nodes[n<<1].∑, h∇, best_feat, best_bin, n, feattypes[best_feat])
+                    @views nodes[n<<1+1].∑ .= nodes[n].∑ .- nodes[n<<1].∑
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
@@ -150,6 +147,7 @@ end
 function grow_otree!(
     tree::Tree{L,K},
     nodes::Vector{N},
+    h∇,
     params::EvoTypes,
     ∇::Matrix,
     js,
@@ -157,8 +155,9 @@ function grow_otree!(
     left,
     right,
     x_bin,
+    x_bin_T,
     feattypes::Vector{Bool},
-    monotone_constraints
+    monotone_constraints,
 ) where {L,K,N}
 
     # initialize
@@ -184,20 +183,13 @@ function grow_otree!(
             end
         else
             # look for best split for each node
-            @threads for n ∈ n_current[1:2:end]
-                update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
-            end
-            @threads for n ∈ n_current[2:2:end]
-                if n % 2 == 0
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                else
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                end
-            end
+            build_nodes = view(n_current, 1:2:lastindex(n_current))
+            update_hist!(nodes, build_nodes, ∇, x_bin_T, js, Val(2K + 1))
+            subtract_hist!(h∇, view(n_current, 2:2:lastindex(n_current)), js)
             sort!(n_current)
             @threads for n ∈ n_current
                 tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
-                update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
+                update_gains!(L, h∇, nodes[n], n, js, params, feattypes, monotone_constraints)
             end
 
             # initialize gains for node 1 in which all gains of a given depth will be accumulated
@@ -243,8 +235,8 @@ function grow_otree!(
                     offset += length(nodes[n].is)
 
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
+                    _child_sums!(nodes[n<<1].∑, h∇, best_feat, best_bin, n, feattypes[best_feat])
+                    @views nodes[n<<1+1].∑ .= nodes[n].∑ .- nodes[n<<1].∑
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
@@ -321,7 +313,7 @@ function fit(
 
     @assert Tables.istable(dtrain) "fit(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
     dtrain = Tables.columntable(dtrain)
-    _device = params.device == :gpu ? GPU : CPU
+    _device = device_type(params.device)
     m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name)
 
     # initialize callback and logger if deval is provided
@@ -408,7 +400,7 @@ function fit(
     verbosity=1
 )
 
-    _device = params.device == :gpu ? GPU : CPU
+    _device = device_type(params.device)
     m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train)
 
     # initialize callback and logger if tracking eval data

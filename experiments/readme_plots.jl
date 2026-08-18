@@ -24,8 +24,8 @@ is = collect(1:size(X, 1))
 # train-eval split
 i_sample = sample(is, size(is, 1), replace=false)
 train_size = 0.8
-i_train = i_sample[1:floor(Int, train_size * size(is, 1))]
-i_eval = i_sample[floor(Int, train_size * size(is, 1))+1:end]
+i_train = i_sample[1:floor(Int, train_size*size(is, 1))]
+i_eval = i_sample[(floor(Int, train_size*size(is, 1))+1):end]
 
 x_train, x_eval = X[i_train, :], X[i_eval, :]
 y_train, y_eval = Y[i_train], Y[i_eval]
@@ -97,11 +97,11 @@ for spec in mle_specs
     q80 = quantile.(dists, 0.8)
     @info spec.loss coverage_q20 = mean(y_train .< q20) coverage_q80 = mean(y_train .< q80)
     plot_sinus(x, y_train, [
-        (y=pred[:, 1], color="navy", label="mu"),
-        (y=pred[:, 2], color="darkred", label=spec.scale),
-        (y=q20, color="green", label="q20"),
-        (y=q80, color="green", label="q80"),
-    ]; name=spec.name)
+            (y=pred[:, 1], color="navy", label="mu"),
+            (y=pred[:, 2], color="darkred", label=spec.scale),
+            (y=q20, color="green", label="q20"),
+            (y=q80, color="green", label="q80"),
+        ]; name=spec.name)
 end
 
 ###############################
@@ -137,10 +137,10 @@ pred_q = fit_and_predict(EvoTreeRegressor(;
 ))
 @info [mean(p .> y_train) for p in eachcol(pred_q)]
 plot_sinus(x, y_train, [
-    (y=pred_q[:, 1], color="darkred", label="Q20"),
-    (y=pred_q[:, 2], color="navy", label="Median"),
-    (y=pred_q[:, 3], color="darkgreen", label="Q80"),
-]; name="multiquantile-sinus")
+        (y=pred_q[:, 1], color="darkred", label="Q20"),
+        (y=pred_q[:, 2], color="navy", label="Median"),
+        (y=pred_q[:, 3], color="darkgreen", label="Q80"),
+    ]; name="multiquantile-sinus")
 
 ###############################
 # Credibility losses

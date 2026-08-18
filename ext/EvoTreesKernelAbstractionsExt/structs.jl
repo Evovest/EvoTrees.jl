@@ -1,7 +1,7 @@
 """
 	CacheBaseGPU <: EvoTrees.CacheGPU
 
-GPU training cache holding preallocated buffers used during tree growth.
+Backend-neutral GPU training cache holding preallocated buffers used during tree growth.
 
 ### Quick reference (selected buffers)
 - `h∇`: gradient histogram, indexed as `[2K+1, nbins, n_feats, node]`
@@ -9,6 +9,7 @@ GPU training cache holding preallocated buffers used during tree growth.
 - `gains_per_feat_gpu`, `bins_per_feat_gpu`: per-(feature,node) best split results
 - `best_gain_gpu`, `best_bin_gpu`, `best_feat_gpu`: reduced best split per node
 - `split_sums_temp_gpu`: per-(node,feature) temporary buffer for K>1 split scanning
+- `obliv_gains_gpu`, `obliv_count_gpu`: oblivious level-gain accumulation
 """
 struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     rng::Xoshiro
@@ -26,8 +27,6 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     js::CuVector{UInt32}
     ∇::CuMatrix
     h∇::CuArray
-    h∇L::CuArray
-    h∇R::CuArray
     feature_names::Vector{Symbol}
     edges::Vector
     featbins::Vector
@@ -43,7 +42,7 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
 
     tree_split_gpu::CuVector{Bool}
     tree_cond_bin_gpu::CuVector{UInt8}
-    tree_feat_gpu::CuVector{UInt32}
+    tree_feat_gpu::CuVector{Int32}
     tree_gain_gpu::CuVector{Float64}
     tree_pred_gpu::CuMatrix{Float32}
     nodes_sum_gpu::CuArray{Float64,2}
@@ -51,8 +50,8 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     n_next_gpu::CuVector{Int32}
     n_next_active_gpu::CuVector{Int32}
     best_gain_gpu::CuVector{Float64}
-    best_bin_gpu::CuVector{UInt8}
-    best_feat_gpu::CuVector{UInt32}
+    best_bin_gpu::CuVector{Int32}
+    best_feat_gpu::CuVector{Int32}
     build_nodes_gpu::CuVector{Int32}
     subtract_nodes_gpu::CuVector{Int32}
     build_count::CuVector{Int32}
@@ -62,6 +61,8 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     gains_per_feat_gpu::CuMatrix{Float64}    # Output: best gain per (feature,node)  [n_sampled_feats, max_tree_nodes]
     bins_per_feat_gpu::CuMatrix{Int32}       # Output: best bin per (feature,node)   [n_sampled_feats, max_tree_nodes]
     split_sums_temp_gpu::CuMatrix{Float64}   # Temp: per-(node,feature) accumulators [2K+1, n_sampled_feats*max_tree_nodes]
+    obliv_gains_gpu::CuMatrix{Float64}       # Oblivious: gain summed over nodes  [nbins, n_sampled_feats]
+    obliv_count_gpu::CuMatrix{Int32}         # Oblivious: #nodes with a valid gain [nbins, n_sampled_feats]
 
 end
 
