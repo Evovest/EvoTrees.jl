@@ -12,13 +12,13 @@ run_evo = true
 run_xgb = false
 nrounds = 200
 
-loss = :mse
+loss = :mse # mse | gaussian_mle
 tree_type = :binary
 T = Float32
 nthreads = Base.Threads.nthreads()
 
 device_list = [:cpu, :gpu]
-# device_list = [:gpu]
+# device_list = [:cpu]
 
 nobs_list = Int.([1e5, 1e6, 1e7])
 # nobs_list = Int.([1e6])
@@ -55,6 +55,7 @@ for _device in device_list
                     @info "EvoTrees"
                     loss == :mse ? metric = :mae : metric = loss
 
+                    # EvoTreeRegressor | EvoTreeMLE
                     params_evo = EvoTreeRegressor(;
                         loss,
                         metric,
@@ -132,6 +133,6 @@ for _device in device_list
         end
     end
     select!(df, Cols(:device, :nobs, :nfeats, :max_depth, r"train_", r"infer_"))
-    path = joinpath(@__DIR__, "results", "regressor-$_device.csv")
+    path = joinpath(@__DIR__, "results", "regressor-$loss-$_device.csv")
     CSV.write(path, df)
 end

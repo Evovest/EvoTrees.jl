@@ -16,12 +16,18 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
 [weakdeps]
+AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 Atomix = "a9b6321e-bd34-4604-b9c9-b65b8de01458"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+GPUArraysCore = "46192b85-c4d5-4398-a991-12ede77f4527"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+Metal = "dde4c033-4e86-420c-a63e-0dd931031962"
 
 [extensions]
-EvoTreesCUDAExt = ["CUDA", "KernelAbstractions", "Atomix"]
+EvoTreesAMDGPUExt = ["AMDGPU", "Atomix", "GPUArraysCore", "KernelAbstractions"]
+EvoTreesCUDAExt = ["CUDA", "Atomix", "GPUArraysCore", "KernelAbstractions"]
+EvoTreesKernelAbstractionsExt = ["Atomix", "GPUArraysCore", "KernelAbstractions"]
+EvoTreesMetalExt = ["Atomix", "GPUArraysCore", "KernelAbstractions", "Metal"]
 
 [compat]
 Atomix = "1"
@@ -51,4 +57,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 docs = ["Documenter"]
-test = ["CUDA", "DataFrames", "Test", "MLJBase", "MLJTestInterface"]
+test = ["Atomix", "CUDA", "DataFrames", "GPUArraysCore", "KernelAbstractions", "Test", "MLJBase", "MLJTestInterface"]
