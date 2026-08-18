@@ -131,5 +131,12 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
             @test EvoTrees._mle2p_metric_value(L, μ, φ, μ) >
                   EvoTrees._mle2p_metric_value(L, μ, φ, μ + 2.0)
         end
+
+        # Shared CPU/GPU inverse-link: unconstrained φ → softplus, not exp.
+        pred = Float32[0.0 1.0; -2.0 0.5]
+        EvoTrees.apply_prediction_link!(pred, EvoTrees.GaussianMLE)
+        @test pred[1, :] == Float32[0.0, 1.0]
+        @test pred[2, :] ≈ EvoTrees.softplus.(Float32[-2.0, 0.5])
+        @test pred[2, :] ≉ exp.(Float32[-2.0, 0.5])
     end
 end

@@ -34,7 +34,7 @@ end
     end
 end
 
-# MLE2P: μ accumulates, log-σ clamps at lower bound
+# MLE2P: μ accumulates; unconstrained scale φ is clamped at a lower bound
 @kernel function predict_kernel!(::Type{L}, pred, @Const(split), @Const(feats), @Const(cond_bins), @Const(leaf_pred), @Const(x_bin), @Const(feattypes)) where {L<:EvoTrees.MLE2P}
     i = @index(Global, Linear)
     T = eltype(pred)
@@ -129,15 +129,7 @@ function EvoTrees._predict(
     for i in 1:ntree_limit
         EvoTrees.predict!(pred, m.trees[i], x_bin, feattypes)
     end
-    if L == EvoTrees.LogLoss
-        pred .= EvoTrees.sigmoid.(pred)
-    elseif L ∈ [EvoTrees.Poisson, EvoTrees.Gamma, EvoTrees.Tweedie]
-        pred .= exp.(pred)
-    elseif L in [EvoTrees.GaussianMLE, EvoTrees.LogisticMLE]
-        pred[2:2:end, :] .= exp.(pred[2:2:end, :])
-    elseif L == EvoTrees.MLogLoss
-        EvoTrees.softmax!(pred)
-    end
+    EvoTrees.apply_prediction_link!(pred, L)
     pred = K == 1 ? vec(Array(pred')) : Array(pred')
     return pred
 end
