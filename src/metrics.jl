@@ -83,15 +83,15 @@ tweedie(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T}, eval
 wmae(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T}, eval::AbstractVector{T}; kwargs...) where {T} =
     _eval_metric(p, y, w, eval, Quantile; kwargs...)
 
-@inline function _mle2p_metric_value(::Type{GaussianMLE}, μ, φ, yt)
-    σ = softplus(φ)
-    return -(log(σ) + (yt - μ)^2 / (2 * σ^2))
+@inline function _mle2p_metric_value(::Type{GaussianMLE}, loc, scale_raw, y)
+    scale = softplus(scale_raw)
+    return -(log(scale) + (y - loc)^2 / (2 * scale^2))
 end
-@inline function _mle2p_metric_value(::Type{LogisticMLE}, μ, φ, yt)
-    s = softplus(φ)
-    z = (yt - μ) / s
+@inline function _mle2p_metric_value(::Type{LogisticMLE}, loc, scale_raw, y)
+    scale = softplus(scale_raw)
+    z = (y - loc) / scale
     az = abs(z)
-    return -log(s) - az - 2 * log1p(exp(-az))
+    return -log(scale) - az - 2 * log1p(exp(-az))
 end
 
 function _eval_mle2p_metric(

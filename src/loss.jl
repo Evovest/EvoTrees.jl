@@ -184,39 +184,36 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
     end
 end
 
-# Two-parameter MLE: unconstrained scale φ with σ = softplus(φ) (s for Logistic).
-# Second-order terms are Fisher information (expected Hessian), not the observed Hessian.
-# Location-scale families are orthogonal, so the Fisher matrix is diagonal and PD.
+# Two-parameter MLE. The tree predicts a location and an unconstrained scale
+# parameter; the positive scale is `softplus(scale_raw)`. Second-order terms
+# are Fisher information (expected Hessian). Location and scale are orthogonal,
+# so the Fisher matrix is diagonal and positive definite.
 
-# Gaussian N(μ, σ²) - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
-# I_μμ = 1/σ², I_σσ = 2/σ², I_φφ = I_σσ (σ')²
-@inline function mle2p_grad_hess(::Type{GaussianMLE}, μ, φ, yt)
-    σ = softplus(φ)
-    σ′ = sigmoid(φ)
-    invσ = 1 / σ
-    invσ2 = invσ * invσ
-    d = μ - yt
-    z2 = d * d * invσ2
-    gμ = d * invσ2
-    gφ = (1 - z2) * σ′ * invσ
-    hμ = invσ2
-    hφ = 2 * (σ′ * invσ)^2
-    return (gμ, gφ, hμ, hφ)
+# Gaussian N(loc, scale²) — http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
+# `dscale` is d(softplus)/d(scale_raw) = sigmoid(scale_raw).
+@inline function mle2p_grad_hess(::Type{GaussianMLE}, loc, scale_raw, y)
+    scale = softplus(scale_raw)
+    dscale = sigmoid(scale_raw)
+    resid = loc - y
+    g_loc = resid / scale^2
+    g_scale = (1 - resid^2 / scale^2) * dscale / scale
+    h_loc = 1 / scale^2
+    h_scale = 2 * (dscale / scale)^2
+    return (g_loc, g_scale, h_loc, h_scale)
 end
 
-# Logistic(μ, s) - https://en.wikipedia.org/wiki/Logistic_distribution
-# I_μμ = 1/(3s²), I_ss = (π² + 3)/(9s²), I_φφ = I_ss (s')²
-@inline function mle2p_grad_hess(::Type{LogisticMLE}, μ, φ, yt)
-    s = softplus(φ)
-    s′ = sigmoid(φ)
-    invs = 1 / s
-    z = (yt - μ) * invs
+# Logistic(loc, scale) — https://en.wikipedia.org/wiki/Logistic_distribution
+# `dscale` is d(softplus)/d(scale_raw) = sigmoid(scale_raw).
+@inline function mle2p_grad_hess(::Type{LogisticMLE}, loc, scale_raw, y)
+    scale = softplus(scale_raw)
+    dscale = sigmoid(scale_raw)
+    z = (y - loc) / scale
     th = tanh(z / 2)
-    gμ = -th * invs
-    gφ = (1 - z * th) * s′ * invs
-    hμ = invs * invs / 3
-    hφ = (oftype(s, π)^2 + 3) / 9 * (s′ * invs)^2
-    return (gμ, gφ, hμ, hφ)
+    g_loc = -th / scale
+    g_scale = (1 - z * th) * dscale / scale
+    h_loc = 1 / (3 * scale^2)
+    h_scale = (oftype(scale, π)^2 + 3) / 9 * (dscale / scale)^2
+    return (g_loc, g_scale, h_loc, h_scale)
 end
 
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:MLE2P}
@@ -227,9 +224,9 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
         @inbounds for t in 1:Y
             gb = 2 * (t - 1)
             hb = 2 * Y + 2 * (t - 1)
-            μ = p[2t-1, i]
-            φ = p[2t, i]
-            g1, g2, h1, h2 = mle2p_grad_hess(L, μ, φ, _target(y, t, i))
+            loc = p[2t-1, i]
+            scale_raw = p[2t, i]
+            g1, g2, h1, h2 = mle2p_grad_hess(L, loc, scale_raw, _target(y, t, i))
             ∇[gb+1, i] = g1 * w
             ∇[gb+2, i] = g2 * w
             ∇[hb+1, i] = h1 * w
