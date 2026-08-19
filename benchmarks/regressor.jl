@@ -18,7 +18,7 @@ T = Float32
 nthreads = Base.Threads.nthreads()
 
 device_list = [:cpu, :gpu]
-# device_list = [:cpu]
+# device_list = [:gpu]
 
 nobs_list = Int.([1e5, 1e6, 1e7])
 # nobs_list = Int.([1e6])
@@ -53,8 +53,7 @@ for _device in device_list
 
                 @info "EvoTrees"
                 loss == :mse ? metric = :mae : metric = loss
-                Learner == loss ∈ [:gaussian_mle, :logistic_mle] ? EvoTreeMLE : EvoTreeRegressor
-                gaussian_mle
+                Learner = loss ∈ [:gaussian_mle, :logistic_mle] ? EvoTreeMLE : EvoTreeRegressor
                 params_evo = Learner(;
                     loss,
                     metric,
