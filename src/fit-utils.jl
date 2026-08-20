@@ -48,7 +48,7 @@ function get_edges(df; feature_names, nbins, rng=Random.MersenneTwister(), kwarg
             featbins[j] = length(edges[j]) + 1
             feattypes[j] = true
         else
-            @error "Invalid feature eltype: $(feature_names[j]) is $(eltype(col))"
+            error("Invalid feature eltype: $(feature_names[j]) is $(eltype(col))")
         end
         if length(edges[j]) == 1
             edges[j] = [minimum(col)]
@@ -83,7 +83,7 @@ function binarize(df; feature_names, edges)
         elseif eltype(col) <: Real
             x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), col)
         else
-            @error "Invalid feature eltype: $(feature_names[j]) is $(eltype(col))"
+            error("Invalid feature eltype: $(feature_names[j]) is $(eltype(col))")
         end
     end
     return x_bin

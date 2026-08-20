@@ -555,6 +555,35 @@ end
             EvoTreeClassifier(nrounds=3); x_train=x,
             y_train=categorical(fill("a", 40), levels=["a"]),
         )
+
+        # An unsupported target eltype used to be reported with `@error`, which logs but
+        # does not throw, so execution continued to `length(target_levels)` with
+        # `target_levels` still `nothing` and the user saw a `MethodError` instead.
+        @test_throws ErrorException fit(
+            EvoTreeClassifier(nrounds=3); x_train=x, y_train=rand(40)
+        )
+    end
+
+    @testset "empty subsample" begin
+        rng = Xoshiro(11)
+        x = rand(rng, 40, 3)
+        y = 2 .* x[:, 1] .+ 0.2 .* randn(rng, 40)
+
+        # `cond` is `round(UInt8, 255 * rowsample)`, so a rowsample below 0.00196 keeps
+        # only mask bytes equal to zero, roughly 1 in 256 rows. On small data the draw
+        # comes up empty, which must be reported rather than silently producing a model
+        # that predicts the bias for every row.
+        @test_throws ErrorException fit(
+            EvoTreeRegressor(nrounds=5, max_depth=3, rowsample=0.001, min_weight=0.0, seed=1);
+            x_train=x, y_train=y, verbosity=0
+        )
+
+        # A normal rowsample is unaffected.
+        m = fit(
+            EvoTreeRegressor(nrounds=10, max_depth=3, rowsample=0.5, seed=1);
+            x_train=x, y_train=y, verbosity=0
+        )
+        @test all(isfinite, predict(m, x))
     end
 
 end

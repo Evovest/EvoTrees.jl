@@ -33,11 +33,8 @@ function subsample(left::AbstractVector, is::AbstractVector, mask_cond::Abstract
         end
     end
     counts_sum = sum(counts)
-    if counts_cum == 0
-        @error "no subsample observation - choose larger rowsample"
-    else
-        return view(is, 1:counts_sum)
-    end
+    counts_sum == 0 && error("no subsample observation - choose larger rowsample")
+    return view(is, 1:counts_sum)
 end
 
 # function subsample_single(is_in::AbstractVector, out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat, rng)
