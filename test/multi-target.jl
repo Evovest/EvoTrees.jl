@@ -50,4 +50,29 @@ using EvoTrees: fit, predict, sigmoid, logit
         @test mean((pred[:, 1] .- dtrain.y).^2)  < base[1] * 0.9
         @test mean((pred[:, 3] .- dtrain.y2).^2) < base[2] * 0.9
     end
+
+    # Multi-target MLE packs [mu_1, phi_1, mu_2, phi_2, ...], so every even offset column
+    # is a scale and must be unconstrained, not just column 2. The eval callback builds
+    # its own copy of this mapping, so it is worth pinning that it covers all of them.
+    @testset "multi-target MLE eval offset" begin
+        n_off = 200
+        rng_off = Xoshiro(9)
+        x_off = reshape(rand(rng_off, n_off), :, 1)
+        Y_off = permutedims(hcat(rand(rng_off, n_off), rand(rng_off, n_off)))
+        s1, s2 = 1.2, 1.5
+        off = hcat(fill(0.1, n_off), fill(s1, n_off), fill(-0.2, n_off), fill(s2, n_off))
+
+        cfg = EvoTreeMLE(; loss=:gaussian_mle, nrounds=0, max_depth=3, metric=:gaussian_mle)
+        m_off = fit(cfg; x_train=x_off, y_train=Y_off, offset_train=copy(off), verbosity=0)
+        cb = EvoTrees.CallBack(cfg, m_off, x_off, Y_off, EvoTrees.CPU; offset_eval=copy(off))
+
+        @test cb.p[2, 1] ≈ EvoTrees.invsoftplus(s1) atol = 1e-5
+        @test cb.p[4, 1] ≈ EvoTrees.invsoftplus(s2) atol = 1e-5
+
+        # A single-target offset has only two columns, and must be unchanged by `2:2:end`.
+        off1 = hcat(fill(0.1, n_off), fill(s1, n_off))
+        m1 = fit(cfg; x_train=x_off, y_train=Y_off[1, :], offset_train=copy(off1), verbosity=0)
+        cb1 = EvoTrees.CallBack(cfg, m1, x_off, Y_off[1, :], EvoTrees.CPU; offset_eval=copy(off1))
+        @test cb1.p[2, 1] ≈ EvoTrees.invsoftplus(s1) atol = 1e-5
+    end
 end
