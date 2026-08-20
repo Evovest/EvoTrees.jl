@@ -93,6 +93,44 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
         end
     end
 
+    @testset "eval class encoding" begin
+
+        # The eval callback must encode `y_eval` against the levels the model was trained
+        # on. It used to derive them from `y_eval` itself, so an eval fold missing a
+        # training class was scored against the wrong prediction columns.
+        Random.seed!(1)
+        nobs = 4_000
+        x = rand(nobs, 3)
+        z = 2 .* x[:, 1] .- x[:, 2]
+        y = [zi < -0.3 ? 1 : (zi < 0.5 ? 2 : 3) for zi in z]
+
+        # mlogloss computed directly, mapping each label through the model's own levels.
+        function true_mlogloss(m, xe, ye)
+            p = predict(m, xe)
+            lv = m.info[:target_levels]
+            mean(-log(max(p[i, findfirst(==(ye[i]), lv)], 1e-15)) for i in eachindex(ye))
+        end
+
+        # A class-complete eval set agrees either way; the missing-class cases are what
+        # separate the two encodings.
+        for ie in (1:1_500, findall(y[1:2_000] .!= 1), findall(y[1:2_000] .== 3))
+            m = fit(
+                EvoTreeClassifier(; nrounds=20, max_depth=4, eta=0.1);
+                x_train=x, y_train=y,
+                x_eval=x[ie, :], y_eval=y[ie], verbosity=0)
+            @test m.info[:logger][:metrics][end] ≈ true_mlogloss(m, x[ie, :], y[ie]) rtol =
+                1e-4
+        end
+
+        # A level in `y_eval` that never appeared in `y_train` indexed past the end of the
+        # prediction matrix under `@inbounds`. It must be rejected instead.
+        tr = findall(y .!= 3)
+        @test_throws ErrorException fit(
+            EvoTreeClassifier(; nrounds=5, max_depth=3);
+            x_train=x[tr, :], y_train=y[tr],
+            x_eval=x[1:500, :], y_eval=y[1:500], verbosity=0)
+    end
+
     @testset "MLE metrics" begin
         gaussian_lpdf(y, loc, scale) = -(log(scale) + (y - loc)^2 / (2 * scale^2))
         logistic_lpdf(y, loc, scale) = -(y - loc) / scale - log(scale) - 2 * log1p(exp(-(y - loc) / scale))
