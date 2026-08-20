@@ -48,7 +48,7 @@ function CallBack(
     feval = metric_dict[params.metric]
     V = device_array_type(device)
     w = isnothing(weight_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(deval, _weight_name))
-    metric_kwargs = (;)
+    metric_kwargs = hasproperty(params, :alpha) ? (alpha=T(params.alpha),) : (;)
     if params.metric == :multiquantile
         alphas_eval = T.(params.alphas)
         device <: GPU && (alphas_eval = V{T}(alphas_eval))
@@ -98,7 +98,7 @@ function CallBack(
     feval = metric_dict[params.metric]
     V = device_array_type(device)
     w = isnothing(w_eval) ? device_ones(device, T, size(x_eval, 1)) : V{T}(w_eval)
-    metric_kwargs = (;)
+    metric_kwargs = hasproperty(params, :alpha) ? (alpha=T(params.alpha),) : (;)
     if params.metric == :multiquantile
         alphas_eval = T.(params.alphas)
         device <: GPU && (alphas_eval = V{T}(alphas_eval))
