@@ -559,4 +559,49 @@ end
         @test length(EvoTrees.importance(m; feature_names=[:a, :a, :b, :c])) == 4
     end
 
+    @testset "early stopping returns the best iteration" begin
+        rng = Xoshiro(1)
+        n = 4_000
+        x = rand(rng, n, 10)
+        y = sin.(x[:, 1] .* 3) .+ 1.5 .* randn(rng, n)
+        xt, yt = x[1:2500, :], y[1:2500]
+        xe, ye = x[2501:end, :], y[2501:end]
+
+        # The trees grown while confirming the optimum are overfit by construction, so the
+        # returned model must not depend on how long early stopping waits.
+        results = map((10, 25, 50, 100)) do esr
+            m = fit(
+                EvoTreeRegressor(nrounds=1000, max_depth=6, eta=0.1,
+                                 early_stopping_rounds=esr, metric=:mse);
+                x_train=xt, y_train=yt, x_eval=xe, y_eval=ye, verbosity=0,
+            )
+            @test m.info[:nrounds] == m.info[:logger][:best_iter]
+            @test length(m.trees) == 1 + m.info[:logger][:best_iter]
+            sqrt(mean((predict(m, xe) .- ye) .^ 2))
+        end
+        @test all(r -> r ≈ results[1], results)
+
+        # Without an eval set there is no logger and nothing is dropped.
+        m = fit(EvoTreeRegressor(nrounds=30, max_depth=4); x_train=xt, y_train=yt)
+        @test m.info[:nrounds] == 30
+        @test length(m.trees) == 31
+
+        # `bagging_size` trees are grown per round, so truncation must account for it.
+        mb = fit(
+            EvoTreeRegressor(nrounds=1000, max_depth=6, eta=0.1, bagging_size=3,
+                             early_stopping_rounds=15, metric=:mse);
+            x_train=xt, y_train=yt, x_eval=xe, y_eval=ye, verbosity=0,
+        )
+        @test length(mb.trees) == 1 + 3 * mb.info[:nrounds]
+        @test mb.info[:nrounds] == mb.info[:logger][:best_iter]
+
+        # A run that improves to the final round keeps every tree.
+        mf = fit(
+            EvoTreeRegressor(nrounds=5, max_depth=4, eta=0.5, early_stopping_rounds=100, metric=:mse);
+            x_train=xt, y_train=yt, x_eval=xt, y_eval=yt, verbosity=0,
+        )
+        @test mf.info[:nrounds] == 5
+        @test length(mf.trees) == 6
+    end
+
 end
