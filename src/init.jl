@@ -50,7 +50,7 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
             target_levels = CategoricalArrays.levels(yc)
             y = UInt32.(CategoricalArrays.levelcode.(yc))
         else
-            @error "Invalid target eltype: $(eltype(y_train))"
+            error("Invalid target eltype: $(eltype(y_train))")
         end
         K = length(target_levels)
         K < 2 && error(
