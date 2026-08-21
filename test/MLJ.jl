@@ -294,6 +294,49 @@ f, c, r = MLJBase.fit(model, 2, data...);
 model.lambda = 0.1
 MLJBase.update(model, 2, f, c, data...);
 
+@testset "update cold restart" begin
+
+    seed = 123
+    # Use a local RNG: the suite seeds the global RNG in core.jl, so drawing from it
+    # here would shift the stream for every test that follows.
+    rng = Xoshiro(42)
+    X = MLJBase.table(rand(rng, 200, 3))
+    y = rand(rng, 200)
+
+    # Changing any hyperparameter other than `nrounds` invalidates the trees already
+    # grown, so `update` must discard them and refit rather than continue boosting.
+    model = EvoTreeRegressor(; nrounds=10, eta=0.05, max_depth=3, seed)
+    data = MLJBase.reformat(model, X, y)
+    f, c, _ = MLJBase.fit(model, 0, data...)
+    p_stale = MLJBase.predict(model, f, X)
+
+    model2 = EvoTreeRegressor(; nrounds=10, eta=0.9, max_depth=6, seed)
+    f2, c2, _ = MLJBase.update(model2, 0, f, c, data...)
+    p_update = MLJBase.predict(model2, f2, X)
+
+    f3, _, _ = MLJBase.fit(model2, 0, data...)
+    p_fresh = MLJBase.predict(model2, f3, X)
+
+    @test !all(p_update .≈ p_stale)
+    @test all(p_update .≈ p_fresh)
+
+    # Reducing `nrounds` below the number of trees already grown also requires a refit.
+    model3 = EvoTreeRegressor(; nrounds=4, eta=0.05, max_depth=3, seed)
+    f4, _, _ = MLJBase.update(model3, 0, f, c, data...)
+    @test f4.info[:nrounds] == 4
+
+    # Increasing `nrounds` alone is the one case that may continue from the existing
+    # ensemble, and doing so must agree with a fit from scratch.
+    model4 = EvoTreeRegressor(; nrounds=25, eta=0.05, max_depth=3, seed)
+    f5, _, _ = MLJBase.update(model4, 0, f, c, data...)
+    f6, _, _ = MLJBase.fit(model4, 0, data...)
+    @test f5.info[:nrounds] == 25
+    @test all(
+        MLJBase.predict(model4, f5, X) .≈
+        MLJBase.predict(model4, f6, X),
+    )
+end
+
 
 ############################
 # Feature Importances

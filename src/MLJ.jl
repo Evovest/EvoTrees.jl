@@ -8,18 +8,28 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
   device = device_type(model.device)
   V = device_array_type(device)
   w = isnothing(w) ? device_ones(device, T, nobs) : V{T}(w)
-  fitresult, cache = init_core(model, device, A, feature_names, y, w, nothing)
+  fitresult, core = init_core(model, device, A, feature_names, y, w, nothing)
 
   while fitresult.info[:nrounds] < model.nrounds
-    grow_evotree!(fitresult, cache, model)
+    grow_evotree!(fitresult, core, model)
   end
-  report = (features=cache.feature_names,)
-  return fitresult, cache, report
+  report = (features=core.feature_names,)
+  return fitresult, (core=core, model=deepcopy(model)), report
 end
 
+"""
+    okay_to_continue(model, fitresult, cache)
+
+Whether `MMI.update` may extend the existing fit instead of retraining from scratch.
+
+Boosting can only append trees to an existing ensemble, so continuing is valid only when the
+requested model differs from the fitted one in `nrounds` alone, and `nrounds` has not been
+reduced below the number of trees already grown. Any other hyperparameter change requires a
+cold restart, since the trees already fitted were grown under the previous values.
+"""
 function okay_to_continue(model, fitresult, cache)
-  check = model.nrounds - fitresult.info[:nrounds] >= 0
-  return check
+  return MMI.is_same_except(model, cache.model, :nrounds) &&
+         model.nrounds >= fitresult.info[:nrounds]
 end
 
 # For EarlyStopping.jl support
@@ -36,11 +46,12 @@ function MMI.update(
 )
   if okay_to_continue(model, fitresult, cache)
     while fitresult.info[:nrounds] < model.nrounds
-      grow_evotree!(fitresult, cache, model)
+      grow_evotree!(fitresult, cache.core, model)
     end
-    report = (features=cache.feature_names,)
+    cache = (core=cache.core, model=deepcopy(model))
+    report = (features=cache.core.feature_names,)
   else
-    fitresult, cache, report = fit(model, verbosity, A, y, w)
+    fitresult, cache, report = MMI.fit(model, verbosity, A, y, w)
   end
   return fitresult, cache, report
 end
