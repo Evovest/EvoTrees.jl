@@ -1,3 +1,23 @@
+_raw_level(x) = x isa CategoricalValue ? CategoricalArrays.unwrap(x) : x
+
+"""
+    eval_levelcode(y_eval, target_levels)
+
+Encode `y_eval` against the class levels the model was trained on, rather than against the
+levels present in `y_eval` itself. An eval set that is missing a training class, or that
+orders its own levels differently, would otherwise be scored against the wrong prediction
+columns.
+"""
+function eval_levelcode(y_eval, target_levels)
+    idx = indexin(y_eval, target_levels)
+    if any(isnothing, idx)
+        unseen = unique(_raw_level.(y_eval[findall(isnothing, idx)]))
+        error("`y_eval` contains levels absent from `y_train`: $(unseen). " *
+              "Training levels are $(_raw_level.(target_levels)).")
+    end
+    return UInt32.(idx)
+end
+
 struct CallBack{B,P,Y,C,D,K}
     feval::Function
     x_bin::B
@@ -32,16 +52,7 @@ function CallBack(
         permutedims(reduce(hcat, [Tables.getcolumn(deval, t) for t in _target_names]))
 
     if L == MLogLoss
-        if eltype(y_eval) <: CategoricalValue
-            levels = CategoricalArrays.levels(y_eval)
-            μ = zeros(T, K)
-            y = UInt32.(CategoricalArrays.levelcode.(y_eval))
-        else
-            levels = sort(unique(y_eval))
-            yc = CategoricalVector(y_eval, levels=levels)
-            μ = zeros(T, K)
-            y = UInt32.(CategoricalArrays.levelcode.(yc))
-        end
+        y = eval_levelcode(y_eval, m.info[:target_levels])
     else
         y = T.(y_eval)
     end
@@ -82,16 +93,7 @@ function CallBack(
     p = zeros(T, K, size(x_eval, 1))
 
     if L == MLogLoss
-        if eltype(y_eval) <: CategoricalValue
-            levels = CategoricalArrays.levels(y_eval)
-            μ = zeros(T, K)
-            y = UInt32.(CategoricalArrays.levelcode.(y_eval))
-        else
-            levels = sort(unique(y_eval))
-            yc = CategoricalVector(y_eval, levels=levels)
-            μ = zeros(T, K)
-            y = UInt32.(CategoricalArrays.levelcode.(yc))
-        end
+        y = eval_levelcode(y_eval, m.info[:target_levels])
     else
         y = T.(y_eval)
     end
