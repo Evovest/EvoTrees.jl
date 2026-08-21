@@ -95,6 +95,26 @@ function predict(m::EvoTree, data; ntree_limit=length(m.trees), device=:cpu)
     _predict(m, data, _device; ntree_limit)
 end
 
+"""
+    apply_prediction_link!(pred, ::Type{L})
+
+Map unconstrained tree sums onto the loss's response scale, in place.
+Shared by CPU and GPU `_predict` so inverse-link transforms cannot drift.
+`MLogLoss` dispatches to the device-specific `softmax!`.
+"""
+function apply_prediction_link!(pred, ::Type{L}) where {L}
+    if L == LogLoss
+        pred .= sigmoid.(pred)
+    elseif L ∈ [Poisson, Gamma, Tweedie]
+        pred .= exp.(pred)
+    elseif L <: MLE2P
+        pred[2:2:end, :] .= softplus.(pred[2:2:end, :])
+    elseif L == MLogLoss
+        softmax!(pred)
+    end
+    return pred
+end
+
 function _predict(
     m::EvoTree{L,K},
     data,
@@ -110,15 +130,7 @@ function _predict(
     for i = 1:ntree_limit
         predict!(pred, m.trees[i], x_bin, m.info[:feattypes])
     end
-    if L == LogLoss
-        pred .= sigmoid.(pred)
-    elseif L ∈ [Poisson, Gamma, Tweedie]
-        pred .= exp.(pred)
-    elseif L in [GaussianMLE, LogisticMLE]
-        pred[2:2:end, :] .= exp.(pred[2:2:end, :])
-    elseif L == MLogLoss
-        softmax!(pred)
-    end
+    apply_prediction_link!(pred, L)
     pred = K == 1 ? vec(Array(pred')) : Array(pred')
     return pred
 end

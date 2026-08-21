@@ -184,27 +184,36 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
     end
 end
 
-# Gaussian - http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
-# pred[i][1] = μ
-# pred[i][2] = log(σ)
-@inline function mle2p_grad_hess(::Type{GaussianMLE}, μ, ls, yt)
-    inv = 1 / exp(2 * ls)
-    d = μ - yt
-    return (d * inv, 1 - d^2 * inv, inv, 2 * inv * d^2)
+# Two-parameter MLE. The tree predicts a location and an unconstrained scale
+# parameter; the positive scale is `softplus(scale_raw)`. Second-order terms
+# are Fisher information (expected Hessian). Location and scale are orthogonal,
+# so the Fisher matrix is diagonal and positive definite.
+
+# Gaussian N(loc, scale²) — http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
+# `dscale` is d(softplus)/d(scale_raw) = sigmoid(scale_raw).
+@inline function mle2p_grad_hess(::Type{GaussianMLE}, loc, scale_raw, y)
+    scale = softplus(scale_raw)
+    dscale = sigmoid(scale_raw)
+    resid = loc - y
+    g_loc = resid / scale^2
+    g_scale = (1 - resid^2 / scale^2) * dscale / scale
+    h_loc = 1 / scale^2
+    h_scale = 2 * (dscale / scale)^2
+    return (g_loc, g_scale, h_loc, h_scale)
 end
 
-# LogisticProb - https://en.wikipedia.org/wiki/Logistic_distribution
-# pdf = 
-# pred[i][1] = μ
-# pred[i][2] = log(s)
-@inline function mle2p_grad_hess(::Type{LogisticMLE}, μ, ls, yt)
-    return (
-        -tanh((yt - μ) / (2 * exp(ls))) * exp(-ls),
-        -(exp(-ls) * (yt - μ) * tanh((yt - μ) / (2 * exp(ls))) - 1),
-        sech((yt - μ) / (2 * exp(ls)))^2 / (2 * exp(2 * ls)),
-        (exp(-2 * ls) * (μ - yt) * (μ - yt + exp(ls) * sinh(exp(-ls) * (μ - yt)))) /
-        (1 + cosh(exp(-ls) * (μ - yt))),
-    )
+# Logistic(loc, scale) — https://en.wikipedia.org/wiki/Logistic_distribution
+# `dscale` is d(softplus)/d(scale_raw) = sigmoid(scale_raw).
+@inline function mle2p_grad_hess(::Type{LogisticMLE}, loc, scale_raw, y)
+    scale = softplus(scale_raw)
+    dscale = sigmoid(scale_raw)
+    z = (y - loc) / scale
+    th = tanh(z / 2)
+    g_loc = -th / scale
+    g_scale = (1 - z * th) * dscale / scale
+    h_loc = 1 / (3 * scale^2)
+    h_scale = (oftype(scale, π)^2 + 3) / 9 * (dscale / scale)^2
+    return (g_loc, g_scale, h_loc, h_scale)
 end
 
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:MLE2P}
@@ -215,9 +224,9 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
         @inbounds for t in 1:Y
             gb = 2 * (t - 1)
             hb = 2 * Y + 2 * (t - 1)
-            μ = p[2t-1, i]
-            ls = p[2t, i]
-            g1, g2, h1, h2 = mle2p_grad_hess(L, μ, ls, _target(y, t, i))
+            loc = p[2t-1, i]
+            scale_raw = p[2t, i]
+            g1, g2, h1, h2 = mle2p_grad_hess(L, loc, scale_raw, _target(y, t, i))
             ∇[gb+1, i] = g1 * w
             ∇[gb+2, i] = g2 * w
             ∇[hb+1, i] = h1 * w
@@ -239,6 +248,28 @@ function sigmoid(x::AbstractArray{T}) where {T<:AbstractFloat}
 end
 @inline function sigmoid(x::T) where {T<:AbstractFloat}
     @fastmath 1 / (1 + exp(-x))
+end
+
+# σ = log(1 + exp(φ)), overflow-safe
+function softplus(x::AbstractArray{T}) where {T<:AbstractFloat}
+    return softplus.(x)
+end
+@inline function softplus(x::T) where {T<:AbstractFloat}
+    ax = abs(x)
+    return max(x, zero(T)) + log1p(exp(-ax))
+end
+
+# inverse: φ = log(exp(σ) - 1), overflow-safe for σ > 0
+function invsoftplus(x::AbstractArray{T}) where {T<:AbstractFloat}
+    return invsoftplus.(x)
+end
+@inline function invsoftplus(x::T) where {T<:AbstractFloat}
+    return x + log(-expm1(-x))
+end
+
+@inline function unconstrain_mle_scale!(offset::AbstractArray)
+    @views offset[:, 2:2:end] .= invsoftplus.(offset[:, 2:2:end])
+    return offset
 end
 
 # CredVar: ratio of variance

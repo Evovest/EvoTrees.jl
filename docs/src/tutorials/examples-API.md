@@ -129,3 +129,15 @@ config = EvoTreeMLE(
     lambda=0.0, gamma=0.0, eta=0.1,
     max_depth=6, rowsample=0.5)
 ```
+
+## Logistic Max Likelihood
+
+![](../assets/logistic-sinus-binary-cpu.svg)
+
+```julia
+config = EvoTreeMLE(
+    loss=:logistic_mle,
+    nrounds=100, nbins=100,
+    lambda=0.0, gamma=0.0, eta=0.1,
+    max_depth=6, rowsample=0.5)
+```

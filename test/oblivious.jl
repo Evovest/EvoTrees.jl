@@ -107,8 +107,9 @@ end
             print_every_n=100
         )
 
-        preds = model(x_eval)[:, 1]
-        mse_error = mean(abs.(preds .- y_eval) .^ 2)
+        preds = model(x_eval)
+        @test all(>(0), preds[:, 2])
+        mse_error = mean(abs.(preds[:, 1] .- y_eval) .^ 2)
         mse_gain_pct = mse_error / mse_error_ini - 1
         @test mse_gain_pct .< 0.75
 

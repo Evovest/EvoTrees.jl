@@ -60,7 +60,7 @@ function CallBack(
         L == LogLoss && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
         L == MLogLoss && (offset .= log.(offset))
-        L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
+        L in [GaussianMLE, LogisticMLE] && unconstrain_mle_scale!(offset)
         offset = T.(offset)
         p .+= offset'
     end
@@ -110,7 +110,7 @@ function CallBack(
         L == LogLoss && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
         L == MLogLoss && (offset .= log.(offset))
-        L in [GaussianMLE, LogisticMLE] && (offset[:, 2] .= log.(offset[:, 2]))
+        L in [GaussianMLE, LogisticMLE] && unconstrain_mle_scale!(offset)
         offset = T.(offset)
         p .+= offset'
     end

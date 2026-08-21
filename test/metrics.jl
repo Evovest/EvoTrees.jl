@@ -66,35 +66,76 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
         @test gini_norm(p, y) > 0.8
     end
 
-    @testset "logistic_mle metric" begin
+    @testset "MLE metrics" begin
+        gaussian_lpdf(y, loc, scale) = -(log(scale) + (y - loc)^2 / (2 * scale^2))
+        logistic_lpdf(y, loc, scale) = -(y - loc) / scale - log(scale) - 2 * log1p(exp(-(y - loc) / scale))
 
-        # Closed-form log-density of the logistic distribution with location mu and
-        # scale s: -(y-mu)/s - log(s) - 2*log(1 + exp(-(y-mu)/s)).
-        true_lpdf(y, mu, s) = -(y - mu) / s - log(s) - 2 * log1p(exp(-(y - mu) / s))
+        specs = (
+            (
+                loss=EvoTrees.GaussianMLE,
+                lpdf=gaussian_lpdf,
+                fisher=function (scale_raw, scale)
+                    dscale = EvoTrees.sigmoid(scale_raw)
+                    return (1 / scale^2, 2 * (dscale / scale)^2)
+                end,
+            ),
+            (
+                loss=EvoTrees.LogisticMLE,
+                lpdf=logistic_lpdf,
+                fisher=function (scale_raw, scale)
+                    dscale = EvoTrees.sigmoid(scale_raw)
+                    return (1 / (3 * scale^2), (π^2 + 3) / 9 * (dscale / scale)^2)
+                end,
+            ),
+        )
 
-        for (mu, s) in ((0.5, 2.0), (-1.0, 0.5), (0.0, 1.0))
-            ls = log(s)
-            for y in (mu, mu + 0.7, mu + 3.5, mu - 3.5, mu + 12.0)
-                @test EvoTrees._mle2p_metric_value(EvoTrees.LogisticMLE, mu, ls, y) ≈
-                      true_lpdf(y, mu, s)
+        @testset "$(spec.loss)" for spec in specs
+            L = spec.loss
+
+            for (loc, scale) in ((0.5, 2.0), (-1.0, 0.5), (0.0, 1.0))
+                scale_raw = EvoTrees.invsoftplus(scale)
+                @test EvoTrees.softplus(scale_raw) ≈ scale
+                for y in (loc, loc + 0.7, loc + 3.5, loc - 3.5, loc + 12.0)
+                    @test EvoTrees._mle2p_metric_value(L, loc, scale_raw, y) ≈ spec.lpdf(y, loc, scale)
+                end
             end
+
+            # Metric is the log-likelihood, so its derivatives match the loss gradient up to sign.
+            loc, scale, h = 0.5, 2.0, 1e-6
+            scale_raw = EvoTrees.invsoftplus(scale)
+            for y in (1.5, 4.0, -3.0)
+                g1, g2, h1, h2 = EvoTrees.mle2p_grad_hess(L, loc, scale_raw, y)
+                dloc = (EvoTrees._mle2p_metric_value(L, loc + h, scale_raw, y) -
+                        EvoTrees._mle2p_metric_value(L, loc - h, scale_raw, y)) / (2h)
+                draw = (EvoTrees._mle2p_metric_value(L, loc, scale_raw + h, y) -
+                        EvoTrees._mle2p_metric_value(L, loc, scale_raw - h, y)) / (2h)
+                @test dloc ≈ -g1 atol = 1e-5
+                @test draw ≈ -g2 atol = 1e-5
+            end
+
+            # Fisher information does not depend on the residual, and is positive definite.
+            h_ref = EvoTrees.mle2p_grad_hess(L, loc, scale_raw, loc)[3:4]
+            eh1, eh2 = spec.fisher(scale_raw, scale)
+            @test h_ref[1] ≈ eh1
+            @test h_ref[2] ≈ eh2
+            @test h_ref[1] > 0
+            @test h_ref[2] > 0
+            for y in (1.5, 4.0, -3.0)
+                @test EvoTrees.mle2p_grad_hess(L, loc, scale_raw, y)[3:4] == h_ref
+            end
+
+            # Symmetric about the location, and maximised there.
+            @test EvoTrees._mle2p_metric_value(L, loc, scale_raw, loc + 2.0) ≈
+                  EvoTrees._mle2p_metric_value(L, loc, scale_raw, loc - 2.0)
+            @test EvoTrees._mle2p_metric_value(L, loc, scale_raw, loc) >
+                  EvoTrees._mle2p_metric_value(L, loc, scale_raw, loc + 2.0)
         end
 
-        # The metric is the log-likelihood of the objective being optimised, so its
-        # derivative must agree with the gradient the loss uses, up to sign.
-        mu, ls, h = 0.5, log(2.0), 1e-6
-        for y in (1.5, 4.0, -3.0)
-            d = (EvoTrees._mle2p_metric_value(EvoTrees.LogisticMLE, mu + h, ls, y) -
-                 EvoTrees._mle2p_metric_value(EvoTrees.LogisticMLE, mu - h, ls, y)) / (2h)
-            g = EvoTrees.mle2p_grad_hess(EvoTrees.LogisticMLE, mu, ls, y)[1]
-            @test d ≈ -g atol = 1e-5
-        end
-
-        # Symmetric about the location, and maximised there.
-        mu, ls = 0.5, log(2.0)
-        @test EvoTrees._mle2p_metric_value(EvoTrees.LogisticMLE, mu, ls, mu + 2.0) ≈
-              EvoTrees._mle2p_metric_value(EvoTrees.LogisticMLE, mu, ls, mu - 2.0)
-        @test EvoTrees._mle2p_metric_value(EvoTrees.LogisticMLE, mu, ls, mu) >
-              EvoTrees._mle2p_metric_value(EvoTrees.LogisticMLE, mu, ls, mu + 2.0)
+        # Shared CPU/GPU inverse-link: unconstrained scale → softplus, not exp.
+        pred = Float32[0.0 1.0; -2.0 0.5]
+        EvoTrees.apply_prediction_link!(pred, EvoTrees.GaussianMLE)
+        @test pred[1, :] == Float32[0.0, 1.0]
+        @test pred[2, :] ≈ EvoTrees.softplus.(Float32[-2.0, 0.5])
+        @test pred[2, :] ≉ exp.(Float32[-2.0, 0.5])
     end
 end

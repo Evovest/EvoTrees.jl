@@ -12,4 +12,3 @@ function EvoTrees.post_fit_gc(::Type{<:EvoTrees.CUDADevice})
 end
 
 end
-
