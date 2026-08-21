@@ -138,4 +138,31 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
         @test pred[2, :] ≈ EvoTrees.softplus.(Float32[-2.0, 0.5])
         @test pred[2, :] ≉ exp.(Float32[-2.0, 0.5])
     end
+
+    @testset "mlogloss gradient and hessian" begin
+
+        # Softmax cross-entropy for a single observation with target class k.
+        loss(p, k) = log(sum(exp, p)) - p[k]
+
+        # Equal logits are the initialisation state, and are not on their own a
+        # sufficient check: the diagonal hessian prob*(1-prob) and the expression
+        # (1-prob)/isum coincide exactly when every logit is equal. The points below
+        # are deliberately unequal so that the two disagree.
+        target = 2
+        for p in ([0.0, 0.0, 0.0], [2.0, 1.0, 0.0], [1.0, -0.5, 0.3], [-1.0, -1.0, 2.0])
+            isum = sum(exp, p)
+            h = 1e-5
+            for k in eachindex(p)
+                g, hess = EvoTrees.mlogloss_grad_hess(p[k], isum, k == target)
+                pp = copy(p)
+                pp[k] += h
+                pm = copy(p)
+                pm[k] -= h
+                @test g ≈ (loss(pp, target) - loss(pm, target)) / (2h) atol = 1e-5
+                @test hess ≈
+                      (loss(pp, target) - 2 * loss(p, target) + loss(pm, target)) / h^2 atol =
+                    1e-4
+            end
+        end
+    end
 end

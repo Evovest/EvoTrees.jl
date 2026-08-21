@@ -94,7 +94,7 @@ end
 # K classes and so is accumulated by the caller before this is applied per-class.
 @inline function mlogloss_grad_hess(pk, isum, is_target)
     prob = exp(pk) / isum
-    return (is_target ? prob - one(prob) : prob, (1 - prob) / isum)
+    return (is_target ? prob - one(prob) : prob, prob * (1 - prob))
 end
 
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:GradientRegression}
