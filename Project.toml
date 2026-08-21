@@ -30,6 +30,7 @@ EvoTreesKernelAbstractionsExt = ["Atomix", "GPUArraysCore", "KernelAbstractions"
 EvoTreesMetalExt = ["Atomix", "GPUArraysCore", "KernelAbstractions", "Metal"]
 
 [compat]
+AMDGPU = "2.7.3"
 Atomix = "1"
 BSON = "0.3"
 CUDA = "5, 6"
