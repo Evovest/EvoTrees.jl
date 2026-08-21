@@ -66,6 +66,33 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
         @test gini_norm(p, y) > 0.8
     end
 
+    @testset "quantile metric alpha" begin
+
+        # The eval callback must pass the model's own `alpha` to the metric. It used to
+        # leave `metric_kwargs` empty for `:quantile`, so the metric fell back to its
+        # `alpha = 0.5` default and always reported the median pinball loss.
+        pinball(p, y, a) = mean(@. a * max(y - p, 0) + (1 - a) * max(p - y, 0))
+
+        Random.seed!(3)
+        nobs = 4_000
+        x = rand(nobs, 3)
+        y = 2 .* x[:, 1] .+ 0.5 .* randn(nobs)
+        itr, ite = 1:3_000, 3_001:nobs
+
+        # alpha = 0.5 is not on its own a sufficient check: it is the metric's default,
+        # so it agrees whether or not alpha is plumbed through.
+        for alpha in (0.1, 0.5, 0.9)
+            m = fit(
+                EvoTreeRegressor(;
+                    loss=:quantile, alpha, nrounds=25, max_depth=4, metric=:quantile);
+                x_train=x[itr, :], y_train=y[itr],
+                x_eval=x[ite, :], y_eval=y[ite], verbosity=0)
+            reported = m.info[:logger][:metrics][end]
+            p = predict(m, x[ite, :])
+            @test reported ≈ pinball(p, y[ite], alpha) rtol = 1e-4
+        end
+    end
+
     @testset "MLE metrics" begin
         gaussian_lpdf(y, loc, scale) = -(log(scale) + (y - loc)^2 / (2 * scale^2))
         logistic_lpdf(y, loc, scale) = -(y - loc) / scale - log(scale) - 2 * log1p(exp(-(y - loc) / scale))
