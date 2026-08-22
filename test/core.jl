@@ -559,4 +559,36 @@ end
         @test length(EvoTrees.importance(m; feature_names=[:a, :a, :b, :c])) == 4
     end
 
+    @testset "gamma target support" begin
+        rng = Xoshiro(21)
+        x = rand(rng, 200, 3)
+        ypos = 1.0 .+ rand(rng, 200)
+
+        m = fit(EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ypos)
+        @test length(m.trees) == 6
+
+        for bad in (0.0, -1.0)
+            y = copy(ypos)
+            y[7] = bad
+            @test_throws ErrorException fit(
+                EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=y
+            )
+        end
+
+        ymat = permutedims(hcat(ypos, ypos .+ 1))
+        m = fit(EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ymat)
+        @test length(m.trees) == 6
+        ymat[2, 5] = 0.0
+        @test_throws ErrorException fit(
+            EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ymat
+        )
+
+        yzero = copy(ypos)
+        yzero[7] = 0.0
+        for loss in (:poisson, :tweedie)
+            m = fit(EvoTreeRegressor(loss=loss, nrounds=5); x_train=x, y_train=yzero)
+            @test length(m.trees) == 6
+        end
+    end
+
 end
