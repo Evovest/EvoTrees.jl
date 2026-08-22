@@ -30,6 +30,13 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
         !isnothing(offset) && (offset .= logit.(offset))
     elseif L in [Poisson, Gamma, Tweedie]
         @assert eltype(y_train) <: Real
+        if L == Gamma
+            ymin = minimum(y_train)
+            ymin <= 0 && error(
+                "Gamma regression requires a strictly positive target, got a minimum of $ymin. " *
+                "The gamma deviance is undefined at 0."
+            )
+        end
         if y_train isa AbstractVector
             K = 1
             y = T.(y_train)
