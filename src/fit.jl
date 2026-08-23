@@ -6,7 +6,7 @@ Given a instantiate
 function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where {L,K}
 
     # compute gradients
-    update_grads!(cache.∇, cache.pred, cache.y, L, params)
+    update_grads!(cache.∇, cache.pred, cache.y, L, params, cache.group)
 
     for _ in 1:params.bagging_size
 

@@ -299,7 +299,7 @@ function init(
     V = device_array_type(device)
     w = isnothing(weight_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(dtrain, _weight_name))
     offset = isnothing(offset_name) ? nothing : V{T}(Tables.getcolumn(dtrain, _offset_name))
-    group = isnothing(group_name) ? nothing : build_group_index(Tables.getcolumn(dtrain, _group_name))
+    group = isnothing(group_name) ? nothing : build_group_index(Tables.getcolumn(dtrain, _group_name), nobs, "group_name")
 
     m, cache = init_core(params, device, dtrain, feature_names, y_train, w, offset, group)
 
@@ -346,7 +346,7 @@ function init(
     V = device_array_type(device)
     w = isnothing(w_train) ? device_ones(device, T, nobs) : V{T}(w_train)
     offset = isnothing(offset_train) ? nothing : V{T}(offset_train)
-    group = isnothing(group_train) ? nothing : build_group_index(group_train)
+    group = isnothing(group_train) ? nothing : build_group_index(group_train, nobs, "group_train")
 
     m, cache = init_core(params, device, x_train, feature_names, y_train, w, offset, group)
 

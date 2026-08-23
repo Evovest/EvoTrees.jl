@@ -1,6 +1,6 @@
 function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, params::EvoTrees.EvoTypes) where {L,K}
 
-    EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, L, params)
+    EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, L, params, cache.group)
 
     for _ in 1:params.bagging_size
         is = isnothing(cache.group) ?

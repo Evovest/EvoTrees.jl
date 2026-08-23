@@ -83,6 +83,34 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample
         @test length(sel) == n
     end
 
+    @testset "loss reaches the group index" begin
+        # Every loss defined today is per observation and ignores groups, but a group
+        # defined objective such as LambdaRank needs the index at the call site. The
+        # forwarding method makes that reachable without touching any existing loss.
+        struct _GroupProbeLoss <: EvoTrees.LossType end
+        seen = Ref{Any}(:unset)
+        # `params` is constrained the same way every loss in `src/loss.jl` constrains it;
+        # leaving it untyped would be ambiguous against the forwarding method.
+        EvoTrees.update_grads!(∇, p, y, ::Type{_GroupProbeLoss}, params::EvoTrees.EvoTypes, group) =
+            (seen[] = group; nothing)
+
+        gi = build_group_index([1, 1, 2, 2, 2])
+        ∇ = zeros(Float32, 3, 5)
+        p = zeros(Float32, 1, 5)
+        EvoTrees.update_grads!(∇, p, zeros(Float32, 5), _GroupProbeLoss,
+            EvoTreeRegressor(; nrounds=1), gi)
+        @test seen[] === gi
+
+        # And a loss that does not define the six argument form still works, receiving
+        # nothing and dispatching to its existing method.
+        ∇2 = zeros(Float32, 3, 5)
+        ∇2[3, :] .= 1        # weight row; gradients are scaled by it
+        p2 = zeros(Float32, 1, 5)
+        EvoTrees.update_grads!(∇2, p2, Float32[1, 2, 3, 4, 5], EvoTrees.MSE,
+            EvoTreeRegressor(; nrounds=1), nothing)
+        @test any(!iszero, ∇2)
+    end
+
     @testset "fit with groups" begin
         rng = Xoshiro(42)
         nq = 300
@@ -123,6 +151,23 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample
         @test mt.info[:feature_names] == [:f1, :f2, :f3, :f4]
         @test mt.info[:group_name] == :q
         @test mt.info[:logger][:metrics][end] > mt.info[:logger][:metrics][1]
+
+        # A group column of the wrong length must be rejected. A short one would otherwise
+        # silently train or score on a subset and report the result as if it covered
+        # everything; a long one indexes past the end of the predictions.
+        ntr, nte = sum(tr), sum(te)
+        @test_throws ErrorException fit(
+            EvoTreeRegressor(; nrounds=5, max_depth=3, metric=:ndcg);
+            x_train=x[tr, :], y_train=y[tr], group_train=qid[tr][1:(ntr÷2)],
+            x_eval=x[te, :], y_eval=y[te], group_eval=qid[te], verbosity=0)
+        @test_throws ErrorException fit(
+            EvoTreeRegressor(; nrounds=5, max_depth=3, metric=:ndcg);
+            x_train=x[tr, :], y_train=y[tr], group_train=qid[tr],
+            x_eval=x[te, :], y_eval=y[te], group_eval=qid[te][1:(nte÷2)], verbosity=0)
+        @test_throws ErrorException fit(
+            EvoTreeRegressor(; nrounds=5, max_depth=3, metric=:ndcg);
+            x_train=x[tr, :], y_train=y[tr], group_train=qid[tr],
+            x_eval=x[te, :], y_eval=y[te], group_eval=qid, verbosity=0)
 
         # Without groups there is nothing to rank within, so `:ndcg` must say so rather
         # than silently scoring the whole eval set as one list.

@@ -35,14 +35,24 @@ Row indices belonging to group `g`, as a view.
 Base.length(gi::GroupIndex) = length(gi.group)
 
 """
-    build_group_index(raw::AbstractVector)
+    build_group_index(raw::AbstractVector, nobs=nothing, argname="group")
 
 Build a [`GroupIndex`](@ref) from a per-row group id column. Ids may be of any type
 supporting `sort` and `isequal`, and need not be contiguous, sorted, or numeric.
+
+`nobs` is the number of observations the ids must cover. It is checked, because a group
+column of the wrong length would otherwise be accepted: a short one silently scores or
+trains on a subset, and a long one indexes past the end of the predictions.
 """
-function build_group_index(raw::AbstractVector)
+function build_group_index(raw::AbstractVector, nobs::Union{Nothing,Integer}=nothing, argname::AbstractString="group")
     n = length(raw)
-    n == 0 && error("`group` must be non-empty.")
+    n == 0 && error("`$(argname)` must be non-empty.")
+    if !isnothing(nobs) && n != nobs
+        error(
+            "`$(argname)` has length $(n) but there are $(nobs) observations. " *
+            "Each row needs exactly one group id."
+        )
+    end
     levels = sort(unique(raw))
     lookup = Dict(lv => UInt32(i) for (i, lv) in enumerate(levels))
     group = Vector{UInt32}(undef, n)

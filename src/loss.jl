@@ -97,6 +97,19 @@ end
     return (is_target ? prob - one(prob) : prob, prob * (1 - prob))
 end
 
+"""
+    update_grads!(∇, p, y, ::Type{L}, params, group)
+
+Gradient update with the group (query) index made available to the loss.
+
+Every loss currently defined is computed per observation and ignores `group`, so this
+forwards to the group-free method. A group-defined objective such as LambdaRank, whose
+gradients depend on the other documents in the same query, defines its own method on this
+signature and is dispatched to without any change at the call site.
+"""
+update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group) where {L} =
+    update_grads!(∇, p, y, L, params)
+
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:GradientRegression}
     K = size(p, 1)
     w_row = 2 * K + 1

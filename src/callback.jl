@@ -67,7 +67,7 @@ function CallBack(
         metric_kwargs = (alphas=alphas_eval,)
     end
     if !isnothing(group_name)
-        group_eval = build_group_index(Tables.getcolumn(deval, Symbol(group_name)))
+        group_eval = build_group_index(Tables.getcolumn(deval, Symbol(group_name)), nobs, "group_name")
         metric_kwargs = merge(metric_kwargs, (group=group_eval,))
     end
     hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
@@ -114,7 +114,7 @@ function CallBack(
         metric_kwargs = (alphas=alphas_eval,)
     end
     if !isnothing(group_eval)
-        metric_kwargs = merge(metric_kwargs, (group=build_group_index(group_eval),))
+        metric_kwargs = merge(metric_kwargs, (group=build_group_index(group_eval, size(x_eval, 1), "group_eval"),))
     end
     hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
 
