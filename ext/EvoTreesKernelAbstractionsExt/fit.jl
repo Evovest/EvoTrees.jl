@@ -3,7 +3,9 @@ function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, param
     EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, L, params)
 
     for _ in 1:params.bagging_size
-        is = EvoTrees.subsample(cache.is_full, cache.mask_cpu, cache.mask_gpu, params.rowsample, cache.rng)
+        is = isnothing(cache.group) ?
+             EvoTrees.subsample(cache.is_full, cache.mask_cpu, cache.mask_gpu, params.rowsample, cache.rng) :
+             EvoTrees.subsample(cache.is_full, cache.mask_cpu, cache.mask_gpu, params.rowsample, cache.rng, cache.group)
 
         js_cpu = Vector{eltype(cache.js)}(undef, length(cache.js))
         EvoTrees.sample!(cache.rng, cache.js_, js_cpu, replace=false, ordered=true)

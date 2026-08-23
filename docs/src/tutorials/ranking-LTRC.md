@@ -172,7 +172,7 @@ the inferred features:
 m = EvoTrees.fit(config, dtrain; target_name="y", group_name="q", deval)
 ```
 
-Group-aware training is currently CPU only.
+Groups are supported on both CPU and GPU.
 
 ## Logistic regression alternative
 

@@ -243,18 +243,6 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     return m, cache
 end
 
-# Group-aware training is CPU only for now. Fail with a message that says so rather than
-# letting the GPU `init_core` reject the extra argument with a MethodError.
-function _assert_group_device(has_group::Bool, device)
-    if has_group && !(device <: CPU)
-        error(
-            "Group-aware training is currently supported on CPU only. " *
-            "Set `device = :cpu`, or drop `group_name` / `group_train`."
-        )
-    end
-    return nothing
-end
-
 """
     init(
         params::EvoTypes,
@@ -278,8 +266,6 @@ function init(
     offset_name=nothing,
     group_name=nothing
 )
-
-    _assert_group_device(!isnothing(group_name), device)
 
     # set feature_names
     schema = Tables.schema(dtrain)
@@ -350,8 +336,6 @@ function init(
     offset_train=nothing,
     group_train=nothing
 )
-
-    _assert_group_device(!isnothing(group_train), device)
 
     # initialize model and cache
     feature_names = isnothing(feature_names) ? [Symbol("feat_$i") for i in axes(x_train, 2)] : Symbol.(feature_names)

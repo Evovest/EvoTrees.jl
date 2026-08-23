@@ -130,11 +130,6 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample
             EvoTreeRegressor(; nrounds=5, max_depth=3, metric=:ndcg),
             dtrain; target_name=:y, deval, verbosity=0)
 
-        # Group-aware training is CPU only for now, and says so.
-        @test_throws ErrorException fit(
-            EvoTreeRegressor(; nrounds=5, max_depth=3, device=:gpu),
-            dtrain; target_name=:y, group_name=:q, verbosity=0)
-
         # The reported metric must equal the per-group NDCG a user would compute by hand,
         # which is what the LTRC tutorial does with a `groupby`. This is the check that the
         # metric is a ranking metric rather than a global one.
