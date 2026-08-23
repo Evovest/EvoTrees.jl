@@ -152,7 +152,7 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
     return K, y, μ, target_levels, target_isordered
 end
 
-function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset)
+function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset, group=nothing)
 
     # binarize data into quantiles
     rng = Xoshiro(params.seed)
@@ -217,7 +217,8 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     Y = typeof(y)
     N = typeof(first(nodes))
     H = typeof(h∇)
-    cache = CacheBaseCPU{Y,N,H}(
+    G = typeof(group)
+    cache = CacheBaseCPU{Y,N,H,G}(
         rng,
         K,
         x_bin,
@@ -237,8 +238,21 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         featbins,
         feattypes,
         monotone_constraints,
+        group,
     )
     return m, cache
+end
+
+# Group-aware training is CPU only for now. Fail with a message that says so rather than
+# letting the GPU `init_core` reject the extra argument with a MethodError.
+function _assert_group_device(has_group::Bool, device)
+    if has_group && !(device <: CPU)
+        error(
+            "Group-aware training is currently supported on CPU only. " *
+            "Set `device = :cpu`, or drop `group_name` / `group_train`."
+        )
+    end
+    return nothing
 end
 
 """
@@ -261,13 +275,17 @@ function init(
     target_name,
     feature_names=nothing,
     weight_name=nothing,
-    offset_name=nothing
+    offset_name=nothing,
+    group_name=nothing
 )
+
+    _assert_group_device(!isnothing(group_name), device)
 
     # set feature_names
     schema = Tables.schema(dtrain)
     _weight_name = isnothing(weight_name) ? Symbol("") : Symbol(weight_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
+    _group_name = isnothing(group_name) ? Symbol("") : Symbol(group_name)
     _target_names = target_name isa AbstractVector ? Symbol.(target_name) : [Symbol(target_name)]
     if isnothing(feature_names)
         feature_names = Symbol[]
@@ -276,7 +294,7 @@ function init(
                 push!(feature_names, schema.names[i])
             end
         end
-        feature_names = setdiff(feature_names, union(_target_names, [_weight_name], [_offset_name]))
+        feature_names = setdiff(feature_names, union(_target_names, [_weight_name], [_offset_name], [_group_name]))
     else
         isa(feature_names, String) ? feature_names = [feature_names] : nothing
         feature_names = Symbol.(feature_names)
@@ -295,10 +313,12 @@ function init(
     V = device_array_type(device)
     w = isnothing(weight_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(dtrain, _weight_name))
     offset = isnothing(offset_name) ? nothing : V{T}(Tables.getcolumn(dtrain, _offset_name))
+    group = isnothing(group_name) ? nothing : build_group_index(Tables.getcolumn(dtrain, _group_name))
 
-    m, cache = init_core(params, device, dtrain, feature_names, y_train, w, offset)
+    m, cache = init_core(params, device, dtrain, feature_names, y_train, w, offset, group)
 
     m.info[:target_names] = _target_names
+    m.info[:group_name] = isnothing(group_name) ? nothing : _group_name
 
     return m, cache
 end
@@ -327,8 +347,11 @@ function init(
     device::Type{<:Device}=CPU;
     feature_names=nothing,
     w_train=nothing,
-    offset_train=nothing
+    offset_train=nothing,
+    group_train=nothing
 )
+
+    _assert_group_device(!isnothing(group_train), device)
 
     # initialize model and cache
     feature_names = isnothing(feature_names) ? [Symbol("feat_$i") for i in axes(x_train, 2)] : Symbol.(feature_names)
@@ -339,8 +362,9 @@ function init(
     V = device_array_type(device)
     w = isnothing(w_train) ? device_ones(device, T, nobs) : V{T}(w_train)
     offset = isnothing(offset_train) ? nothing : V{T}(offset_train)
+    group = isnothing(group_train) ? nothing : build_group_index(group_train)
 
-    m, cache = init_core(params, device, x_train, feature_names, y_train, w, offset)
+    m, cache = init_core(params, device, x_train, feature_names, y_train, w, offset, group)
 
     return m, cache
 end

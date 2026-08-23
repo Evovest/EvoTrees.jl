@@ -16,6 +16,7 @@ mutable struct EvoTreeRegressor <: MMI.Deterministic
     nbins::Int
     alpha::Float64
     alphas::Vector{Float64}
+    ndcg_k::Int
     monotone_constraints::Dict{Int,Int}
     tree_type::Symbol
     seed::Int
@@ -43,6 +44,7 @@ function EvoTreeRegressor(; kwargs...)
         :nbins => 64,
         :alpha => 0.5,
         :alphas => [0.1, 0.5, 0.9],
+        :ndcg_k => typemax(Int),
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => :binary,
         :seed => 123,
@@ -72,7 +74,7 @@ function EvoTreeRegressor(; kwargs...)
         error("Invalid loss. Must be one of: $_loss_list")
     end
 
-    _metric_list = [:mse, :rmse, :mae, :logloss, :poisson, :gamma, :tweedie, :quantile, :multiquantile, :gini]
+    _metric_list = [:mse, :rmse, :mae, :logloss, :poisson, :gamma, :tweedie, :quantile, :multiquantile, :gini, :ndcg]
     if isnothing(args[:metric])
         if loss ∈ [:cred_std, :cred_var]
             metric = :mae
@@ -109,6 +111,7 @@ function EvoTreeRegressor(; kwargs...)
         args[:nbins],
         args[:alpha],
         alphas,
+        args[:ndcg_k],
         args[:monotone_constraints],
         tree_type,
         args[:seed],
@@ -527,6 +530,7 @@ function check_args(args::Dict{Symbol,Any})
     check_parameter(Int, args[:nbins], 2, 255, :nbins)
     check_parameter(Int, args[:bagging_size], 1, typemax(Int), :bagging_size)
     check_parameter(Int, args[:early_stopping_rounds], 0, typemax(Int), :early_stopping_rounds)
+    haskey(args, :ndcg_k) && check_parameter(Int, args[:ndcg_k], 1, typemax(Int), :ndcg_k)
 
     # check positive float parameters
     check_parameter(Float64, args[:L2], zero(Float64), typemax(Float64), :L2)
@@ -568,6 +572,7 @@ function check_args(model::EvoTypes)
     check_parameter(Int, model.nbins, 2, 255, :nbins)
     check_parameter(Int, model.bagging_size, 1, typemax(Int), :bagging_size)
     check_parameter(Int, model.early_stopping_rounds, 0, typemax(Int), :early_stopping_rounds)
+    hasproperty(model, :ndcg_k) && check_parameter(Int, model.ndcg_k, 1, typemax(Int), :ndcg_k)
 
     # check positive float parameters
     check_parameter(Float64, model.L2, zero(Float64), typemax(Float64), :L2)

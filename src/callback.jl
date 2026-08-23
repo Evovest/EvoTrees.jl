@@ -36,7 +36,8 @@ function CallBack(
     device::Type{<:Device};
     target_name,
     weight_name=nothing,
-    offset_name=nothing) where {L,K}
+    offset_name=nothing,
+    group_name=nothing) where {L,K}
 
     T = Float32
     _weight_name = isnothing(weight_name) ? Symbol("") : Symbol(weight_name)
@@ -65,6 +66,11 @@ function CallBack(
         device <: GPU && (alphas_eval = V{T}(alphas_eval))
         metric_kwargs = (alphas=alphas_eval,)
     end
+    if !isnothing(group_name)
+        group_eval = build_group_index(Tables.getcolumn(deval, Symbol(group_name)))
+        metric_kwargs = merge(metric_kwargs, (group=group_eval,))
+    end
+    hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
 
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
     if !isnothing(offset)
@@ -86,7 +92,8 @@ function CallBack(
     y_eval,
     device::Type{<:Device};
     w_eval=nothing,
-    offset_eval=nothing) where {L,K}
+    offset_eval=nothing,
+    group_eval=nothing) where {L,K}
 
     T = Float32
     x_bin = binarize(x_eval; feature_names=m.info[:feature_names], edges=m.info[:edges])
@@ -106,6 +113,10 @@ function CallBack(
         device <: GPU && (alphas_eval = V{T}(alphas_eval))
         metric_kwargs = (alphas=alphas_eval,)
     end
+    if !isnothing(group_eval)
+        metric_kwargs = merge(metric_kwargs, (group=build_group_index(group_eval),))
+    end
+    hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
 
     offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
     if !isnothing(offset)

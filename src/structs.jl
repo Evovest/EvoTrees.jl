@@ -51,7 +51,7 @@ abstract type Cache end
 abstract type CacheCPU <: Cache end
 abstract type CacheGPU <: Cache end
 
-struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4}} <: CacheCPU
+struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4},G} <: CacheCPU
     rng::Xoshiro
     K::UInt8
     x_bin::Matrix{UInt8}
@@ -71,6 +71,7 @@ struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4}} <: Cache
     featbins::Vector{UInt8}
     feattypes::Vector{Bool}
     monotone_constraints::Vector{Int32}
+    group::G
 end
 
 # single tree is made of a vectors of length num nodes

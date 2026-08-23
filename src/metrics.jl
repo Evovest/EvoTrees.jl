@@ -142,6 +142,63 @@ function multiquantile(
 end
 
 
+# NDCG within a single group. `pred` and `rel` are the predicted scores and the graded
+# relevances of one group's documents, in matching order.
+function _ndcg_group(pred::AbstractVector, rel::AbstractVector, k::Int)
+    n = length(rel)
+    kk = min(k, n)
+    ord = sortperm(pred; rev=true)
+    dcg = 0.0
+    @inbounds for i in 1:kk
+        dcg += (2.0^rel[ord[i]] - 1) / log2(i + 1)
+    end
+    ideal = sort(rel; rev=true)
+    idcg = 0.0
+    @inbounds for i in 1:kk
+        idcg += (2.0^ideal[i] - 1) / log2(i + 1)
+    end
+    # A group whose documents are all irrelevant has no attainable ordering to be scored
+    # against. Scored as 1.0, matching the convention in the LTRC tutorial, so that a group
+    # the model cannot get wrong does not drag the average down.
+    return idcg > 0 ? dcg / idcg : 1.0
+end
+
+"""
+    ndcg(p, y, w, eval; group, ndcg_k, kwargs...)
+
+Normalised discounted cumulative gain, computed **within each group and then averaged over
+groups**, which is what makes it a ranking metric rather than a global one. Requires the
+group index supplied at fit through `group_name` or `group_eval`.
+
+Each group is weighted by the mean of its rows' weights, which reduces to an unweighted mean
+over groups when no weights are given.
+"""
+function ndcg(
+    p::AbstractMatrix{T},
+    y::AbstractVector,
+    w::AbstractVector{T},
+    eval::AbstractVector{T};
+    group=nothing,
+    ndcg_k::Int=typemax(Int),
+    kwargs...
+) where {T}
+    isnothing(group) && error(
+        "`metric = :ndcg` requires group information. Pass `group_name` when fitting from a " *
+        "table, or `group_eval` alongside `x_eval` when fitting from a matrix."
+    )
+    ng = ngroups(group)
+    scores = zeros(Float64, ng)
+    weights = zeros(Float64, ng)
+    @threads for g in 1:ng
+        rows = group_rows(group, g)
+        pred = [p[1, r] for r in rows]
+        rel = [y[r] for r in rows]
+        scores[g] = _ndcg_group(pred, rel, ndcg_k)
+        weights[g] = mean(w[r] for r in rows)
+    end
+    return sum(scores .* weights) / sum(weights)
+end
+
 function gini_raw(p::AbstractVector, y::AbstractVector)
     _y = y .- minimum(y)
     if length(_y) < 2
@@ -190,6 +247,7 @@ const metric_dict = Dict(
     :quantile => wmae,
     :multiquantile => multiquantile,
     :gini => gini,
+    :ndcg => ndcg,
 )
 
 is_maximise(::typeof(mse)) = false
@@ -205,3 +263,4 @@ is_maximise(::typeof(logistic_mle)) = true
 is_maximise(::typeof(wmae)) = false
 is_maximise(::typeof(multiquantile)) = false
 is_maximise(::typeof(gini)) = true
+is_maximise(::typeof(ndcg)) = true

@@ -11,7 +11,9 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
     for _ in 1:params.bagging_size
 
         # subsample rows
-        cache.nodes[1].is = subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, cache.rng)
+        cache.nodes[1].is = isnothing(cache.group) ?
+                            subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, cache.rng) :
+                            subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, cache.rng, cache.group)
         # subsample cols
         sample!(cache.rng, UInt32(1):UInt32(length(cache.feattypes)), cache.js, replace=false, ordered=true)
 
@@ -273,6 +275,7 @@ post_fit_gc(::Type{<:CPU}) = nothing
         feature_names=nothing,
         weight_name=nothing,
         offset_name=nothing,
+        group_name=nothing,
         deval=nothing,
         print_every_n=9999,
         verbosity=1
@@ -295,6 +298,7 @@ Main training function. Performs model fitting given configuration `params`, `dt
 - `feature_names = nothing`: the names `dtrain` variables to use as features. If not provided, it deafults to all variables that aren't one of `target`, `weight` or `offset``.
 - `weight_name = nothing`: name of the variable containing weights. If `nothing`, common weights on one will be used.
 - `offset_name = nothing`: name of the offset variable.
+- `group_name = nothing`: name of the variable identifying the group (query) each row belongs to, for ranking tasks. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows, and is required by `metric = :ndcg`. If `deval` is given it must carry the same column. Currently CPU only.
 - `deval`: A Tables compatible evaluation data containing features and target variables. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -306,6 +310,7 @@ function fit(
     feature_names=nothing,
     weight_name=nothing,
     offset_name=nothing,
+    group_name=nothing,
     deval=nothing,
     print_every_n=9999,
     verbosity=1,
@@ -314,12 +319,12 @@ function fit(
     @assert Tables.istable(dtrain) "fit(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
     dtrain = Tables.columntable(dtrain)
     _device = device_type(params.device)
-    m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name)
+    m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name, group_name)
 
     # initialize callback and logger if deval is provided
     if !isnothing(deval)
         deval = Tables.columntable(deval)
-        cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name)
+        cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name, group_name)
         logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
@@ -355,6 +360,8 @@ end
         y_eval=nothing, 
         w_eval=nothing, 
         offset_eval=nothing,
+        group_train=nothing,
+        group_eval=nothing,
         feature_names=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
@@ -381,6 +388,8 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `y_eval::VecOrMat`: vector or matrix of evaluation targets of length `#observations` or size `(#targets, #observations)`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
+- `group_train::Vector`: group (query) id of each training row, for ranking tasks. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows. Currently CPU only.
+- `group_eval::Vector`: group id of each evaluation row. Required by `metric = :ndcg`.
 - `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -395,13 +404,15 @@ function fit(
     y_eval=nothing,
     w_eval=nothing,
     offset_eval=nothing,
+    group_train=nothing,
+    group_eval=nothing,
     feature_names=nothing,
     print_every_n=9999,
     verbosity=1
 )
 
     _device = device_type(params.device)
-    m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train)
+    m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train, group_train)
 
     # initialize callback and logger if tracking eval data
     metric = params.metric
@@ -411,7 +422,7 @@ function fit(
         @warn "To track eval metric in logger, both `x_eval` and `y_eval` must be provided."
     end
     if logging_flag
-        cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval)
+        cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval, group_eval)
         logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]

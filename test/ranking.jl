@@ -1,0 +1,164 @@
+using Test
+using Statistics
+using Random
+using EvoTrees
+using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample
+
+@testset "ranking groups" begin
+
+    @testset "group index" begin
+        # Groups are supplied as a per-row id column, so the rows of a group need not be
+        # contiguous, sorted, or numeric. The index must recover them regardless.
+        raw = [3, 1, 3, 2, 1, 3]
+        gi = build_group_index(raw)
+
+        @test ngroups(gi) == 3
+        @test length(gi) == 6
+        # Ids are normalised to 1:ngroups by sorted level, so 1 -> 1, 2 -> 2, 3 -> 3.
+        @test gi.group == UInt32[3, 1, 3, 2, 1, 3]
+        # Every row belongs to exactly one group, and none is lost.
+        @test sort(Int.(gi.rows)) == collect(1:6)
+        @test sort(Int.(group_rows(gi, 1))) == [2, 5]
+        @test sort(Int.(group_rows(gi, 2))) == [4]
+        @test sort(Int.(group_rows(gi, 3))) == [1, 3, 6]
+
+        # Non-numeric ids work the same way.
+        gs = build_group_index(["b", "a", "b"])
+        @test ngroups(gs) == 2
+        @test sort(Int.(group_rows(gs, 1))) == [2]      # "a"
+        @test sort(Int.(group_rows(gs, 2))) == [1, 3]   # "b"
+
+        @test_throws ErrorException build_group_index(Int[])
+    end
+
+    @testset "ndcg" begin
+        ndcg_group = EvoTrees._ndcg_group
+        rel = [3.0, 2, 3, 0, 1, 2]
+        desc = Float64.(collect(6:-1:1))   # scores that reproduce `rel`'s given order
+
+        # Hand computation: gains 2^r - 1, discounts log2(i+1).
+        gains = [7.0, 3, 7, 0, 1, 3]
+        disc = [log2(i + 1) for i in 1:6]
+        expected = sum(gains ./ disc) / sum(sort(gains; rev=true) ./ disc)
+        @test ndcg_group(desc, rel, 100) ≈ expected
+
+        @test ndcg_group(Float64.(rel), rel, 100) ≈ 1.0          # perfect ordering
+        @test ndcg_group(-Float64.(rel), rel, 100) < 1.0         # reversed is worse
+        @test ndcg_group([1.0], [2.0], 100) ≈ 1.0                # single document
+        # A group whose documents are all irrelevant cannot be ranked wrongly, and is
+        # scored 1.0 to match the convention used in the LTRC tutorial.
+        @test ndcg_group([3.0, 2, 1], [0.0, 0, 0], 100) == 1.0
+        # Ties in the prediction must not error.
+        @test ndcg_group([1.0, 1.0, 1.0], [2.0, 1.0, 0.0], 100) isa Float64
+
+        # Truncation is bounded by the group size, so k beyond it changes nothing.
+        @test ndcg_group(desc, rel, 6) ≈ ndcg_group(desc, rel, 100)
+        @test ndcg_group(desc, rel, 1) ≈ 1.0    # top document is maximally relevant
+    end
+
+    @testset "group-aware sampling" begin
+        # A group is the unit a ranking objective or metric is defined over, so sampling
+        # must take whole groups. A split group changes the comparison set.
+        rng = Xoshiro(4)
+        qid = repeat(1:60, inner=8)[randperm(rng, 480)]
+        gi = build_group_index(qid)
+        n = length(qid)
+
+        for rowsample in (0.3, 0.5, 0.8)
+            is, left, mask = zeros(UInt32, n), zeros(UInt32, n), zeros(UInt8, n)
+            sel = subsample(left, is, mask, rowsample, Xoshiro(1), gi)
+            picked = unique(gi.group[sel])
+            @test !isempty(picked)
+            # every picked group contributes all of its rows, and nothing else appears
+            for g in picked
+                @test count(==(g), gi.group[sel]) == length(group_rows(gi, g))
+            end
+            @test length(sel) == sum(length(group_rows(gi, g)) for g in picked)
+            @test allunique(sel)
+        end
+
+        # rowsample = 1 keeps every group.
+        is, left, mask = zeros(UInt32, n), zeros(UInt32, n), zeros(UInt8, n)
+        sel = subsample(left, is, mask, 1.0, Xoshiro(1), gi)
+        @test length(sel) == n
+    end
+
+    @testset "fit with groups" begin
+        rng = Xoshiro(42)
+        nq = 300
+        qid = Int[]
+        rows = Vector{Float64}[]
+        rel = Float64[]
+        for q in 1:nq
+            for _ in 1:rand(rng, 8:16)
+                f = randn(rng, 4)
+                s = 1.5f[1] - f[2] + 0.5f[1] * f[3] + 1.2randn(rng)
+                push!(qid, q)
+                push!(rows, f)
+                push!(rel, clamp(round(s + 2), 0, 4))
+            end
+        end
+        x = permutedims(reduce(hcat, rows))
+        y = rel
+        tr = qid .<= 220
+        te = .!tr
+
+        # Matrix API.
+        m = fit(
+            EvoTreeRegressor(; nrounds=80, max_depth=5, eta=0.05, rowsample=0.7,
+                metric=:ndcg, ndcg_k=10);
+            x_train=x[tr, :], y_train=y[tr], group_train=qid[tr],
+            x_eval=x[te, :], y_eval=y[te], group_eval=qid[te], verbosity=0)
+        mets = m.info[:logger][:metrics]
+        @test all(0 .<= mets .<= 1)
+        @test mets[end] > mets[1]
+
+        # Table API. The group column must not be picked up as a feature.
+        dtrain = (q=qid[tr], f1=x[tr, 1], f2=x[tr, 2], f3=x[tr, 3], f4=x[tr, 4], y=y[tr])
+        deval = (q=qid[te], f1=x[te, 1], f2=x[te, 2], f3=x[te, 3], f4=x[te, 4], y=y[te])
+        mt = fit(
+            EvoTreeRegressor(; nrounds=80, max_depth=5, eta=0.05, rowsample=0.7,
+                metric=:ndcg, ndcg_k=10),
+            dtrain; target_name=:y, group_name=:q, deval, verbosity=0)
+        @test mt.info[:feature_names] == [:f1, :f2, :f3, :f4]
+        @test mt.info[:group_name] == :q
+        @test mt.info[:logger][:metrics][end] > mt.info[:logger][:metrics][1]
+
+        # Without groups there is nothing to rank within, so `:ndcg` must say so rather
+        # than silently scoring the whole eval set as one list.
+        @test_throws ErrorException fit(
+            EvoTreeRegressor(; nrounds=5, max_depth=3, metric=:ndcg),
+            dtrain; target_name=:y, deval, verbosity=0)
+
+        # Group-aware training is CPU only for now, and says so.
+        @test_throws ErrorException fit(
+            EvoTreeRegressor(; nrounds=5, max_depth=3, device=:gpu),
+            dtrain; target_name=:y, group_name=:q, verbosity=0)
+
+        # The reported metric must equal the per-group NDCG a user would compute by hand,
+        # which is what the LTRC tutorial does with a `groupby`. This is the check that the
+        # metric is a ranking metric rather than a global one.
+        function tutorial_ndcg(p, target, k=10)
+            k = min(k, length(p))
+            p_order = partialsortperm(p, 1:k; rev=true)
+            gains = 2 .^ target[p_order] .- 1
+            discounts = log2.((1:k) .+ 1)
+            dcg = sum(gains ./ discounts)
+            y_order = partialsortperm(target, 1:k; rev=true)
+            idcg = sum((2 .^ target[y_order] .- 1) ./ discounts)
+            return idcg == 0 ? 1.0 : dcg / idcg
+        end
+
+        for k in (5, 10, typemax(Int))
+            mk = fit(
+                EvoTreeRegressor(; nrounds=30, max_depth=4, eta=0.1, metric=:ndcg, ndcg_k=k);
+                x_train=x[tr, :], y_train=y[tr], group_train=qid[tr],
+                x_eval=x[te, :], y_eval=y[te], group_eval=qid[te], verbosity=0)
+            p = predict(mk, x[te, :])
+            ye, qe = y[te], qid[te]
+            manual = mean(tutorial_ndcg(p[qe.==q], ye[qe.==q], k) for q in unique(qe))
+            @test mk.info[:logger][:metrics][end] ≈ manual rtol = 1e-6
+        end
+    end
+
+end

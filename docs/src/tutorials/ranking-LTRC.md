@@ -123,6 +123,57 @@ ndcg_test = round(mean(test_df_agg.ndcg), sigdigits=5)
 └   ndcg_test = 0.8008
 ```
 
+## Using native group support
+
+The section above computes NDCG after the fact, outside the model. EvoTrees can also be told
+about groups directly, which makes two things available during training.
+
+Pass the query id alongside the features and target. `group_train` and `group_eval` take one
+id per row, and rows sharing an id form a group. Ids need not be contiguous or sorted, so the
+query vectors above can be passed as they are:
+
+```julia
+config = EvoTreeRegressor(
+    nrounds=6000,
+    early_stopping_rounds=200,
+    loss=:mse,
+    eta=0.02,
+    nbins=64,
+    max_depth=11,
+    rowsample=0.9,
+    colsample=0.9,
+    metric=:ndcg,
+    ndcg_k=10,
+)
+
+m = EvoTrees.fit(
+    config;
+    x_train, y_train, group_train=q_train,
+    x_eval, y_eval, group_eval=q_eval,
+    print_every_n=50,
+);
+```
+
+This changes two behaviours.
+
+`metric = :ndcg` computes NDCG within each group and averages over groups, which is the same
+quantity the `groupby` above produces, so early stopping now selects on ranking quality
+rather than on squared error. `ndcg_k` sets the truncation rank, and defaults to scoring the
+full list.
+
+`rowsample` becomes group aware: whole groups are sampled rather than individual rows, so a
+query is never split across the sampled and unsampled sets. This matters because a group is
+the unit NDCG is defined over, and a partial group changes the comparison set.
+
+When fitting from a table, the equivalent is `group_name`, and the column is excluded from
+the inferred features:
+
+```julia
+m = EvoTrees.fit(config, dtrain; target_name="y", group_name="q", deval)
+```
+
+Group-aware training is currently CPU only.
+
 ## Logistic regression alternative
 
 The above regression experiment shows a performance competitive with the results outlined in CatBoost's [ranking benchmarks](https://github.com/catboost/benchmarks/blob/master/ranking/Readme.md#4-results). 
