@@ -202,7 +202,12 @@ m = EvoTrees.fit(
 );
 ```
 
-Relevance must be non-negative, since gains are `2^rel - 1`.
+Relevance must be non-negative, since gains are `2^rel - 1`. Cost is quadratic in the size
+of a query, which is not a concern at typical query sizes but is worth knowing if a single
+group is very large.
+
+Groups are passed to `EvoTrees.fit` directly. The MLJ interface has no way to carry them,
+so ranking is not available through it.
 
 Whether this beats the regression approach above depends on the data. It helps most where
 queries differ in how they are graded, since the absolute label level is then query-specific

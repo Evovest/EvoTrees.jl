@@ -107,6 +107,7 @@ update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group) where {L} =
 # LambdaRank, per Burges' "From RankNet to LambdaRank to LambdaMART". Pairs within a query
 # contribute a pairwise logistic cost weighted by the NDCG change a swap would cause. The
 # lambdas stay per-document, so K = 1 and the histogram and leaf solver are untouched.
+# Cost is quadratic in the size of a query, so very large groups are the pathological case.
 function _lambdarank_group!(∇::Matrix{T}, p::Matrix{T}, y, rows, ndcg_k::Int) where {T}
     n = length(rows)
     n < 2 && return nothing
