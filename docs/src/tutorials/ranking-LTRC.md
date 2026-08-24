@@ -174,6 +174,42 @@ m = EvoTrees.fit(config, dtrain; target_name="y", group_name="q", deval)
 
 Groups are supported on both CPU and GPU.
 
+## Ranking objective
+
+With groups available, `loss=:lambdarank` optimises ranking directly rather than fitting the
+relevance as a regression target. Pairs of documents within a query contribute a pairwise
+cost weighted by the NDCG change that swapping them would cause, so the model is trained on
+within-query order rather than on absolute relevance. `metric` defaults to `:ndcg`.
+
+```julia
+config = EvoTreeRegressor(
+    loss=:lambdarank,
+    ndcg_k=10,
+    nrounds=6000,
+    early_stopping_rounds=200,
+    eta=0.02,
+    nbins=64,
+    max_depth=11,
+    rowsample=0.9,
+    colsample=0.9,
+)
+
+m = EvoTrees.fit(
+    config;
+    x_train, y_train, group_train=q_train,
+    x_eval, y_eval, group_eval=q_eval,
+    print_every_n=50,
+);
+```
+
+Relevance must be non-negative, since gains are `2^rel - 1`.
+
+Whether this beats the regression approach above depends on the data. It helps most where
+queries differ in how they are graded, since the absolute label level is then query-specific
+noise that a regression fit must absorb and a ranking objective can ignore. Where relevance
+is comparable across queries, regression is already a strong baseline, which is what the
+opening of this tutorial reports.
+
 ## Logistic regression alternative
 
 The above regression experiment shows a performance competitive with the results outlined in CatBoost's [ranking benchmarks](https://github.com/catboost/benchmarks/blob/master/ranking/Readme.md#4-results). 

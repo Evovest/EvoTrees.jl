@@ -111,6 +111,112 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample
         @test any(!iszero, ∇2)
     end
 
+    @testset "lambdarank gradients" begin
+        # |dNDCG| is held constant wrt the scores, so the gradient must equal dC/ds for
+        # C = sum over pairs rel_a > rel_b of |dNDCG_ab| * log(1 + exp(-(s_a - s_b))).
+        function pair_deltas(scores, rel, k)
+            n = length(rel)
+            ideal = sort(rel; rev=true)
+            maxdcg = sum((2.0^ideal[i] - 1) / log2(i + 1) for i in 1:min(k, n))
+            ord = sortperm(scores; rev=true)
+            rank = zeros(Int, n)
+            for pos in 1:n
+                rank[ord[pos]] = pos
+            end
+            disc = [pos <= k ? 1 / log2(pos + 1) : 0.0 for pos in 1:n]
+            D = zeros(n, n)
+            for a in 1:n, b in 1:n
+                rel[a] > rel[b] || continue
+                D[a, b] = abs((2.0^rel[a] - 2.0^rel[b]) *
+                              (disc[rank[a]] - disc[rank[b]])) / maxdcg
+            end
+            D
+        end
+        pair_cost(s, D, rel) = sum(
+            D[a, b] * log(1 + exp(-(s[a] - s[b])))
+            for a in eachindex(rel), b in eachindex(rel) if rel[a] > rel[b])
+
+        rng = Xoshiro(3)
+        for _ in 1:3, k in (3, 10)
+            n = 7
+            rel = Float64.(rand(rng, 0:4, n))
+            length(unique(rel)) < 2 && continue
+            sc = randn(rng, n)
+            D = pair_deltas(sc, rel, k)
+            ∇ = zeros(Float32, 3, n)
+            ∇[3, :] .= 1
+            EvoTrees._lambdarank_group!(∇, reshape(Float32.(sc), 1, n), Float32.(rel),
+                collect(1:n), k)
+            h = 1e-6
+            for i in 1:n
+                sp = copy(sc); sp[i] += h
+                sm = copy(sc); sm[i] -= h
+                @test ∇[1, i] ≈ (pair_cost(sp, D, rel) - pair_cost(sm, D, rel)) / (2h) atol = 1e-5
+            end
+            @test all(∇[2, :] .>= 0)
+            @test all(isfinite, ∇[1:2, :])
+            # Pairwise contributions are antisymmetric, so a query's gradients cancel.
+            @test sum(∇[1, :]) ≈ 0 atol = 1e-5
+        end
+
+        # A query with no relevant document carries no ranking signal.
+        ∇0 = zeros(Float32, 3, 4)
+        ∇0[3, :] .= 1
+        EvoTrees._lambdarank_group!(∇0, reshape(Float32[4, 3, 2, 1], 1, 4),
+            Float32[0, 0, 0, 0], collect(1:4), 10)
+        @test all(iszero, ∇0[1:2, :])
+    end
+
+    @testset "fit with lambdarank" begin
+        # Each query grades on its own curve, so absolute label level is query-specific
+        # noise that regression must fit but a ranking objective can ignore.
+        rng = Xoshiro(7)
+        qid = Int[]
+        rows = Vector{Float64}[]
+        rel = Float64[]
+        for q in 1:600
+            shift = 2.5 * randn(rng)
+            for _ in 1:rand(rng, 8:16)
+                f = randn(rng, 4)
+                sc = 1.5f[1] - f[2] + 0.5f[1] * f[3] + randn(rng)
+                push!(qid, q)
+                push!(rows, f)
+                push!(rel, clamp(round(sc + shift + 2), 0, 4))
+            end
+        end
+        x = permutedims(reduce(hcat, rows))
+        y = rel
+        tr, te = qid .<= 450, qid .> 450
+
+        # Both report `:ndcg` so the two are comparable; `:mse` would otherwise default to
+        # reporting squared error.
+        cfg(loss) = EvoTreeRegressor(; loss, metric=:ndcg, ndcg_k=10, nrounds=150,
+            max_depth=5, eta=0.05, rowsample=0.7)
+        fitted(loss) = fit(cfg(loss); x_train=x[tr, :], y_train=y[tr], group_train=qid[tr],
+            x_eval=x[te, :], y_eval=y[te], group_eval=qid[te], verbosity=0)
+
+        m = fitted(:lambdarank)
+        @test EvoTreeRegressor(; loss=:lambdarank).metric == :ndcg
+        mets = m.info[:logger][:metrics]
+        @test all(0 .<= mets .<= 1)
+        @test mets[end] > mets[1]
+
+        # Whether the ranking objective beats regression is an empirical property that
+        # depends on the data and sample size, so it belongs in a benchmark rather than
+        # here. What is asserted is that it optimises something different: the two produce
+        # materially different models on the same inputs.
+        pl = predict(m, x[te, :])
+        pm = predict(fitted(:mse), x[te, :])
+        @test cor(pl, pm) < 0.999
+
+        @test_throws ErrorException fit(
+            EvoTreeRegressor(; loss=:lambdarank, nrounds=5, max_depth=3);
+            x_train=x[tr, :], y_train=y[tr], verbosity=0)
+        @test_throws AssertionError fit(
+            EvoTreeRegressor(; loss=:lambdarank, nrounds=5, max_depth=3);
+            x_train=x[tr, :], y_train=y[tr] .- 1, group_train=qid[tr], verbosity=0)
+    end
+
     @testset "fit with groups" begin
         rng = Xoshiro(42)
         nq = 300

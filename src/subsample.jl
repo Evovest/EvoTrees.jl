@@ -40,10 +40,9 @@ end
 """
     subsample(left, is, mask_cond, rowsample, rng, gi::GroupIndex)
 
-Group-aware variant used for ranking tasks. Draws one value per group rather than per row,
-so a selected group contributes all of its rows and is never split. Sampling whole groups is
-required for any objective or metric defined within a group: a partial group changes the
-comparison set, and so changes the quantity being optimised.
+Group-aware variant for ranking. Draws one value per group rather than per row, so a
+selected group is never split: a partial group changes the comparison set a group-defined
+objective or metric is computed over.
 
 Returns a view of selected row ids, ordered by group.
 """

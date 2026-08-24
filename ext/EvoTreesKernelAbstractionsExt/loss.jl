@@ -189,3 +189,21 @@ function EvoTrees.update_grads!(
     KernelAbstractions.synchronize(backend)
     return
 end
+
+# LambdaRank needs each query sorted by score and a pairwise sweep within it. That is a
+# segmented sort plus an irregular inner loop on device, so the arrays are brought to the
+# host and the shared CPU implementation is used.
+function EvoTrees.update_grads!(
+    ∇::CuMatrix,
+    p::CuMatrix,
+    y::CuVector,
+    ::Type{EvoTrees.LambdaRank},
+    params::EvoTrees.EvoTypes,
+    group,
+)
+    isnothing(group) && EvoTrees._lambdarank_no_group()
+    ∇_cpu = Array(∇)
+    EvoTrees._lambdarank_grads!(∇_cpu, Array(p), Array(y), group.index, params.ndcg_k)
+    copyto!(∇, ∇_cpu)
+    return nothing
+end

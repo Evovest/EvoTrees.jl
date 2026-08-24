@@ -132,7 +132,13 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
         end
     else
         @assert eltype(y_train) <: Real
-        if L <: GradientRegression
+        if L == LambdaRank
+            # Scores are relative within a query, so a constant bias cancels.
+            @assert minimum(y_train) >= 0 "`:lambdarank` requires non-negative graded relevance."
+            K = 1
+            y = T.(y_train)
+            μ = T[0]
+        elseif L <: GradientRegression
             if y_train isa AbstractVector
                 K = 1
                 y = T.(y_train)

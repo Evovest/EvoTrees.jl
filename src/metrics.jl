@@ -142,8 +142,7 @@ function multiquantile(
 end
 
 
-# NDCG within a single group. `pred` and `rel` are the predicted scores and the graded
-# relevances of one group's documents, in matching order.
+# NDCG within a single group, `pred` and `rel` in matching order.
 function _ndcg_group(pred::AbstractVector, rel::AbstractVector, k::Int)
     n = length(rel)
     kk = min(k, n)
@@ -157,21 +156,16 @@ function _ndcg_group(pred::AbstractVector, rel::AbstractVector, k::Int)
     @inbounds for i in 1:kk
         idcg += (2.0^ideal[i] - 1) / log2(i + 1)
     end
-    # A group whose documents are all irrelevant has no attainable ordering to be scored
-    # against. Scored as 1.0, matching the convention in the LTRC tutorial, so that a group
-    # the model cannot get wrong does not drag the average down.
+    # All-irrelevant groups score 1.0, matching the convention in the LTRC tutorial.
     return idcg > 0 ? dcg / idcg : 1.0
 end
 
 """
     ndcg(p, y, w, eval; group, ndcg_k, kwargs...)
 
-Normalised discounted cumulative gain, computed **within each group and then averaged over
-groups**, which is what makes it a ranking metric rather than a global one. Requires the
-group index supplied at fit through `group_name` or `group_eval`.
-
-Each group is weighted by the mean of its rows' weights, which reduces to an unweighted mean
-over groups when no weights are given.
+Normalised discounted cumulative gain, computed within each group then averaged over groups.
+Requires the group index supplied at fit through `group_name` or `group_eval`. Each group is
+weighted by the mean of its rows' weights.
 """
 function ndcg(
     p::AbstractMatrix{T},

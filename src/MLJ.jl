@@ -181,6 +181,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:multiquantile`
   - `:cred_var`: **experimental** credibility-based gains, derived from ratio of spread to process variance.
   - `:cred_std`: **experimental** credibility-based gains, derived from ratio of spread to process std deviation.
+  - `:lambdarank`: ranking objective. Pairwise within each query, weighted by the NDCG change a swap would cause. Requires groups, and defaults to `metric=:ndcg`.
 - `metric`:     The evaluation metric used to track evaluation data and serves as a basis for early stopping. Supported metrics are: 
   - `:mse`:     Mean-squared error. Adapted for general regression models.
   - `:rmse`:    Root-mean-squared error. Adapted for general regression models.
@@ -202,7 +203,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 - `gamma=0.0`:            Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
 - `alpha=0.5`:            Loss specific parameter in the [0, 1] range:
                             - `:quantile`: target quantile for the regression.
-- `ndcg_k`:               Truncation rank for `metric = :ndcg`, that is the `k` of NDCG@k. Must be >= 1. Defaults to no truncation, scoring the full list of each group.
+- `ndcg_k`:               Truncation rank for `metric = :ndcg` and for the `:lambdarank` objective, that is the `k` of NDCG@k. Must be >= 1. Defaults to no truncation, scoring the full list of each group.
 - `max_depth=6`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
   A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
   Compute cost is proportional to `2^max_depth`. Typical optimal values are in the 3 to 9 range.

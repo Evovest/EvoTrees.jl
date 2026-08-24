@@ -1,16 +1,11 @@
 """
     GroupIndex
 
-Row to group mapping for ranking tasks.
+Row to group (query) mapping for ranking. Groups are given as a per-row id column rather
+than boundary offsets, so a group's rows need not be contiguous.
 
-A group (a query, in learning-to-rank terms) is a set of rows that are ranked against each
-other. Groups are supplied as a per-row id column rather than as boundary offsets, so the
-rows of a group need not be contiguous in the input. The index built here recovers the rows
-of each group in O(1), which is what both group-aware sampling and per-group metrics need.
-
-- `group` holds the normalised group id of each row, in `1:ngroups`.
-- `rows` holds row indices ordered by group.
-- `ptr` holds the boundaries into `rows`, so group `g` owns `rows[ptr[g]:ptr[g+1]-1]`.
+`group` is the normalised id of each row in `1:ngroups`, `rows` holds row indices ordered by
+group, and `ptr` bounds them, so group `g` owns `rows[ptr[g]:ptr[g+1]-1]`.
 """
 struct GroupIndex
     group::Vector{UInt32}
@@ -18,18 +13,8 @@ struct GroupIndex
     ptr::Vector{UInt32}
 end
 
-"""
-    ngroups(gi::GroupIndex)
-
-Number of distinct groups.
-"""
 ngroups(gi::GroupIndex) = length(gi.ptr) - 1
 
-"""
-    group_rows(gi::GroupIndex, g)
-
-Row indices belonging to group `g`, as a view.
-"""
 @inline group_rows(gi::GroupIndex, g) = view(gi.rows, gi.ptr[g]:(gi.ptr[g+1]-one(UInt32)))
 
 Base.length(gi::GroupIndex) = length(gi.group)
@@ -40,9 +25,8 @@ Base.length(gi::GroupIndex) = length(gi.group)
 Build a [`GroupIndex`](@ref) from a per-row group id column. Ids may be of any type
 supporting `sort` and `isequal`, and need not be contiguous, sorted, or numeric.
 
-`nobs` is the number of observations the ids must cover. It is checked, because a group
-column of the wrong length would otherwise be accepted: a short one silently scores or
-trains on a subset, and a long one indexes past the end of the predictions.
+`nobs` is checked when given: a short group column would otherwise silently train or score
+on a subset, and a long one would index past the end of the predictions.
 """
 function build_group_index(raw::AbstractVector, nobs::Union{Nothing,Integer}=nothing, argname::AbstractString="group")
     n = length(raw)
@@ -62,7 +46,6 @@ function build_group_index(raw::AbstractVector, nobs::Union{Nothing,Integer}=not
     return _index_from_ids(group, UInt32(length(levels)))
 end
 
-# Counting sort of row indices by group id, giving `rows` and `ptr`.
 function _index_from_ids(group::Vector{UInt32}, ng::UInt32)
     counts = zeros(UInt32, ng)
     @inbounds for g in group

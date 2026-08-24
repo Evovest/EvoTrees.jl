@@ -7,10 +7,8 @@ function EvoTrees.subsample(is_full::CuVector, mask_cpu::Vector, mask_gpu::CuVec
     return is
 end
 
-# Group-aware subsampling for ranking. One draw per group rather than per row, then a gather
-# through the per-row group id to expand the group mask back to rows. This keeps the same
-# boolean-mask indexing the row sampler uses, with a single gather on top, so a selected
-# group always contributes all of its rows.
+# Group-aware subsampling: one draw per group, then a gather through the per-row group id to
+# expand the mask back to rows. Same boolean-mask indexing as above, with one gather on top.
 function EvoTrees.subsample(is_full::CuVector, mask_cpu::Vector, mask_gpu::CuVector, rowsample::AbstractFloat, rng, g::GroupCacheGPU)
     cond = round(UInt8, 255 * rowsample)
     rand!(rng, g.mask_cpu)

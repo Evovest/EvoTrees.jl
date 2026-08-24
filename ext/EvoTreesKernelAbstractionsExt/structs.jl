@@ -1,12 +1,9 @@
 """
 	GroupCacheGPU
 
-Device-side companion to [`EvoTrees.GroupIndex`](@ref) for ranking tasks.
-
-`group_gpu` holds the per-row group id, which is what group-aware sampling gathers through.
-`mask_cpu` / `mask_gpu` are per-group rather than per-row, so one draw covers a whole group.
-`index` is kept on the host because the ranking metric needs a sort within each group, which
-is done host side.
+Device-side companion to [`EvoTrees.GroupIndex`](@ref). `group_gpu` is the per-row group id
+that sampling gathers through, `mask_cpu` / `mask_gpu` are per-group, and `index` stays on
+the host for the metric.
 """
 struct GroupCacheGPU{V,M}
     index::EvoTrees.GroupIndex
