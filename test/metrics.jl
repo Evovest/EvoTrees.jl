@@ -230,4 +230,31 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
             end
         end
     end
+
+    @testset "poisson metric with zero counts" begin
+
+        for pk in (-1.0, 0.0, 0.5)
+            @test EvoTrees._metric_value(EvoTrees.Poisson, pk, 0.0, 0.5) ≈ 2 * exp(pk)
+        end
+
+        dev(y, mu) = 2 * (y * log(y / mu) + mu - y)
+        for (pk, y) in ((0.0, 1.0), (0.5, 3.0), (-0.7, 2.0))
+            @test EvoTrees._metric_value(EvoTrees.Poisson, pk, y, 0.5) ≈ dev(y, exp(pk))
+        end
+        @test EvoTrees._metric_value(EvoTrees.Poisson, log(2.0), 2.0, 0.5) ≈ 0 atol = 1e-12
+
+        p = zeros(1, 3)
+        @test isfinite(EvoTrees.poisson(p, [0.0, 1.0, 2.0], ones(3), zeros(3)))
+
+        nobs = 1_000
+        Random.seed!(123)
+        x = rand(nobs, 5)
+        y = Float64.(rand(0:3, nobs))
+        @test any(iszero, y)
+
+        config = EvoTreeCount(nrounds=20, eta=0.2, early_stopping_rounds=3)
+        m = fit(config; x_train=x, y_train=y, x_eval=x, y_eval=y, verbosity=0)
+        @test all(isfinite, m.info[:logger][:metrics])
+        @test m.info[:nrounds] == 20
+    end
 end
