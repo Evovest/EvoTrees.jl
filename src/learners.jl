@@ -525,8 +525,11 @@ function check_args(args::Dict{Symbol,Any})
     check_parameter(Int, args[:nrounds], 0, typemax(Int), :nrounds)
     check_parameter(Int, args[:max_depth], 1, typemax(Int), :max_depth)
     check_parameter(Int, args[:nbins], 2, 255, :nbins)
+    check_parameter(Int, args[:bagging_size], 1, typemax(Int), :bagging_size)
+    check_parameter(Int, args[:early_stopping_rounds], 0, typemax(Int), :early_stopping_rounds)
 
     # check positive float parameters
+    check_parameter(Float64, args[:L2], zero(Float64), typemax(Float64), :L2)
     check_parameter(Float64, args[:lambda], zero(Float64), typemax(Float64), :lambda)
     check_parameter(Float64, args[:gamma], zero(Float64), typemax(Float64), :gamma)
     check_parameter(Float64, args[:min_weight], zero(Float64), typemax(Float64), :min_weight)
@@ -563,8 +566,11 @@ function check_args(model::EvoTypes)
     check_parameter(Int, model.max_depth, 1, typemax(Int), :max_depth)
     check_parameter(Int, model.nrounds, 0, typemax(Int), :nrounds)
     check_parameter(Int, model.nbins, 2, 255, :nbins)
+    check_parameter(Int, model.bagging_size, 1, typemax(Int), :bagging_size)
+    check_parameter(Int, model.early_stopping_rounds, 0, typemax(Int), :early_stopping_rounds)
 
     # check positive float parameters
+    check_parameter(Float64, model.L2, zero(Float64), typemax(Float64), :L2)
     check_parameter(Float64, model.lambda, zero(Float64), typemax(Float64), :lambda)
     check_parameter(Float64, model.gamma, zero(Float64), typemax(Float64), :gamma)
     check_parameter(Float64, model.min_weight, zero(Float64), typemax(Float64), :min_weight)
