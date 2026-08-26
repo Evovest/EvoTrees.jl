@@ -1,11 +1,42 @@
 # NEWS
 
 ## v0.19
+
+### Breaking changes
+- **MLE models are not compatible with v0.18.** `:gaussian_mle` and `:logistic_mle` now use Fisher information (expected Hessian) and a `softplus` scale instead of `exp`. Saved models from ≤0.18 will produce incorrect scale predictions; retrain them. User-facing offsets remain the positive scale (`σ` / `s`); internally they are mapped with `invsoftplus` rather than `log`.
+- **Multiclass Hessian.** `:mlogloss` now uses the softmax diagonal `p(1-p)`. Retraining a classifier can yield different trees; already-saved models still predict as before.
+- **Invalid input now errors** instead of logging and continuing. In particular: a single-level classification target, a non-positive target under `:gamma`, an empty row subsample, and `L2` / `bagging_size` / `early_stopping_rounds` outside their valid ranges.
+- **Classification eval labels** are encoded against the training levels. `y_eval` must only contain classes seen in `y_train`; a different level order no longer silently scores the wrong prediction columns.
+- **MLJ `update`** continues an existing fit only when `nrounds` is the sole hyper-parameter change (and is not reduced). Any other change triggers a full refit.
+
 ### MLE losses: Fisher information and softplus scale
 - `:gaussian_mle` and `:logistic_mle` now take Newton steps with the **Fisher information** (expected Hessian) rather than the observed Hessian. The Fisher matrix is diagonal and positive definite for these location-scale families, which stabilizes split finding and leaf weights.
-- The unconstrained scale parameter is now `softplus(φ)` rather than `exp(φ)`. `predict` still returns the positive scale (`σ` / `s`); saved models and scale offsets from the previous `log` parametrization are not compatible.
+- The unconstrained scale parameter is now `softplus(x)` rather than `exp(x)`. `predict` still returns the positive scale (`σ` / `s`).
+
+### Multi-target regression
+- Several losses can now be fit jointly on a vector of targets, with shared tree structure and a vector-valued leaf. Pass a matrix `y_train` of size `(n_targets, nobs)`, or `target_name=["y1", "y2", ...]` on a table.
+- Supported: `:mse`, `:logloss`, `:poisson`, `:gamma`, `:tweedie`, `:mae`, `:quantile`, `:cred_std`, `:cred_var`, `:gaussian_mle`, `:logistic_mle`. Not supported: `:mlogloss`, `:multiquantile`.
+- Predictions are `(nobs, n_targets)`. MLE losses return `(nobs, 2 * n_targets)` with interleaved location and positive scale per target.
+
+```julia
+config = EvoTreeRegressor(; loss=:mse, nrounds=200)
+m = fit(config, dtrain; target_name=["y", "y2"])
+pred = m(dtrain)  # size (nobs, 2)
+```
+
+### GPU: KernelAbstractions, AMD and Metal
+- GPU training is fully on `KernelAbstractions.jl`, sharing loss, metric and split-scan math with the CPU path. Oblivious trees (`tree_type=:oblivious`) are supported on GPU.
+- New backends besides NVIDIA/CUDA: AMD/ROCm (`AMDGPU.jl`) and Apple Metal (`Metal.jl`). Load the corresponding package, then set `device` on the learner.
+- `device` accepts `:cpu`, `:gpu` / `:cuda` (NVIDIA), `:rocm` / `:amd`, and `:metal`. `:gpu` remains an alias for CUDA.
+
+### Other
+- `early_stopping_tolerance`: eval metric must improve by more than this value to reset the early-stopping counter (default `0.0`).
+- `EvoTrees.predict_leaf_idx(m, data)`: leaf index of each observation in each tree (`Matrix{UInt32}` of size `(nobs, ntrees)`).
+- Quantile eval metric now uses the model's `alpha`. `:logistic_mle` and `:gini` eval metrics match their intended definitions.
+- `importance` returns zeros when a model has no splits.
 
 ## v0.18
+
 
 ## Refactor of GPU training backend
 - Computations are now done through `KernelAbstractions.jl` instead of CUDA specific kernels. Objective is to eventually have full support for AMD / ROCm in addition to current NVIDIA / CUDA devices.
