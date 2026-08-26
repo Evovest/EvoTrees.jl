@@ -18,8 +18,8 @@ x_bool = rand(Bool, nobs)
 is = collect(1:nobs)
 i_sample = sample(is, nobs, replace=false)
 train_size = 0.8
-i_train = i_sample[1:floor(Int, train_size * nobs)]
-i_eval = i_sample[floor(Int, train_size * nobs)+1:end]
+i_train = i_sample[1:floor(Int, train_size*nobs)]
+i_eval = i_sample[(floor(Int, train_size*nobs)+1):end]
 
 # target var
 y_tot = sin.(x_num) .* 0.5 .+ 0.5
@@ -38,7 +38,7 @@ config = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
-    rng=123,
+    seed=123,
 )
 
 @testset "Tables - NTuples" begin

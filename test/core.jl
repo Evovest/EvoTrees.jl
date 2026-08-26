@@ -450,9 +450,11 @@ end
     # Check the implemented parameters on construction
     @testset "check_args all for EvoTreeRegressor" begin
         for (key, vals_to_test) in zip(
-            [:nrounds, :max_depth, :nbins, :lambda, :gamma, :min_weight, :alpha, :rowsample, :colsample, :eta],
+            [:nrounds, :max_depth, :nbins, :lambda, :gamma, :min_weight, :alpha, :rowsample, :colsample, :eta,
+                :L2, :bagging_size, :early_stopping_rounds],
             [[-1, 1.5], [0, 1.5], [1, 256, 100.5], [-eps(Float64)], [-eps(Float64)], [-eps(Float64)],
-                [-0.1, 1.1], [0.0f0, 1.1f0], [0.0, 1.1], [-eps(Float64)]])
+                [-0.1, 1.1], [0.0f0, 1.1f0], [0.0, 1.1], [-eps(Float64)],
+                [-eps(Float64)], [0, -1, 1.5], [-1, 1.5]])
             for val in vals_to_test
                 @test_throws Exception EvoTreeRegressor(; zip([key], [val])...)
             end
@@ -465,6 +467,39 @@ end
         @test_throws Exception EvoTreeRegressor(loss=:multiquantile, alphas=[0.5, 0.5])
         config = EvoTreeRegressor(loss=:multiquantile, alphas=[0.5], nrounds=1)
         @test check_args(config) === nothing
+    end
+
+    @testset "check_args L2 and bagging_size" begin
+        # Both used to be accepted unvalidated. A negative `L2` lands in the leaf denominator
+        # and takes every prediction to NaN; a `bagging_size` below 1 makes the per-round loop
+        # an empty range, so no trees are grown and the fit reports success anyway.
+        seed!(7)
+        x = rand(200, 3)
+        y = 2 .* x[:, 1] .+ 0.2 .* randn(200)
+
+        @test_throws Exception EvoTreeRegressor(L2=-100.0)
+        @test_throws Exception EvoTreeRegressor(bagging_size=0)
+        @test_throws Exception EvoTreeRegressor(early_stopping_rounds=-1)
+
+        # `L2` is the sibling of `lambda`, which was already bounded below at zero.
+        @test EvoTreeRegressor(L2=0.0) isa EvoTreeRegressor
+        @test EvoTreeRegressor(bagging_size=1) isa EvoTreeRegressor
+        @test EvoTreeRegressor(early_stopping_rounds=0) isa EvoTreeRegressor
+
+        # Valid values still train, and every round still grows a tree.
+        m = fit(EvoTreeRegressor(nrounds=10, max_depth=3, bagging_size=2, L2=1.0);
+            x_train=x, y_train=y, verbosity=0)
+        @test length(m.trees) - 1 == 20
+        @test all(isfinite, predict(m, x))
+
+        # Mutating a fitted config is the path MLJ tuning takes, so the second `check_args`
+        # method must reject the same values.
+        config = EvoTreeRegressor(nrounds=5)
+        config.L2 = -1.0
+        @test_throws Exception check_args(config)
+        config = EvoTreeRegressor(nrounds=5)
+        config.bagging_size = 0
+        @test_throws Exception check_args(config)
     end
 
     # Test all EvoTypes that they have *some* checks in place
@@ -557,6 +592,38 @@ end
         # Ordering is stable across calls, and duplicate names are not collapsed.
         @test first.(EvoTrees.importance(m)) == first.(EvoTrees.importance(m))
         @test length(EvoTrees.importance(m; feature_names=[:a, :a, :b, :c])) == 4
+    end
+
+    @testset "gamma target support" begin
+        rng = Xoshiro(21)
+        x = rand(rng, 200, 3)
+        ypos = 1.0 .+ rand(rng, 200)
+
+        m = fit(EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ypos)
+        @test length(m.trees) == 6
+
+        for bad in (0.0, -1.0)
+            y = copy(ypos)
+            y[7] = bad
+            @test_throws ErrorException fit(
+                EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=y
+            )
+        end
+
+        ymat = permutedims(hcat(ypos, ypos .+ 1))
+        m = fit(EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ymat)
+        @test length(m.trees) == 6
+        ymat[2, 5] = 0.0
+        @test_throws ErrorException fit(
+            EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ymat
+        )
+
+        yzero = copy(ypos)
+        yzero[7] = 0.0
+        for loss in (:poisson, :tweedie)
+            m = fit(EvoTreeRegressor(loss=loss, nrounds=5); x_train=x, y_train=yzero)
+            @test length(m.trees) == 6
+        end
     end
 
 end
