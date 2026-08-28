@@ -1,17 +1,18 @@
 # NEWS
 
-## v0.19
+## v0.18.8
 
-### Breaking changes
-- **MLE models are not compatible with v0.18.** `:gaussian_mle` and `:logistic_mle` now use Fisher information (expected Hessian) and a `softplus` scale instead of `exp`. Saved models from ≤0.18 will produce incorrect scale predictions; retrain them. User-facing offsets remain the positive scale (`σ` / `s`); internally they are mapped with `invsoftplus` rather than `log`.
+Saved `:gaussian_mle` / `:logistic_mle` models from ≤0.18.7 remain compatible: the unconstrained scale is still `exp(x)`.
+
+### Behavioral changes
 - **Multiclass Hessian.** `:mlogloss` now uses the softmax diagonal `p(1-p)`. Retraining a classifier can yield different trees; already-saved models still predict as before.
 - **Invalid input now errors** instead of logging and continuing. In particular: a single-level classification target, a non-positive target under `:gamma`, an empty row subsample, and `L2` / `bagging_size` / `early_stopping_rounds` outside their valid ranges.
 - **Classification eval labels** are encoded against the training levels. `y_eval` must only contain classes seen in `y_train`; a different level order no longer silently scores the wrong prediction columns.
 - **MLJ `update`** continues an existing fit only when `nrounds` is the sole hyper-parameter change (and is not reduced). Any other change triggers a full refit.
 
-### MLE losses: Fisher information and softplus scale
+### MLE losses: Fisher information
 - `:gaussian_mle` and `:logistic_mle` now take Newton steps with the **Fisher information** (expected Hessian) rather than the observed Hessian. The Fisher matrix is diagonal and positive definite for these location-scale families, which stabilizes split finding and leaf weights.
-- The unconstrained scale parameter is now `softplus(x)` rather than `exp(x)`. `predict` still returns the positive scale (`σ` / `s`).
+- The unconstrained scale parameter remains `exp(x)`. `predict` still returns the positive scale (`σ` / `s`). User-facing offsets remain the positive scale and are mapped internally with `log`.
 
 ### Multi-target regression
 - Several losses can now be fit jointly on a vector of targets, with shared tree structure and a vector-valued leaf. Pass a matrix `y_train` of size `(n_targets, nobs)`, or `target_name=["y1", "y2", ...]` on a table.

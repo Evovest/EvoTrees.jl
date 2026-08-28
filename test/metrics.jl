@@ -139,17 +139,15 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
             (
                 loss=EvoTrees.GaussianMLE,
                 lpdf=gaussian_lpdf,
-                fisher=function (scale_raw, scale)
-                    dscale = EvoTrees.sigmoid(scale_raw)
-                    return (1 / scale^2, 2 * (dscale / scale)^2)
+                fisher=function (_scale_raw, scale)
+                    return (1 / scale^2, oftype(scale, 2))
                 end,
             ),
             (
                 loss=EvoTrees.LogisticMLE,
                 lpdf=logistic_lpdf,
-                fisher=function (scale_raw, scale)
-                    dscale = EvoTrees.sigmoid(scale_raw)
-                    return (1 / (3 * scale^2), (π^2 + 3) / 9 * (dscale / scale)^2)
+                fisher=function (_scale_raw, scale)
+                    return (1 / (3 * scale^2), (π^2 + 3) / 9)
                 end,
             ),
         )
@@ -158,8 +156,8 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
             L = spec.loss
 
             for (loc, scale) in ((0.5, 2.0), (-1.0, 0.5), (0.0, 1.0))
-                scale_raw = EvoTrees.invsoftplus(scale)
-                @test EvoTrees.softplus(scale_raw) ≈ scale
+                scale_raw = log(scale)
+                @test exp(scale_raw) ≈ scale
                 for y in (loc, loc + 0.7, loc + 3.5, loc - 3.5, loc + 12.0)
                     @test EvoTrees._mle2p_metric_value(L, loc, scale_raw, y) ≈ spec.lpdf(y, loc, scale)
                 end
@@ -167,7 +165,7 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
 
             # Metric is the log-likelihood, so its derivatives match the loss gradient up to sign.
             loc, scale, h = 0.5, 2.0, 1e-6
-            scale_raw = EvoTrees.invsoftplus(scale)
+            scale_raw = log(scale)
             for y in (1.5, 4.0, -3.0)
                 g1, g2, h1, h2 = EvoTrees.mle2p_grad_hess(L, loc, scale_raw, y)
                 dloc = (EvoTrees._mle2p_metric_value(L, loc + h, scale_raw, y) -
@@ -196,12 +194,11 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
                   EvoTrees._mle2p_metric_value(L, loc, scale_raw, loc + 2.0)
         end
 
-        # Shared CPU/GPU inverse-link: unconstrained scale → softplus, not exp.
+        # Shared CPU/GPU inverse-link: unconstrained scale → exp.
         pred = Float32[0.0 1.0; -2.0 0.5]
         EvoTrees.apply_prediction_link!(pred, EvoTrees.GaussianMLE)
         @test pred[1, :] == Float32[0.0, 1.0]
-        @test pred[2, :] ≈ EvoTrees.softplus.(Float32[-2.0, 0.5])
-        @test pred[2, :] ≉ exp.(Float32[-2.0, 0.5])
+        @test pred[2, :] ≈ exp.(Float32[-2.0, 0.5])
     end
 
     @testset "mlogloss gradient and hessian" begin

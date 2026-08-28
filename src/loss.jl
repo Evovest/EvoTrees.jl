@@ -185,34 +185,32 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
 end
 
 # Two-parameter MLE. The tree predicts a location and an unconstrained scale
-# parameter; the positive scale is `softplus(scale_raw)`. Second-order terms
+# parameter; the positive scale is `exp(scale_raw)`. Second-order terms
 # are Fisher information (expected Hessian). Location and scale are orthogonal,
 # so the Fisher matrix is diagonal and positive definite.
 
 # Gaussian N(loc, scale²) — http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
-# `dscale` is d(softplus)/d(scale_raw) = sigmoid(scale_raw).
+# `dscale` is d(exp)/d(scale_raw) = exp(scale_raw) = scale, so dscale/scale = 1.
 @inline function mle2p_grad_hess(::Type{GaussianMLE}, loc, scale_raw, y)
-    scale = softplus(scale_raw)
-    dscale = sigmoid(scale_raw)
+    scale = exp(scale_raw)
     resid = loc - y
     g_loc = resid / scale^2
-    g_scale = (1 - resid^2 / scale^2) * dscale / scale
+    g_scale = 1 - resid^2 / scale^2
     h_loc = 1 / scale^2
-    h_scale = 2 * (dscale / scale)^2
+    h_scale = oftype(scale, 2)
     return (g_loc, g_scale, h_loc, h_scale)
 end
 
 # Logistic(loc, scale) — https://en.wikipedia.org/wiki/Logistic_distribution
-# `dscale` is d(softplus)/d(scale_raw) = sigmoid(scale_raw).
+# `dscale` is d(exp)/d(scale_raw) = scale, so dscale/scale = 1.
 @inline function mle2p_grad_hess(::Type{LogisticMLE}, loc, scale_raw, y)
-    scale = softplus(scale_raw)
-    dscale = sigmoid(scale_raw)
+    scale = exp(scale_raw)
     z = (y - loc) / scale
     th = tanh(z / 2)
     g_loc = -th / scale
-    g_scale = (1 - z * th) * dscale / scale
+    g_scale = 1 - z * th
     h_loc = 1 / (3 * scale^2)
-    h_scale = (oftype(scale, π)^2 + 3) / 9 * (dscale / scale)^2
+    h_scale = (oftype(scale, π)^2 + 3) / 9
     return (g_loc, g_scale, h_loc, h_scale)
 end
 
@@ -250,25 +248,8 @@ end
     @fastmath 1 / (1 + exp(-x))
 end
 
-# σ = log(1 + exp(φ)), overflow-safe
-function softplus(x::AbstractArray{T}) where {T<:AbstractFloat}
-    return softplus.(x)
-end
-@inline function softplus(x::T) where {T<:AbstractFloat}
-    ax = abs(x)
-    return max(x, zero(T)) + log1p(exp(-ax))
-end
-
-# inverse: φ = log(exp(σ) - 1), overflow-safe for σ > 0
-function invsoftplus(x::AbstractArray{T}) where {T<:AbstractFloat}
-    return invsoftplus.(x)
-end
-@inline function invsoftplus(x::T) where {T<:AbstractFloat}
-    return x + log(-expm1(-x))
-end
-
 @inline function unconstrain_mle_scale!(offset::AbstractArray)
-    @views offset[:, 2:2:end] .= invsoftplus.(offset[:, 2:2:end])
+    @views offset[:, 2:2:end] .= log.(offset[:, 2:2:end])
     return offset
 end
 
