@@ -163,3 +163,36 @@ end
     @test mse_gain_pct < -0.75
 
 end
+
+@testset "Tables - categorical level encoding at predict" begin
+
+    seed!(7)
+    n = 900
+    vals = rand(["a", "b", "c"], n)
+    truth = Dict("a" => 10.0, "b" => 0.0, "c" => -10.0)
+    dtrain = DataFrame(num=randn(n),
+                       cat=categorical(vals, levels=["a", "b", "c"]),
+                       y=[truth[v] for v in vals])
+
+    model = fit(EvoTreeRegressor(nrounds=40, max_depth=3, eta=0.3), dtrain;
+                target_name="y", feature_names=[:num, :cat])
+
+    ref = EvoTrees.predict(model, DataFrame(num=zeros(3),
+                                            cat=categorical(["a", "b", "c"], levels=["a", "b", "c"])))
+    @test ref[1] > 5 && abs(ref[2]) < 1 && ref[3] < -5
+
+    sub = EvoTrees.predict(model, DataFrame(num=zeros(2), cat=categorical(["b", "c"])))
+    @test sub ≈ ref[2:3]
+
+    rev = EvoTrees.predict(model, DataFrame(num=zeros(3),
+                                            cat=categorical(["a", "b", "c"], levels=["c", "b", "a"])))
+    @test rev ≈ ref
+
+    for (i, v) in enumerate(["a", "b", "c"])
+        one_row = EvoTrees.predict(model, DataFrame(num=[0.0], cat=categorical([v])))
+        @test one_row[1] ≈ ref[i]
+    end
+
+    @test_throws Exception EvoTrees.predict(
+        model, DataFrame(num=zeros(2), cat=categorical(["a", "zzz"])))
+end

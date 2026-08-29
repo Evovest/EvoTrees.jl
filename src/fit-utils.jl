@@ -79,7 +79,15 @@ function binarize(df; feature_names, edges)
         if eltype(col) <: Bool
             x_bin[:, j] .= col .+ 1
         elseif eltype(col) <: CategoricalValue
-            x_bin[:, j] .= levelcode.(col)
+            col_levels = levels(col)
+            pos = indexin(col_levels, edges[j])
+            k = findfirst(isnothing, pos)
+            isnothing(k) || error(
+                "Feature $(feature_names[j]) has level $(repr(string(col_levels[k]))) that was " *
+                "not present in the training data. Training levels: $(string.(edges[j]))."
+            )
+            lookup = UInt8[pos[i] for i in eachindex(pos)]
+            x_bin[:, j] .= getindex.(Ref(lookup), levelcode.(col))
         elseif eltype(col) <: Real
             x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), col)
         else
