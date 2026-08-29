@@ -594,6 +594,19 @@ end
         @test length(EvoTrees.importance(m; feature_names=[:a, :a, :b, :c])) == 4
     end
 
+    @testset "predict with mismatched column count" begin
+        rng = Xoshiro(5)
+        x = rand(rng, 300, 4)
+        y = x[:, 1] .+ 2 .* x[:, 4]
+        m = fit(EvoTreeRegressor(nrounds=10, max_depth=4); x_train=x, y_train=y)
+
+        @test EvoTrees.predict(m, x) == EvoTrees.predict(m, x)
+        for k in (1, 2, 3)
+            @test_throws ErrorException EvoTrees.predict(m, x[:, 1:k])
+        end
+        @test_throws ErrorException EvoTrees.predict(m, hcat(x, rand(rng, 300, 2)))
+    end
+
     @testset "gamma target support" begin
         rng = Xoshiro(21)
         x = rand(rng, 200, 3)

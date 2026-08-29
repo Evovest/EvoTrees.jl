@@ -64,6 +64,10 @@ end
 Transform feature data into a UInt8 binarized matrix.
 """
 function binarize(X::AbstractMatrix; feature_names, edges)
+    size(X, 2) == length(feature_names) || error(
+        "Data has $(size(X, 2)) columns but the model expects $(length(feature_names)) " *
+        "features: $(feature_names)."
+    )
     x_bin = zeros(UInt8, size(X))
     @threads for j in axes(X, 2)
         x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), view(X, :, j))
