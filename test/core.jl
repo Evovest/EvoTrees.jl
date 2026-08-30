@@ -514,6 +514,30 @@ end
         end
     end
 
+    @testset "eval data validation" begin
+        # Training checks its own inputs; the eval path did not, so a short weight vector
+        # silently scored a subset of the eval set and reported it as the whole, and a
+        # weight vector summing to zero produced a NaN metric.
+        rng = Xoshiro(13)
+        x = rand(rng, 300, 3)
+        y = 2 .* x[:, 1] .+ 0.2 .* randn(rng, 300)
+        cfg = EvoTreeRegressor(nrounds=5, max_depth=3, metric=:mse)
+        base = (x_train=x, y_train=y, x_eval=x, y_eval=y)
+
+        @test_throws ErrorException fit(cfg; base..., w_eval=ones(150), verbosity=0)
+        @test_throws ErrorException fit(cfg; base..., w_eval=ones(600), verbosity=0)
+        @test_throws ErrorException fit(cfg; base..., w_eval=zeros(300), verbosity=0)
+        @test_throws ErrorException fit(cfg; base..., w_eval=fill(-1.0, 300), verbosity=0)
+        @test_throws ErrorException fit(
+            cfg; x_train=x, y_train=y, x_eval=x, y_eval=y[1:150], verbosity=0)
+
+        # Valid eval data is unaffected, weighted or not.
+        m = fit(cfg; base..., verbosity=0)
+        @test isfinite(m.info[:logger][:metrics][end])
+        mw = fit(cfg; base..., w_eval=(0.5 .+ rand(rng, 300)), verbosity=0)
+        @test isfinite(mw.info[:logger][:metrics][end])
+    end
+
     @testset "classifier target levels" begin
         rng = Xoshiro(7)
         x = rand(rng, 40, 3)

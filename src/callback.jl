@@ -18,6 +18,22 @@ function eval_levelcode(y_eval, target_levels)
     return UInt32.(idx)
 end
 
+# Mirrors the assertion training makes on its own inputs in `src/init.jl`. Eval data was
+# accepted unchecked, so a short weight vector silently scored a subset of the eval set and a
+# weight vector summing to zero produced a NaN or Inf metric.
+function check_eval_data(y, w, nobs)
+    size(y, ndims(y)) == nobs || error(
+        "`y_eval` has $(size(y, ndims(y))) observations but the evaluation features have " *
+        "$(nobs). They must match."
+    )
+    length(w) == nobs || error(
+        "`w_eval` has length $(length(w)) but the evaluation features have $(nobs) " *
+        "observations. Each row needs exactly one weight."
+    )
+    minimum(w) > 0 || error("`w_eval` must be strictly positive.")
+    return nothing
+end
+
 struct CallBack{B,P,Y,C,D,K}
     feval::Function
     x_bin::B
@@ -59,6 +75,7 @@ function CallBack(
     feval = metric_dict[params.metric]
     V = device_array_type(device)
     w = isnothing(weight_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(deval, _weight_name))
+    check_eval_data(y, w, nobs)
     metric_kwargs = hasproperty(params, :alpha) ? (alpha=T(params.alpha),) : (;)
     if params.metric == :multiquantile
         alphas_eval = T.(params.alphas)
@@ -100,6 +117,7 @@ function CallBack(
     feval = metric_dict[params.metric]
     V = device_array_type(device)
     w = isnothing(w_eval) ? device_ones(device, T, size(x_eval, 1)) : V{T}(w_eval)
+    check_eval_data(y, w, size(x_eval, 1))
     metric_kwargs = hasproperty(params, :alpha) ? (alpha=T(params.alpha),) : (;)
     if params.metric == :multiquantile
         alphas_eval = T.(params.alphas)
