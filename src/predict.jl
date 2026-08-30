@@ -108,7 +108,7 @@ function apply_prediction_link!(pred, ::Type{L}) where {L}
     elseif L ∈ [Poisson, Gamma, Tweedie]
         pred .= exp.(pred)
     elseif L <: MLE2P
-        pred[2:2:end, :] .= softplus.(pred[2:2:end, :])
+        pred[2:2:end, :] .= exp.(pred[2:2:end, :])
     elseif L == MLogLoss
         softmax!(pred)
     end

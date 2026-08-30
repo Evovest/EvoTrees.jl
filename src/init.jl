@@ -72,7 +72,7 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
         if y_train isa AbstractVector
             K = 2
             y = T.(y_train)
-            μ = [mean(y), invsoftplus(std(y))]
+            μ = [mean(y), log(std(y))]
             !isnothing(offset) && unconstrain_mle_scale!(offset)
         else
             Y = size(y_train, 1)
@@ -81,7 +81,7 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
             μ = T[]
             for t in 1:Y
                 yt = view(y, t, :)
-                push!(μ, mean(yt), invsoftplus(std(yt)))
+                push!(μ, mean(yt), log(std(yt)))
             end
             !isnothing(offset) && unconstrain_mle_scale!(offset)
         end
@@ -90,7 +90,7 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
         if y_train isa AbstractVector
             K = 2
             y = T.(y_train)
-            μ = [mean(y), invsoftplus(std(y) * sqrt(3) / π)]
+            μ = [mean(y), log(std(y) * sqrt(3) / π)]
             !isnothing(offset) && unconstrain_mle_scale!(offset)
         else
             Y = size(y_train, 1)
@@ -99,7 +99,7 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
             μ = T[]
             for t in 1:Y
                 yt = view(y, t, :)
-                push!(μ, mean(yt), invsoftplus(std(yt) * sqrt(3) / π))
+                push!(μ, mean(yt), log(std(yt) * sqrt(3) / π))
             end
             !isnothing(offset) && unconstrain_mle_scale!(offset)
         end

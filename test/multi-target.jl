@@ -66,13 +66,13 @@ using EvoTrees: fit, predict, sigmoid, logit
         m_off = fit(cfg; x_train=x_off, y_train=Y_off, offset_train=copy(off), verbosity=0)
         cb = EvoTrees.CallBack(cfg, m_off, x_off, Y_off, EvoTrees.CPU; offset_eval=copy(off))
 
-        @test cb.p[2, 1] ≈ EvoTrees.invsoftplus(s1) atol = 1e-5
-        @test cb.p[4, 1] ≈ EvoTrees.invsoftplus(s2) atol = 1e-5
+        @test cb.p[2, 1] ≈ log(s1) atol = 1e-5
+        @test cb.p[4, 1] ≈ log(s2) atol = 1e-5
 
         # A single-target offset has only two columns, and must be unchanged by `2:2:end`.
         off1 = hcat(fill(0.1, n_off), fill(s1, n_off))
         m1 = fit(cfg; x_train=x_off, y_train=Y_off[1, :], offset_train=copy(off1), verbosity=0)
         cb1 = EvoTrees.CallBack(cfg, m1, x_off, Y_off[1, :], EvoTrees.CPU; offset_eval=copy(off1))
-        @test cb1.p[2, 1] ≈ EvoTrees.invsoftplus(s1) atol = 1e-5
+        @test cb1.p[2, 1] ≈ log(s1) atol = 1e-5
     end
 end
