@@ -317,8 +317,12 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample
                 x_eval=x[te, :], y_eval=y[te], group_eval=qid[te], verbosity=0)
             p = predict(mk, x[te, :])
             ye, qe = y[te], qid[te]
-            manual = mean(tutorial_ndcg(p[qe.==q], ye[qe.==q], k) for q in unique(qe))
-            @test mk.info[:logger][:metrics][end] ≈ manual rtol = 1e-6
+            # A group's weight is the sum of its rows' weights, so with unit weights the
+            # average over queries is weighted by query size rather than uniform.
+            qs = unique(qe)
+            sc = [tutorial_ndcg(p[qe.==q], ye[qe.==q], k) for q in qs]
+            sz = [count(==(q), qe) for q in qs]
+            @test mk.info[:logger][:metrics][end] ≈ sum(sc .* sz) / sum(sz) rtol = 1e-6
         end
     end
 
