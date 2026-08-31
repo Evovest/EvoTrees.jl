@@ -320,6 +320,7 @@ function fit(
 )
 
     @assert Tables.istable(dtrain) "fit(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
+    _eval_is_train = deval === dtrain
     dtrain = Tables.columntable(dtrain)
     _device = device_type(params.device)
     m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name, group_name)
@@ -327,7 +328,8 @@ function fit(
     # initialize callback and logger if deval is provided
     if !isnothing(deval)
         deval = Tables.columntable(deval)
-        cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name, group_name=eval_group_name)
+        cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name,
+            group_name=eval_group_name, x_bin=_eval_is_train ? cache.x_bin : nothing)
         logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
         cb(logger, 0)
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
@@ -425,7 +427,8 @@ function fit(
         @warn "To track eval metric in logger, both `x_eval` and `y_eval` must be provided."
     end
     if logging_flag
-        cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval, group_eval)
+        cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval, group_eval,
+            x_bin=x_eval === x_train ? cache.x_bin : nothing)
         logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
         cb(logger, 0)
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]

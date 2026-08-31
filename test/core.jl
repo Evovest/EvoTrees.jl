@@ -681,3 +681,10 @@ end
     @test length(loaded.trees) == length(m.trees)
     @test predict(loaded, x) == predict(m, x)
 end
+
+@testset "eval is train reuses x_bin" begin
+    params = EvoTreeRegressor(loss=:mse, nrounds=10, seed=123)
+    m_reuse = fit(params; x_train, y_train, x_eval=x_train, y_eval=y_train, verbosity=0)
+    m_copy = fit(params; x_train, y_train, x_eval=copy(x_train), y_eval=copy(y_train), verbosity=0)
+    @test EvoTrees.predict(m_reuse, x_train) == EvoTrees.predict(m_copy, x_train)
+end
