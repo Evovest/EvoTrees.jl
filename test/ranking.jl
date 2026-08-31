@@ -284,6 +284,21 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample
         # The reported metric must equal the per-group NDCG a user would compute by hand,
         # which is what the LTRC tutorial does with a `groupby`. This is the check that the
         # metric is a ranking metric rather than a global one.
+        # A group's weight is the sum of its rows' weights, so per-observation weights
+        # aggregate to a query weight. Jeremie's example: A of 0.2/0.5/0.3 weighs 1.0 and
+        # B of 0.8/0.8 weighs 1.6.
+        let
+            q = [1, 1, 1, 2, 2]
+            rel = Float32[3, 1, 0, 2, 0]
+            pr = reshape(Float32[3, 2, 1, 2, 1], 1, 5)
+            gi = build_group_index(q)
+            wv = Float32[0.2, 0.5, 0.3, 0.8, 0.8]
+            got = EvoTrees.ndcg(pr, rel, wv, Float32[]; group=gi, ndcg_k=10)
+            s1 = EvoTrees._ndcg_group(Float64[3, 2, 1], Float64[3, 1, 0], 10)
+            s2 = EvoTrees._ndcg_group(Float64[2, 1], Float64[2, 0], 10)
+            @test got ≈ (s1 * 1.0 + s2 * 1.6) / 2.6 rtol = 1e-5
+        end
+
         function tutorial_ndcg(p, target, k=10)
             k = min(k, length(p))
             p_order = partialsortperm(p, 1:k; rev=true)

@@ -164,8 +164,9 @@ end
     ndcg(p, y, w, eval; group, ndcg_k, kwargs...)
 
 Normalised discounted cumulative gain, computed within each group then averaged over groups.
-Requires the group index supplied at fit through `group_name` or `group_eval`. Each group is
-weighted by the mean of its rows' weights.
+Requires the group index supplied at fit through `group_name` or `group_eval`. A group's weight
+is the sum of its rows' weights, so per-observation weights aggregate to a query weight and the
+default of unit weights makes a group count in proportion to its size.
 """
 function ndcg(
     p::AbstractMatrix{T},
@@ -188,7 +189,7 @@ function ndcg(
         pred = [p[1, r] for r in rows]
         rel = [y[r] for r in rows]
         scores[g] = _ndcg_group(pred, rel, ndcg_k)
-        weights[g] = mean(w[r] for r in rows)
+        weights[g] = sum(w[r] for r in rows)
     end
     return sum(scores .* weights) / sum(weights)
 end
