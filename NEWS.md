@@ -10,8 +10,8 @@ Saved `:gaussian_mle` / `:logistic_mle` models from ≤0.18.7 remain compatible:
 - **Classification eval labels** are encoded against the training levels. `y_eval` must only contain classes seen in `y_train`; a different level order no longer silently scores the wrong prediction columns.
 - **MLJ `update`** continues an existing fit only when `nrounds` is the sole hyper-parameter change (and is not reduced). Any other change triggers a full refit.
 
-### MLE losses: Fisher information
-- `:gaussian_mle` and `:logistic_mle` now take Newton steps with the **Fisher information** (expected Hessian) rather than the observed Hessian. The Fisher matrix is diagonal and positive definite for these location-scale families, which stabilizes split finding and leaf weights.
+### MLE losses
+- `:gaussian_mle` uses the **observed Hessian** for Newton steps, matching ≤0.18.7 (`h_σ = 2 (μ−y)² / σ²` on the unconstrained log-scale). `:logistic_mle` uses **Fisher information** (expected Hessian), which is diagonal and positive definite for that location-scale family.
 - The unconstrained scale parameter remains `exp(x)`. `predict` still returns the positive scale (`σ` / `s`). User-facing offsets remain the positive scale and are mapped internally with `log`.
 
 ### Multi-target regression

@@ -139,16 +139,20 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
             (
                 loss=EvoTrees.GaussianMLE,
                 lpdf=gaussian_lpdf,
-                fisher=function (_scale_raw, scale)
-                    return (1 / scale^2, oftype(scale, 2))
+                # Observed Hessian (≤0.18.7): h_loc = 1/σ², h_scale = 2 resid²/σ².
+                hess=function (scale, resid)
+                    return (1 / scale^2, 2 * resid^2 / scale^2)
                 end,
+                fisher=false,
             ),
             (
                 loss=EvoTrees.LogisticMLE,
                 lpdf=logistic_lpdf,
-                fisher=function (_scale_raw, scale)
+                # Fisher information: independent of residual, positive definite.
+                hess=function (scale, _resid)
                     return (1 / (3 * scale^2), (π^2 + 3) / 9)
                 end,
+                fisher=true,
             ),
         )
 
@@ -174,17 +178,31 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
                         EvoTrees._mle2p_metric_value(L, loc, scale_raw - h, y)) / (2h)
                 @test dloc ≈ -g1 atol = 1e-5
                 @test draw ≈ -g2 atol = 1e-5
+
+                eh1, eh2 = spec.hess(scale, loc - y)
+                @test h1 ≈ eh1
+                @test h2 ≈ eh2
             end
 
-            # Fisher information does not depend on the residual, and is positive definite.
-            h_ref = EvoTrees.mle2p_grad_hess(L, loc, scale_raw, loc)[3:4]
-            eh1, eh2 = spec.fisher(scale_raw, scale)
-            @test h_ref[1] ≈ eh1
-            @test h_ref[2] ≈ eh2
-            @test h_ref[1] > 0
-            @test h_ref[2] > 0
-            for y in (1.5, 4.0, -3.0)
-                @test EvoTrees.mle2p_grad_hess(L, loc, scale_raw, y)[3:4] == h_ref
+            if spec.fisher
+                # Fisher information does not depend on the residual, and is positive definite.
+                h_ref = EvoTrees.mle2p_grad_hess(L, loc, scale_raw, loc)[3:4]
+                eh1, eh2 = spec.hess(scale, 0.0)
+                @test h_ref[1] ≈ eh1
+                @test h_ref[2] ≈ eh2
+                @test h_ref[1] > 0
+                @test h_ref[2] > 0
+                for y in (1.5, 4.0, -3.0)
+                    @test EvoTrees.mle2p_grad_hess(L, loc, scale_raw, y)[3:4] == h_ref
+                end
+            else
+                # Observed Hessian for Gaussian scale depends on the residual.
+                h_at_loc = EvoTrees.mle2p_grad_hess(L, loc, scale_raw, loc)[3:4]
+                @test h_at_loc[1] ≈ 1 / scale^2
+                @test h_at_loc[2] ≈ 0
+                h_away = EvoTrees.mle2p_grad_hess(L, loc, scale_raw, loc + 3.0)[3:4]
+                @test h_away[1] ≈ h_at_loc[1]
+                @test h_away[2] > h_at_loc[2]
             end
 
             # Symmetric about the location, and maximised there.

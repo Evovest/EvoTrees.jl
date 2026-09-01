@@ -185,24 +185,26 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
 end
 
 # Two-parameter MLE. The tree predicts a location and an unconstrained scale
-# parameter; the positive scale is `exp(scale_raw)`. Second-order terms
-# are Fisher information (expected Hessian). Location and scale are orthogonal,
-# so the Fisher matrix is diagonal and positive definite.
+# parameter; the positive scale is `exp(scale_raw)`.
 
 # Gaussian N(loc, scale²) — http://jrmeyer.github.io/machinelearning/2017/08/18/mle.html
-# `dscale` is d(exp)/d(scale_raw) = exp(scale_raw) = scale, so dscale/scale = 1.
+# Second-order terms are the observed Hessian (same as ≤0.18.7), not Fisher
+# information. Parameterization is φ = log(σ); derivatives are w.r.t. (μ, φ).
 @inline function mle2p_grad_hess(::Type{GaussianMLE}, loc, scale_raw, y)
     scale = exp(scale_raw)
     resid = loc - y
-    g_loc = resid / scale^2
-    g_scale = 1 - resid^2 / scale^2
-    h_loc = 1 / scale^2
-    h_scale = oftype(scale, 2)
+    invσ2 = 1 / scale^2
+    g_loc = resid * invσ2
+    g_scale = 1 - resid^2 * invσ2
+    h_loc = invσ2
+    h_scale = 2 * resid^2 * invσ2
     return (g_loc, g_scale, h_loc, h_scale)
 end
 
 # Logistic(loc, scale) — https://en.wikipedia.org/wiki/Logistic_distribution
-# `dscale` is d(exp)/d(scale_raw) = scale, so dscale/scale = 1.
+# Second-order terms are Fisher information (expected Hessian). Location and
+# scale are orthogonal, so the Fisher matrix is diagonal and positive definite.
+# Parameterization is φ = log(s); derivatives are w.r.t. (μ, φ).
 @inline function mle2p_grad_hess(::Type{LogisticMLE}, loc, scale_raw, y)
     scale = exp(scale_raw)
     z = (y - loc) / scale
