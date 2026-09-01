@@ -167,6 +167,35 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample
         @test all(iszero, ∇0[1:2, :])
     end
 
+    @testset "eval-only grouping" begin
+        # Training with the usual per-row sampling while evaluating a group-aware metric.
+        # `eval_group_name` defaults to `group_name`, and set on its own it leaves training
+        # ungrouped.
+        rng = Xoshiro(21)
+        nobs = 1_500
+        q = repeat(1:150, inner=10)
+        x = rand(rng, nobs, 3)
+        y = clamp.(round.(2 .* x[:, 1] .+ randn(rng, nobs)), 0, 4)
+        tr, te = 1:1_000, 1_001:nobs
+        dtrain = (q=q[tr], f1=x[tr, 1], f2=x[tr, 2], f3=x[tr, 3], y=y[tr])
+        deval = (q=q[te], f1=x[te, 1], f2=x[te, 2], f3=x[te, 3], y=y[te])
+
+        cfg = EvoTreeRegressor(; loss=:mse, metric=:ndcg, ndcg_k=10, nrounds=20,
+            max_depth=4, rowsample=0.5)
+        m = fit(cfg, dtrain; target_name=:y, eval_group_name=:q, deval, verbosity=0)
+
+        # training saw no groups, so `q` is just another feature unless excluded by name
+        @test :q in m.info[:feature_names]
+        mets = m.info[:logger][:metrics]
+        @test all(0 .<= mets .<= 1)
+        @test length(mets) == 21
+
+        # and it still defaults to `group_name` when only that is given
+        m2 = fit(cfg, dtrain; target_name=:y, group_name=:q, deval, verbosity=0)
+        @test m2.info[:group_name] == :q
+        @test all(0 .<= m2.info[:logger][:metrics] .<= 1)
+    end
+
     @testset "fit with lambdarank" begin
         # Each query grades on its own curve, so absolute label level is query-specific
         # noise that regression must fit but a ranking objective can ignore.

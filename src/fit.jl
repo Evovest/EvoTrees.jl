@@ -276,6 +276,7 @@ post_fit_gc(::Type{<:CPU}) = nothing
         weight_name=nothing,
         offset_name=nothing,
         group_name=nothing,
+        eval_group_name=group_name,
         deval=nothing,
         print_every_n=9999,
         verbosity=1
@@ -298,7 +299,8 @@ Main training function. Performs model fitting given configuration `params`, `dt
 - `feature_names = nothing`: the names `dtrain` variables to use as features. If not provided, it deafults to all variables that aren't one of `target`, `weight` or `offset``.
 - `weight_name = nothing`: name of the variable containing weights. If `nothing`, common weights on one will be used.
 - `offset_name = nothing`: name of the offset variable.
-- `group_name = nothing`: name of the variable identifying the group (query) each row belongs to, for ranking tasks. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows, and is required by `metric = :ndcg`. If `deval` is given it must carry the same column.
+- `group_name = nothing`: name of the variable identifying the group (query) each row belongs to. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
+- `eval_group_name = group_name`: name of the group variable in `deval`, defaulting to `group_name`. A group-aware metric such as `:ndcg` requires it. Set it on its own to evaluate over groups while training with the usual per-row sampling.
 - `deval`: A Tables compatible evaluation data containing features and target variables. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -311,6 +313,7 @@ function fit(
     weight_name=nothing,
     offset_name=nothing,
     group_name=nothing,
+    eval_group_name=group_name,
     deval=nothing,
     print_every_n=9999,
     verbosity=1,
@@ -324,7 +327,7 @@ function fit(
     # initialize callback and logger if deval is provided
     if !isnothing(deval)
         deval = Tables.columntable(deval)
-        cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name, group_name)
+        cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name, group_name=eval_group_name)
         logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
         cb(logger, 0, m.trees[end])
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
