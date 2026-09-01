@@ -284,9 +284,8 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample
         # The reported metric must equal the per-group NDCG a user would compute by hand,
         # which is what the LTRC tutorial does with a `groupby`. This is the check that the
         # metric is a ranking metric rather than a global one.
-        # A group's weight is the sum of its rows' weights, so per-observation weights
-        # aggregate to a query weight. Jeremie's example: A of 0.2/0.5/0.3 weighs 1.0 and
-        # B of 0.8/0.8 weighs 1.6.
+        # A group's weight is the mean of its rows' weights, so unit weights leave groups
+        # equally weighted while relative weights within a group still carry through.
         let
             q = [1, 1, 1, 2, 2]
             rel = Float32[3, 1, 0, 2, 0]
@@ -296,7 +295,8 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample
             got = EvoTrees.ndcg(pr, rel, wv, Float32[]; group=gi, ndcg_k=10)
             s1 = EvoTrees._ndcg_group(Float64[3, 2, 1], Float64[3, 1, 0], 10)
             s2 = EvoTrees._ndcg_group(Float64[2, 1], Float64[2, 0], 10)
-            @test got ≈ (s1 * 1.0 + s2 * 1.6) / 2.6 rtol = 1e-5
+            wA, wB = (0.2 + 0.5 + 0.3) / 3, (0.8 + 0.8) / 2
+            @test got ≈ (s1 * wA + s2 * wB) / (wA + wB) rtol = 1e-5
         end
 
         function tutorial_ndcg(p, target, k=10)
@@ -317,12 +317,8 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample
                 x_eval=x[te, :], y_eval=y[te], group_eval=qid[te], verbosity=0)
             p = predict(mk, x[te, :])
             ye, qe = y[te], qid[te]
-            # A group's weight is the sum of its rows' weights, so with unit weights the
-            # average over queries is weighted by query size rather than uniform.
-            qs = unique(qe)
-            sc = [tutorial_ndcg(p[qe.==q], ye[qe.==q], k) for q in qs]
-            sz = [count(==(q), qe) for q in qs]
-            @test mk.info[:logger][:metrics][end] ≈ sum(sc .* sz) / sum(sz) rtol = 1e-6
+            manual = mean(tutorial_ndcg(p[qe.==q], ye[qe.==q], k) for q in unique(qe))
+            @test mk.info[:logger][:metrics][end] ≈ manual rtol = 1e-6
         end
     end
 
