@@ -1,3 +1,4 @@
+using CUDA
 using PythonCall
 using CSV
 using DataFrames
