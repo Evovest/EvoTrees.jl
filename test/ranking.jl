@@ -313,19 +313,25 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         # The reported metric must equal the per-group NDCG a user would compute by hand,
         # which is what the LTRC tutorial does with a `groupby`. This is the check that the
         # metric is a ranking metric rather than a global one.
-        # A group's weight is the mean of its rows' weights, so unit weights leave groups
-        # equally weighted while relative weights within a group still carry through.
+        # A group's weight is the mean of its rows' weights. The two groups must score
+        # differently and the weights must not be uniform, otherwise every candidate rule
+        # gives the same answer and the assertion pins nothing.
         let
             q = [1, 1, 1, 2, 2]
             rel = Float32[3, 1, 0, 2, 0]
-            pr = reshape(Float32[3, 2, 1, 2, 1], 1, 5)
+            pr = reshape(Float32[1, 2, 3, 2, 1], 1, 5)   # group 1 ranked badly, group 2 perfectly
             gi = build_group_index(q)
-            wv = Float32[0.2, 0.5, 0.3, 0.8, 0.8]
+            wv = Float32[1, 1, 4, 3, 3]
             got = EvoTrees.ndcg(pr, rel, wv, Float32[]; group=gi, ndcg_k=10)
-            s1 = EvoTrees._ndcg_group(Float64[3, 2, 1], Float64[3, 1, 0], 10)
+            s1 = EvoTrees._ndcg_group(Float64[1, 2, 3], Float64[3, 1, 0], 10)
             s2 = EvoTrees._ndcg_group(Float64[2, 1], Float64[2, 0], 10)
-            wA, wB = (0.2 + 0.5 + 0.3) / 3, (0.8 + 0.8) / 2
-            @test got ≈ (s1 * wA + s2 * wB) / (wA + wB) rtol = 1e-5
+            @test s1 != s2
+            agg(f) = (s1 * f(Float64[1, 1, 4]) + s2 * f(Float64[3, 3])) / (f(Float64[1, 1, 4]) + f(Float64[3, 3]))
+            @test got ≈ agg(mean) rtol = 1e-5
+            # and the rule is pinned: sum, maximum and minimum all give something else
+            for other in (sum, maximum, minimum)
+                @test !isapprox(got, agg(other); rtol = 1e-3)
+            end
         end
 
         function tutorial_ndcg(p, target, k=10)
