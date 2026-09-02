@@ -166,10 +166,16 @@ query is never split across the sampled and unsampled sets. This matters because
 the unit NDCG is defined over, and a partial group changes the comparison set.
 
 When fitting from a table, the equivalent is `group_name`, and the column is excluded from
-the inferred features:
+the inferred features. `dtrain` above is the LIBSVM parse result rather than a table, so build
+one from the arrays already extracted:
 
 ```julia
-m = EvoTrees.fit(config, dtrain; target_name="y", group_name="q", deval)
+df_train = DataFrame(x_train, :auto)
+df_train.y, df_train.q = y_train, q_train
+df_eval = DataFrame(x_eval, :auto)
+df_eval.y, df_eval.q = y_eval, q_eval
+
+m = EvoTrees.fit(config, df_train; target_name="y", group_name="q", deval=df_eval)
 ```
 
 Groups are supported on both CPU and GPU.
@@ -197,7 +203,7 @@ tracked:
 
 ```julia
 config = EvoTreeRegressor(loss=:mse, metric=:corr)
-m = EvoTrees.fit(config, dtrain; target_name="y", eval_group_name="q", deval)
+m = EvoTrees.fit(config, df_train; target_name="y", eval_group_name="q", deval=df_eval)
 ```
 
 It defaults to `group_name`, so grouping both sides stays a single argument.
