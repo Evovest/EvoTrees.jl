@@ -13,14 +13,16 @@ T = Float32
 nthreads = Base.Threads.nthreads()
 
 # Ranking cost grows with the number of documents per query, so group size is swept alongside
-# the usual shapes. XGBoost truncates pairs by default, EvoTrees scores every pair.
+# the usual shapes. Neither library is given eval data: a per-round evaluation costs the two
+# very differently, which would otherwise sit on top of the training cost being compared.
 group_size_list = [10, 20, 100]
 nobs_list = Int.([1e5, 1e6])
 nfeats_list = [100]
 max_depth_list = [6]
 ndcg_k = 10
 
-device_list = [:cpu, :gpu]
+device_list = [:cpu]
+# device_list = [:cpu, :gpu]
 
 for _device in device_list
     df = DataFrame()
@@ -50,9 +52,9 @@ for _device in device_list
                             eta=0.05, min_weight=1.0, rowsample=0.5, colsample=0.5,
                             nbins=64, tree_type=:binary, seed=123, device=_device)
                         EvoTrees.fit(params_evo; x_train, y_train, group_train=q_train,
-                            x_eval=x_train, y_eval=y_train, group_eval=q_train, print_every_n=1000)
+                            print_every_n=1000)
                         t = @elapsed EvoTrees.fit(params_evo; x_train, y_train, group_train=q_train,
-                            x_eval=x_train, y_eval=y_train, group_eval=q_train, print_every_n=1000)
+                            print_every_n=1000)
                         _df[!, Symbol("train_evo_", name)] = [t]
                     end
 
@@ -82,10 +84,8 @@ for _device in device_list
                             "lambdarank_num_pair_per_sample" => ndcg_k,
                         ) |> pydict
 
-                        xgb.train(params, dtrain, num_boost_round=5,
-                            evals=pylist([(dtrain, "train")]), verbose_eval=1000)
-                        t = @elapsed xgb.train(params, dtrain, num_boost_round=nrounds,
-                            evals=pylist([(dtrain, "train")]), verbose_eval=1000)
+                        xgb.train(params, dtrain, num_boost_round=5)
+                        t = @elapsed xgb.train(params, dtrain, num_boost_round=nrounds)
                         _df[!, Symbol("train_xgb_", name)] = [t]
                     end
 
