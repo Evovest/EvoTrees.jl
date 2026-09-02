@@ -174,6 +174,34 @@ m = EvoTrees.fit(config, dtrain; target_name="y", group_name="q", deval)
 
 Groups are supported on both CPU and GPU.
 
+## Weights and grouped metrics
+
+A group's weight is the mean of its rows' weights, so the default of unit weights leaves every
+query equally weighted regardless of how many documents it holds. Giving a query's rows a
+common weight of 2 makes that query count twice one whose rows weigh 1.
+
+Only that group-level weight reaches `:ndcg`. NDCG is defined from the ranking of a group's
+documents, so the spread of weights *within* a group is deliberately ignored, which matches the
+canonical definition and the per-query weights other ranking libraries accept.
+
+Where per-document weights should count, `metric = :corr` scores the weighted Pearson
+correlation between prediction and target within each group and averages over groups. A row's
+own weight enters its group's correlation, and the group weighs by the mean of its rows'
+weights. Groups of fewer than two rows, and groups whose target is constant, carry no signal
+and are left out of the average; a group whose prediction is constant while its target is not
+scores zero.
+
+A grouped metric does not require grouped training. `eval_group_name` sets the group column for
+`deval` alone, so a model can train with ordinary per-row sampling while a group-aware metric is
+tracked:
+
+```julia
+config = EvoTreeRegressor(loss=:mse, metric=:corr)
+m = EvoTrees.fit(config, dtrain; target_name="y", eval_group_name="q", deval)
+```
+
+It defaults to `group_name`, so grouping both sides stays a single argument.
+
 ## Ranking objective
 
 With groups available, `loss=:lambdarank` optimises ranking directly rather than fitting the

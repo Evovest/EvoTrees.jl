@@ -166,7 +166,9 @@ end
 Normalised discounted cumulative gain, computed within each group then averaged over groups.
 Requires the group index supplied at fit through `group_name` or `group_eval`. A group's weight
 is the mean of its rows' weights, so the default of unit weights leaves every group equally
-weighted while relative weights within a group still carry through.
+weighted. Only that group-level weight enters the score: NDCG is defined from the ranking of a
+group's documents, so the spread of weights within a group is deliberately ignored. Use `:corr`
+if per-document weights need to count.
 """
 function ndcg(
     p::AbstractMatrix{T},
@@ -192,6 +194,64 @@ function ndcg(
         weights[g] = mean(w[r] for r in rows)
     end
     return sum(scores .* weights) / sum(weights)
+end
+
+function _corr_group(pred::AbstractVector, obs::AbstractVector, wt::AbstractVector)
+    length(pred) < 2 && return nothing
+    sw = sum(wt)
+    sw <= 0 && return nothing
+    mp = sum(wt .* pred) / sw
+    mo = sum(wt .* obs) / sw
+    vp = sum(wt .* (pred .- mp) .^ 2) / sw
+    vo = sum(wt .* (obs .- mo) .^ 2) / sw
+    # A constant target carries nothing to correlate against, so the group is left out.
+    vo <= 0 && return nothing
+    # A constant prediction is a failure to discriminate, which scores as no correlation.
+    vp <= 0 && return 0.0
+    return sum(wt .* (pred .- mp) .* (obs .- mo)) / sw / sqrt(vp * vo)
+end
+
+"""
+    corr(p, y, w, eval; group, kwargs...)
+
+Weighted Pearson correlation between prediction and target, computed within each group then
+averaged over groups. Requires the group index supplied at fit through `group_name`,
+`eval_group_name` or `group_eval`. Unlike `:ndcg` this uses weights at both levels: a row's
+weight enters its own group's correlation, and a group weighs by the mean of its rows' weights.
+
+Groups of fewer than two rows, and groups whose target is constant, carry no signal and are
+left out of the average. A group whose prediction is constant while its target is not scores
+zero.
+"""
+function corr(
+    p::AbstractMatrix{T},
+    y::AbstractVector,
+    w::AbstractVector{T},
+    eval::AbstractVector{T};
+    group=nothing,
+    kwargs...
+) where {T}
+    isnothing(group) && error(
+        "`metric = :corr` requires group information. Pass `group_name` or `eval_group_name` " *
+        "when fitting from a table, or `group_eval` alongside `x_eval` when fitting from a matrix."
+    )
+    ng = ngroups(group)
+    scores = zeros(Float64, ng)
+    weights = zeros(Float64, ng)
+    @threads for g in 1:ng
+        rows = group_rows(group, g)
+        pred = [Float64(p[1, r]) for r in rows]
+        obs = [Float64(y[r]) for r in rows]
+        wt = [Float64(w[r]) for r in rows]
+        s = _corr_group(pred, obs, wt)
+        if !isnothing(s)
+            scores[g] = s
+            weights[g] = mean(wt)
+        end
+    end
+    sw = sum(weights)
+    sw <= 0 && return zero(Float64)
+    return sum(scores .* weights) / sw
 end
 
 function gini_raw(p::AbstractVector, y::AbstractVector)
@@ -243,6 +303,7 @@ const metric_dict = Dict(
     :multiquantile => multiquantile,
     :gini => gini,
     :ndcg => ndcg,
+    :corr => corr,
 )
 
 is_maximise(::typeof(mse)) = false
@@ -259,3 +320,4 @@ is_maximise(::typeof(wmae)) = false
 is_maximise(::typeof(multiquantile)) = false
 is_maximise(::typeof(gini)) = true
 is_maximise(::typeof(ndcg)) = true
+is_maximise(::typeof(corr)) = true

@@ -2,7 +2,7 @@ using Test
 using Statistics
 using Random
 using EvoTrees
-using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample
+using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample, corr, _corr_group
 
 @testset "ranking groups" begin
 
@@ -348,6 +348,67 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample
             ye, qe = y[te], qid[te]
             manual = mean(tutorial_ndcg(p[qe.==q], ye[qe.==q], k) for q in unique(qe))
             @test mk.info[:logger][:metrics][end] ≈ manual rtol = 1e-6
+        end
+    end
+
+
+    @testset "grouped correlation" begin
+        # Weighted Pearson within each group, averaged over groups. Unlike `:ndcg` a row's own
+        # weight enters its group's score, so both levels of weighting are live.
+        function wpearson(x, y, w)
+            sw = sum(w)
+            mx, my = sum(w .* x) / sw, sum(w .* y) / sw
+            cxy = sum(w .* (x .- mx) .* (y .- my)) / sw
+            vx = sum(w .* (x .- mx) .^ 2) / sw
+            vy = sum(w .* (y .- my) .^ 2) / sw
+            return cxy / sqrt(vx * vy)
+        end
+
+        q = UInt32[1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3]
+        pv = Float64[3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8]
+        yv = Float64[2, 1, 5, 1, 6, 1, 9, 4, 5, 4, 4, 9]
+        wv = Float64[1, 2, 1, 3, 1, 2, 1, 1, 1, 1, 4, 2]
+        gi = build_group_index(q)
+        for w in (ones(length(q)), wv)
+            got = corr(reshape(Float32.(pv), 1, :), Float32.(yv), Float32.(w), Float32[]; group=gi)
+            cs = [wpearson(pv[q.==g], yv[q.==g], w[q.==g]) for g in 1:3]
+            ws = [mean(w[q.==g]) for g in 1:3]
+            @test got ≈ sum(cs .* ws) / sum(ws) rtol = 1e-5
+        end
+        # per-row weights move the score, which is the difference from `:ndcg`
+        unit = corr(reshape(Float32.(pv), 1, :), Float32.(yv), ones(Float32, 12), Float32[]; group=gi)
+        wtd = corr(reshape(Float32.(pv), 1, :), Float32.(yv), Float32.(wv), Float32[]; group=gi)
+        @test unit != wtd
+
+        # groups carrying no signal are left out rather than averaged in as zero
+        @test isnothing(_corr_group(Float64[1.0], Float64[2.0], Float64[1.0]))
+        @test isnothing(_corr_group(Float64[1, 2, 3], Float64[5, 5, 5], ones(3)))
+        @test _corr_group(Float64[2, 2, 2], Float64[1, 2, 3], ones(3)) == 0.0
+        q2 = UInt32[1, 1, 1, 2, 2, 2]
+        y2 = Float32[1, 2, 3, 7, 7, 7]
+        got2 = corr(reshape(Float32[1, 2, 3, 1, 2, 3], 1, :), y2, ones(Float32, 6), Float32[];
+            group=build_group_index(q2))
+        @test got2 ≈ 1.0 rtol = 1e-6
+
+        @test EvoTrees.is_maximise(corr)
+        @test_throws ErrorException corr(reshape(Float32.(pv), 1, :), Float32.(yv),
+            ones(Float32, 12), Float32[])
+
+        # the maintainer's case: train ungrouped, track a grouped correlation
+        rng = Xoshiro(2)
+        nobs = 1_500
+        g = repeat(1:150, inner=10)
+        x = rand(rng, nobs, 3)
+        y = 2 .* x[:, 1] .+ 0.3 .* randn(rng, nobs)
+        tr, te = 1:1_000, 1_001:nobs
+        dtr = (q=g[tr], f1=x[tr, 1], f2=x[tr, 2], f3=x[tr, 3], y=y[tr])
+        dev = (q=g[te], f1=x[te, 1], f2=x[te, 2], f3=x[te, 3], y=y[te])
+        for cfg in (EvoTreeRegressor(loss=:mse, metric=:corr, nrounds=25, max_depth=4, rowsample=0.5),
+            EvoTreeMLE(loss=:gaussian_mle, metric=:corr, nrounds=20, max_depth=4))
+            m = fit(cfg, dtr; target_name=:y, eval_group_name=:q, deval=dev, verbosity=0)
+            mets = m.info[:logger][:metrics]
+            @test all(-1 .<= mets .<= 1)
+            @test mets[end] > 0.5
         end
     end
 
