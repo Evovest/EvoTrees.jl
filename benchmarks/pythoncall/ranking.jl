@@ -21,8 +21,8 @@ nfeats_list = [100]
 max_depth_list = [6]
 ndcg_k = 10
 
-device_list = [:cpu]
-# device_list = [:cpu, :gpu]
+device_list = [:cpu, :gpu]
+# device_list = [:gpu]
 
 for _device in device_list
     df = DataFrame()
