@@ -157,7 +157,7 @@ end
 # arrays are brought to the host rather than scalar-indexed on device.
 function EvoTrees.corr(
     p::CuMatrix{T},
-    y::CuVector,
+    y::Union{CuVector,CuMatrix},
     w::CuVector{T},
     eval::CuVector{T};
     group=nothing,
