@@ -130,3 +130,25 @@ function EvoTrees.mlogloss(p::CuMatrix{T}, y::CuVector, w::CuVector{T}, eval::Cu
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
+
+# NDCG needs each group sorted by predicted score, which on device means a segmented sort
+# over variable-length groups. It is an eval metric run once per round rather than a hot
+# path, so predictions are brought to the host and scored with the CPU code.
+function EvoTrees.ndcg(
+    p::CuMatrix{T},
+    y::CuVector,
+    w::CuVector{T},
+    eval::CuVector{T};
+    group=nothing,
+    ndcg_k::Int=typemax(Int),
+    kwargs...
+) where {T<:AbstractFloat}
+    isnothing(group) && error(
+        "`metric = :ndcg` requires group information. Pass `group_name` when fitting from a " *
+        "table, or `group_eval` alongside `x_eval` when fitting from a matrix."
+    )
+    p_cpu = Array(p)
+    y_cpu = Array(y)
+    w_cpu = Array(w)
+    return EvoTrees.ndcg(p_cpu, y_cpu, w_cpu, similar(w_cpu, 0); group, ndcg_k)
+end

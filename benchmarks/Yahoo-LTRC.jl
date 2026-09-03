@@ -90,6 +90,8 @@ y_test = dtest[:y]
 config = EvoTreeRegressor(
     nrounds=6000,
     loss=:mse,
+    metric=:mse,
+    early_stopping_rounds=200,
     eta=0.02,
     nbins=64,
     max_depth=11,
@@ -98,16 +100,13 @@ config = EvoTreeRegressor(
 )
 
 # @time m = fit_evotree(config; x_train, y_train, print_every_n=25);
-@time m_mse, logger_mse = fit_evotree(
+@time m_mse = EvoTrees.fit(
     config;
     x_train=x_train,
     y_train=y_train,
     x_eval=x_eval,
     y_eval=y_eval,
-    early_stopping_rounds=200,
     print_every_n=50,
-    metric=:mse,
-    return_logger=true
 );
 
 p_test = m_mse(x_test);
@@ -128,6 +127,8 @@ y_test = dtest[:y] ./ max_rank
 config = EvoTreeRegressor(
     nrounds=6000,
     loss=:logloss,
+    metric=:logloss,
+    early_stopping_rounds=200,
     eta=0.01,
     nbins=64,
     max_depth=11,
@@ -135,16 +136,13 @@ config = EvoTreeRegressor(
     colsample=0.9,
 )
 
-@time m_logloss, logger_logloss = fit_evotree(
+@time m_logloss = EvoTrees.fit(
     config;
     x_train=x_train,
     y_train=y_train,
     x_eval=x_eval,
     y_eval=y_eval,
-    early_stopping_rounds=200,
     print_every_n=50,
-    metric=:logloss,
-    return_logger=true
 );
 
 # use the original y since NDCG is scale sensitive
@@ -221,6 +219,8 @@ maximum(df_eval.y)
 config = EvoTreeRegressor(
     nrounds=6000,
     loss=:logloss,
+    metric=:logloss,
+    early_stopping_rounds=200,
     eta=0.01,
     nbins=64,
     max_depth=11,
@@ -228,16 +228,13 @@ config = EvoTreeRegressor(
     colsample=0.9,
 )
 
-@time m_logloss_df, logger_logloss_df = fit_evotree(
+@time m_logloss_df = EvoTrees.fit(
     config,
     df_train;
     target_name,
-    fnames=feature_names_raw,
+    feature_names=feature_names_raw,
     deval=df_eval,
-    early_stopping_rounds=200,
     print_every_n=50,
-    metric=:logloss,
-    return_logger=true
 );
 
 m_logloss_df.info
@@ -253,3 +250,40 @@ ndcg_test = mean(test_df_agg.ndcg)
 # ndcg_test = 0.8022558972243291
 # ndcg_test = 0.8020754563069513
 @info "NDCG - test data - LogLoss DF model" ndcg_test
+
+#####################################
+# lambdarank
+#####################################
+y_train = dtrain[:y]
+y_eval = deval[:y]
+y_test = dtest[:y]
+
+config = EvoTreeRegressor(
+    nrounds=6000,
+    loss=:lambdarank,
+    metric=:ndcg,
+    ndcg_k=10,
+    early_stopping_rounds=200,
+    eta=0.02,
+    nbins=64,
+    max_depth=11,
+    rowsample=0.9,
+    colsample=0.9,
+)
+
+@time m_lambdarank = EvoTrees.fit(
+    config;
+    x_train=x_train,
+    y_train=y_train,
+    group_train=q_train,
+    x_eval=x_eval,
+    y_eval=y_eval,
+    group_eval=q_eval,
+    print_every_n=50,
+);
+
+p_test = m_lambdarank(x_test);
+test_df = DataFrame(p=p_test, y=y_test, q=q_test)
+test_df_agg = combine(groupby(test_df, "q"), ["p", "y"] => ndcg => "ndcg")
+ndcg_test = round(mean(test_df_agg.ndcg), sigdigits=5)
+@info "NDCG - test data - LambdaRank model" ndcg_test
