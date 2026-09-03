@@ -387,9 +387,9 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         @test unit != wtd
 
         # groups carrying no signal are left out rather than averaged in as zero
-        @test isnothing(_corr_group(Float64[1.0], Float64[2.0], Float64[1.0]))
-        @test isnothing(_corr_group(Float64[1, 2, 3], Float64[5, 5, 5], ones(3)))
-        @test _corr_group(Float64[2, 2, 2], Float64[1, 2, 3], ones(3)) == 0.0
+        @test isnothing(_corr_group(reshape([1.0], 1, 1), [2.0], [1.0], 1:1, 1))
+        @test isnothing(_corr_group(reshape(Float64[1, 2, 3], 1, 3), Float64[5, 5, 5], ones(3), 1:3, 1))
+        @test _corr_group(reshape(Float64[2, 2, 2], 1, 3), Float64[1, 2, 3], ones(3), 1:3, 1) == 0.0
         q2 = UInt32[1, 1, 1, 2, 2, 2]
         y2 = Float32[1, 2, 3, 7, 7, 7]
         got2 = corr(reshape(Float32[1, 2, 3, 1, 2, 3], 1, :), y2, ones(Float32, 6), Float32[];
