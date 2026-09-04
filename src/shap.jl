@@ -35,7 +35,7 @@ function ShapTree(tree::EvoTrees.Tree)
     children_right = similar(tree.feat)
     thresholds = zeros(UInt8, n)
 
-    # EvoTrees uses 1-based indexing for nodes and stores splits in arrays sized 2^depth-1
+    # EvoTrees uses 1-based indexing for nodes and stores splits in arrays sized 2^(max_depth+1)-1
     # We'll adapt traversal using the convention in predict.jl: root node index = 1
     # children indices: left = nid << 1, right = (nid << 1) + 1
     for i = 1:n

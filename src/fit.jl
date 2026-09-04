@@ -62,7 +62,7 @@ function grow_tree!(
 
     # initialize
     n_current = [1]
-    depth = 1
+    depth = 0
 
     # initialize summary stats
     nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
@@ -164,7 +164,7 @@ function grow_otree!(
 
     # initialize
     n_current = [1]
-    depth = 1
+    depth = 0
 
     # initialize summary stats
     nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
@@ -195,7 +195,7 @@ function grow_otree!(
             end
 
             # initialize gains for node 1 in which all gains of a given depth will be accumulated
-            if depth > 1
+            if depth > 0
                 view(nodes[1].gains, :, js) .= 0
             end
             gain = 0

@@ -95,14 +95,15 @@ function Tree{L,K}(x::Vector) where {L,K}
     )
 end
 
-function Tree{L,K}(depth::Int) where {L,K}
+function Tree{L,K}(max_depth::Int) where {L,K}
+    n = 2^(max_depth + 1) - 1
     Tree{L,K}(
-        zeros(Int, 2^depth - 1),
-        zeros(UInt8, 2^depth - 1),
-        zeros(Float32, 2^depth - 1),
-        zeros(Float32, 2^depth - 1),
-        zeros(Float32, K, 2^depth - 1),
-        zeros(Bool, 2^depth - 1),
+        zeros(Int, n),
+        zeros(UInt8, n),
+        zeros(Float32, n),
+        zeros(Float32, n),
+        zeros(Float32, K, n),
+        zeros(Bool, n),
     )
 end
 

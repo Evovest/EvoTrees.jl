@@ -596,7 +596,6 @@ end
         # A model with no split anywhere has zero total gain. Normalising by that total
         # would give NaN for every feature, so the zeros are returned as they are.
         for config in (
-            EvoTreeRegressor(nrounds=5, max_depth=1),
             EvoTreeRegressor(nrounds=0),
             EvoTreeRegressor(nrounds=5, max_depth=4, gamma=1e9),
         )

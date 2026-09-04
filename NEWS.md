@@ -6,6 +6,7 @@
 - The intercept is stored on `EvoTree` as `bias::Vector{Float32}` (unconstrained / link space). `trees` holds only boosting rounds, so `length(m.trees) == nrounds * bagging_size` (and is empty when `nrounds = 0`).
 - `predict` always applies `bias`, then the first `ntree_limit` trees. `ntree_limit=0` is bias only.
 - `treeplot` defaults to `n=1` (the first learned tree).
+- `max_depth` is the maximum number of splits on a leaf path (`1` is a split with 2 leaves).
 
 ### Plotting
 - Tree plots now use a **Makie recipe** instead of Plots.jl / RecipesBase. Load a backend (`CairoMakie` or `GLMakie`) and call `treeplot(model)` or `plot(model, 1)`.

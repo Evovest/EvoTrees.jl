@@ -177,36 +177,27 @@ function grow_tree!(
     n_feats = length(cache.js)
 
     # Root node processing
-    if params.max_depth == 1
-        reduce_root_sums_kernel!(backend)(
-            cache.nodes_sum_gpu, ∇_gpu, is;
-            ndrange=length(is),
-        )
-        KernelAbstractions.synchronize(backend)
-        n_active = 0
+    EvoTrees.update_hist!(
+        cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
+        view(cache.anodes_gpu, 1:1), cache.K, cache.target_mask_buf, backend,
+    )
+
+    compute_nodes_sum_kernel!(backend)(
+        cache.nodes_sum_gpu, cache.h∇, view(cache.anodes_gpu, 1:1), cache.js, cache.K;
+        ndrange=(2 * cache.K + 1),
+    )
+    KernelAbstractions.synchronize(backend)
+
+    if OBLIVIOUS
+        _select_obliv_split!(cache, backend, L, params, view(cache.anodes_gpu, 1:1), n_feats, 1, js_cpu)
     else
-        EvoTrees.update_hist!(
-            cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
-            view(cache.anodes_gpu, 1:1), cache.K, cache.target_mask_buf, backend,
-        )
-
-        compute_nodes_sum_kernel!(backend)(
-            cache.nodes_sum_gpu, cache.h∇, view(cache.anodes_gpu, 1:1), cache.js, cache.K;
-            ndrange=(2 * cache.K + 1),
-        )
-        KernelAbstractions.synchronize(backend)
-
-        if OBLIVIOUS
-            _select_obliv_split!(cache, backend, L, params, view(cache.anodes_gpu, 1:1), n_feats, 1, js_cpu)
-        else
-            _select_binary_split!(cache, backend, L, params, view(cache.anodes_gpu, 1:1), n_feats, 1)
-        end
-
-        n_active = 1
+        _select_binary_split!(cache, backend, L, params, view(cache.anodes_gpu, 1:1), n_feats, 1)
     end
 
+    n_active = 1
+
     # Main loop: build tree level by level
-    for depth in 1:(params.max_depth-1)
+    for depth in 1:params.max_depth
         iszero(n_active) && break
 
         view(cache.n_next_active_gpu, 1:1) .= 0
@@ -353,7 +344,7 @@ end
 Apply the chosen best split for each active node and create its children.
 
 For each active node `node = active_nodes[n_idx]`, if `best_gain[n_idx] > gamma`
-and we are below `max_depth`, mark the node as split and:
+and `depth <= max_depth`, mark the node as split and:
 - Write split metadata (`tree_split`, `tree_feat`, `tree_cond_bin`, `tree_gain`)
 - Compute left-child gradient totals from histograms (`h∇`) and write them into `nodes_sum`
 - Compute right-child totals as `parent - left` (also into `nodes_sum`)
@@ -373,7 +364,7 @@ Mutates:
     n_idx = @index(Global)
     node = active_nodes[n_idx]
 
-    @inbounds if depth < max_depth && best_gain[n_idx] > gamma
+    @inbounds if depth <= max_depth && best_gain[n_idx] > gamma
         tree_split[node] = true
         tree_cond_bin[node] = best_bin[n_idx]
         tree_feat[node] = best_feat[n_idx]

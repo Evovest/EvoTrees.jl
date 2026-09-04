@@ -1,7 +1,7 @@
 using EvoTrees: Tree, MSE, EvoTree, EvoTreeRegressor, fit
 
 function _split_tree(; K=1, pred_left=1.5f0, pred_right=-0.5f0)
-    tree = Tree{MSE,K}(2)
+    tree = Tree{MSE,K}(1)
     tree.split[1] = true
     tree.feat[1] = 1
     tree.cond_bin[1] = 0x01

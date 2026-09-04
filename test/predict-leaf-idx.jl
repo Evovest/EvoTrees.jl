@@ -68,9 +68,11 @@ using EvoTrees: fit, predict, predict_leaf_idx
         @test_throws ErrorException predict_leaf_idx(m, x; ntree_limit=length(m.trees) + 1)
     end
 
-    @testset "stump has a single leaf" begin
-        m1 = fit(EvoTreeRegressor(nrounds=3, max_depth=1); x_train=x, y_train=y)
-        @test all(predict_leaf_idx(m1, x) .== 1)
+    @testset "max_depth=1 is one split" begin
+        m1 = fit(EvoTreeRegressor(nrounds=3, max_depth=1, eta=1.0); x_train=x, y_train=y)
+        @test all(length(tree.split) == 3 for tree in m1.trees)
+        @test all(tree.split[1] for tree in m1.trees)
+        @test all(in((2, 3)), predict_leaf_idx(m1, x))
     end
 
     @testset "tables input" begin

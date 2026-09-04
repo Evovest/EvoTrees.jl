@@ -232,22 +232,6 @@ function EvoTrees.subtract_hist!(h∇::GPUArraysCore.AbstractGPUArray{<:Any,4}, 
 end
 
 """
-	reduce_root_sums_kernel!(nodes_sum, ∇, is)
-
-Accumulate (atomic) gradient sums over observations `is` into the root node (node id = 1).
-"""
-@kernel function reduce_root_sums_kernel!(nodes_sum, @Const(∇), @Const(is))
-    idx = @index(Global)
-    @inbounds if idx <= length(is)
-        obs = is[idx]
-        n_k = size(∇, 1)
-        for k in 1:n_k
-            Atomix.@atomic nodes_sum[k, 1] += ∇[k, obs]
-        end
-    end
-end
-
-"""
 	compute_nodes_sum_kernel!(nodes_sum, h∇, active_nodes, js, K)
 
 Compute per-node gradient totals by summing histograms across bins.
