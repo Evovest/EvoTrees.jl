@@ -117,6 +117,7 @@ function CallBack(
     nobs = size(x_eval, 1)
     x_bin = binarize(x_eval; feature_names=m.info[:feature_names], edges=m.info[:edges])
     p = zeros(T, K, nobs)
+    p .= m.bias
     y_eval = orient_matrix_target(y_eval, nobs)
 
     if L == MLogLoss

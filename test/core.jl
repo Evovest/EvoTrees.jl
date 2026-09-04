@@ -661,6 +661,9 @@ end
     @test length(m0.bias) == 1
     @test predict(m0, x) ≈ fill(m0.bias[1], size(x, 1))
     @test predict(m0, x; ntree_limit=0) == predict(m0, x)
+    # Matrix-API eval callback starts from bias, matching the table constructor.
+    cb0 = EvoTrees.CallBack(EvoTreeRegressor(nrounds=0), m0, x, y, EvoTrees.CPU)
+    @test cb0.p[1, :] ≈ fill(m0.bias[1], size(x, 1))
 
     m = fit(EvoTreeRegressor(nrounds=5, max_depth=3); x_train=x, y_train=y, verbosity=0)
     @test length(m.trees) == 5
