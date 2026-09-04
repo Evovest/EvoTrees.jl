@@ -64,6 +64,7 @@ using EvoTrees: fit, predict, predict_leaf_idx
     @testset "ntree_limit" begin
         @test size(predict_leaf_idx(m, x; ntree_limit=3)) == (nobs, 3)
         @test predict_leaf_idx(m, x; ntree_limit=3) == leaf_idx[:, 1:3]
+        @test size(predict_leaf_idx(m, x; ntree_limit=0)) == (nobs, 0)
         @test_throws ErrorException predict_leaf_idx(m, x; ntree_limit=length(m.trees) + 1)
     end
 

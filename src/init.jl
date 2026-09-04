@@ -173,7 +173,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
 
     K, y, μ, target_levels, target_isordered = _init_target(L, y_train, params, offset, T)
 
-    # force a neutral/zero bias/initial tree when offset is specified
+    # force a neutral/zero bias when offset is specified
     !isnothing(offset) && (μ .= 0)
     @assert (size(y, ndims(y)) == length(w) && minimum(w) > 0)
 
@@ -216,8 +216,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     nbins = params.nbins
     h∇ = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
     nodes = [TrainNode(zero(Float64), view(is, 1:0), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), view(h∇, :, :, :, n), zeros(nbins, nfeats)) for n = 1:nnodes]
-    bias = [Tree{L,K}(μ)]
-    m = EvoTree{L,K}(L, K, bias, info)
+    m = EvoTree{L,K}(L, K, μ, info)
 
     # build cache
     Y = typeof(y)

@@ -46,8 +46,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
     )
 
     nodes = [EvoTrees.TrainNode(nfeats, params.nbins, K, view(zeros(UInt32, 0), 1:0)) for _ in 1:(2^params.max_depth-1)]
-    bias = [EvoTrees.Tree{L,K}(μ)]
-    m = EvoTree{L,K}(L, K, bias, info)
+    m = EvoTree{L,K}(L, K, μ, info)
 
     cond_feats = zeros(UInt32, 2^(params.max_depth - 1) - 1)
     cond_bins = zeros(UInt8, 2^(params.max_depth - 1) - 1)

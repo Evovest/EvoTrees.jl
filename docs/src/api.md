@@ -24,3 +24,9 @@ EvoTrees.shap
 ```@docs
 EvoTrees.importance
 ```
+
+## Plot
+
+```@docs
+EvoTrees.treeplot
+```
