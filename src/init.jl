@@ -1,4 +1,34 @@
 """
+    orient_matrix_target(y, nobs)
+
+Bring a matrix target to the internal layout `(n_targets, nobs)`.
+
+The public matrix `fit` API takes `y` as `(nobs, n_targets)`, matching `x_train`
+`(nobs, nfeats)`. Gradients are stored `(K, nobs)`, so this permutes once at the
+boundary. A matrix that is already `(n_targets, nobs)` (second dim equals `nobs`,
+first does not) is left as-is. Vectors are returned unchanged.
+"""
+function orient_matrix_target(y::AbstractVector, nobs::Integer)
+    length(y) == nobs || error(
+        "`y` has length $(length(y)) but there are $nobs observations. They must match."
+    )
+    return y
+end
+function orient_matrix_target(y::AbstractMatrix, nobs::Integer)
+    nrows, ncols = size(y)
+    if nrows == nobs
+        return permutedims(y)
+    elseif ncols == nobs
+        return y
+    else
+        error(
+            "`y` has size $(size(y)); one dimension must equal the number of observations ($nobs). " *
+            "Pass `(nobs, n_targets)` to match `x_train`."
+        )
+    end
+end
+
+"""
     _init_target(::Type{L}, y_train, params, offset, ::Type{T})
 
 Shared (device-agnostic) target/bias initialization: validates the target,
@@ -349,6 +379,7 @@ function init(
 
     T = Float32
     nobs = size(x_train, 1)
+    y_train = orient_matrix_target(y_train, nobs)
     V = device_array_type(device)
     w = isnothing(w_train) ? device_ones(device, T, nobs) : V{T}(w_train)
     offset = isnothing(offset_train) ? nothing : V{T}(offset_train)
