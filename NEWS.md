@@ -15,7 +15,7 @@ Saved `:gaussian_mle` / `:logistic_mle` models from ≤0.18.7 remain compatible:
 - The unconstrained scale parameter remains `exp(x)`. `predict` still returns the positive scale (`σ` / `s`). User-facing offsets remain the positive scale and are mapped internally with `log`.
 
 ### Multi-target regression
-- Several losses can now be fit jointly on a vector of targets, with shared tree structure and a vector-valued leaf. Pass a matrix `y_train` of size `(n_targets, nobs)`, or `target_name=["y1", "y2", ...]` on a table.
+- Several losses can now be fit jointly on a vector of targets, with shared tree structure and a vector-valued leaf. Pass a matrix `y_train` of size `(nobs, n_targets)`, matching `x_train`'s `(nobs, nfeats)`, or `target_name=["y1", "y2", ...]` on a table.
 - Supported: `:mse`, `:logloss`, `:poisson`, `:gamma`, `:tweedie`, `:mae`, `:quantile`, `:cred_std`, `:cred_var`, `:gaussian_mle`, `:logistic_mle`. Not supported: `:mlogloss`, `:multiquantile`.
 - Predictions are `(nobs, n_targets)`. MLE losses return `(nobs, 2 * n_targets)` with interleaved location and positive scale per target.
 
