@@ -108,14 +108,46 @@ update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group) where {L} =
 # contribute a pairwise logistic cost weighted by the NDCG change a swap would cause. The
 # lambdas stay per-document, so K = 1 and the histogram and leaf solver are untouched.
 # Cost is quadratic in the size of a query, so very large groups are the pathological case.
-function _lambdarank_group!(∇::Matrix{T}, p::Matrix{T}, y, rows, ndcg_k::Int) where {T}
+# Per-group temporaries, reused across the groups a thread handles. Allocating them per
+# group left the gradient churning gigabytes over a fit.
+struct LambdaRankScratch
+    scores::Vector{Float64}
+    rel::Vector{Float64}
+    ideal::Vector{Float64}
+    disc::Vector{Float64}
+    ord::Vector{Int}
+    rank::Vector{Int}
+end
+LambdaRankScratch() = LambdaRankScratch(Float64[], Float64[], Float64[], Float64[], Int[], Int[])
+
+# The chunk body is its own function so the `@threads` closure does not box its captures,
+# which would otherwise make every per-group call a dynamic dispatch.
+function _lambdarank_chunk!(∇::Matrix{T}, p::Matrix{T}, y, group, chunk, ndcg_k::Int) where {T}
+    buf = LambdaRankScratch()
+    for g in chunk
+        _lambdarank_group!(buf, ∇, p, y, group_rows(group, g), ndcg_k)
+    end
+    return nothing
+end
+
+function _lambdarank_group!(buf::LambdaRankScratch, ∇::Matrix{T}, p::Matrix{T}, y, rows, ndcg_k::Int) where {T}
     n = length(rows)
     n < 2 && return nothing
 
-    scores = [Float64(p[1, r]) for r in rows]
-    rel = [Float64(y[r]) for r in rows]
+    scores, rel, ideal = buf.scores, buf.rel, buf.ideal
+    ord, rank, disc = buf.ord, buf.rank, buf.disc
+    for v in (scores, rel, ideal, disc)
+        resize!(v, n)
+    end
+    resize!(ord, n)
+    resize!(rank, n)
+    @inbounds for (i, r) in enumerate(rows)
+        scores[i] = p[1, r]
+        rel[i] = y[r]
+    end
 
-    ideal = sort(rel; rev=true)
+    copyto!(ideal, rel)
+    sort!(ideal; rev=true, alg=QuickSort)
     kk = min(ndcg_k, n)
     maxdcg = 0.0
     @inbounds for i in 1:kk
@@ -123,13 +155,11 @@ function _lambdarank_group!(∇::Matrix{T}, p::Matrix{T}, y, rows, ndcg_k::Int) 
     end
     maxdcg <= 0 && return nothing   # no relevant document, so no ranking signal
 
-    ord = sortperm(scores; rev=true)
-    rank = Vector{Int}(undef, n)
+    sortperm!(ord, scores; rev=true, alg=QuickSort)
     @inbounds for pos in 1:n
         rank[ord[pos]] = pos
     end
     # Positions past k get no discount, so a pair wholly below the cutoff yields a zero delta.
-    disc = Vector{Float64}(undef, n)
     @inbounds for pos in 1:n
         disc[pos] = pos <= ndcg_k ? 1 / log2(pos + 1) : 0.0
     end
@@ -158,8 +188,9 @@ end
 function _lambdarank_grads!(∇::Matrix{T}, p::Matrix{T}, y, group, ndcg_k::Int) where {T}
     fill!(view(∇, 1, :), zero(T))
     fill!(view(∇, 2, :), zero(T))
-    @threads for g in 1:ngroups(group)
-        _lambdarank_group!(∇, p, y, group_rows(group, g), ndcg_k)
+    ng = ngroups(group)
+    @threads for chunk in _group_chunks(ng)
+        _lambdarank_chunk!(∇, p, y, group, chunk, ndcg_k)
     end
     @inbounds @threads for i in axes(∇, 2)
         w = ∇[3, i]
