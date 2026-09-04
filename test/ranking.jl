@@ -145,8 +145,8 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
             D = pair_deltas(sc, rel, k)
             ∇ = zeros(Float32, 3, n)
             ∇[3, :] .= 1
-            EvoTrees._lambdarank_group!(∇, reshape(Float32.(sc), 1, n), Float32.(rel),
-                collect(1:n), k)
+            EvoTrees._lambdarank_group!(EvoTrees.LambdaRankScratch(), ∇,
+                reshape(Float32.(sc), 1, n), Float32.(rel), collect(1:n), k)
             h = 1e-6
             for i in 1:n
                 sp = copy(sc); sp[i] += h
@@ -162,8 +162,8 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         # A query with no relevant document carries no ranking signal.
         ∇0 = zeros(Float32, 3, 4)
         ∇0[3, :] .= 1
-        EvoTrees._lambdarank_group!(∇0, reshape(Float32[4, 3, 2, 1], 1, 4),
-            Float32[0, 0, 0, 0], collect(1:4), 10)
+        EvoTrees._lambdarank_group!(EvoTrees.LambdaRankScratch(), ∇0,
+            reshape(Float32[4, 3, 2, 1], 1, 4), Float32[0, 0, 0, 0], collect(1:4), 10)
         @test all(iszero, ∇0[1:2, :])
     end
 
