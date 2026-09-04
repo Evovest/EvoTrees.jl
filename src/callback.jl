@@ -63,6 +63,7 @@ function CallBack(
     x_bin = binarize(deval; feature_names=m.info[:feature_names], edges=m.info[:edges])
     nobs = length(Tables.getcolumn(deval, 1))
     p = zeros(T, K, nobs)
+    p .= m.bias
 
     y_eval = length(_target_names) == 1 ?
         Tables.getcolumn(deval, _target_names[1]) :
@@ -116,6 +117,7 @@ function CallBack(
     nobs = size(x_eval, 1)
     x_bin = binarize(x_eval; feature_names=m.info[:feature_names], edges=m.info[:edges])
     p = zeros(T, K, nobs)
+    p .= m.bias
     y_eval = orient_matrix_target(y_eval, nobs)
 
     if L == MLogLoss
@@ -151,11 +153,15 @@ function CallBack(
     return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs)
 end
 
-function (cb::CallBack)(logger, iter, tree)
-    predict!(cb.p, tree, cb.x_bin, cb.feattypes)
+function (cb::CallBack)(logger, iter)
     metric = cb.feval(cb.p, cb.y, cb.w, cb.eval; cb.metric_kwargs...)
     update_logger!(logger, iter, metric)
     return nothing
+end
+
+function (cb::CallBack)(logger, iter, tree)
+    predict!(cb.p, tree, cb.x_bin, cb.feattypes)
+    return cb(logger, iter)
 end
 
 function init_logger(; metric, maximise, early_stopping_rounds, early_stopping_tolerance=0.0)

@@ -205,8 +205,8 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 - `alpha=0.5`:            Loss specific parameter in the [0, 1] range:
                             - `:quantile`: target quantile for the regression.
 - `ndcg_k`:               Truncation rank for `metric = :ndcg` and for the `:lambdarank` objective, that is the `k` of NDCG@k. Must be >= 1. Defaults to no truncation, scoring the full list of each group. Ranking is only available through `EvoTrees.fit`, see `:lambdarank` above.
-- `max_depth=6`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
-  A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
+- `max_depth=6`:          Maximum number of splits on a leaf path. Must be >= 1. Depth 1 is a split with 2 leaves.
+  A complete tree of depth N contains `2^N` terminal leaves and `2^N - 1` split nodes.
   Compute cost is proportional to `2^max_depth`. Typical optimal values are in the 3 to 9 range.
 - `min_weight=1.0`:       Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector. Must be > 0.
 - `rowsample=1.0`:        Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`. When groups are supplied, whole groups are sampled rather than individual rows, so a group is never split across the sampled and unsampled sets.
@@ -327,8 +327,8 @@ EvoTreeClassifier is used to perform multi-class classification, using cross-ent
 - `L2=1.0`:               L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
 - `lambda=0.0`:           L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma=0.0`:            Minimum gain improvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
-- `max_depth=6`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
-  A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
+- `max_depth=6`:          Maximum number of splits on a leaf path. Must be >= 1. Depth 1 is a split with 2 leaves.
+  A complete tree of depth N contains `2^N` terminal leaves and `2^N - 1` split nodes.
   Compute cost is proportional to `2^max_depth`. Typical optimal values are in the 3 to 9 range.
 - `min_weight=1.0`:       Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector. Must be > 0.
 - `rowsample=1.0`:        Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`. When groups are supplied, whole groups are sampled rather than individual rows, so a group is never split across the sampled and unsampled sets.
@@ -454,8 +454,8 @@ EvoTreeCount is used to perform Poisson probabilistic regression on count target
 - `L2=1.0`:               L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
 - `lambda=0.0`:           L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma=0.0`:            Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model.
-- `max_depth=6`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
-  A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
+- `max_depth=6`:          Maximum number of splits on a leaf path. Must be >= 1. Depth 1 is a split with 2 leaves.
+  A complete tree of depth N contains `2^N` terminal leaves and `2^N - 1` split nodes.
   Compute cost is proportional to 2^max_depth. Typical optimal values are in the 3 to 9 range.
 - `min_weight=1.0`:       Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector. Must be > 0.
 - `rowsample=1.0`:        Proportion of rows that are sampled at each iteration to build the tree. Should be `]0, 1]`.
@@ -586,8 +586,8 @@ EvoTreeGaussian is used to perform Gaussian probabilistic regression, fitting μ
 - `L2=1.0`:               L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
 - `lambda=0.0`:           L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma=0.0`:            Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
-- `max_depth=6`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
-  A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
+- `max_depth=6`:          Maximum number of splits on a leaf path. Must be >= 1. Depth 1 is a split with 2 leaves.
+  A complete tree of depth N contains `2^N` terminal leaves and `2^N - 1` split nodes.
   Compute cost is proportional to 2^max_depth. Typical optimal values are in the 3 to 9 range.
 - `min_weight=8.0`:       Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector. Must be > 0.
 - `rowsample=1.0`:        Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`. When groups are supplied, whole groups are sampled rather than individual rows, so a group is never split across the sampled and unsampled sets.
@@ -726,8 +726,8 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
 - `L2=1.0`:               L2 regularization factor on aggregate gain. Must be >= 0. Higher L2 can result in a more robust model.
 - `lambda=0.0`:           L2 regularization factor on individual gain. Must be >= 0. Higher lambda can result in a more robust model.
 - `gamma=0.0`:            Minimum gain imprvement needed to perform a node split. Higher gamma can result in a more robust model. Must be >= 0.
-- `max_depth=6`:          Maximum depth of a tree. Must be >= 1. A tree of depth 1 is made of a single prediction leaf.
-  A complete tree of depth N contains `2^(N - 1)` terminal leaves and `2^(N - 1) - 1` split nodes.
+- `max_depth=6`:          Maximum number of splits on a leaf path. Must be >= 1. Depth 1 is a split with 2 leaves.
+  A complete tree of depth N contains `2^N` terminal leaves and `2^N - 1` split nodes.
   Compute cost is proportional to 2^max_depth. Typical optimal values are in the 3 to 9 range.
 - `min_weight=8.0`:       Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector. Must be > 0.
 - `rowsample=1.0`:        Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`. When groups are supplied, whole groups are sampled rather than individual rows, so a group is never split across the sampled and unsampled sets.

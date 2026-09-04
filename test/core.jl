@@ -95,7 +95,7 @@ end
     )
 
     @test length(m_tolerant.trees) < length(m_strict.trees)
-    @test length(m_strict.trees) == params_strict.nrounds + 1
+    @test length(m_strict.trees) == params_strict.nrounds
     @test m_tolerant.info[:logger][:iter_since_best] >= params_tolerant.early_stopping_rounds
     @test m_tolerant.info[:logger][:best_iter] < m_strict.info[:logger][:best_iter]
     @test length(m_default.trees) == length(m_strict.trees)
@@ -489,7 +489,7 @@ end
         # Valid values still train, and every round still grows a tree.
         m = fit(EvoTreeRegressor(nrounds=10, max_depth=3, bagging_size=2, L2=1.0);
             x_train=x, y_train=y, verbosity=0)
-        @test length(m.trees) - 1 == 20
+        @test length(m.trees) == 20
         @test all(isfinite, predict(m, x))
 
         # Mutating a fitted config is the path MLJ tuning takes, so the second `check_args`
@@ -596,7 +596,6 @@ end
         # A model with no split anywhere has zero total gain. Normalising by that total
         # would give NaN for every feature, so the zeros are returned as they are.
         for config in (
-            EvoTreeRegressor(nrounds=5, max_depth=1),
             EvoTreeRegressor(nrounds=0),
             EvoTreeRegressor(nrounds=5, max_depth=4, gamma=1e9),
         )
@@ -624,7 +623,7 @@ end
         ypos = 1.0 .+ rand(rng, 200)
 
         m = fit(EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ypos)
-        @test length(m.trees) == 6
+        @test length(m.trees) == 5
 
         for bad in (0.0, -1.0)
             y = copy(ypos)
@@ -636,7 +635,7 @@ end
 
         ymat = hcat(ypos, ypos .+ 1)
         m = fit(EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ymat)
-        @test length(m.trees) == 6
+        @test length(m.trees) == 5
         ymat[5, 2] = 0.0
         @test_throws ErrorException fit(
             EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ymat
@@ -646,8 +645,39 @@ end
         yzero[7] = 0.0
         for loss in (:poisson, :tweedie)
             m = fit(EvoTreeRegressor(loss=loss, nrounds=5); x_train=x, y_train=yzero)
-            @test length(m.trees) == 6
+            @test length(m.trees) == 5
         end
     end
 
+end
+
+@testset "bias distinct from trees" begin
+    seed!(3)
+    x = rand(200, 3)
+    y = 2 .* x[:, 1] .+ 0.2 .* randn(200)
+
+    m0 = fit(EvoTreeRegressor(nrounds=0); x_train=x, y_train=y, verbosity=0)
+    @test isempty(m0.trees)
+    @test length(m0.bias) == 1
+    @test predict(m0, x) ≈ fill(m0.bias[1], size(x, 1))
+    @test predict(m0, x; ntree_limit=0) == predict(m0, x)
+    # Matrix-API eval callback starts from bias, matching the table constructor.
+    cb0 = EvoTrees.CallBack(EvoTreeRegressor(nrounds=0), m0, x, y, EvoTrees.CPU)
+    @test cb0.p[1, :] ≈ fill(m0.bias[1], size(x, 1))
+
+    m = fit(EvoTreeRegressor(nrounds=5, max_depth=3); x_train=x, y_train=y, verbosity=0)
+    @test length(m.trees) == 5
+    @test predict(m, x; ntree_limit=0) ≈ predict(m0, x)
+
+    info = Dict{Symbol,Any}(:feature_names => [:x], :edges => [[0.5]], :feattypes => [true])
+    constructed = EvoTree{EvoTrees.MSE,1}(EvoTrees.MSE, 1, [0.5], info)
+    @test constructed.bias == Float32[0.5]
+    @test isempty(constructed.trees)
+
+    path = joinpath(tempdir(), "evotrees-bias-test.bson")
+    EvoTrees.save(m, path)
+    loaded = EvoTrees.load(path)
+    @test loaded.bias == m.bias
+    @test length(loaded.trees) == length(m.trees)
+    @test predict(loaded, x) == predict(m, x)
 end

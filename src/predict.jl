@@ -87,8 +87,8 @@ end
 """
     predict(m::EvoTree, data; ntree_limit=length(m.trees), device=:cpu)
 
-Predictions from an EvoTree model - sums the predictions from all trees composing the model.
-Use `ntree_limit=N` to only predict with the first `N` trees.
+Predictions from an EvoTree model — the bias plus the sum of boosting trees.
+Use `ntree_limit=N` to use the bias plus the first `N` trees (`N = 0` is bias only).
 """
 function predict(m::EvoTree, data; ntree_limit=length(m.trees), device=:cpu)
     _device = device_type(device)
@@ -127,6 +127,7 @@ function _predict(
     x_bin = binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges])
     nobs = size(x_bin, 1)
     pred = zeros(Float32, K, nobs)
+    pred .= m.bias
     for i = 1:ntree_limit
         predict!(pred, m.trees[i], x_bin, m.info[:feattypes])
     end
@@ -156,12 +157,13 @@ end
 """
     predict_leaf_idx(m::EvoTree, data; ntree_limit=length(m.trees))
 
-Return the index of the leaf into which each observation falls, for each tree of the model.
+Return the index of the leaf into which each observation falls, for each boosting tree.
 
 The result is a `Matrix{UInt32}` of size `(nobs, ntree_limit)`, where `[i, j]` is the index of
 the leaf reached by observation `i` in tree `j`. Indices refer to the node numbering of
 `m.trees[j]`: the root is `1`, and the children of node `n` are `2n` and `2n + 1`.
-Use `ntree_limit=N` to only use the first `N` trees.
+Use `ntree_limit=N` to only use the first `N` trees. The bias is not a tree, so `nrounds = 0`
+returns an `(nobs, 0)` matrix.
 
 Leaf indices are a categorical encoding of the partition of the feature space learned by the
 model, and can be used as features for a downstream model.

@@ -45,18 +45,17 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
         :feattypes => feattypes,
     )
 
-    nodes = [EvoTrees.TrainNode(nfeats, params.nbins, K, view(zeros(UInt32, 0), 1:0)) for _ in 1:(2^params.max_depth-1)]
-    bias = [EvoTrees.Tree{L,K}(μ)]
-    m = EvoTree{L,K}(L, K, bias, info)
+    nodes = [EvoTrees.TrainNode(nfeats, params.nbins, K, view(zeros(UInt32, 0), 1:0)) for _ in 1:(2^(params.max_depth + 1) - 1)]
+    m = EvoTree{L,K}(L, K, μ, info)
 
-    cond_feats = zeros(UInt32, 2^(params.max_depth - 1) - 1)
-    cond_bins = zeros(UInt8, 2^(params.max_depth - 1) - 1)
+    cond_feats = zeros(UInt32, 2^params.max_depth - 1)
+    cond_bins = zeros(UInt8, 2^params.max_depth - 1)
     cond_feats_gpu = _to_device(backend, cond_feats)
     cond_bins_gpu = _to_device(backend, cond_bins)
     feattypes_gpu = _to_device(backend, feattypes)
     monotone_constraints_gpu = _to_device(backend, monotone_constraints)
 
-    max_tree_nodes = 2^params.max_depth - 1
+    max_tree_nodes = 2^(params.max_depth + 1) - 1
     left_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
     right_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
 

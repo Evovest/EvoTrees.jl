@@ -1,3 +1,4 @@
+# Legacy Plots.jl example. Tree plotting now uses a Makie recipe; see makie.jl.
 using EvoTrees
 using MLDatasets
 using DataFrames

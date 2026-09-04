@@ -62,7 +62,7 @@ function grow_tree!(
 
     # initialize
     n_current = [1]
-    depth = 1
+    depth = 0
 
     # initialize summary stats
     nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
@@ -164,7 +164,7 @@ function grow_otree!(
 
     # initialize
     n_current = [1]
-    depth = 1
+    depth = 0
 
     # initialize summary stats
     nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
@@ -195,7 +195,7 @@ function grow_otree!(
             end
 
             # initialize gains for node 1 in which all gains of a given depth will be accumulated
-            if depth > 1
+            if depth > 0
                 view(nodes[1].gains, :, js) .= 0
             end
             gain = 0
@@ -329,7 +329,7 @@ function fit(
         deval = Tables.columntable(deval)
         cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name, group_name=eval_group_name)
         logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
-        cb(logger, 0, m.trees[end])
+        cb(logger, 0)
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
     else
         logger, cb = nothing, nothing
@@ -427,7 +427,7 @@ function fit(
     if logging_flag
         cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval, group_eval)
         logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
-        cb(logger, 0, m.trees[end])
+        cb(logger, 0)
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
     else
         logger, cb = nothing, nothing

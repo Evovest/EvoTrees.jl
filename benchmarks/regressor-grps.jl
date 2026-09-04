@@ -29,8 +29,8 @@ nobs_list = Int.([1e5, 1e6])
 nfeats_list = [10, 100]
 # nfeats_list = [100]
 
-max_depth_list = [6, 11]
-# max_depth_list = [6]
+max_depth_list = [5, 10]
+# max_depth_list = [5]
 
 group_size_list = [64]
 ndcg_k = 8

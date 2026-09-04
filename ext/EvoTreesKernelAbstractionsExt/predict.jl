@@ -125,6 +125,7 @@ function EvoTrees._predict(
     x_bin = _to_device(backend, EvoTrees.binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges]))
     nobs = size(x_bin, 1)
     pred = KernelAbstractions.zeros(backend, Float32, K, nobs)
+    pred .= _to_device(backend, m.bias)
     feattypes = _to_device(backend, m.info[:feattypes])
     for i in 1:ntree_limit
         EvoTrees.predict!(pred, m.trees[i], x_bin, feattypes)

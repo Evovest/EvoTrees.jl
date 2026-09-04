@@ -1,119 +1,90 @@
-function get_adj_list(tree::EvoTrees.Tree)
-    n = 1
-    map = ones(Int, 1)
-    adj = Vector{Vector{Int}}()
+"""
+    treeplot(model::EvoTree, n=1)
+    treeplot!(ax, model::EvoTree, n=1)
 
-    if tree.split[1]
-        push!(adj, [n + 1, n + 2])
-        n += 2
-    else
-        push!(adj, [])
-    end
+Plot tree `n` of a fitted `EvoTree`. Default `n = 1` is the first boosting tree.
+Requires a Makie backend (`CairoMakie` or `GLMakie`). `plot(model, n)` works once a backend is loaded.
+"""
+function treeplot end
+function treeplot! end
 
-    for i = 2:length(tree.split)
+struct TreePlotSpec
+    xs::Vector{Float64}
+    ys::Vector{Float64}
+    isleaf::Vector{Bool}
+    labels::Vector{String}
+    edges::Vector{Tuple{Int,Int}}
+end
+
+function tree_children(tree::Tree)
+    ids = Int[]
+    function visit!(i)
+        push!(ids, i)
         if tree.split[i]
-            push!(map, i)
-            push!(adj, [n + 1, n + 2])
-            n += 2
-        elseif tree.split[i>>1]
-            push!(map, i)
-            push!(adj, [])
+            visit!(2i)
+            visit!(2i + 1)
         end
     end
-    return (map=map, adj=adj)
-end
-
-function get_shapes(tree_layout)
-    shapes = Vector(undef, length(tree_layout))
-    for i = eachindex(tree_layout)
-        x, y = tree_layout[i][1], tree_layout[i][2] # center point
-        x_buff = 0.45
-        y_buff = 0.45
-        shapes[i] = [
-            (x - x_buff, y + y_buff),
-            (x + x_buff, y + y_buff),
-            (x + x_buff, y - y_buff),
-            (x - x_buff, y - y_buff),
-        ]
+    visit!(1)
+    id_to_layout = Dict(id => k for (k, id) in enumerate(ids))
+    children = [Int[] for _ in ids]
+    for (k, id) in enumerate(ids)
+        tree.split[id] && (children[k] = [id_to_layout[2id], id_to_layout[2id + 1]])
     end
-    return shapes
+    return ids, children
 end
 
-function get_annotations(tree_layout, map, tree, feature_names, edges)
-    # annotations = Vector{Tuple{Float64, Float64, String, Tuple}}(undef, length(tree_layout))
-    annotations = []
-    for i = eachindex(tree_layout)
-        x, y = tree_layout[i][1], tree_layout[i][2] # center point
-        if tree.split[map[i]]
-            fidx = tree.feat[map[i]]
-            fname = feature_names[fidx]
-            bin = tree.cond_bin[map[i]]
-            value = edges[fidx][bin]
-            typeof(value) <: Number ? value = round(value, sigdigits=3) : nothing
-            txt = "$fname\n$value"
+function layout_tree(children; xgap=2.0, ygap=1.6)
+    n = length(children)
+    xs = zeros(n)
+    depths = zeros(Int, n)
+    function set_depth!(i, d)
+        depths[i] = d
+        for c in children[i]
+            set_depth!(c, d + 1)
+        end
+    end
+    set_depth!(1, 0)
+    next_x = 0.0
+    function place!(i)
+        ch = children[i]
+        if isempty(ch)
+            xs[i] = next_x
+            next_x += xgap
         else
-            txt = string(round(tree.pred[1, map[i]], sigdigits=3))
-        end
-        # annotations[i] = (x, y, txt, (9, :white, "helvetica"))
-        push!(annotations, (x, y, txt, 10))
-    end
-    return annotations
-end
-
-function get_curves(adj, tree_layout, shapes)
-    curves = []
-    num_curves = sum(length.(adj))
-    for i = eachindex(adj)
-        for j = eachindex(adj[i])
-            # curves is a length 2 tuple: (vector Xs, vector Ys)
-            push!(
-                curves,
-                (
-                    [tree_layout[i][1], tree_layout[adj[i][j]][1]],
-                    [shapes[i][3][2], shapes[adj[i][j]][1][2]],
-                ),
-            )
+            foreach(place!, ch)
+            xs[i] = 0.5 * (xs[first(ch)] + xs[last(ch)])
         end
     end
-    return curves
+    place!(1)
+    maxd = maximum(depths)
+    return xs, [(maxd - d) * ygap for d in depths]
 end
 
-@recipe function plot(model::EvoTrees.EvoTree, n=2)
+_fmt(x::Number) = string(round(Float64(x); sigdigits=3))
+_fmt(x) = string(x)
 
-    feature_names = model.info[:feature_names]
-    edges = model.info[:edges]
+function tree_plot_spec(model::EvoTree, n::Integer=1)
     tree = model.trees[n]
-    map, adj = EvoTrees.get_adj_list(tree)
-    tree_layout = length(adj) == 1 ? [[0.0, 0.0]] : NetworkLayout.buchheim(adj)
-    shapes = EvoTrees.get_shapes(tree_layout) # issue with Shape coming from Plots... to be converted o Shape in Receipe?
-    annotations = EvoTrees.get_annotations(tree_layout, map, tree, feature_names, edges) # same with Plots.text
-    curves = EvoTrees.get_curves(adj, tree_layout, shapes)
-
-    size_base = floor(log2(length(adj)))
-    size = (128 * 2^size_base, 96 * (1 + size_base))
-
-    background_color --> :white
-    linecolor --> :black
-    legend --> nothing
-    axis --> nothing
-    framestyle --> :none
-    size --> size
-    annotations --> annotations
-
-    for i = eachindex(shapes)
-        @series begin
-            _color = length(adj[i]) == 0 ? "#26a671" : "#e6ebf1"
-            fillcolor --> _color
-            linewidth --> 0
-            seriestype --> :shape
-            return shapes[i]
+    fnames, edges, feattypes = model.info[:feature_names], model.info[:edges], model.info[:feattypes]
+    ids, children = tree_children(tree)
+    xs, ys = layout_tree(children)
+    labels = map(ids) do i
+        if tree.split[i]
+            f = tree.feat[i]
+            # numeric: x_bin ≤ cond_bin ⇔ x ≤ edges[cond_bin] (searchsortedfirst)
+            op = feattypes[f] ? "≤" : "="
+            "$(fnames[f])\n$op $(_fmt(edges[f][tree.cond_bin[i]]))"
+        else
+            p = view(tree.pred, :, i)
+            join(_fmt.(p), length(p) <= 2 ? "\n" : ", ")
         end
     end
+    elist = Tuple{Int,Int}[(i, c) for (i, ch) in enumerate(children) for c in ch]
+    return TreePlotSpec(xs, ys, [isempty(ch) for ch in children], labels, elist)
+end
 
-    for i = eachindex(curves)
-        @series begin
-            seriestype --> :curves
-            return curves[i]
-        end
-    end
+function treeplot_size(spec::TreePlotSpec)
+    d = max(0, floor(Int, log2(max(1, length(spec.xs)))))
+    return (max(256, 128 * 2^d), max(200, 96 * (1 + d)))
 end

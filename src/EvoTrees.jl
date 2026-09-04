@@ -6,7 +6,9 @@ export EvoTreeRegressor,
     EvoTreeClassifier,
     EvoTreeMLE,
     EvoTreeGaussian,
-    EvoTree
+    EvoTree,
+    treeplot,
+    treeplot!
 
 using Base.Threads: @threads, @spawn, nthreads
 using Statistics
@@ -18,9 +20,6 @@ using Tables
 using CategoricalArrays
 using Tables
 using BSON
-
-using NetworkLayout
-using RecipesBase
 
 using MLJModelInterface
 import MLJModelInterface as MMI
