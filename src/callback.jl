@@ -159,8 +159,13 @@ function (cb::CallBack)(logger, iter)
     return nothing
 end
 
-function (cb::CallBack)(logger, iter, tree)
-    predict!(cb.p, tree, cb.x_bin, cb.feattypes)
+# `trees` is every tree added by the round being logged. With `bagging_size > 1` a round adds
+# that many, each scaled by `1 / bagging_size`, so accumulating only one leaves the eval
+# prediction at a fraction of the model the round actually produced.
+function (cb::CallBack)(logger, iter, trees)
+    for tree in trees
+        predict!(cb.p, tree, cb.x_bin, cb.feattypes)
+    end
     return cb(logger, iter)
 end
 
