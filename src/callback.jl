@@ -114,9 +114,10 @@ function CallBack(
     group_eval=nothing) where {L,K}
 
     T = Float32
+    nobs = size(x_eval, 1)
     x_bin = binarize(x_eval; feature_names=m.info[:feature_names], edges=m.info[:edges])
-    p = zeros(T, K, size(x_eval, 1))
-    p .= m.bias
+    p = zeros(T, K, nobs)
+    y_eval = orient_matrix_target(y_eval, nobs)
 
     if L == MLogLoss
         y = eval_levelcode(y_eval, m.info[:target_levels])
@@ -125,8 +126,8 @@ function CallBack(
     end
     feval = metric_dict[params.metric]
     V = device_array_type(device)
-    w = isnothing(w_eval) ? device_ones(device, T, size(x_eval, 1)) : V{T}(w_eval)
-    check_eval_data(y, w, size(x_eval, 1))
+    w = isnothing(w_eval) ? device_ones(device, T, nobs) : V{T}(w_eval)
+    check_eval_data(y, w, nobs)
     metric_kwargs = hasproperty(params, :alpha) ? (alpha=T(params.alpha),) : (;)
     if params.metric == :multiquantile
         alphas_eval = T.(params.alphas)
@@ -134,7 +135,7 @@ function CallBack(
         metric_kwargs = (alphas=alphas_eval,)
     end
     if !isnothing(group_eval)
-        metric_kwargs = merge(metric_kwargs, (group=build_group_index(group_eval, size(x_eval, 1), "group_eval"),))
+        metric_kwargs = merge(metric_kwargs, (group=build_group_index(group_eval, nobs, "group_eval"),))
     end
     hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
 

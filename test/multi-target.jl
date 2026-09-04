@@ -36,6 +36,18 @@ using EvoTrees: fit, predict, sigmoid, logit
         @test mean((pred[:, 2] .- dtrain.y2) .^ 2) < base[2] * 0.9
     end
 
+    @testset "matrix y is (nobs, n_targets)" begin
+        x = reshape(dtrain.x_num, :, 1)
+        y = hcat(dtrain.y, dtrain.y2)
+        config = EvoTreeRegressor(; loss=:mse, nrounds=50, max_depth=4, seed=123)
+        model = fit(config; x_train=x, y_train=y, verbosity=0)
+        pred = model(x)
+        @test size(pred) == (nrow(dtrain), 2)
+        @test all(isfinite, pred)
+        @test mean((pred[:, 1] .- dtrain.y) .^ 2) < base[1] * 0.9
+        @test mean((pred[:, 2] .- dtrain.y2) .^ 2) < base[2] * 0.9
+    end
+
     # MLE: (μ, σ) per target → 4 columns, means at 1 and 3, positive scales at 2 and 4
     @testset for loss in [:gaussian_mle, :logistic_mle]
         config = EvoTreeMLE(; loss, nrounds=200, nbins=64, L2=0.1, gamma=0.05,
@@ -58,7 +70,7 @@ using EvoTrees: fit, predict, sigmoid, logit
         n_off = 200
         rng_off = Xoshiro(9)
         x_off = reshape(rand(rng_off, n_off), :, 1)
-        Y_off = permutedims(hcat(rand(rng_off, n_off), rand(rng_off, n_off)))
+        Y_off = hcat(rand(rng_off, n_off), rand(rng_off, n_off))
         s1, s2 = 1.2, 1.5
         off = hcat(fill(0.1, n_off), fill(s1, n_off), fill(-0.2, n_off), fill(s2, n_off))
 
@@ -71,8 +83,8 @@ using EvoTrees: fit, predict, sigmoid, logit
 
         # A single-target offset has only two columns, and must be unchanged by `2:2:end`.
         off1 = hcat(fill(0.1, n_off), fill(s1, n_off))
-        m1 = fit(cfg; x_train=x_off, y_train=Y_off[1, :], offset_train=copy(off1), verbosity=0)
-        cb1 = EvoTrees.CallBack(cfg, m1, x_off, Y_off[1, :], EvoTrees.CPU; offset_eval=copy(off1))
+        m1 = fit(cfg; x_train=x_off, y_train=Y_off[:, 1], offset_train=copy(off1), verbosity=0)
+        cb1 = EvoTrees.CallBack(cfg, m1, x_off, Y_off[:, 1], EvoTrees.CPU; offset_eval=copy(off1))
         @test cb1.p[2, 1] ≈ log(s1) atol = 1e-5
     end
 end

@@ -384,11 +384,11 @@ Main training function. Performs model fitting given configuration `params`, `x_
 # Keyword arguments
 
 - `x_train::Matrix`: training data of size `[#observations, #features]`. 
-- `y_train::VecOrMat`: vector or matrix of train targets of length `#observations` or size `(#targets, #observations)`.
+- `y_train::VecOrMat`: vector or matrix of train targets of length `#observations` or size `(#observations, #targets)`.
 - `w_train::Vector`: vector of train weights of length `#observations`. If `nothing`, a vector of ones is assumed.
 - `offset_train::VecOrMat`: offset for the training data. Should match the size of the predictions.
 - `x_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
-- `y_eval::VecOrMat`: vector or matrix of evaluation targets of length `#observations` or size `(#targets, #observations)`.
+- `y_eval::VecOrMat`: vector or matrix of evaluation targets of length `#observations` or size `(#observations, #targets)`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
 - `group_train::Vector`: group (query) id of each training row, for ranking tasks. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.

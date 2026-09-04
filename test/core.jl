@@ -633,10 +633,10 @@ end
             )
         end
 
-        ymat = permutedims(hcat(ypos, ypos .+ 1))
+        ymat = hcat(ypos, ypos .+ 1)
         m = fit(EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ymat)
         @test length(m.trees) == 5
-        ymat[2, 5] = 0.0
+        ymat[5, 2] = 0.0
         @test_throws ErrorException fit(
             EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ymat
         )
