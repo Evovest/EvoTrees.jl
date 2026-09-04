@@ -1,4 +1,18 @@
 """
+	GroupCacheGPU
+
+Device-side companion to [`EvoTrees.GroupIndex`](@ref). `group_gpu` is the per-row group id
+that sampling gathers through, `mask_cpu` / `mask_gpu` are per-group, and `index` stays on
+the host for the metric.
+"""
+struct GroupCacheGPU{V,M}
+    index::EvoTrees.GroupIndex
+    group_gpu::V
+    mask_cpu::Vector{UInt8}
+    mask_gpu::M
+end
+
+"""
 	CacheBaseGPU <: EvoTrees.CacheGPU
 
 Backend-neutral GPU training cache holding preallocated buffers used during tree growth.
@@ -11,7 +25,7 @@ Backend-neutral GPU training cache holding preallocated buffers used during tree
 - `split_sums_temp_gpu`: per-(node,feature) temporary buffer for K>1 split scanning
 - `obliv_gains_gpu`, `obliv_count_gpu`: oblivious level-gain accumulation
 """
-struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
+struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode,G} <: EvoTrees.CacheGPU
     rng::Xoshiro
     K::Int
     x_bin::CuMatrix{UInt8}
@@ -63,6 +77,7 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode} <: EvoTrees.CacheGPU
     split_sums_temp_gpu::CuMatrix{Float64}   # Temp: per-(node,feature) accumulators [2K+1, n_sampled_feats*max_tree_nodes]
     obliv_gains_gpu::CuMatrix{Float64}       # Oblivious: gain summed over nodes  [nbins, n_sampled_feats]
     obliv_count_gpu::CuMatrix{Int32}         # Oblivious: #nodes with a valid gain [nbins, n_sampled_feats]
+    group::G                                 # `GroupCacheGPU` for ranking, `nothing` otherwise
 
 end
 

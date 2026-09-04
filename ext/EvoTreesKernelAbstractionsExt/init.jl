@@ -1,4 +1,4 @@
-function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.GPU}, data, feature_names, y_train, w, offset)
+function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.GPU}, data, feature_names, y_train, w, offset, group=nothing)
 
     rng = Xoshiro(params.seed)
     edges, featbins, feattypes = EvoTrees.get_edges(data; feature_names, nbins=params.nbins, rng)
@@ -95,7 +95,20 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
 
     Y = typeof(y)
     N = typeof(first(nodes))
-    cache = CacheBaseGPU{Y,N}(
+    group_cache = if isnothing(group)
+        nothing
+    else
+        ng = EvoTrees.ngroups(group)
+        GroupCacheGPU(
+            group,
+            _to_device(backend, group.group),
+            zeros(UInt8, ng),
+            KernelAbstractions.zeros(backend, UInt8, ng),
+        )
+    end
+    G = typeof(group_cache)
+
+    cache = CacheBaseGPU{Y,N,G}(
         rng,
         K,
         x_bin,
@@ -144,7 +157,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
         bins_per_feat_gpu,
         split_sums_temp_gpu,
         obliv_gains_gpu,
-        obliv_count_gpu
+        obliv_count_gpu,
+        group_cache
     )
 
     return m, cache

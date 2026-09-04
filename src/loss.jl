@@ -3,6 +3,7 @@ abstract type GradientRegression <: LossType end
 abstract type MLE2P <: LossType end # 2-parameters max-likelihood
 
 abstract type MSE <: GradientRegression end
+abstract type LambdaRank <: GradientRegression end
 abstract type LogLoss <: GradientRegression end
 abstract type Poisson <: GradientRegression end
 abstract type Gamma <: GradientRegression end
@@ -19,6 +20,7 @@ abstract type CredStd <: Cred end
 
 const _loss2type_dict = Dict(
     :mse => MSE,
+    :lambdarank => LambdaRank,
     :logloss => LogLoss,
     :poisson => Poisson,
     :gamma => Gamma,
@@ -95,6 +97,117 @@ end
 @inline function mlogloss_grad_hess(pk, isum, is_target)
     prob = exp(pk) / isum
     return (is_target ? prob - one(prob) : prob, prob * (1 - prob))
+end
+
+# Losses computed per observation ignore `group` and forward to the group-free method.
+# A group-defined objective defines its own method on this signature instead.
+update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group) where {L} =
+    update_grads!(∇, p, y, L, params)
+
+# LambdaRank, per Burges' "From RankNet to LambdaRank to LambdaMART". Pairs within a query
+# contribute a pairwise logistic cost weighted by the NDCG change a swap would cause. The
+# lambdas stay per-document, so K = 1 and the histogram and leaf solver are untouched.
+# Cost is quadratic in the size of a query, so very large groups are the pathological case.
+# Per-group temporaries, reused across the groups a thread handles. Allocating them per
+# group left the gradient churning gigabytes over a fit.
+struct LambdaRankScratch
+    scores::Vector{Float64}
+    rel::Vector{Float64}
+    ideal::Vector{Float64}
+    disc::Vector{Float64}
+    ord::Vector{Int}
+    rank::Vector{Int}
+end
+LambdaRankScratch() = LambdaRankScratch(Float64[], Float64[], Float64[], Float64[], Int[], Int[])
+
+# The chunk body is its own function so the `@threads` closure does not box its captures,
+# which would otherwise make every per-group call a dynamic dispatch.
+function _lambdarank_chunk!(∇::Matrix{T}, p::Matrix{T}, y, group, chunk, ndcg_k::Int) where {T}
+    buf = LambdaRankScratch()
+    for g in chunk
+        _lambdarank_group!(buf, ∇, p, y, group_rows(group, g), ndcg_k)
+    end
+    return nothing
+end
+
+function _lambdarank_group!(buf::LambdaRankScratch, ∇::Matrix{T}, p::Matrix{T}, y, rows, ndcg_k::Int) where {T}
+    n = length(rows)
+    n < 2 && return nothing
+
+    scores, rel, ideal = buf.scores, buf.rel, buf.ideal
+    ord, rank, disc = buf.ord, buf.rank, buf.disc
+    for v in (scores, rel, ideal, disc)
+        resize!(v, n)
+    end
+    resize!(ord, n)
+    resize!(rank, n)
+    @inbounds for (i, r) in enumerate(rows)
+        scores[i] = p[1, r]
+        rel[i] = y[r]
+    end
+
+    copyto!(ideal, rel)
+    sort!(ideal; rev=true, alg=QuickSort)
+    kk = min(ndcg_k, n)
+    maxdcg = 0.0
+    @inbounds for i in 1:kk
+        maxdcg += (2.0^ideal[i] - 1) / log2(i + 1)
+    end
+    maxdcg <= 0 && return nothing   # no relevant document, so no ranking signal
+
+    sortperm!(ord, scores; rev=true, alg=QuickSort)
+    @inbounds for pos in 1:n
+        rank[ord[pos]] = pos
+    end
+    # Positions past k get no discount, so a pair wholly below the cutoff yields a zero delta.
+    @inbounds for pos in 1:n
+        disc[pos] = pos <= ndcg_k ? 1 / log2(pos + 1) : 0.0
+    end
+
+    @inbounds for a in 1:n
+        ga = 2.0^rel[a] - 1
+        for b in 1:n
+            rel[a] > rel[b] || continue
+            gb = 2.0^rel[b] - 1
+            delta = abs((ga - gb) * (disc[rank[a]] - disc[rank[b]])) / maxdcg
+            delta == 0 && continue
+            ρ = 1 / (1 + exp(scores[a] - scores[b]))
+            λ = -ρ * delta
+            h = ρ * (1 - ρ) * delta
+            ra, rb = rows[a], rows[b]
+            ∇[1, ra] += T(λ)
+            ∇[1, rb] -= T(λ)
+            ∇[2, ra] += T(h)
+            ∇[2, rb] += T(h)
+        end
+    end
+    return nothing
+end
+
+# Shared by both backends: the GPU path brings its arrays to the host and calls this.
+function _lambdarank_grads!(∇::Matrix{T}, p::Matrix{T}, y, group, ndcg_k::Int) where {T}
+    fill!(view(∇, 1, :), zero(T))
+    fill!(view(∇, 2, :), zero(T))
+    ng = ngroups(group)
+    @threads for chunk in _group_chunks(ng)
+        _lambdarank_chunk!(∇, p, y, group, chunk, ndcg_k)
+    end
+    @inbounds @threads for i in axes(∇, 2)
+        w = ∇[3, i]
+        ∇[1, i] *= w
+        ∇[2, i] *= w
+    end
+    return nothing
+end
+
+_lambdarank_no_group() = error(
+    "`loss = :lambdarank` requires group information. Pass `group_name` when fitting " *
+    "from a table, or `group_train` when fitting from a matrix."
+)
+
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{LambdaRank}, params::EvoTypes, group) where {T}
+    isnothing(group) && _lambdarank_no_group()
+    _lambdarank_grads!(∇, p, y, group, params.ndcg_k)
 end
 
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:GradientRegression}

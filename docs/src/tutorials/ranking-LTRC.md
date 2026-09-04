@@ -123,6 +123,132 @@ ndcg_test = round(mean(test_df_agg.ndcg), sigdigits=5)
 └   ndcg_test = 0.8008
 ```
 
+## Using native group support
+
+The section above computes NDCG after the fact, outside the model. EvoTrees can also be told
+about groups directly, which makes two things available during training.
+
+Pass the query id alongside the features and target. `group_train` and `group_eval` take one
+id per row, and rows sharing an id form a group. Ids need not be contiguous or sorted, so the
+query vectors above can be passed as they are:
+
+```julia
+config = EvoTreeRegressor(
+    nrounds=6000,
+    early_stopping_rounds=200,
+    loss=:mse,
+    eta=0.02,
+    nbins=64,
+    max_depth=11,
+    rowsample=0.9,
+    colsample=0.9,
+    metric=:ndcg,
+    ndcg_k=10,
+)
+
+m = EvoTrees.fit(
+    config;
+    x_train, y_train, group_train=q_train,
+    x_eval, y_eval, group_eval=q_eval,
+    print_every_n=50,
+);
+```
+
+This changes two behaviours.
+
+`metric = :ndcg` computes NDCG within each group and averages over groups, which is the same
+quantity the `groupby` above produces, so early stopping now selects on ranking quality
+rather than on squared error. `ndcg_k` sets the truncation rank, and defaults to scoring the
+full list.
+
+`rowsample` becomes group aware: whole groups are sampled rather than individual rows, so a
+query is never split across the sampled and unsampled sets. This matters because a group is
+the unit NDCG is defined over, and a partial group changes the comparison set.
+
+When fitting from a table, the equivalent is `group_name`, and the column is excluded from
+the inferred features. `dtrain` above is the LIBSVM parse result rather than a table, so build
+one from the arrays already extracted:
+
+```julia
+df_train = DataFrame(x_train, :auto)
+df_train.y, df_train.q = y_train, q_train
+df_eval = DataFrame(x_eval, :auto)
+df_eval.y, df_eval.q = y_eval, q_eval
+
+m = EvoTrees.fit(config, df_train; target_name="y", group_name="q", deval=df_eval)
+```
+
+Groups are supported on both CPU and GPU.
+
+## Weights and grouped metrics
+
+A group's weight is the mean of its rows' weights, so the default of unit weights leaves every
+query equally weighted regardless of how many documents it holds. Giving a query's rows a
+common weight of 2 makes that query count twice one whose rows weigh 1.
+
+Only that group-level weight reaches `:ndcg`. NDCG is defined from the ranking of a group's
+documents, so the spread of weights *within* a group is deliberately ignored, which matches the
+canonical definition and the per-query weights other ranking libraries accept.
+
+Where per-document weights should count, `metric = :corr` scores the weighted Pearson
+correlation between prediction and target within each group and averages over groups. A row's
+own weight enters its group's correlation, and the group weighs by the mean of its rows'
+weights. Groups of fewer than two rows, and groups whose target is constant, carry no signal
+and are left out of the average; a group whose prediction is constant while its target is not
+scores zero.
+
+A grouped metric does not require grouped training. `eval_group_name` sets the group column for
+`deval` alone, so a model can train with ordinary per-row sampling while a group-aware metric is
+tracked:
+
+```julia
+config = EvoTreeRegressor(loss=:mse, metric=:corr)
+m = EvoTrees.fit(config, df_train; target_name="y", eval_group_name="q", deval=df_eval)
+```
+
+It defaults to `group_name`, so grouping both sides stays a single argument.
+
+## Ranking objective
+
+With groups available, `loss=:lambdarank` optimises ranking directly rather than fitting the
+relevance as a regression target. Pairs of documents within a query contribute a pairwise
+cost weighted by the NDCG change that swapping them would cause, so the model is trained on
+within-query order rather than on absolute relevance. `metric` defaults to `:ndcg`.
+
+```julia
+config = EvoTreeRegressor(
+    loss=:lambdarank,
+    ndcg_k=10,
+    nrounds=6000,
+    early_stopping_rounds=200,
+    eta=0.02,
+    nbins=64,
+    max_depth=11,
+    rowsample=0.9,
+    colsample=0.9,
+)
+
+m = EvoTrees.fit(
+    config;
+    x_train, y_train, group_train=q_train,
+    x_eval, y_eval, group_eval=q_eval,
+    print_every_n=50,
+);
+```
+
+Relevance must be non-negative, since gains are `2^rel - 1`. Cost is quadratic in the size
+of a query, which is not a concern at typical query sizes but is worth knowing if a single
+group is very large.
+
+Groups are passed to `EvoTrees.fit` directly. The MLJ interface has no way to carry them,
+so ranking is not available through it.
+
+Whether this beats the regression approach above depends on the data. It helps most where
+queries differ in how they are graded, since the absolute label level is then query-specific
+noise that a regression fit must absorb and a ranking objective can ignore. Where relevance
+is comparable across queries, regression is already a strong baseline, which is what the
+opening of this tutorial reports.
+
 ## Logistic regression alternative
 
 The above regression experiment shows a performance competitive with the results outlined in CatBoost's [ranking benchmarks](https://github.com/catboost/benchmarks/blob/master/ranking/Readme.md#4-results). 

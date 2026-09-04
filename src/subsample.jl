@@ -37,6 +37,33 @@ function subsample(left::AbstractVector, is::AbstractVector, mask_cond::Abstract
     return view(is, 1:counts_sum)
 end
 
+"""
+    subsample(left, is, mask_cond, rowsample, rng, gi::GroupIndex)
+
+Group-aware variant for ranking. Draws one value per group rather than per row, so a
+selected group is never split: a partial group changes the comparison set a group-defined
+objective or metric is computed over.
+
+Returns a view of selected row ids, ordered by group.
+"""
+function subsample(left::AbstractVector, is::AbstractVector, mask_cond::AbstractVector{UInt8}, rowsample::AbstractFloat, rng, gi::GroupIndex)
+    ng = ngroups(gi)
+    mask = view(mask_cond, 1:ng)
+    Random.rand!(rng, mask)
+    cond = round(UInt8, 255 * rowsample)
+    count = 0
+    @inbounds for g in 1:ng
+        if mask[g] <= cond
+            for r in group_rows(gi, g)
+                count += 1
+                is[count] = r
+            end
+        end
+    end
+    count == 0 && error("no subsample group - choose larger rowsample")
+    return view(is, 1:count)
+end
+
 # function subsample_single(is_in::AbstractVector, out::AbstractVector, mask::AbstractVector, rowsample::AbstractFloat, rng)
 #     Random.rand!(rng, mask)
 #     cond = round(UInt8, 255 * rowsample)

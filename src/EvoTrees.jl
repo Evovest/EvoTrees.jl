@@ -28,6 +28,7 @@ import MLJModelInterface: fit, update, predict, schema, feature_importances
 import Base: convert
 import Base: depwarn
 
+include("groups.jl")
 include("learners.jl")
 include("loss.jl")
 include("split.jl")
