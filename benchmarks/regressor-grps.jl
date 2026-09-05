@@ -13,7 +13,7 @@ nrounds = 200
 n_targets = 2
 
 loss = :gaussian_mle # mse | gaussian_mle | lambdarank
-metric = :corr # | mse | corr | ndcg 
+metric = :pearson # | mse | pearson | ndcg 
 
 tree_type = :binary
 T = Float32

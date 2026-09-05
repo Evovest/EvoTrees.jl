@@ -167,7 +167,7 @@ function _ndcg_chunk!(scores, weights, p, y, w, group, chunk, ndcg_k::Int)
     return nothing
 end
 
-function _corr_chunk!(scores, weights, p, y, w, group, chunk, K::Int)
+function _pearson_chunk!(scores, weights, p, y, w, group, chunk, K::Int)
     pred = Float64[]
     obs = Float64[]
     wt = Float64[]
@@ -178,7 +178,7 @@ function _corr_chunk!(scores, weights, p, y, w, group, chunk, K::Int)
         acc = 0.0
         scored = 0
         for k in 1:K
-            s = _corr_group!(pred, obs, wt, p, y, w, rows, k)
+            s = _pearson_group!(pred, obs, wt, p, y, w, rows, k)
             isnothing(s) && continue
             acc += s
             scored += 1
@@ -233,7 +233,7 @@ Normalised discounted cumulative gain, computed within each group then averaged 
 Requires the group index supplied at fit through `group_name` or `group_eval`. A group's weight
 is the mean of its rows' weights, so the default of unit weights leaves every group equally
 weighted. Only that group-level weight enters the score: NDCG is defined from the ranking of a
-group's documents, so the spread of weights within a group is deliberately ignored. Use `:corr`
+group's documents, so the spread of weights within a group is deliberately ignored. Use `:pearson`
 if per-document weights need to count.
 """
 function ndcg(
@@ -265,7 +265,7 @@ end
 # the two moment passes then run over that rather than chasing the same scattered reads
 # twice. The accumulator is Float64 regardless of `T`, because the centring cancels
 # catastrophically in Float32 once predictions sit far from zero.
-function _corr_group!(pred::Vector{Float64}, obs::Vector{Float64}, wt::Vector{Float64},
+function _pearson_group!(pred::Vector{Float64}, obs::Vector{Float64}, wt::Vector{Float64},
     p::AbstractMatrix, y, w::AbstractVector, rows, k::Int)
     n = length(rows)
     n < 2 && return nothing
@@ -307,12 +307,12 @@ function _corr_group!(pred::Vector{Float64}, obs::Vector{Float64}, wt::Vector{Fl
     return cxy / sqrt(vp * vo)
 end
 
-_corr_group(p::AbstractMatrix, y, w::AbstractVector, rows, k::Int) =
-    _corr_group!(Float64[], Float64[], Float64[], p, y, w, rows, k)
+_pearson_group(p::AbstractMatrix, y, w::AbstractVector, rows, k::Int) =
+    _pearson_group!(Float64[], Float64[], Float64[], p, y, w, rows, k)
 
 
 """
-    corr(p, y, w, eval; group, kwargs...)
+    pearson(p, y, w, eval; group, kwargs...)
 
 Weighted Pearson correlation between prediction and target, computed within each group then
 averaged over groups. Requires the group index supplied at fit through `group_name`,
@@ -323,7 +323,7 @@ Groups of fewer than two rows, and groups whose target is constant, carry no sig
 left out of the average. A group whose prediction is constant while its target is not scores
 zero. With multiple targets each is correlated on its own and the group takes their mean.
 """
-function corr(
+function pearson(
     p::AbstractMatrix{T},
     y::AbstractVecOrMat{T},
     w::AbstractVector{T},
@@ -332,7 +332,7 @@ function corr(
     kwargs...
 ) where {T}
     isnothing(group) && error(
-        "`metric = :corr` requires group information. Pass `group_name` or `eval_group_name` " *
+        "`metric = :pearson` requires group information. Pass `group_name` or `eval_group_name` " *
         "when fitting from a table, or `group_eval` alongside `x_eval` when fitting from a matrix."
     )
     # Number of targets, not of prediction rows: an MLE model carries its scale in row 2,
@@ -342,7 +342,7 @@ function corr(
     scores = zeros(Float64, ng)
     weights = zeros(Float64, ng)
     @threads for chunk in _group_chunks(ng)
-        _corr_chunk!(scores, weights, p, y, w, group, chunk, K)
+        _pearson_chunk!(scores, weights, p, y, w, group, chunk, K)
     end
     sw = sum(weights)
     sw <= 0 && return zero(Float64)
@@ -398,7 +398,7 @@ const metric_dict = Dict(
     :multiquantile => multiquantile,
     :gini => gini,
     :ndcg => ndcg,
-    :corr => corr,
+    :pearson => pearson,
 )
 
 is_maximise(::typeof(mse)) = false
@@ -415,4 +415,4 @@ is_maximise(::typeof(wmae)) = false
 is_maximise(::typeof(multiquantile)) = false
 is_maximise(::typeof(gini)) = true
 is_maximise(::typeof(ndcg)) = true
-is_maximise(::typeof(corr)) = true
+is_maximise(::typeof(pearson)) = true
