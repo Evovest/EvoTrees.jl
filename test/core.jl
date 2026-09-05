@@ -469,6 +469,25 @@ end
         @test check_args(config) === nothing
     end
 
+    @testset "target domain for positive losses" begin
+        # Tweedie went to NaN on every prediction from a single negative target, and Poisson
+        # fit a corrupted model, while only Gamma was checked. Zero is inside Tweedie's and
+        # Poisson's domains and outside Gamma's.
+        xd = rand(200, 3)
+        yd = 2 .* xd[:, 1] .+ 1
+        neg = copy(yd); neg[1] = -1.0
+        zer = copy(yd); zer[1] = 0.0
+        for loss in (:tweedie, :poisson, :gamma)
+            @test_throws ErrorException fit(EvoTreeRegressor(loss=loss, nrounds=2); x_train=xd, y_train=neg, verbosity=0)
+        end
+        for loss in (:tweedie, :poisson)
+            @test fit(EvoTreeRegressor(loss=loss, nrounds=2); x_train=xd, y_train=zer, verbosity=0) isa EvoTrees.EvoTree
+        end
+        @test_throws ErrorException fit(EvoTreeRegressor(loss=:gamma, nrounds=2); x_train=xd, y_train=zer, verbosity=0)
+        # a valid target still trains
+        @test all(isfinite, predict(fit(EvoTreeRegressor(loss=:tweedie, nrounds=5); x_train=xd, y_train=yd, verbosity=0), xd))
+    end
+
     @testset "check_args L2 and bagging_size" begin
         # Both used to be accepted unvalidated. A negative `L2` lands in the leaf denominator
         # and takes every prediction to NaN; a `bagging_size` below 1 makes the per-round loop

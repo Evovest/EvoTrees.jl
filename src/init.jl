@@ -66,6 +66,18 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
                 "Gamma regression requires a strictly positive target, got a minimum of $ymin. " *
                 "The gamma deviance is undefined at 0."
             )
+        elseif L == Tweedie
+            ymin = minimum(y_train)
+            ymin < 0 && error(
+                "Tweedie regression requires a non-negative target, got a minimum of $ymin. " *
+                "The tweedie deviance is undefined below 0."
+            )
+        elseif L == Poisson
+            ymin = minimum(y_train)
+            ymin < 0 && error(
+                "Poisson regression requires a non-negative target, got a minimum of $ymin. " *
+                "The poisson deviance is undefined below 0."
+            )
         end
         if y_train isa AbstractVector
             K = 1
