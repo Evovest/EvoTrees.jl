@@ -396,6 +396,17 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
             group=build_group_index(q2))
         @test got2 ≈ 1.0 rtol = 1e-6
 
+        # A two-parameter likelihood interleaves location and scale per target, so target 2
+        # predicts into row 3, not row 2. Row 2 here is anti-correlated with target 2 inside
+        # every group, so reading it would score 0.0 rather than 1.0.
+        qm = UInt32[1, 1, 1, 2, 2, 2]
+        ym = Float32[1 2 3 4 5 6; 6 5 4 3 2 1]
+        pm = Float32[1 2 3 4 5 6; 1 2 3 1 2 3; 6 5 4 3 2 1; 0 0 0 0 0 0]
+        @test corr(pm, ym, ones(Float32, 6), Float32[]; group=build_group_index(qm)) ≈ 1.0 rtol = 1e-6
+        # a single-target MLE model is the K == 1 case of the same rule
+        @test corr(Float32[1 2 3 4 5 6; 9 9 9 9 9 9], Float32[1, 2, 3, 4, 5, 6],
+            ones(Float32, 6), Float32[]; group=build_group_index(qm)) ≈ 1.0 rtol = 1e-6
+
         @test EvoTrees.is_maximise(corr)
         @test_throws ErrorException corr(reshape(Float32.(pv), 1, :), Float32.(yv),
             ones(Float32, 12), Float32[])
@@ -416,6 +427,15 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
             @test all(-1 .<= mets .<= 1)
             @test mets[end] > 0.5
         end
+
+        # the same, with two targets: the second must be scored against its own location
+        y2 = -3 .* x[:, 2] .+ 0.3 .* randn(rng, nobs)
+        dtr2 = (q=g[tr], f1=x[tr, 1], f2=x[tr, 2], f3=x[tr, 3], y=y[tr], y2=y2[tr])
+        dev2 = (q=g[te], f1=x[te, 1], f2=x[te, 2], f3=x[te, 3], y=y[te], y2=y2[te])
+        mmt = fit(EvoTreeMLE(loss=:gaussian_mle, metric=:corr, nrounds=20, max_depth=4), dtr2;
+            target_name=["y", "y2"], eval_group_name=:q, deval=dev2, verbosity=0)
+        @test size(predict(mmt, dev2), 2) == 4
+        @test mmt.info[:logger][:metrics][end] > 0.8
     end
 
 end

@@ -167,7 +167,7 @@ function _ndcg_chunk!(scores, weights, p, y, w, group, chunk, ndcg_k::Int)
     return nothing
 end
 
-function _corr_chunk!(scores, weights, p, y, w, group, chunk, K::Int)
+function _corr_chunk!(scores, weights, p, y, w, group, chunk, K::Int, stride::Int)
     pred = Float64[]
     obs = Float64[]
     wt = Float64[]
@@ -178,7 +178,7 @@ function _corr_chunk!(scores, weights, p, y, w, group, chunk, K::Int)
         acc = 0.0
         scored = 0
         for k in 1:K
-            s = _corr_group!(pred, obs, wt, p, y, w, rows, k)
+            s = _corr_group!(pred, obs, wt, p, y, w, rows, k, stride * (k - 1) + 1)
             isnothing(s) && continue
             acc += s
             scored += 1
@@ -266,7 +266,7 @@ end
 # twice. The accumulator is Float64 regardless of `T`, because the centring cancels
 # catastrophically in Float32 once predictions sit far from zero.
 function _corr_group!(pred::Vector{Float64}, obs::Vector{Float64}, wt::Vector{Float64},
-    p::AbstractMatrix, y, w::AbstractVector, rows, k::Int)
+    p::AbstractMatrix, y, w::AbstractVector, rows, k::Int, prow::Int=k)
     n = length(rows)
     n < 2 && return nothing
     resize!(pred, n)
@@ -275,7 +275,7 @@ function _corr_group!(pred::Vector{Float64}, obs::Vector{Float64}, wt::Vector{Fl
     # the gather is scattered and cannot vectorise, so it is kept apart from the arithmetic,
     # which then runs over contiguous scratch
     @inbounds for (i, r) in enumerate(rows)
-        pred[i] = p[k, r]
+        pred[i] = p[prow, r]
         obs[i] = _target(y, k, r)
         wt[i] = w[r]
     end
@@ -336,13 +336,16 @@ function corr(
         "when fitting from a table, or `group_eval` alongside `x_eval` when fitting from a matrix."
     )
     # Number of targets, not of prediction rows: an MLE model carries its scale in row 2,
-    # which is not something to correlate against the target.
+    # which is not something to correlate against the target. Such a model interleaves the two
+    # per target, so target `k` predicts into row `2k - 1`. The layout is read off the matrix
+    # rather than the loss, to keep the metric free of loss specific arguments.
     K = y isa AbstractMatrix ? size(y, 1) : 1
+    stride = size(p, 1) == 2K ? 2 : 1
     ng = ngroups(group)
     scores = zeros(Float64, ng)
     weights = zeros(Float64, ng)
     @threads for chunk in _group_chunks(ng)
-        _corr_chunk!(scores, weights, p, y, w, group, chunk, K)
+        _corr_chunk!(scores, weights, p, y, w, group, chunk, K, stride)
     end
     sw = sum(weights)
     sw <= 0 && return zero(Float64)
