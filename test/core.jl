@@ -492,6 +492,18 @@ end
         @test length(m.trees) == 20
         @test all(isfinite, predict(m, x))
 
+        # A round adds `bagging_size` trees, each scaled by `1 / bagging_size`, so the eval
+        # callback has to accumulate all of them. Accumulating one leaves the logged metric
+        # describing a fraction of the model, and early stopping then selects on it.
+        for bs in (1, 2, 5)
+            m = fit(EvoTreeRegressor(nrounds=12, max_depth=4, eta=0.3, bagging_size=bs,
+                    metric=:mse, rowsample=0.8);
+                x_train=x, y_train=y, x_eval=x, y_eval=y, verbosity=0)
+            logged = m.info[:logger][:metrics][end]
+            actual = mean((vec(predict(m, x)) .- y) .^ 2)
+            @test logged ≈ actual rtol = 1e-5
+        end
+
         # Mutating a fitted config is the path MLJ tuning takes, so the second `check_args`
         # method must reject the same values.
         config = EvoTreeRegressor(nrounds=5)
