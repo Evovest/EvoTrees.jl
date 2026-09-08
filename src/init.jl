@@ -145,6 +145,14 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
             end
             !isnothing(offset) && unconstrain_mle_scale!(offset)
         end
+    elseif L == CustomLoss
+        @assert eltype(y_train) <: Real
+        y_train isa AbstractVector || error(
+            "`loss = :custom` supports a vector target only. Got a $(size(y_train, 1))-row matrix."
+        )
+        K = 1
+        y = T.(y_train)
+        μ = T[custom_init(params.loss_fn, params.loss_backend, y)]
     elseif L == MultiQuantile
         @assert eltype(y_train) <: Real
         K = length(params.alphas)

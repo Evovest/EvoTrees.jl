@@ -8,6 +8,7 @@ abstract type LogLoss <: GradientRegression end
 abstract type Poisson <: GradientRegression end
 abstract type Gamma <: GradientRegression end
 abstract type Tweedie <: GradientRegression end
+abstract type CustomLoss <: GradientRegression end
 abstract type MLogLoss <: LossType end
 abstract type GaussianMLE <: MLE2P end
 abstract type LogisticMLE <: MLE2P end
@@ -25,6 +26,7 @@ const _loss2type_dict = Dict(
     :poisson => Poisson,
     :gamma => Gamma,
     :tweedie => Tweedie,
+    :custom => CustomLoss,
     :mlogloss => MLogLoss,
     :gaussian_mle => GaussianMLE,
     :logistic_mle => LogisticMLE,
@@ -50,6 +52,44 @@ const _loss2type_dict = Dict(
 
 Base.@propagate_inbounds _target(y::AbstractVector, k, i) = y[i]
 Base.@propagate_inbounds _target(y::AbstractMatrix, k, i) = y[k, i]
+
+"""
+    custom_grad_hess(loss_fn, backend, pk, yk)
+
+First and second derivative of `loss_fn` with respect to its first argument, at `pk`. The
+method that does the work lives in `EvoTreesDifferentiationInterfaceExt`, so that
+DifferentiationInterface stays a weak dependency.
+"""
+function custom_grad_hess end
+
+custom_grad_hess(loss_fn, backend, pk, yk) = error(
+    "`loss = :custom` needs DifferentiationInterface and an autodiff backend. Run " *
+    "`using DifferentiationInterface, ForwardDiff` and pass `loss_backend = AutoForwardDiff()`."
+)
+
+"""
+    custom_init(loss_fn, backend, y)
+
+Newton solve for the constant that minimises `sum(loss_fn(c, y))`, used as the initial
+prediction of a `:custom` fit. Returns 0 when the loss has no positive curvature at the
+current iterate, which is where Newton has nothing to go on.
+"""
+function custom_init(loss_fn, backend, y)
+    c = 0.0
+    for _ in 1:32
+        g, h = 0.0, 0.0
+        for yi in y
+            gi, hi = custom_grad_hess(loss_fn, backend, c, Float64(yi))
+            g += gi
+            h += hi
+        end
+        h > 0 || return 0.0
+        step = g / h
+        c -= step
+        (isfinite(c) && abs(step) > 1e-10 * max(1, abs(c))) || break
+    end
+    return isfinite(c) ? c : 0.0
+end
 
 @inline gradreg_grad_hess(::Type{MSE}, pk, yk) = (2 * (pk - yk), 2 * one(pk))
 
@@ -217,6 +257,25 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
         @inbounds w = ∇[w_row, i]
         @inbounds for k in 1:K
             g, h = gradreg_grad_hess(L, p[k, i], _target(y, k, i))
+            ∇[k, i] = g * w
+            ∇[K+k, i] = h * w
+        end
+    end
+end
+
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{CustomLoss}, params::EvoTypes) where {T}
+    _custom_grads!(∇, p, y, params.loss_fn, params.loss_backend)
+end
+
+# `loss_fn` and `backend` are fields typed `Any` on the learner, so they are passed through a
+# barrier to keep the inner loop from dispatching dynamically on every observation.
+function _custom_grads!(∇::Matrix{T}, p::Matrix{T}, y, loss_fn::F, backend::B) where {T,F,B}
+    K = size(p, 1)
+    w_row = 2 * K + 1
+    @threads for i in axes(p, 2)
+        @inbounds w = ∇[w_row, i]
+        @inbounds for k in 1:K
+            g, h = custom_grad_hess(loss_fn, backend, p[k, i], _target(y, k, i))
             ∇[k, i] = g * w
             ∇[K+k, i] = h * w
         end

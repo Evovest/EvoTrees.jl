@@ -89,6 +89,7 @@ function CallBack(
         metric_kwargs = merge(metric_kwargs, (group=group_eval,))
     end
     hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
+    params.metric == :custom && (metric_kwargs = merge(metric_kwargs, (loss_fn=params.loss_fn,)))
 
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
     if !isnothing(offset)
@@ -139,6 +140,7 @@ function CallBack(
         metric_kwargs = merge(metric_kwargs, (group=build_group_index(group_eval, nobs, "group_eval"),))
     end
     hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
+    params.metric == :custom && (metric_kwargs = merge(metric_kwargs, (loss_fn=params.loss_fn,)))
 
     offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
     if !isnothing(offset)
