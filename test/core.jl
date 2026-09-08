@@ -711,4 +711,41 @@ end
     @test loaded.bias == m.bias
     @test length(loaded.trees) == length(m.trees)
     @test predict(loaded, x) == predict(m, x)
+@testset "save and load" begin
+    x = rand(Xoshiro(1), 500, 4)
+    y = x[:, 1] .+ rand(Xoshiro(2), 500)
+    m = fit(EvoTreeRegressor(nrounds=10, max_depth=3, seed=1); x_train=x, y_train=y, verbosity=0)
+    path = joinpath(mktempdir(), "m.bson")
+    EvoTrees.save(m, path)
+    back = EvoTrees.load(path)
+    @test predict(back, x) == predict(m, x)
+    @test back.bias == m.bias
+    @test length(back.trees) == length(m.trees)
+    # what `save` writes now carries the version, so a later layout change has a key to read
+    @test haskey(back.info, :save_version)
+
+    # Before v0.20 the intercept was a leading single-leaf tree and there was no `bias` field.
+    # BSON rebuilds a struct by position, so such a model puts its trees into `bias` and fails to
+    # load. The shape test and the upgrade are exercised directly rather than through a binary
+    # fixture; the whole path was checked against a file written by the registered v0.19.0.
+    lead = EvoTrees.Tree{EvoTrees.MSE,1}(zeros(Int, 1), zeros(UInt8, 1), zeros(Float32, 1),
+        zeros(Float32, 1), reshape(copy(m.bias), :, 1), zeros(Bool, 1))
+    legacy = EvoTrees.EvoTreeLegacyPreV20{EvoTrees.MSE,1}(
+        EvoTrees.MSE, m.K, vcat([lead], m.trees), copy(m.info))
+    upgraded = EvoTrees._upgrade(legacy)
+    @test upgraded isa EvoTrees.EvoTree
+    @test upgraded.bias == m.bias
+    @test length(upgraded.trees) == length(m.trees)
+    @test predict(upgraded, x) == predict(m, x)
+
+    # the old layout is recognised by its field count and type name, the new one is not
+    typedoc = Dict(:tag => "datatype", :name => Any["EvoTrees", "EvoTree"], :params => Any[])
+    @test EvoTrees._is_pre_v20(Dict(:tag => "struct", :type => typedoc, :data => Any[1, 2, 3, 4]))
+    @test !EvoTrees._is_pre_v20(Dict(:tag => "struct", :type => typedoc, :data => Any[1, 2, 3, 4, 5]))
+    @test !EvoTrees._is_pre_v20(Dict(:tag => "struct",
+        :type => Dict(:tag => "datatype", :name => Any["Other", "Thing"], :params => Any[]),
+        :data => Any[1, 2, 3, 4]))
+    @test !EvoTrees._is_pre_v20(nothing)
+end
+
 end
