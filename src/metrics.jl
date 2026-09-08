@@ -142,6 +142,30 @@ function multiquantile(
 end
 
 
+function custom(
+    p::AbstractMatrix{T},
+    y::AbstractVecOrMat,
+    w::AbstractVector{T},
+    eval::AbstractVector{T};
+    loss_fn,
+    kwargs...
+) where {T}
+    _custom_metric!(eval, p, y, w, loss_fn)
+    return sum(Float64, eval) / sum(Float64, w)
+end
+
+function _custom_metric!(eval, p, y, w, loss_fn::F) where {F}
+    K = size(p, 1)
+    @threads for i in eachindex(w)
+        acc = zero(eltype(eval))
+        @inbounds for k in 1:K
+            acc += loss_fn(p[k, i], _target(y, k, i))
+        end
+        @inbounds eval[i] = w[i] * acc / K
+    end
+    return nothing
+end
+
 # NDCG within a single group, `pred` and `rel` in matching order.
 # The chunk bodies live in their own functions so the `@threads` closure does not box the
 # captured arrays, which otherwise makes every per-group call a dynamic dispatch.
@@ -402,6 +426,7 @@ const metric_dict = Dict(
     :gini => gini,
     :ndcg => ndcg,
     :corr => corr,
+    :custom => custom,
 )
 
 is_maximise(::typeof(mse)) = false
@@ -419,3 +444,4 @@ is_maximise(::typeof(multiquantile)) = false
 is_maximise(::typeof(gini)) = true
 is_maximise(::typeof(ndcg)) = true
 is_maximise(::typeof(corr)) = true
+is_maximise(::typeof(custom)) = false

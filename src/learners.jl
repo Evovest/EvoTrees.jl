@@ -17,6 +17,8 @@ mutable struct EvoTreeRegressor <: MMI.Deterministic
     alpha::Float64
     alphas::Vector{Float64}
     ndcg_k::Int
+    loss_fn::Any
+    loss_backend::Any
     monotone_constraints::Dict{Int,Int}
     tree_type::Symbol
     seed::Int
@@ -45,6 +47,8 @@ function EvoTreeRegressor(; kwargs...)
         :alpha => 0.5,
         :alphas => [0.1, 0.5, 0.9],
         :ndcg_k => typemax(Int),
+        :loss_fn => nothing,
+        :loss_backend => nothing,
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => :binary,
         :seed => 123,
@@ -60,7 +64,7 @@ function EvoTreeRegressor(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile, :multiquantile, :cred_std, :cred_var, :lambdarank]
+    _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile, :multiquantile, :cred_std, :cred_var, :lambdarank, :custom]
     loss = Symbol(args[:loss])
     if loss == :linear
         loss = :mse
@@ -74,7 +78,7 @@ function EvoTreeRegressor(; kwargs...)
         error("Invalid loss. Must be one of: $_loss_list")
     end
 
-    _metric_list = [:mse, :rmse, :mae, :logloss, :poisson, :gamma, :tweedie, :quantile, :multiquantile, :gini, :ndcg, :corr]
+    _metric_list = [:mse, :rmse, :mae, :logloss, :poisson, :gamma, :tweedie, :quantile, :multiquantile, :gini, :ndcg, :corr, :custom]
     if isnothing(args[:metric])
         if loss ∈ [:cred_std, :cred_var]
             metric = :mae
@@ -89,6 +93,7 @@ function EvoTreeRegressor(; kwargs...)
     if metric ∉ _metric_list
         error("Invalid metric. Must be one of: $_metric_list")
     end
+    args[:metric] = metric
 
     tree_type = Symbol(args[:tree_type])
     device = Symbol(args[:device])
@@ -114,6 +119,8 @@ function EvoTreeRegressor(; kwargs...)
         args[:alpha],
         alphas,
         args[:ndcg_k],
+        args[:loss_fn],
+        args[:loss_backend],
         args[:monotone_constraints],
         tree_type,
         args[:seed],
@@ -519,6 +526,17 @@ function check_alphas(alphas)
     end
 end
 
+function check_custom_loss(loss, metric, loss_fn, device)
+    (loss == :custom || metric == :custom) || return nothing
+    isnothing(loss_fn) && error(
+        "Missing parameter `loss_fn` for :custom. Pass the loss as a function of a single " *
+        "prediction and its target, for example `loss_fn = (p, y) -> (p - y)^2`."
+    )
+    loss == :custom && Symbol(device) != :cpu &&
+        error("`loss = :custom` runs on the CPU only.")
+    return nothing
+end
+
 """
     check_args(args::Dict{Symbol,Any})
 
@@ -550,6 +568,8 @@ function check_args(args::Dict{Symbol,Any})
         haskey(args, :alphas) || error("Missing parameter `alphas` for loss :multiquantile.")
         check_alphas(args[:alphas])
     end
+    check_custom_loss(get(args, :loss, nothing), get(args, :metric, nothing),
+        get(args, :loss_fn, nothing), get(args, :device, :cpu))
 
     try
         tree_type = string(args[:tree_type])
@@ -592,6 +612,8 @@ function check_args(model::EvoTypes)
         hasproperty(model, :alphas) || error("Missing parameter `alphas` for loss :multiquantile.")
         check_alphas(model.alphas)
     end
+    hasproperty(model, :loss_fn) &&
+        check_custom_loss(model.loss, model.metric, model.loss_fn, model.device)
 
     try
         tree_type = string(model.tree_type)

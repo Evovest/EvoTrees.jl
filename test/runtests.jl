@@ -18,6 +18,7 @@ using Test
         include("missings.jl")
         include("multi-target.jl")
         include("ranking.jl")
+        include("custom-loss.jl")
         include("plot.jl")
     end
 
