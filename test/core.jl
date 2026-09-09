@@ -725,6 +725,16 @@ end
         @test length(m1.trees) == m1.info[:nrounds]
         @test m1.info[:nrounds] == m1.info[:logger][:best_iter]
 
+        # An eval set supplied for monitoring only, with early stopping never firing, must
+        # return every tree that was asked for.
+        mm = fit(
+            EvoTreeRegressor(nrounds=30, max_depth=6, eta=0.1, early_stopping_rounds=10_000, metric=:mse);
+            x_train=xt, y_train=yt, x_eval=xe, y_eval=ye, verbosity=0,
+        )
+        @test mm.info[:nrounds] == 30
+        @test length(mm.trees) == 30
+        @test mm.info[:logger][:metrics][end] ≈ mean((predict(mm, xe) .- ye) .^ 2)
+
         # A run that improves to the final round keeps every tree.
         mf = fit(
             EvoTreeRegressor(nrounds=5, max_depth=4, eta=0.5, early_stopping_rounds=100, metric=:mse);

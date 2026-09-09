@@ -376,6 +376,9 @@ function truncate_to_best_iter!(m::EvoTree)
     nrounds = m.info[:nrounds]
     best_iter = logger[:best_iter]
     (best_iter <= 0 || best_iter >= nrounds) && return m
+    # only when early stopping actually fired: an eval set passed for monitoring alone must
+    # return every tree the user asked for
+    logger[:iter_since_best] >= logger[:early_stopping_rounds] || return m
     # `trees` holds only boosting rounds, `bagging_size` of them per round
     bagging_size = length(m.trees) ÷ nrounds
     keep = best_iter * bagging_size
