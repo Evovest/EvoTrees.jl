@@ -376,9 +376,9 @@ function truncate_to_best_iter!(m::EvoTree)
     nrounds = m.info[:nrounds]
     best_iter = logger[:best_iter]
     (best_iter <= 0 || best_iter >= nrounds) && return m
-    # the first tree carries the bias, the remainder are `bagging_size` per round
-    bagging_size = (length(m.trees) - 1) ÷ nrounds
-    keep = 1 + best_iter * bagging_size
+    # `trees` holds only boosting rounds, `bagging_size` of them per round
+    bagging_size = length(m.trees) ÷ nrounds
+    keep = best_iter * bagging_size
     resize!(m.trees, keep)
     m.info[:nrounds] = best_iter
     return m

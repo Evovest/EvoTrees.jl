@@ -697,7 +697,7 @@ end
                 x_train=xt, y_train=yt, x_eval=xe, y_eval=ye, verbosity=0,
             )
             @test m.info[:nrounds] == m.info[:logger][:best_iter]
-            @test length(m.trees) == 1 + m.info[:logger][:best_iter]
+            @test length(m.trees) == m.info[:logger][:best_iter]
             sqrt(mean((predict(m, xe) .- ye) .^ 2))
         end
         @test all(r -> r ≈ results[1], results)
@@ -705,7 +705,7 @@ end
         # Without an eval set there is no logger and nothing is dropped.
         m = fit(EvoTreeRegressor(nrounds=30, max_depth=4); x_train=xt, y_train=yt)
         @test m.info[:nrounds] == 30
-        @test length(m.trees) == 31
+        @test length(m.trees) == 30
 
         # `bagging_size` trees are grown per round, so truncation must account for it.
         mb = fit(
@@ -713,8 +713,17 @@ end
                              early_stopping_rounds=15, metric=:mse);
             x_train=xt, y_train=yt, x_eval=xe, y_eval=ye, verbosity=0,
         )
-        @test length(mb.trees) == 1 + 3 * mb.info[:nrounds]
+        @test length(mb.trees) == 3 * mb.info[:nrounds]
         @test mb.info[:nrounds] == mb.info[:logger][:best_iter]
+
+        # `bagging_size` defaults to 1, where the per-round tree count must still be 1.
+        m1 = fit(
+            EvoTreeRegressor(nrounds=1000, max_depth=6, eta=0.1, bagging_size=1,
+                             early_stopping_rounds=15, metric=:mse);
+            x_train=xt, y_train=yt, x_eval=xe, y_eval=ye, verbosity=0,
+        )
+        @test length(m1.trees) == m1.info[:nrounds]
+        @test m1.info[:nrounds] == m1.info[:logger][:best_iter]
 
         # A run that improves to the final round keeps every tree.
         mf = fit(
@@ -722,7 +731,7 @@ end
             x_train=xt, y_train=yt, x_eval=xt, y_eval=yt, verbosity=0,
         )
         @test mf.info[:nrounds] == 5
-        @test length(mf.trees) == 6
+        @test length(mf.trees) == 5
     end
 
 end
