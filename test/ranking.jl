@@ -406,7 +406,6 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         # a single-target MLE model is the K == 1 case of the same rule
         @test pearson(Float32[1 2 3 4 5 6; 9 9 9 9 9 9], Float32[1, 2, 3, 4, 5, 6],
             ones(Float32, 6), Float32[]; group=build_group_index(qm)) ≈ 1.0 rtol = 1e-6
-
         @test EvoTrees.is_maximise(pearson)
         # without groups there is nothing to correlate within
         @test_throws ErrorException pearson(reshape(Float32.(pv), 1, :), Float32.(yv),
