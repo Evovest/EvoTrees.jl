@@ -408,6 +408,7 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
             ones(Float32, 6), Float32[]; group=build_group_index(qm)) ≈ 1.0 rtol = 1e-6
 
         @test EvoTrees.is_maximise(pearson)
+        # without groups there is nothing to correlate within
         @test_throws ErrorException pearson(reshape(Float32.(pv), 1, :), Float32.(yv),
             ones(Float32, 12), Float32[])
 
@@ -432,7 +433,7 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         y2 = -3 .* x[:, 2] .+ 0.3 .* randn(rng, nobs)
         dtr2 = (q=g[tr], f1=x[tr, 1], f2=x[tr, 2], f3=x[tr, 3], y=y[tr], y2=y2[tr])
         dev2 = (q=g[te], f1=x[te, 1], f2=x[te, 2], f3=x[te, 3], y=y[te], y2=y2[te])
-        mmt = fit(EvoTreeMLE(loss=:gaussian_mle, metric=:corr, nrounds=20, max_depth=4), dtr2;
+        mmt = fit(EvoTreeMLE(loss=:gaussian_mle, metric=:pearson, nrounds=20, max_depth=4), dtr2;
             target_name=["y", "y2"], eval_group_name=:q, deval=dev2, verbosity=0)
         @test size(predict(mmt, dev2), 2) == 4
         @test mmt.info[:logger][:metrics][end] > 0.8
