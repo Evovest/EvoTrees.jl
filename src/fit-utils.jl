@@ -14,9 +14,6 @@ function get_edges(X::AbstractMatrix{T}; nbins, rng=Random.MersenneTwister(), kw
     feattypes = Vector{Bool}(undef, nfeats)
     @threads for j in 1:size(X, 2)
         edges[j] = quantile(view(X, idx, j), (1:(nbins-1)) / nbins)
-        if length(edges[j]) == 1
-            edges[j] = [minimum(view(X, idx, j))]
-        end
         featbins[j] = length(edges[j]) + 1
         feattypes[j] = true
     end
@@ -49,9 +46,6 @@ function get_edges(df; feature_names, nbins, rng=Random.MersenneTwister(), kwarg
             feattypes[j] = true
         else
             error("Invalid feature eltype: $(feature_names[j]) is $(eltype(col))")
-        end
-        if length(edges[j]) == 1
-            edges[j] = [minimum(col)]
         end
     end
     return edges, featbins, feattypes

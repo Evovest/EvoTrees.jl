@@ -749,3 +749,20 @@ end
 end
 
 end
+
+@testset "nbins=2 single edge" begin
+    seed!(11)
+    x = reshape(rand(2_000), :, 1)
+    y = Float64.(x[:, 1] .> 0.5)
+
+    edges, featbins, _ = EvoTrees.get_edges(x; nbins=2)
+    @test only(edges[1]) ≈ median(x[:, 1])
+    @test featbins == UInt8[2]
+
+    tedges, tfeatbins, _ = EvoTrees.get_edges((x1=x[:, 1],); feature_names=[:x1], nbins=2)
+    @test only(tedges[1]) ≈ median(x[:, 1])
+    @test tfeatbins == UInt8[2]
+
+    m = fit(EvoTreeRegressor(nrounds=30, max_depth=2, eta=0.3, nbins=2); x_train=x, y_train=y)
+    @test sqrt(mean((predict(m, x) .- y) .^ 2)) < 0.1
+end
