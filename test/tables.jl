@@ -74,6 +74,15 @@ config = EvoTreeRegressor(
 
 end
 
+@testset "Tables - eval is train reuses x_bin" begin
+    dtrain = (x1=x_num[i_train], y=y_tot[i_train])
+    dtrain_copy = (x1=copy(dtrain.x1), y=copy(dtrain.y))
+    config_small = EvoTreeRegressor(loss=:mse, nrounds=10, seed=123, nbins=16)
+    m_reuse = fit(config_small, dtrain; target_name, deval=dtrain, verbosity=0)
+    m_copy = fit(config_small, dtrain; target_name, deval=dtrain_copy, verbosity=0)
+    @test EvoTrees.predict(m_reuse, dtrain) == EvoTrees.predict(m_copy, dtrain)
+end
+
 @testset "Tables - DataFrames" begin
 
     df_tot = DataFrame(x_num=x_num, y=y_tot)

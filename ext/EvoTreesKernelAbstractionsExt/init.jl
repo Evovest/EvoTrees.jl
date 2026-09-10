@@ -3,7 +3,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
     rng = Xoshiro(params.seed)
     edges, featbins, feattypes = EvoTrees.get_edges(data; feature_names, nbins=params.nbins, rng)
     backend = _gpu_backend(device)
-    x_bin = _to_device(backend, EvoTrees.binarize(data; feature_names, edges))
+    x_bin = EvoTrees.binarize(device, data; feature_names, edges)
     nobs, nfeats = size(x_bin)
     T = Float32
     L = EvoTrees._loss2type_dict[params.loss]
@@ -162,3 +162,19 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
 
     return m, cache
 end
+
+function EvoTrees.binarize(device::Type{<:EvoTrees.GPU}, X::Matrix{T}; feature_names, edges) where {T<:Real}
+    backend = _gpu_backend(device)
+    nobs, nfeats = size(X)
+    x_bin = KernelAbstractions.zeros(backend, UInt8, nobs, nfeats)
+    col = KernelAbstractions.allocate(backend, T, nobs)
+    for j in 1:nfeats
+        copyto!(col, 1, X, (j - 1) * nobs + 1, nobs)
+        view(x_bin, :, j) .= UInt8.(searchsortedfirst.(Ref(_to_device(backend, edges[j])), col))
+    end
+    KernelAbstractions.synchronize(backend)
+    return x_bin
+end
+
+EvoTrees.binarize(device::Type{<:EvoTrees.GPU}, data; feature_names, edges) =
+    _to_device(_gpu_backend(device), EvoTrees.binarize(data; feature_names, edges))

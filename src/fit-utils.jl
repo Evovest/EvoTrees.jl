@@ -60,6 +60,7 @@ end
 """
     binarize(X::AbstractMatrix; feature_names, edges)
     binarize(df; feature_names, edges)
+    binarize(device, data; feature_names, edges)
 
 Transform feature data into a UInt8 binarized matrix.
 """
@@ -93,6 +94,8 @@ function binarize(df; feature_names, edges)
     end
     return x_bin
 end
+
+binarize(::Type{<:CPU}, data; feature_names, edges) = binarize(data; feature_names, edges)
 
 
 function split_set!(
