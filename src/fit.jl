@@ -265,6 +265,9 @@ function grow_otree!(
 end
 
 # A no-op on the CPU, but on the GPU we perform garbage collection
+# The trees appended by the round just grown. `grow_evotree!` pushes `bagging_size` of them.
+_round_trees(m, n) = view(m.trees, (lastindex(m.trees)-n+1):lastindex(m.trees))
+
 post_fit_gc(::Type{<:CPU}) = nothing
 
 """
@@ -338,7 +341,7 @@ function fit(
     for i = 1:params.nrounds
         grow_evotree!(m, cache, params)
         if !isnothing(logger)
-            cb(logger, i, m.trees[end])
+            cb(logger, i, _round_trees(m, params.bagging_size))
             if i % print_every_n == 0 && verbosity > 0
                 @info "iter $i" metric = logger[:metrics][end]
             end
@@ -436,7 +439,7 @@ function fit(
     for i = 1:params.nrounds
         grow_evotree!(m, cache, params)
         if !isnothing(logger)
-            cb(logger, i, m.trees[end])
+            cb(logger, i, _round_trees(m, params.bagging_size))
             if i % print_every_n == 0 && verbosity > 0
                 @info "iter $i" metric = logger[:metrics][end]
             end
