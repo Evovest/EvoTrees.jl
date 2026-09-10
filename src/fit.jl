@@ -350,9 +350,41 @@ function fit(
     end
     post_fit_gc(_device)
     m.info[:logger] = logger
+    truncate_to_best_iter!(m)
 
     return m
 
+end
+
+
+"""
+    truncate_to_best_iter!(m::EvoTree)
+
+Drop the trees grown after the best iteration recorded by early stopping.
+
+Early stopping keeps boosting for `early_stopping_rounds` after the optimum in order to confirm
+it, and those extra rounds are overfit by construction. Without this the model returned is the
+one at the stopping point rather than the one early stopping selected, and the gap grows with
+`early_stopping_rounds`.
+
+No-op when no evaluation set was supplied, when early stopping never fired, or when the best
+iteration is the last one.
+"""
+function truncate_to_best_iter!(m::EvoTree)
+    logger = get(m.info, :logger, nothing)
+    isnothing(logger) && return m
+    nrounds = m.info[:nrounds]
+    best_iter = logger[:best_iter]
+    (best_iter <= 0 || best_iter >= nrounds) && return m
+    # only when early stopping actually fired: an eval set passed for monitoring alone must
+    # return every tree the user asked for
+    logger[:iter_since_best] >= logger[:early_stopping_rounds] || return m
+    # `trees` holds only boosting rounds, `bagging_size` of them per round
+    bagging_size = length(m.trees) ÷ nrounds
+    keep = best_iter * bagging_size
+    resize!(m.trees, keep)
+    m.info[:nrounds] = best_iter
+    return m
 end
 
 """
@@ -448,6 +480,7 @@ function fit(
     end
     post_fit_gc(_device)
     m.info[:logger] = logger
+    truncate_to_best_iter!(m)
 
     return m
 
