@@ -290,6 +290,18 @@ function grow_tree!(
     copyto!(tree.feat, cache.tree_feat_gpu)
     copyto!(tree.cond_bin, cache.tree_cond_bin_gpu)
     copyto!(tree.gain, cache.tree_gain_gpu)
+    # An oblivious depth broadcasts its summed gain into every node, and `importance` adds
+    # `tree.gain` once per split node, so each node keeps its depth's share. This is done here
+    # rather than in the kernel because the gamma check reads the undivided value there.
+    if OBLIVIOUS
+        lo = 1
+        while lo <= length(tree.gain)
+            hi = min(2lo - 1, length(tree.gain))
+            m = count(view(tree.split, lo:hi))
+            m > 1 && (view(tree.gain, lo:hi) ./= m)
+            lo <<= 1
+        end
+    end
     copyto!(tree.w, view(cache.nodes_sum_gpu, size(cache.nodes_sum_gpu, 1), 1:length(tree.w)))
 
     leaf_nodes = findall(!, tree.split)

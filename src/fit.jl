@@ -217,8 +217,11 @@ function grow_otree!(
             best_bin = best[2][1]
             best_feat = js[best[2][2]]
             if best_gain > params.gamma
+                # `best_gain` is summed over every node of the depth, and `importance` adds
+                # `tree.gain` once per split node, so each node stores its equal share
+                share = best_gain / length(n_current)
                 for n in n_current
-                    tree.gain[n] = best_gain
+                    tree.gain[n] = share
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
                     tree.split[n] = best_bin != 0
