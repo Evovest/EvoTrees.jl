@@ -270,6 +270,16 @@ _round_trees(m, n) = view(m.trees, (lastindex(m.trees)-n+1):lastindex(m.trees))
 
 post_fit_gc(::Type{<:CPU}) = nothing
 
+_fit_callbacks(callbacks) = callbacks === nothing ? () :
+    (callbacks isa Tuple || callbacks isa AbstractVector ? callbacks : (callbacks,))
+
+function _run_fit_callbacks(callbacks, model, logger, iteration)
+    for callback in callbacks
+        callback(model, logger, iteration)
+    end
+    return nothing
+end
+
 """
     fit(
         params::EvoTypes, 
@@ -281,6 +291,7 @@ post_fit_gc(::Type{<:CPU}) = nothing
         group_name=nothing,
         eval_group_name=group_name,
         deval=nothing,
+        callbacks=(),
         print_every_n=9999,
         verbosity=1
         )
@@ -305,6 +316,10 @@ Main training function. Performs model fitting given configuration `params`, `dt
 - `group_name = nothing`: name of the variable identifying the group (query) each row belongs to. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
 - `eval_group_name = group_name`: name of the group variable in `deval`, defaulting to `group_name`. A group-aware metric such as `:ndcg` requires it. Set it on its own to evaluate over groups while training with the usual per-row sampling.
 - `deval`: A Tables compatible evaluation data containing features and target variables. 
+- `callbacks=()`: a callable or collection invoked as `callback(model, logger, iteration)`
+  after each completed boosting round and validation update, before native early stopping.
+  The iteration-zero baseline is not emitted. Without evaluation data, `logger` is `nothing`.
+  Return values are ignored; exceptions propagate. Callbacks should treat model and logger as read-only.
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
 """
@@ -318,11 +333,13 @@ function fit(
     group_name=nothing,
     eval_group_name=group_name,
     deval=nothing,
+    callbacks=(),
     print_every_n=9999,
     verbosity=1,
 )
 
     @assert Tables.istable(dtrain) "fit(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
+    fit_callbacks = _fit_callbacks(callbacks)
     dtrain = Tables.columntable(dtrain)
     _device = device_type(params.device)
     m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name, group_name)
@@ -345,6 +362,9 @@ function fit(
             if i % print_every_n == 0 && verbosity > 0
                 @info "iter $i" metric = logger[:metrics][end]
             end
+        end
+        _run_fit_callbacks(fit_callbacks, m, logger, i)
+        if !isnothing(logger)
             (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
         end
     end
@@ -369,6 +389,7 @@ end
         group_train=nothing,
         group_eval=nothing,
         feature_names=nothing,
+        callbacks=(),
         early_stopping_rounds=9999,
         print_every_n=9999,
         verbosity=1
@@ -397,6 +418,10 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `group_train::Vector`: group (query) id of each training row, for ranking tasks. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
 - `group_eval::Vector`: group id of each evaluation row. Required by `metric = :ndcg`.
 - `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
+- `callbacks=()`: a callable or collection invoked as `callback(model, logger, iteration)`
+  after each completed boosting round and validation update, before native early stopping.
+  The iteration-zero baseline is not emitted. Without evaluation data, `logger` is `nothing`.
+  Return values are ignored; exceptions propagate. Callbacks should treat model and logger as read-only.
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
 """
@@ -413,10 +438,12 @@ function fit(
     group_train=nothing,
     group_eval=nothing,
     feature_names=nothing,
+    callbacks=(),
     print_every_n=9999,
     verbosity=1
 )
 
+    fit_callbacks = _fit_callbacks(callbacks)
     _device = device_type(params.device)
     m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train, group_train)
 
@@ -443,6 +470,9 @@ function fit(
             if i % print_every_n == 0 && verbosity > 0
                 @info "iter $i" metric = logger[:metrics][end]
             end
+        end
+        _run_fit_callbacks(fit_callbacks, m, logger, i)
+        if !isnothing(logger)
             (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
         end
     end

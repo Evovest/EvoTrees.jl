@@ -10,6 +10,7 @@ using Test
 
     @testset "Internal API" begin
         include("core.jl")
+        include("fit_callbacks.jl")
         include("predict-leaf-idx.jl")
         include("metrics.jl")
         include("oblivious.jl")
