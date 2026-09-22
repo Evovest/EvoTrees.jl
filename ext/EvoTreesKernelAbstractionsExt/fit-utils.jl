@@ -2,79 +2,246 @@ using KernelAbstractions
 using Atomix
 
 """
-	update_nodes_idx_kernel!(nidx, is, x_bin, cond_feats, cond_bins, feattypes)
+    partition_flag_kernel!(flag, is, nidx, x_bin, cond_feats, cond_bins, feattypes)
 
-Update observation-to-node assignments by traversing splits (left child = node*2, right child = node*2+1).
+For each position `p` of `is`, `flag[p] = 1` if the row goes to the left child of its node's split
+and `0` otherwise. Rows of nodes that were not split get `0`; [`partition_scatter_kernel!`](@ref)
+leaves them in place.
 """
-@kernel function update_nodes_idx_kernel!(
-    nidx::AbstractVector{T},
+@kernel function partition_flag_kernel!(
+    flag,
     @Const(is),
+    @Const(nidx),
     @Const(x_bin),
     @Const(cond_feats),
     @Const(cond_bins),
     @Const(feattypes),
-) where {T<:Unsigned}
-    gidx = @index(Global)
-    @inbounds if gidx <= length(is)
-        obs = is[gidx]
+)
+    p = @index(Global)
+    @inbounds if p <= length(is)
+        obs = is[p]
         node = nidx[obs]
-        if node > 0
+        bin = cond_bins[node]
+        is_left = false
+        if bin != 0
             feat = cond_feats[node]
-            bin = cond_bins[node]
-            if bin != 0
-                feattype = feattypes[feat]
-                is_left = feattype ? (x_bin[obs, feat] <= bin) : (x_bin[obs, feat] == bin)
-                nidx[obs] = (node << 1) + T(Int(!is_left))
+            is_left = feattypes[feat] ? (x_bin[obs, feat] <= bin) : (x_bin[obs, feat] == bin)
+        end
+        flag[p] = UInt32(is_left)
+    end
+end
+
+"""
+    partition_scatter_kernel!(dst, nidx, node_off, node_cnt, is, flag, scan, cond_bins)
+
+Stable split of each split node's range of `is` into its left rows then its right rows, written
+to `dst`, and move each row to its child in `nidx`. Rows of unsplit nodes are copied in place.
+`scan[p]` is the number of left rows before position `p`, so a node's range `(o, o + c]` holds
+`scan[o + c + 1] - scan[o + 1]` left rows. The thread of a node's first row records the row
+ranges of its two children in `node_off` and `node_cnt`.
+"""
+@kernel function partition_scatter_kernel!(
+    dst,
+    nidx::AbstractVector{T},
+    node_off,
+    node_cnt,
+    @Const(is),
+    @Const(flag),
+    @Const(scan),
+    @Const(cond_bins),
+) where {T<:Unsigned}
+    p = @index(Global)
+    @inbounds if p <= length(is)
+        obs = is[p]
+        node = nidx[obs]
+        if cond_bins[node] == 0
+            dst[p] = obs
+        else
+            o = Int(node_off[node])
+            c = Int(node_cnt[node])
+            nleft = Int(scan[o+c+1]) - Int(scan[o+1])
+            lefts_before = Int(scan[p]) - Int(scan[o+1])
+            child = node << 1
+            if p == o + 1
+                node_off[child], node_cnt[child] = o, nleft
+                node_off[child+1], node_cnt[child+1] = o + nleft, c - nleft
             end
+            if flag[p] != 0
+                dst[o+lefts_before+1] = obs
+            else
+                dst[o+nleft+(p-1-o-lefts_before)+1] = obs
+                child += one(T)
+            end
+            nidx[obs] = child
         end
     end
 end
 
 """
-	hist_kernel!(h∇, ∇, x_bin, nidx, js, is, K, chunk_size, target_mask)
+    partition_rows!(dst, is, cache, backend)
 
-Build per-node gradient histograms using atomic updates.
+Write `is` to `dst` reordered after the splits of a depth, so that each node's rows are
+contiguous at `node_off[node] + 1 : node_off[node] + node_cnt[node]`, keeping their relative
+order, and move each row to its child in `nidx`.
+"""
+function partition_rows!(dst, is, cache, backend)
+    n = length(is)
+    flag = view(cache.part_flag, 1:n)
+    partition_flag_kernel!(backend)(
+        flag, is, cache.nidx, cache.x_bin, cache.tree_feat_gpu, cache.tree_cond_bin_gpu, cache.feattypes_gpu;
+        ndrange=n,
+    )
+    # `part_scan[1]` stays 0, making the scan exclusive
+    cumsum!(view(cache.part_scan, 2:n+1), flag)
+    partition_scatter_kernel!(backend)(
+        dst, cache.nidx, cache.node_off, cache.node_cnt, is, flag, cache.part_scan, cache.tree_cond_bin_gpu;
+        ndrange=n,
+    )
+    return nothing
+end
+"""
+    _hist_group(gid, n_tiles, rows_per_group, build_nodes, n_build, node_off, node_cnt, chunk_end)
 
-- `h∇` layout: [2K+1, nbins, n_feats, n_nodes]
-- Each thread processes one (feature, observation-chunk) pair to reduce contention.
+Node and range `r_lo:r_hi` of `is` read by workgroup `gid`. Groups run over (row chunk, tile) with
+the tile varying fastest, and row chunks are numbered across build nodes through the inclusive
+prefix `chunk_end`. Groups past the last chunk get an empty range.
+"""
+@inline function _hist_group(gid, n_tiles, rows_per_group, build_nodes, n_build, node_off, node_cnt, chunk_end)
+    q = (gid - 1) ÷ n_tiles
+    @inbounds if q >= chunk_end[n_build]
+        return 1, 1, 0
+    end
+    lo, hi = 1, n_build
+    @inbounds while lo < hi
+        mid = (lo + hi) >> 1
+        if chunk_end[mid] > q
+            hi = mid
+        else
+            lo = mid + 1
+        end
+    end
+    @inbounds begin
+        node = Int(build_nodes[lo])
+        c = q - (lo == 1 ? 0 : Int(chunk_end[lo-1]))
+        o = Int(node_off[node])
+        r_lo = o + c * rows_per_group + 1
+        r_hi = min(o + (c + 1) * rows_per_group, o + Int(node_cnt[node]))
+    end
+    return node, r_lo, r_hi
+end
+
+"""
+    _hist_tile(gid, n_tiles, n_ftiles, feat_tile, k_tile, n_feats, nk)
+
+Tile of workgroup `gid`: offsets `f0`, `k0` into the features and gradient rows, and its sizes.
+"""
+@inline function _hist_tile(gid, n_tiles, n_ftiles, feat_tile, k_tile, n_feats, nk)
+    t = (gid - 1) % n_tiles
+    f0 = (t % n_ftiles) * feat_tile
+    k0 = (t ÷ n_ftiles) * k_tile
+    return f0, k0, min(feat_tile, n_feats - f0), min(k_tile, nk - k0)
+end
+
+"""
+    chunk_prefix_kernel!(chunk_end, build_nodes, n_build, node_cnt, rows_per_group)
+
+`chunk_end[b]`: row chunks of `rows_per_group` needed by build nodes `1:b`. Single thread.
+"""
+@kernel function chunk_prefix_kernel!(chunk_end, @Const(build_nodes), n_build::Int, @Const(node_cnt), rows_per_group::Int)
+    i = @index(Global)
+    if i == 1
+        acc = 0
+        @inbounds for b in 1:n_build
+            acc += cld(Int(node_cnt[build_nodes[b]]), rows_per_group)
+            chunk_end[b] = acc
+        end
+    end
+end
+
+"""
+    hist_kernel!(h∇, ∇, x_bin, js, is, build_nodes, n_build, node_off, node_cnt, chunk_end,
+                 K, k_tile, feat_tile, rows_per_group, ::Val{LMEM})
+
+Per-node gradient histograms. Each workgroup reads one chunk of one build node's rows of `is`,
+accumulates `k_tile` gradient rows of `feat_tile` features in workgroup-local memory, then adds
+each non-zero cell to `h∇` with one global atomic. Groups are numbered with the tile varying
+fastest, so the launch needs `sum(cld.(node_cnt[build_nodes], rows_per_group)) * n_tiles` groups;
+surplus groups do nothing.
+
+- `h∇`: histogram `[2K+1, nbins, n_feats, n_nodes]`, accumulated into.
+- `k_tile * nbins * feat_tile <= LMEM`.
 """
 @kernel function hist_kernel!(
     h∇::AbstractArray{T,4},
     @Const(∇),
     @Const(x_bin),
-    @Const(nidx),
     @Const(js),
     @Const(is),
+    @Const(build_nodes),
+    n_build::Int,
+    @Const(node_off),
+    @Const(node_cnt),
+    @Const(chunk_end),
     K::Int,
-    chunk_size::Int,
-    @Const(target_mask)
-) where {T}
-    gidx = @index(Global, Linear)
-    n_feats = length(js)
-    n_obs = length(is)
-    total_chunks = cld(n_obs, chunk_size)
-    total_threads = n_feats * total_chunks
+    k_tile::Int,
+    feat_tile::Int,
+    rows_per_group::Int,
+    ::Val{LMEM},
+) where {T,LMEM}
+    lid = @index(Local, Linear)
+    gid = @index(Group, Linear)
+    @uniform wg = @groupsize()[1]
+    @uniform nk = 2 * K + 1
+    @uniform nbins = size(h∇, 2)
+    @uniform n_feats = length(js)
+    @uniform n_ftiles = cld(n_feats, feat_tile)
+    @uniform n_tiles = n_ftiles * cld(nk, k_tile)
 
-    @inbounds if gidx <= total_threads
-        feat_idx = (gidx - 1) % n_feats + 1
-        chunk_idx = (gidx - 1) ÷ n_feats
-        feat = js[feat_idx]
+    hloc = @localmem T (LMEM,)
 
-        start_obs = chunk_idx * chunk_size + 1
-        end_obs = min(start_obs + chunk_size - 1, n_obs)
+    # The CPU backend does not carry plain locals across `@synchronize`, so the group-derived
+    # values are recomputed in each phase.
+    f0, k0, nf, nkk = _hist_tile(gid, n_tiles, n_ftiles, feat_tile, k_tile, n_feats, nk)
+    used = nkk * nbins * nf
+    i = lid
+    @inbounds while i <= used
+        hloc[i] = zero(T)
+        i += wg
+    end
+    @synchronize
 
-        for obs_idx in start_obs:end_obs
-            obs = is[obs_idx]
-            node = nidx[obs]
-            if node > 0 && node <= size(h∇, 4) && target_mask[node] != 0
-                bin = x_bin[obs, feat]
-                if bin > 0 && bin <= size(h∇, 2)
-                    for k in 1:(2*K+1)
-                        Atomix.@atomic h∇[k, bin, feat, node] += ∇[k, obs]
-                    end
+    f0, k0, nf, nkk = _hist_tile(gid, n_tiles, n_ftiles, feat_tile, k_tile, n_feats, nk)
+    _, r_lo, r_hi = _hist_group(gid, n_tiles, rows_per_group, build_nodes, n_build, node_off, node_cnt, chunk_end)
+    r = r_lo + lid - 1
+    @inbounds while r <= r_hi
+        obs = is[r]
+        for fl in 1:nf
+            bin = Int(x_bin[obs, js[f0+fl]])
+            if bin > 0 && bin <= nbins
+                base = nkk * ((bin - 1) + nbins * (fl - 1))
+                for kk in 1:nkk
+                    Atomix.@atomic hloc[base+kk] += T(∇[k0+kk, obs])
                 end
             end
         end
+        r += wg
+    end
+    @synchronize
+
+    f0, k0, nf, nkk = _hist_tile(gid, n_tiles, n_ftiles, feat_tile, k_tile, n_feats, nk)
+    used = nkk * nbins * nf
+    node, _, _ = _hist_group(gid, n_tiles, rows_per_group, build_nodes, n_build, node_off, node_cnt, chunk_end)
+    i = lid
+    @inbounds while i <= used
+        v = hloc[i]
+        if v != zero(T)
+            kk = (i - 1) % nkk + 1
+            rest = (i - 1) ÷ nkk
+            b = rest % nbins + 1
+            fl = rest ÷ nbins + 1
+            Atomix.@atomic h∇[k0+kk, b, js[f0+fl], node] += v
+        end
+        i += wg
     end
 end
 
@@ -101,56 +268,34 @@ Zero histogram entries in `h∇` for the `n_active` nodes listed in `active_node
     end
 end
 
-"""
-	clear_mask_kernel!(mask)
+# Build histograms for `build_nodes`, each from its own range of `is`
+function EvoTrees.update_hist!(h∇, ∇, x_bin, js, is, build_nodes, node_off, node_cnt, chunk_end, K, backend)
+    n_build = length(build_nodes)
+    n_build == 0 && return nothing
 
-Set all entries of `mask` to 0.
-"""
-@kernel function clear_mask_kernel!(mask)
-    idx = @index(Global)
-    @inbounds if idx <= length(mask)
-        mask[idx] = 0
-    end
-end
-
-"""
-	mark_active_nodes_kernel!(mask, active_nodes)
-
-Mark each node id in `active_nodes` as active by setting `mask[node] = 1`.
-"""
-@kernel function mark_active_nodes_kernel!(mask, @Const(active_nodes))
-    idx = @index(Global)
-    @inbounds if idx <= length(active_nodes)
-        node = active_nodes[idx]
-        if node > 0 && node <= length(mask)
-            mask[node] = 1
-        end
-    end
-end
-
-# Build histograms for active nodes
-function EvoTrees.update_hist!(h∇, ∇, x_bin, nidx, js, is, active_nodes, K, target_mask, backend)
-    n_active = length(active_nodes)
-
-    clear_mask_kernel!(backend)(target_mask; ndrange=length(target_mask))
-
-    mark_active_nodes_kernel!(backend)(target_mask, active_nodes; ndrange=n_active)
-
-    if n_active > 0
-        clear_hist_kernel!(backend)(
-            h∇, active_nodes, n_active;
-            ndrange=n_active * size(h∇, 1) * size(h∇, 2) * size(h∇, 3),
-        )
-    end
-
-    chunk_size = EvoTrees.HIST_OBS_CHUNK
-    n_obs_chunks = cld(length(is), chunk_size)
-    num_threads = length(js) * n_obs_chunks
-
-    hist_kernel!(backend)(
-        h∇, ∇, x_bin, nidx, js, is, K, chunk_size, target_mask;
-        ndrange=num_threads,
+    clear_hist_kernel!(backend)(
+        h∇, build_nodes, n_build;
+        ndrange=n_build * size(h∇, 1) * size(h∇, 2) * size(h∇, 3),
     )
+
+    nk = 2 * K + 1
+    nbins = size(h∇, 2)
+    lmem = EvoTrees.HIST_LMEM
+    rows = EvoTrees.HIST_ROWS
+    k_tile = min(nk, lmem ÷ nbins)
+    feat_tile = min(lmem ÷ (k_tile * nbins), length(js))
+    n_tiles = cld(length(js), feat_tile) * cld(nk, k_tile)
+
+    chunk_prefix_kernel!(backend, 1)(chunk_end, build_nodes, n_build, node_cnt, rows; ndrange=1)
+
+    # Upper bound on the chunks, known without reading `chunk_end` back.
+    n_groups = (cld(length(is), rows) + n_build) * n_tiles
+    hist_kernel!(backend, EvoTrees.HIST_WG)(
+        h∇, ∇, x_bin, js, is, build_nodes, n_build, node_off, node_cnt, chunk_end,
+        K, k_tile, feat_tile, rows, Val(lmem);
+        ndrange=n_groups * EvoTrees.HIST_WG,
+    )
+    return nothing
 end
 
 """

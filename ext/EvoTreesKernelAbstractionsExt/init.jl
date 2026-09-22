@@ -59,7 +59,12 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
     left_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
     right_nodes_buf = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
 
-    target_mask_buf = KernelAbstractions.zeros(backend, UInt8, max_tree_nodes)
+    is_buf = KernelAbstractions.zeros(backend, UInt32, nobs)
+    part_flag = KernelAbstractions.zeros(backend, UInt32, nobs)
+    part_scan = KernelAbstractions.zeros(backend, UInt32, nobs + 1)
+    node_off = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
+    node_cnt = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
+    chunk_end = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
     tree_split_gpu = KernelAbstractions.zeros(backend, Bool, max_tree_nodes)
     tree_cond_bin_gpu = KernelAbstractions.zeros(backend, UInt8, max_tree_nodes)
     tree_feat_gpu = KernelAbstractions.zeros(backend, Int32, max_tree_nodes)
@@ -133,7 +138,12 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
         monotone_constraints_gpu,
         left_nodes_buf,
         right_nodes_buf,
-        target_mask_buf,
+        is_buf,
+        part_flag,
+        part_scan,
+        node_off,
+        node_cnt,
+        chunk_end,
         tree_split_gpu,
         tree_cond_bin_gpu,
         tree_feat_gpu,

@@ -52,7 +52,12 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode,G} <: EvoTrees.CacheGPU
     monotone_constraints_gpu::CuVector{Int32}
     left_nodes_buf::CuVector{Int32}
     right_nodes_buf::CuVector{Int32}
-    target_mask_buf::CuVector{UInt8}
+    is_buf::CuVector{UInt32}                 # Partition: swapped with `is` each depth  [nobs]
+    part_flag::CuVector{UInt32}              # Partition: row goes left                 [nobs]
+    part_scan::CuVector{UInt32}              # Partition: exclusive prefix of part_flag [nobs+1]
+    node_off::CuVector{Int32}                # Rows of node n in `is`: node_off[n] .+ (1:node_cnt[n])
+    node_cnt::CuVector{Int32}
+    chunk_end::CuVector{Int32}               # Hist: inclusive prefix of row chunks per build node
 
     tree_split_gpu::CuVector{Bool}
     tree_cond_bin_gpu::CuVector{UInt8}

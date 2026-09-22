@@ -173,13 +173,17 @@ function grow_tree!(
     cache.best_feat_gpu .= 0
     cache.nidx .= 1
     view(cache.anodes_gpu, 1:1) .= 1
+    cache.node_cnt .= 0
+    view(cache.node_off, 1:1) .= 0
+    view(cache.node_cnt, 1:1) .= length(is)
+    is_alt = view(cache.is_buf, 1:length(is))
 
     n_feats = length(cache.js)
 
     # Root node processing
     EvoTrees.update_hist!(
-        cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
-        view(cache.anodes_gpu, 1:1), cache.K, cache.target_mask_buf, backend,
+        cache.h∇, ∇_gpu, cache.x_bin, cache.js, is, view(cache.anodes_gpu, 1:1),
+        cache.node_off, cache.node_cnt, cache.chunk_end, cache.K, backend,
     )
 
     compute_nodes_sum_kernel!(backend)(
@@ -222,9 +226,9 @@ function grow_tree!(
             # Build histograms for smaller children
             if build_count_val > 0
                 EvoTrees.update_hist!(
-                    cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
+                    cache.h∇, ∇_gpu, cache.x_bin, cache.js, is,
                     view(cache.build_nodes_gpu, 1:build_count_val),
-                    cache.K, cache.target_mask_buf, backend,
+                    cache.node_off, cache.node_cnt, cache.chunk_end, cache.K, backend,
                 )
             end
 
@@ -263,13 +267,11 @@ function grow_tree!(
             copyto!(view(cache.anodes_gpu, 1:n_active), view(cache.n_next_gpu, 1:n_active))
         end
 
-        # Update observation->node assignments
+        # Move rows to their children, keeping each node's rows contiguous. The result lands in
+        # the other buffer, which becomes `is` for the next depth.
         if n_active > 0
-            update_nodes_idx_kernel!(backend)(
-                cache.nidx, is, cache.x_bin, cache.tree_feat_gpu,
-                cache.tree_cond_bin_gpu, cache.feattypes_gpu;
-                ndrange=length(is),
-            )
+            partition_rows!(is_alt, is, cache, backend)
+            is, is_alt = is_alt, is
         end
     end
 

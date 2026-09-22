@@ -16,9 +16,12 @@ end
 
 function gpu_backend end
 
-# PREFETCH_ROWS: CPU hist. HIST_OBS_CHUNK: GPU hist_kernel! row chunk.
+# PREFETCH_ROWS: CPU hist.
 const PREFETCH_ROWS = 10
-const HIST_OBS_CHUNK = 16
+# GPU hist_kernel! (workgroup-local histogram of one node's rows).
+const HIST_LMEM = 4096     # Float64 slots of local memory per workgroup (32 KiB)
+const HIST_ROWS = 1024     # rows of `is` per workgroup
+const HIST_WG = 256
 
 """
     TrainNode{S,V,M}
