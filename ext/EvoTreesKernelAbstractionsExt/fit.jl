@@ -210,17 +210,10 @@ function grow_tree!(
             cache.build_count .= 0
             cache.subtract_count .= 0
 
-            cache.node_counts_gpu .= 0
-            count_nodes_kernel!(backend)(
-                cache.node_counts_gpu, cache.nidx, is;
-                ndrange=length(is)
-            )
-            KernelAbstractions.synchronize(backend)
-
             separate_nodes_kernel!(backend)(
                 cache.build_nodes_gpu, cache.build_count,
                 cache.subtract_nodes_gpu, cache.subtract_count,
-                active_nodes, cache.node_counts_gpu;
+                active_nodes, cache.nodes_sum_gpu;
                 ndrange=n_active
             )
             KernelAbstractions.synchronize(backend)
