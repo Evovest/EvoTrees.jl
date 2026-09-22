@@ -71,7 +71,6 @@ function EvoTrees.predict!(
         x_bin, feattypes;
         ndrange=size(pred, 2),
     )
-    KernelAbstractions.synchronize(backend)
 end
 
 function EvoTrees.predict!(
@@ -88,7 +87,6 @@ function EvoTrees.predict!(
         x_bin, feattypes;
         ndrange=size(pred, 2),
     )
-    KernelAbstractions.synchronize(backend)
     pred .= max.(T(-15), pred .- maximum(pred, dims=1))
 end
 
@@ -107,7 +105,6 @@ function EvoTrees.predict_leaf_index!(
         x_bin, feattypes;
         ndrange=length(leaves),
     )
-    KernelAbstractions.synchronize(backend)
     return nothing
 end
 
@@ -177,7 +174,6 @@ end
 function EvoTrees.softmax!(p::CuMatrix{T}) where {T}
     backend = get_backend(p)
     softmax_kernel!(backend)(p; ndrange=size(p, 2))
-    KernelAbstractions.synchronize(backend)
     return nothing
 end
 

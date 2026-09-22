@@ -170,7 +170,6 @@ function EvoTrees.binarize(device::Type{<:EvoTrees.GPU}, X::Matrix{T}; feature_n
         copyto!(col, 1, X, (j - 1) * nobs + 1, nobs)
         view(x_bin, :, j) .= UInt8.(searchsortedfirst.(Ref(_to_device(backend, edges[j])), col))
     end
-    KernelAbstractions.synchronize(backend)
     return x_bin
 end
 

@@ -186,7 +186,6 @@ function grow_tree!(
         cache.nodes_sum_gpu, cache.h∇, view(cache.anodes_gpu, 1:1), cache.js, cache.K;
         ndrange=(2 * cache.K + 1),
     )
-    KernelAbstractions.synchronize(backend)
 
     if OBLIVIOUS
         _select_obliv_split!(cache, backend, L, params, view(cache.anodes_gpu, 1:1), n_feats, 1, js_cpu)
@@ -216,7 +215,6 @@ function grow_tree!(
                 active_nodes, cache.nodes_sum_gpu;
                 ndrange=n_active
             )
-            KernelAbstractions.synchronize(backend)
 
             build_count_val = Array(cache.build_count)[1]
             subtract_count_val = Array(cache.subtract_count)[1]
@@ -238,7 +236,6 @@ function grow_tree!(
                 cache.nodes_sum_gpu, cache.h∇, active_nodes, cache.js, cache.K;
                 ndrange=n_active * (2 * cache.K + 1),
             )
-            KernelAbstractions.synchronize(backend)
 
             if OBLIVIOUS
                 _select_obliv_split!(cache, backend, L, params, active_nodes, n_feats, n_active, js_cpu)
@@ -260,7 +257,6 @@ function grow_tree!(
             cache.K;
             ndrange=max(n_active, 1),
         )
-        KernelAbstractions.synchronize(backend)
 
         n_active = Int(Array(cache.n_next_active_gpu)[1])
         if n_active > 0
@@ -274,7 +270,6 @@ function grow_tree!(
                 cache.tree_cond_bin_gpu, cache.feattypes_gpu;
                 ndrange=length(is),
             )
-            KernelAbstractions.synchronize(backend)
         end
     end
 
