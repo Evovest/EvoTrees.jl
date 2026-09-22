@@ -79,6 +79,110 @@ Build per-node gradient histograms using atomic updates.
 end
 
 """
+    hist_kernel_shared!(h∇, ∇, x_bin, nidx, js, is, active_nodes, K, feat_tile, rows_per_group, ::Val{LMEM})
+
+Same histogram as [`hist_kernel!`](@ref), accumulated in workgroup-local memory.
+
+Each workgroup covers `rows_per_group` rows of `is` and `feat_tile` consecutive entries of `js`
+for every node in `active_nodes`, then flushes each non-zero cell to `h∇` with one global atomic.
+Groups are numbered with the feature tile varying fastest, so the launch needs
+`cld(length(is), rows_per_group) * cld(length(js), feat_tile)` groups.
+
+# Arguments
+- `h∇`: histogram `[2K+1, nbins, n_feats, n_nodes]`, accumulated into.
+- `∇`: gradients `[2K+1, n_obs]`.
+- `x_bin`: binned features `[n_obs, n_feats]`.
+- `nidx`: node id of each observation.
+- `js`, `is`: feature and observation ids to build.
+- `active_nodes`: node ids to build; other rows are skipped.
+- `K`: number of outputs.
+- `feat_tile`: features per workgroup; `(2K+1) * nbins * feat_tile * length(active_nodes) <= LMEM`.
+- `rows_per_group`: rows of `is` per workgroup.
+- `::Val{LMEM}`: local-memory slots per workgroup.
+"""
+@kernel function hist_kernel_shared!(
+    h∇::AbstractArray{T,4},
+    @Const(∇),
+    @Const(x_bin),
+    @Const(nidx),
+    @Const(js),
+    @Const(is),
+    @Const(active_nodes),
+    K::Int,
+    feat_tile::Int,
+    rows_per_group::Int,
+    ::Val{LMEM},
+) where {T,LMEM}
+    lid = @index(Local, Linear)
+    gid = @index(Group, Linear)
+    @uniform wg = @groupsize()[1]
+    @uniform nk = 2 * K + 1
+    @uniform nbins = size(h∇, 2)
+    @uniform n_feats = length(js)
+    @uniform n_nodes = length(active_nodes)
+    @uniform n_tiles = cld(n_feats, feat_tile)
+
+    hloc = @localmem T (LMEM,)
+
+    # The CPU backend does not carry plain locals across `@synchronize`, so the group-derived
+    # tile bounds are recomputed in each phase.
+    f0 = ((gid - 1) % n_tiles) * feat_tile
+    nf = min(feat_tile, n_feats - f0)
+    used = nk * nbins * nf * n_nodes
+    i = lid
+    @inbounds while i <= used
+        hloc[i] = zero(T)
+        i += wg
+    end
+    @synchronize
+
+    f0 = ((gid - 1) % n_tiles) * feat_tile
+    nf = min(feat_tile, n_feats - f0)
+    r0 = ((gid - 1) ÷ n_tiles) * rows_per_group
+    rend = min(r0 + rows_per_group, length(is))
+    r = r0 + lid
+    @inbounds while r <= rend
+        obs = is[r]
+        node = nidx[obs]
+        slot = 0
+        for s in 1:n_nodes
+            active_nodes[s] == node && (slot = s)
+        end
+        if slot > 0
+            for fl in 1:nf
+                bin = Int(x_bin[obs, js[f0+fl]])
+                if bin > 0 && bin <= nbins
+                    base = nk * ((bin - 1) + nbins * ((fl - 1) + nf * (slot - 1)))
+                    for k in 1:nk
+                        Atomix.@atomic hloc[base+k] += T(∇[k, obs])
+                    end
+                end
+            end
+        end
+        r += wg
+    end
+    @synchronize
+
+    f0 = ((gid - 1) % n_tiles) * feat_tile
+    nf = min(feat_tile, n_feats - f0)
+    used = nk * nbins * nf * n_nodes
+    i = lid
+    @inbounds while i <= used
+        v = hloc[i]
+        if v != zero(T)
+            k = (i - 1) % nk + 1
+            rest = (i - 1) ÷ nk
+            b = rest % nbins + 1
+            rest = rest ÷ nbins
+            fl = rest % nf + 1
+            slot = rest ÷ nf + 1
+            Atomix.@atomic h∇[k, b, js[f0+fl], active_nodes[slot]] += v
+        end
+        i += wg
+    end
+end
+
+"""
 	clear_hist_kernel!(h∇, active_nodes, n_active)
 
 Zero histogram entries in `h∇` for the `n_active` nodes listed in `active_nodes`.
@@ -143,14 +247,23 @@ function EvoTrees.update_hist!(h∇, ∇, x_bin, nidx, js, is, active_nodes, K, 
         )
     end
 
-    chunk_size = EvoTrees.HIST_OBS_CHUNK
-    n_obs_chunks = cld(length(is), chunk_size)
-    num_threads = length(js) * n_obs_chunks
+    feat_tile = min(EvoTrees.HIST_SHARED_LMEM ÷ ((2 * K + 1) * size(h∇, 2) * max(n_active, 1)), length(js))
+    if 0 < n_active <= EvoTrees.HIST_SHARED_MAX_NODES && feat_tile > 0
+        n_groups = cld(length(is), EvoTrees.HIST_SHARED_ROWS) * cld(length(js), feat_tile)
+        hist_kernel_shared!(backend, EvoTrees.HIST_SHARED_WG)(
+            h∇, ∇, x_bin, nidx, js, is, active_nodes, K, feat_tile, EvoTrees.HIST_SHARED_ROWS, Val(EvoTrees.HIST_SHARED_LMEM);
+            ndrange=n_groups * EvoTrees.HIST_SHARED_WG,
+        )
+    else
+        chunk_size = EvoTrees.HIST_OBS_CHUNK
+        n_obs_chunks = cld(length(is), chunk_size)
+        num_threads = length(js) * n_obs_chunks
 
-    hist_kernel!(backend)(
-        h∇, ∇, x_bin, nidx, js, is, K, chunk_size, target_mask;
-        ndrange=num_threads,
-    )
+        hist_kernel!(backend)(
+            h∇, ∇, x_bin, nidx, js, is, K, chunk_size, target_mask;
+            ndrange=num_threads,
+        )
+    end
 end
 
 """
