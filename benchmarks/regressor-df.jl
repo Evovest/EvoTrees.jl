@@ -18,29 +18,23 @@ y_train = rand(T, size(x_train, 1))
 
 @info nthread
 loss = "mse"
-if loss == "mse"
-    loss_evo = :mse
-    metric_evo = :mae
-elseif loss == "logloss"
-    loss_evo = :logloss
-    metric_evo = :logloss
-end
+metric = "pearson"
 
 @info "EvoTrees"
 dtrain = DataFrame(x_train, :auto)
 dtrain.y .= y_train
 target_name = "y"
-verbosity = 0
+dtrain.grp .= rand(1:100, nobs)
 
 params_evo = EvoTreeRegressor(;
-    loss=loss_evo,
-    metric=metric_evo,
-    nrounds=nrounds,
+    loss,
+    metric,
+    nrounds,
     alpha=0.5,
     lambda=0.0,
     gamma=0.0,
     eta=0.05,
-    max_depth=6,
+    max_depth=5,
     min_weight=1.0,
     rowsample=0.5,
     colsample=0.5, # reconcile if 1.0 - bug if 0.5
@@ -58,7 +52,12 @@ params_evo.device = :cpu
 # @time m_evo_df = fit(params_evo, dtrain; target_name, device, verbosity, print_every_n=100);
 
 @info "train - eval"
-@time m_cpu = EvoTrees.fit(params_evo, dtrain; target_name, deval=dtrain, verbosity, print_every_n=100);
+@time m_cpu = EvoTrees.fit(params_evo, dtrain; target_name, deval=dtrain, print_every_n=100);
+@time m_cpu = EvoTrees.fit(params_evo, dtrain; target_name, group_name="grp", deval=dtrain, print_every_n=100);
+@time m_cpu = EvoTrees.fit(params_evo, dtrain; target_name, eval_group_name="grp", deval=dtrain, print_every_n=100);
+@time m_cpu = EvoTrees.fit(params_evo, dtrain; target_name, group_name=nothing, eval_group_name="grp", deval=dtrain, print_every_n=100);
+
+
 # @time m_cpu = fit(params_evo, dtrain; target_name, device);
 # @btime fit($params_evo, $dtrain; target_name, deval=dtrain, metric=metric_evo, device, verbosity, print_every_n=100);
 @info "predict"
