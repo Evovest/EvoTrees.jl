@@ -133,17 +133,14 @@ function EvoTrees.update_hist!(h∇, ∇, x_bin, nidx, js, is, active_nodes, K, 
     n_active = length(active_nodes)
 
     clear_mask_kernel!(backend)(target_mask; ndrange=length(target_mask))
-    KernelAbstractions.synchronize(backend)
 
     mark_active_nodes_kernel!(backend)(target_mask, active_nodes; ndrange=n_active)
-    KernelAbstractions.synchronize(backend)
 
     if n_active > 0
         clear_hist_kernel!(backend)(
             h∇, active_nodes, n_active;
             ndrange=n_active * size(h∇, 1) * size(h∇, 2) * size(h∇, 3),
         )
-        KernelAbstractions.synchronize(backend)
     end
 
     chunk_size = EvoTrees.HIST_OBS_CHUNK
@@ -154,7 +151,6 @@ function EvoTrees.update_hist!(h∇, ∇, x_bin, nidx, js, is, active_nodes, K, 
         h∇, ∇, x_bin, nidx, js, is, K, chunk_size, target_mask;
         ndrange=num_threads,
     )
-    KernelAbstractions.synchronize(backend)
 end
 
 """
@@ -213,7 +209,6 @@ function EvoTrees.subtract_hist!(h∇::GPUArraysCore.AbstractGPUArray{<:Any,4}, 
     backend = get_backend(h∇)
     h = reshape(h∇, :, size(h∇, 3), size(h∇, 4))
     subtract_hist_kernel!(backend)(h, js, nodes; ndrange=(size(h, 1), length(js), length(nodes)))
-    KernelAbstractions.synchronize(backend)
 end
 
 """
