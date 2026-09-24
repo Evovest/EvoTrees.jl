@@ -44,6 +44,14 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
               "(gaussian_mle, logistic_mle), and credibility losses (cred_var, cred_std). " *
               "Got loss $(params.loss).")
     end
+    if eltype(y_train) <: Real
+        i = findfirst(!isfinite, y_train)
+        isnothing(i) || error(
+            "Target must be finite, got $(y_train[i]) at index $i. A non-finite target " *
+            "propagates through the initial bias into every gradient and leaf, leaving a " *
+            "model that predicts NaN everywhere."
+        )
+    end
     target_levels = nothing
     target_isordered = false
     if L == LogLoss

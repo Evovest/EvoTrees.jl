@@ -488,6 +488,25 @@ end
         @test all(isfinite, predict(fit(EvoTreeRegressor(loss=:tweedie, nrounds=5); x_train=xd, y_train=yd, verbosity=0), xd))
     end
 
+    @testset "non-finite target" begin
+        # A single NaN or Inf reached the initial bias and from there every gradient and leaf,
+        # so the fit reported its full tree count while predicting NaN everywhere. Only Gamma,
+        # Tweedie and Poisson checked their domain, and none of them looked for non-finite.
+        xd = rand(200, 3)
+        yd = 2 .* xd[:, 1] .+ 1
+        for bad in (NaN, Inf, -Inf), loss in (:mse, :poisson, :logloss)
+            y = copy(yd)
+            loss == :logloss && (y = Float64.(yd .> mean(yd)))
+            y[1] = bad
+            @test_throws ErrorException fit(EvoTreeRegressor(loss=loss, nrounds=2); x_train=xd, y_train=y, verbosity=0)
+        end
+        # matrix targets are checked on the same path
+        ym = hcat(yd, yd); ym[3, 2] = NaN
+        @test_throws ErrorException fit(EvoTreeRegressor(loss=:mse, nrounds=2); x_train=xd, y_train=ym, verbosity=0)
+        # a finite target still trains
+        @test all(isfinite, predict(fit(EvoTreeRegressor(loss=:mse, nrounds=5); x_train=xd, y_train=yd, verbosity=0), xd))
+    end
+
     @testset "check_args L2 and bagging_size" begin
         # Both used to be accepted unvalidated. A negative `L2` lands in the leaf denominator
         # and takes every prediction to NaN; a `bagging_size` below 1 makes the per-round loop
