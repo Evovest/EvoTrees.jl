@@ -158,6 +158,7 @@ EvoTree{L,K}(loss_type::Type{L}, k::Integer, bias::AbstractVector, info::Abstrac
 
 function (m::EvoTree)(data; ntree_limit=length(m.trees), device=:cpu)
     _device = device_type(device)
+    check_features(data, m.info[:feature_names])
     return _predict(m, data, _device; ntree_limit)
 end
 
