@@ -326,7 +326,7 @@ Base.@propagate_inbounds function _eval_split_bin(
             h∇, f, b, node, is_numeric, acc1, acc2, accw,
         )
         w_l, w_r = accw, w_p - accw
-        (w_l < min_weight || w_r < min_weight) && return (T(-Inf), acc1, acc2, accw)
+        (w_l <= min_weight || w_r <= min_weight) && return (T(-Inf), acc1, acc2, accw)
         check_monotone(
             L, constraint,
             acc1, acc2,
@@ -341,7 +341,7 @@ Base.@propagate_inbounds function _eval_split_bin(
         EvoTrees._acc_left!(sums_temp, temp_idx, h∇, f, b, node, 2 * K + 1, is_numeric)
         w_l = sums_temp[2*K+1, temp_idx]
         w_r = w_p - w_l
-        (w_l < min_weight || w_r < min_weight) && return (T(-Inf), acc1, acc2, accw)
+        (w_l <= min_weight || w_r <= min_weight) && return (T(-Inf), acc1, acc2, accw)
         check_monotone(
             L, constraint,
             sums_temp[1, temp_idx], sums_temp[K+1, temp_idx],
