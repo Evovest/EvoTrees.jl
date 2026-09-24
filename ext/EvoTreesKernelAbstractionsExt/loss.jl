@@ -19,7 +19,6 @@ function EvoTrees.update_grads!(
 )
     backend = get_backend(∇)
     kernel_mae_∇!(backend)(∇, p, y; ndrange=size(p, 2))
-    KernelAbstractions.synchronize(backend)
     return
 end
 
@@ -44,7 +43,6 @@ function EvoTrees.update_grads!(
 )
     backend = get_backend(∇)
     kernel_cred_∇!(backend)(∇, p, y; ndrange=size(p, 2))
-    KernelAbstractions.synchronize(backend)
     return
 end
 
@@ -69,7 +67,6 @@ function EvoTrees.update_grads!(
 ) where {T<:AbstractFloat}
     backend = get_backend(∇)
     kernel_quantile_∇!(backend)(∇, p, y, T(params.alpha); ndrange=size(p, 2))
-    KernelAbstractions.synchronize(backend)
     return
 end
 
@@ -96,7 +93,6 @@ function EvoTrees.update_grads!(
     backend = get_backend(∇)
     alphas = _to_device(backend, T.(params.alphas))
     kernel_multiquantile_∇!(backend)(∇, p, y, alphas, K; ndrange=length(y))
-    KernelAbstractions.synchronize(backend)
     return
 end
 
@@ -126,7 +122,6 @@ function EvoTrees.update_grads!(
 )
     backend = get_backend(∇)
     kernel_mlogloss_∇!(backend)(∇, p, y; ndrange=length(y))
-    KernelAbstractions.synchronize(backend)
     return
 end
 
@@ -161,7 +156,6 @@ function EvoTrees.update_grads!(
 ) where {L<:EvoTrees.MLE2P}
     backend = get_backend(∇)
     kernel_mle2p_∇!(backend)(∇, p, y, L; ndrange=size(p, 2))
-    KernelAbstractions.synchronize(backend)
     return
 end
 
@@ -186,7 +180,6 @@ function EvoTrees.update_grads!(
 ) where {L<:EvoTrees.GradientRegression}
     backend = get_backend(∇)
     kernel_gradreg_∇!(backend)(∇, p, y, L; ndrange=size(p, 2))
-    KernelAbstractions.synchronize(backend)
     return
 end
 

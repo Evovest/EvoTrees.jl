@@ -19,7 +19,6 @@ end
 function _eval_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}, ::Type{M}; alpha=0.5, kwargs...) where {T<:AbstractFloat,M}
     backend = get_backend(eval)
     eval_metric_kernel!(backend)(eval, p, y, w, M, T(alpha); ndrange=length(w))
-    KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
 
@@ -62,7 +61,6 @@ function EvoTrees.multiquantile(
     backend = get_backend(eval)
     alphas_dev = alphas isa CuVector ? alphas : _to_device(backend, T.(alphas))
     eval_multiquantile_kernel!(backend)(eval, p, y, w, alphas_dev, K; ndrange=length(y))
-    KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
 
@@ -99,7 +97,6 @@ end
 function _eval_mle2p_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}, ::Type{M}; kwargs...) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
     backend = get_backend(eval)
     eval_mle2p_kernel!(backend)(eval, p, y, w, M; ndrange=length(w))
-    KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
 
@@ -127,7 +124,6 @@ end
 function EvoTrees.mlogloss(p::CuMatrix{T}, y::CuVector, w::CuVector{T}, eval::CuVector{T}; kwargs...) where {T<:AbstractFloat}
     backend = get_backend(eval)
     eval_mlogloss_kernel!(backend)(eval, p, y, w; ndrange=length(y))
-    KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
 

@@ -173,20 +173,23 @@ function grow_tree!(
     cache.best_feat_gpu .= 0
     cache.nidx .= 1
     view(cache.anodes_gpu, 1:1) .= 1
+    cache.node_cnt .= 0
+    view(cache.node_off, 1:1) .= 0
+    view(cache.node_cnt, 1:1) .= length(is)
+    is_alt = view(cache.is_buf, 1:length(is))
 
     n_feats = length(cache.js)
 
     # Root node processing
     EvoTrees.update_hist!(
-        cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
-        view(cache.anodes_gpu, 1:1), cache.K, cache.target_mask_buf, backend,
+        cache.h∇, ∇_gpu, cache.x_bin, cache.js, is, view(cache.anodes_gpu, 1:1),
+        cache.node_off, cache.node_cnt, cache.chunk_end, cache.K, backend,
     )
 
     compute_nodes_sum_kernel!(backend)(
         cache.nodes_sum_gpu, cache.h∇, view(cache.anodes_gpu, 1:1), cache.js, cache.K;
         ndrange=(2 * cache.K + 1),
     )
-    KernelAbstractions.synchronize(backend)
 
     if OBLIVIOUS
         _select_obliv_split!(cache, backend, L, params, view(cache.anodes_gpu, 1:1), n_feats, 1, js_cpu)
@@ -216,7 +219,6 @@ function grow_tree!(
                 active_nodes, cache.nodes_sum_gpu;
                 ndrange=n_active
             )
-            KernelAbstractions.synchronize(backend)
 
             build_count_val = Array(cache.build_count)[1]
             subtract_count_val = Array(cache.subtract_count)[1]
@@ -224,9 +226,9 @@ function grow_tree!(
             # Build histograms for smaller children
             if build_count_val > 0
                 EvoTrees.update_hist!(
-                    cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
+                    cache.h∇, ∇_gpu, cache.x_bin, cache.js, is,
                     view(cache.build_nodes_gpu, 1:build_count_val),
-                    cache.K, cache.target_mask_buf, backend,
+                    cache.node_off, cache.node_cnt, cache.chunk_end, cache.K, backend,
                 )
             end
 
@@ -238,7 +240,6 @@ function grow_tree!(
                 cache.nodes_sum_gpu, cache.h∇, active_nodes, cache.js, cache.K;
                 ndrange=n_active * (2 * cache.K + 1),
             )
-            KernelAbstractions.synchronize(backend)
 
             if OBLIVIOUS
                 _select_obliv_split!(cache, backend, L, params, active_nodes, n_feats, n_active, js_cpu)
@@ -260,21 +261,17 @@ function grow_tree!(
             cache.K;
             ndrange=max(n_active, 1),
         )
-        KernelAbstractions.synchronize(backend)
 
         n_active = Int(Array(cache.n_next_active_gpu)[1])
         if n_active > 0
             copyto!(view(cache.anodes_gpu, 1:n_active), view(cache.n_next_gpu, 1:n_active))
         end
 
-        # Update observation->node assignments
+        # Move rows to their children, keeping each node's rows contiguous. The result lands in
+        # the other buffer, which becomes `is` for the next depth.
         if n_active > 0
-            update_nodes_idx_kernel!(backend)(
-                cache.nidx, is, cache.x_bin, cache.tree_feat_gpu,
-                cache.tree_cond_bin_gpu, cache.feattypes_gpu;
-                ndrange=length(is),
-            )
-            KernelAbstractions.synchronize(backend)
+            partition_rows!(is_alt, is, cache, backend)
+            is, is_alt = is_alt, is
         end
     end
 
