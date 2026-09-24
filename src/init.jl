@@ -29,6 +29,44 @@ function orient_matrix_target(y::AbstractMatrix, nobs::Integer)
 end
 
 """
+    check_features(data, feature_names)
+
+Reject a NaN in any floating-point feature. NaN sorts above every number, so it would be
+binned with the largest values: `get_edges` only fails when a NaN lands in its row sample,
+leaving fit to error or train silently depending on the sample, and predict bins it silently.
+"""
+function check_features(x::AbstractMatrix, feature_names)
+    eltype(x) <: AbstractFloat || return nothing
+    rows = zeros(Int, size(x, 2))
+    @threads for j in axes(x, 2)
+        i = findfirst(isnan, view(x, :, j))
+        rows[j] = isnothing(i) ? 0 : i
+    end
+    j = findfirst(>(0), rows)
+    isnothing(j) || _nan_feature_error(get(feature_names, j, j), rows[j])
+    return nothing
+end
+function check_features(data, feature_names)
+    cols = Tables.columns(data)
+    rows = zeros(Int, length(feature_names))
+    @threads for j in eachindex(feature_names)
+        col = Tables.getcolumn(cols, feature_names[j])
+        if eltype(col) <: AbstractFloat
+            i = findfirst(isnan, col)
+            rows[j] = isnothing(i) ? 0 : i
+        end
+    end
+    j = findfirst(>(0), rows)
+    isnothing(j) || _nan_feature_error(feature_names[j], rows[j])
+    return nothing
+end
+
+_nan_feature_error(name, i) = error(
+    "Feature $name is NaN at row $i. NaN sorts above every value, so it would be binned with " *
+    "the largest ones; impute missing values or flag them in a separate column."
+)
+
+"""
     _init_target(::Type{L}, y_train, params, offset, ::Type{T})
 
 Shared (device-agnostic) target/bias initialization: validates the target,
@@ -345,6 +383,7 @@ function init(
             @assert schema.types[findfirst(name .== schema.names)] <: Union{Real,CategoricalValue}
         end
     end
+    check_features(dtrain, feature_names)
 
     T = Float32
     nobs = length(Tables.getcolumn(dtrain, 1))
@@ -395,6 +434,7 @@ function init(
     # initialize model and cache
     feature_names = isnothing(feature_names) ? [Symbol("feat_$i") for i in axes(x_train, 2)] : Symbol.(feature_names)
     @assert length(feature_names) == size(x_train, 2)
+    check_features(x_train, feature_names)
 
     T = Float32
     nobs = size(x_train, 1)
