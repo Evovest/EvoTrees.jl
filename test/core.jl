@@ -569,6 +569,36 @@ end
         @test isfinite(mw.info[:logger][:metrics][end])
     end
 
+    @testset "offset shape" begin
+        rng = Xoshiro(17)
+        x = rand(rng, 200, 3)
+        y = 2 .* x[:, 1] .+ 0.2 .* randn(rng, 200)
+        off1 = 2 .* x[:, 1]
+        off2 = hcat(off1, ones(200))
+
+        @test_throws ErrorException fit(
+            EvoTreeGaussian(nrounds=3); x_train=x, y_train=y, offset_train=copy(off1), verbosity=0)
+        @test_throws ErrorException fit(
+            EvoTreeRegressor(nrounds=3); x_train=x, y_train=hcat(y, y),
+            offset_train=copy(off1), verbosity=0)
+        @test_throws ErrorException fit(
+            EvoTreeRegressor(nrounds=3); x_train=x, y_train=y,
+            offset_train=copy(off1)[1:100], verbosity=0)
+        @test_throws ErrorException fit(
+            EvoTreeGaussian(nrounds=3, metric=:gaussian_mle); x_train=x, y_train=y,
+            offset_train=copy(off2), x_eval=x, y_eval=y, offset_eval=copy(off1), verbosity=0)
+
+        m = fit(
+            EvoTreeGaussian(nrounds=3, metric=:gaussian_mle); x_train=x, y_train=y,
+            offset_train=copy(off2), x_eval=x, y_eval=y, offset_eval=copy(off2), verbosity=0)
+        @test isfinite(m.info[:logger][:metrics][end])
+
+        m1 = fit(
+            EvoTreeRegressor(nrounds=3); x_train=x, y_train=y, offset_train=copy(off1),
+            verbosity=0)
+        @test all(isfinite, predict(m1, x))
+    end
+
     @testset "classifier target levels" begin
         rng = Xoshiro(7)
         x = rand(rng, 40, 3)

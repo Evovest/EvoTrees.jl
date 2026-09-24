@@ -197,7 +197,20 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
         end
     end
     μ = T.(μ)
+    !isnothing(offset) && check_offset(offset, size(y, ndims(y)), K)
     return K, y, μ, target_levels, target_isordered
+end
+
+function check_offset(offset, nobs, K)
+    size(offset, 1) == nobs || error(
+        "`offset` has $(size(offset, 1)) rows but there are $(nobs) observations. " *
+        "Each row needs exactly one offset."
+    )
+    size(offset, 2) == K || error(
+        "`offset` has $(size(offset, 2)) column(s) but the loss fits $(K) parameter(s) per " *
+        "observation. Pass one offset column per fitted parameter."
+    )
+    return nothing
 end
 
 function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset, group=nothing)
