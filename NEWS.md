@@ -2,6 +2,20 @@
 
 ## v0.20.0
 
+### Decorrelation penalty
+- `ctrl_lambda` penalises dependence between the prediction and a control variable through the unbiased squared distance covariance `dcov2`, so any dependence counts, not only a linear one. Under `:mse` it adds `ctrl_lambda * W * dcov2(raw prediction, control)` to the loss, `W` being the total training weight (`n` under unit weights) and the raw prediction including any offset. Name the column with `ctrl_name` on a table, where it is then not used as a feature unless listed in `feature_names`, or pass `ctrl_train` alongside `x_train`.
+- Under the other losses each row's penalty gradient is weighted by its base Hessian relative to the `:mse` curvature of 2, so a penalised leaf moves about as it would under `:mse` rather than the penalty dominating the rows where the likelihood is flat. The gradient of `dcov2` depends on the prediction only through its ranks, so under `:logloss` and `:poisson` this is exactly the gradient of `ctrl_lambda / 2 * W * dcov2` of the probability or the mean. Under `:gamma`, `:tweedie` and `:gaussian_mle` it is a curvature-weighted step with no single added term.
+- With `ctrl_within_group = true` the penalty acts within each group of `group_name` / `group_train` instead. The control is centred and scaled within each group, and each group contributes on its own rows in proportion to its size. On a date by asset panel this reduces the cross-sectional dependence; under `:mse` its push sums to zero within each date, so the date-level relationship is left alone. Groups below 4 rows, or whose control is exactly constant, are skipped, and the groups are processed in parallel.
+- Available on `EvoTreeRegressor` for `:mse`, `:logloss`, `:poisson`, `:gamma` and `:tweedie`, single and multi-target (one penalty per output), and on `EvoTreeMLE` for `:gaussian_mle`, where it acts on the location of each target. Other losses are rejected. On GPU the base gradients stay on the device and the penalty is added on the host.
+
+```julia
+config = EvoTreeRegressor(; loss=:mse, ctrl_lambda=5.0, ctrl_within_group=true)
+m = fit(config, dtrain; target_name="y", group_name="date", ctrl_name="beta")
+```
+
+- The statistic is the unbiased squared distance covariance of Szekely and Rizzo (2014), computed in `O(n log n)` rather than from the `O(n^2)` distance matrices, with an analytic gradient at the same cost; only the gradients change. The control is centred and scaled to unit standard deviation, so `ctrl_lambda` does not carry the control's units, and rescaling `w_train` leaves the fit unchanged. The prediction is not rescaled, so under `:mse` a target `c` times larger needs about `c` times the weight.
+- `ctrl_lambda` has to be tuned per problem. Raise it gradually and stop at the last value where accuracy is acceptable, or earlier if the measured dependence starts rising again: past some weight the penalty overshoots. The eval metric and early stopping see the base loss only.
+
 ### Model structure
 - The intercept is stored on `EvoTree` as `bias::Vector{Float32}` (unconstrained / link space). `trees` holds only boosting rounds, so `length(m.trees) == nrounds * bagging_size` (and is empty when `nrounds = 0`).
 - `predict` always applies `bias`, then the first `ntree_limit` trees. `ntree_limit=0` is bias only.
