@@ -309,11 +309,13 @@ end
         # and the weight itself is validated like every other one
         @test_throws ErrorException EvoTreeRegressor(ctrl_lambda=-1.0)
         @test_throws ErrorException EvoTreeRegressor(ctrl_lambda=Inf)
+        @test_throws ErrorException EvoTreeMLE(ctrl_lambda=Inf)
     end
 end
 
-@testset "multi-target" begin
+@testset "multi-target and likelihood losses" begin
     @test ctrl_rows(EvoTrees.MSE, 3) == 1:3
+    @test collect(ctrl_rows(EvoTrees.GaussianMLE, 4)) == [1, 3]
 
     rng = Xoshiro(91)
     nobs = 2_000
@@ -328,5 +330,47 @@ end
         for k in 1:2
             @test dcor2(Float64.(predict(m, x)[:, k]), ctrl) < dcor2(Float64.(predict(b, x)[:, k]), ctrl) / 2
         end
+    end
+
+    @testset "the location moves and the scale does not" begin
+        y = 2 .* x[:, 1] .+ x[:, 2] .+ 0.2 .* randn(rng, nobs)
+        # at the gradient level: only the location rows pick up the penalty, by the exact amount.
+        # y equal to the location makes the base location gradient exactly 0, and the location's
+        # Fisher information 1 / scale^2 weighs the penalty by `h / 2w = exp(-2 * scale_raw) / 2`
+        params = EvoTreeMLE(loss=:gaussian_mle, ctrl_lambda=1.0)
+        c = build_ctrl(ctrl, nobs, "c")
+        curv(sraw) = exp.(-2 .* Float64.(sraw)) ./ 2
+        p = Float32.(vcat(randn(rng, 1, nobs), 0.1f0 .* randn(rng, 1, nobs)))
+        ∇0 = zeros(Float32, 5, nobs); ∇0[5, :] .= 1
+        ∇1 = copy(∇0)
+        EvoTrees.update_grads!(∇0, p, p[1, :], EvoTrees.GaussianMLE, params, nothing, nothing)
+        EvoTrees.update_grads!(∇1, p, p[1, :], EvoTrees.GaussianMLE, params, nothing, DcorCache(c))
+        @test Float64.(∇1[1, :]) ≈ nobs .* dcov2_grad(Float64.(p[1, :]), c) .* curv(p[2, :]) rtol = 1e-5
+        @test ∇1[2:5, :] == ∇0[2:5, :]
+        # two targets: rows 1 and 3 each get their own increment, rows 2 and 4:9 do not move
+        p2 = Float32.(vcat(randn(rng, 1, nobs), 0.1f0 .* randn(rng, 1, nobs),
+            randn(rng, 1, nobs), 0.1f0 .* randn(rng, 1, nobs)))
+        y2 = p2[[1, 3], :]
+        ∇a = zeros(Float32, 9, nobs); ∇a[9, :] .= 1
+        ∇b = copy(∇a)
+        EvoTrees.update_grads!(∇a, p2, y2, EvoTrees.GaussianMLE, params, nothing, nothing)
+        EvoTrees.update_grads!(∇b, p2, y2, EvoTrees.GaussianMLE, params, nothing, DcorCache(c))
+        for k in (1, 3)
+            @test Float64.(∇b[k, :]) ≈ nobs .* dcov2_grad(Float64.(p2[k, :]), c) .* curv(p2[k+1, :]) rtol = 1e-5
+        end
+        @test ∇b[[2; 4:9], :] == ∇a[[2; 4:9], :]
+
+        # and at the model level the location is decorrelated
+        mcfg(λ) = EvoTreeMLE(loss=:gaussian_mle, nrounds=40, max_depth=4, eta=0.2, seed=1, ctrl_lambda=λ)
+        mb = fit(mcfg(0.0); x_train=x, y_train=y, verbosity=0)
+        mp = fit(mcfg(10.0); x_train=x, y_train=y, ctrl_train=ctrl, verbosity=0)
+        # measured on Julia 1.12: 0.66 unpenalised and 0.17 at this weight, the same as :mse, where
+        # without the curvature weighting the fit ran away with a growing scale
+        pmp = predict(mp, x)
+        @test dcor2(Float64.(pmp[:, 1]), ctrl) < dcor2(Float64.(predict(mb, x)[:, 1]), ctrl) / 2
+        @test all(isfinite, pmp) && cor(pmp[:, 1], y) > 0.5
+        # :logistic_mle has the same layout but is not part of this scope
+        @test_throws "not for logistic_mle" fit(EvoTreeMLE(loss=:logistic_mle, nrounds=5, max_depth=3,
+            ctrl_lambda=1.0); x_train=x, y_train=y, ctrl_train=ctrl, verbosity=0)
     end
 end

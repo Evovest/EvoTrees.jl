@@ -218,7 +218,7 @@ gradient rows the penalty cannot be added to.
 function check_ctrl(params::EvoTypes, ctrl, ::Type{L}) where {L}
     if !isnothing(ctrl) && !hasproperty(params, :ctrl_lambda)
         error("A control variable was given but $(typeof(params)) has no `ctrl_lambda` to weigh " *
-              "it with. The decorrelation penalty is available on `EvoTreeRegressor`.")
+              "it with. The decorrelation penalty is available on `EvoTreeRegressor` and `EvoTreeMLE`.")
     end
     lambda = hasproperty(params, :ctrl_lambda) ? params.ctrl_lambda : 0.0
     if lambda > 0 && isnothing(ctrl)
@@ -231,11 +231,13 @@ function check_ctrl(params::EvoTypes, ctrl, ::Type{L}) where {L}
     # the penalty instead of descending it, and the `:quantile` leaf reads the residual row.
     # `:lambdarank` subtypes the same abstract type as the admitted losses but its row 1 is a
     # pairwise lambda accumulated over pairs within a query, not a per-observation gradient, so
-    # there is nothing for a per-observation derivative to be added to. The set is written out
-    # rather than taken from the type hierarchy so a new subtype does not inherit the penalty.
-    if !isnothing(ctrl) && !(L in (MSE, LogLoss, Poisson, Gamma, Tweedie))
-        error("The decorrelation penalty is available for :mse, :logloss, :poisson, :gamma " *
-              "and :tweedie, not for $(params.loss).")
+    # there is nothing for a per-observation derivative to be added to. Under the two-parameter
+    # likelihoods it acts on the location rows only; the scale has its own gradient and is left
+    # alone. The set is written out rather than taken from the type hierarchy so a new subtype
+    # does not inherit the penalty.
+    if !isnothing(ctrl) && !(L in (MSE, LogLoss, Poisson, Gamma, Tweedie, GaussianMLE))
+        error("The decorrelation penalty is available for :mse, :logloss, :poisson, :gamma, " *
+              ":tweedie and :gaussian_mle, not for $(params.loss).")
     end
     return nothing
 end

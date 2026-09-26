@@ -312,6 +312,7 @@ mutable struct EvoTreeMLE <: MMI.Probabilistic
     colsample::Float64
     nbins::Int
     monotone_constraints::Dict{Int,Int}
+    ctrl_lambda::Float64
     tree_type::Symbol
     seed::Int
     device::Symbol
@@ -337,6 +338,7 @@ function EvoTreeMLE(; kwargs...)
         :colsample => 1.0,
         :nbins => 64,
         :monotone_constraints => Dict{Int,Int}(),
+        :ctrl_lambda => 0.0,
         :tree_type => :binary,
         :seed => 123,
         :device => :cpu
@@ -392,6 +394,7 @@ function EvoTreeMLE(; kwargs...)
         args[:colsample],
         args[:nbins],
         args[:monotone_constraints],
+        Float64(args[:ctrl_lambda]),
         tree_type,
         args[:seed],
         device

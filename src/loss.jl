@@ -123,17 +123,19 @@ function update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group, ctrl) wher
 end
 
 # The prediction rows the penalty acts on, which are also the gradient rows it lands on: every
-# output of a multi-target regression. A row's Hessian sits `K` rows below its gradient and the
-# weights are in row `2K + 1`.
+# output of a multi-target regression, and the location of each target under a two-parameter
+# likelihood, whose rows alternate location and scale. Both layouts keep a row's Hessian `K`
+# rows below its gradient and the weights in row `2K + 1`.
 ctrl_rows(::Type{<:GradientRegression}, K) = 1:K
+ctrl_rows(::Type{<:MLE2P}, K) = 1:2:K
 
 # Each row's penalty gradient is weighted by its base Hessian relative to the `:mse` curvature
 # of 2, `h / 2w`. Under `:mse` that is 1 and the gradient is added as it stands. Elsewhere it
 # keeps the penalty's pull on a leaf independent of the loss's curvature: the leaf divides the
 # summed gradient by the summed Hessian, so an unscaled penalty would dominate exactly the rows
-# where the likelihood is flattest. Those are `:logloss` rows saturating towards 0 or 1, where the
-# penalty then feeds its own growth: the fit runs away within a couple of rounds at weights that
-# work under `:mse`.
+# where the likelihood is flattest. Those are `:logloss` rows saturating towards 0 or 1, and
+# `:gaussian_mle` locations whose fitted scale has grown, and in both the penalty then feeds its
+# own growth: the fit runs away within a couple of rounds at weights that work under `:mse`.
 # With the weighting a penalised leaf moves about as it would under `:mse`. The statistic carries
 # no observation weights, and neither does any single row: `w` cancels in `h / w`. The penalty as
 # a whole is scaled by the mean weight instead, so it grows with the total weight as the base loss
