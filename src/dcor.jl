@@ -278,3 +278,43 @@ function dcov2_grad!(dc::DcorCache, x::AbstractVector)
     end
     return g
 end
+
+"""
+    GroupedDcorCache(ctrl, gi::GroupIndex)
+
+One `DcorCache` per group, so the penalty acts on the dependence within each group rather than
+pooled over the sample. On a panel where a group is a date and a row is an asset, the pooled
+statistic is dominated by the date-level component of the control, while the exposure a portfolio
+carries is the cross-sectional one. Each group's control is standardised on its own rows, so a
+date with a wider spread does not weigh more. Groups below 4 rows, or whose control is constant,
+are skipped: the unbiased distance covariance is undefined there.
+"""
+struct GroupedDcorCache <: AbstractDcorCache
+    caches::Vector{DcorCache}
+    rows::Vector{Vector{Int}}
+    g::Vector{Float64}
+    wbar::Float64
+end
+
+function GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; wbar::Float64=1.0)
+    length(gi) == length(ctrl) ||
+        throw(DimensionMismatch("control and group lengths differ."))
+    caches = DcorCache[]
+    rows = Vector{Int}[]
+    for g in 1:ngroups(gi)
+        r = Int.(group_rows(gi, g))
+        length(r) >= 4 || continue
+        c = ctrl[r]
+        lo, hi = extrema(c)
+        lo < hi || continue
+        m = mean(c)
+        sd = std(c; mean=m)
+        push!(caches, DcorCache((c .- m) ./ sd))
+        push!(rows, r)
+    end
+    isempty(caches) && error(
+        "No group has at least 4 rows and a non-constant control, so there is nothing for " *
+        "the within-group penalty to act on."
+    )
+    GroupedDcorCache(caches, rows, zeros(length(ctrl)), wbar)
+end

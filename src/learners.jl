@@ -19,6 +19,7 @@ mutable struct EvoTreeRegressor <: MMI.Deterministic
     ndcg_k::Int
     monotone_constraints::Dict{Int,Int}
     ctrl_lambda::Float64
+    ctrl_within_group::Bool
     tree_type::Symbol
     seed::Int
     device::Symbol
@@ -48,6 +49,7 @@ function EvoTreeRegressor(; kwargs...)
         :ndcg_k => typemax(Int),
         :monotone_constraints => Dict{Int,Int}(),
         :ctrl_lambda => 0.0,
+        :ctrl_within_group => false,
         :tree_type => :binary,
         :seed => 123,
         :device => :cpu
@@ -118,6 +120,7 @@ function EvoTreeRegressor(; kwargs...)
         args[:ndcg_k],
         args[:monotone_constraints],
         Float64(args[:ctrl_lambda]),
+        Bool(args[:ctrl_within_group]),
         tree_type,
         args[:seed],
         device
@@ -313,6 +316,7 @@ mutable struct EvoTreeMLE <: MMI.Probabilistic
     nbins::Int
     monotone_constraints::Dict{Int,Int}
     ctrl_lambda::Float64
+    ctrl_within_group::Bool
     tree_type::Symbol
     seed::Int
     device::Symbol
@@ -339,6 +343,7 @@ function EvoTreeMLE(; kwargs...)
         :nbins => 64,
         :monotone_constraints => Dict{Int,Int}(),
         :ctrl_lambda => 0.0,
+        :ctrl_within_group => false,
         :tree_type => :binary,
         :seed => 123,
         :device => :cpu
@@ -395,6 +400,7 @@ function EvoTreeMLE(; kwargs...)
         args[:nbins],
         args[:monotone_constraints],
         Float64(args[:ctrl_lambda]),
+        Bool(args[:ctrl_within_group]),
         tree_type,
         args[:seed],
         device
@@ -547,6 +553,9 @@ function check_args(args::Dict{Symbol,Any})
     check_parameter(Float64, args[:min_weight], zero(Float64), typemax(Float64), :min_weight)
     check_parameter(Float64, args[:early_stopping_tolerance], zero(Float64), typemax(Float64), :early_stopping_tolerance)
     haskey(args, :ctrl_lambda) && check_parameter(Float64, args[:ctrl_lambda], zero(Float64), floatmax(Float64), :ctrl_lambda)
+    if haskey(args, :ctrl_within_group) && !(args[:ctrl_within_group] isa Bool)
+        error("Invalid value for parameter `ctrl_within_group`: $(args[:ctrl_within_group]). `ctrl_within_group` must be a Bool.")
+    end
 
     # check bounded parameters
     check_parameter(Float64, args[:rowsample], eps(Float64), one(Float64), :rowsample)

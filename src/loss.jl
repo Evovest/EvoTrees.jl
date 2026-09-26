@@ -153,6 +153,27 @@ function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::Abs
     return nothing
 end
 
+# Within-group form: each group contributes `λ * n_g * dcov2(p_g, ctrl_g)`, so a group's
+# gradient is scaled by its own size the way the pooled form scales by `n`. Groups are
+# independent and each holds its own scratch, so the sweeps run in parallel.
+function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
+    prow::AbstractVector, ctrl::GroupedDcorCache, λ) where {T}
+    λw = λ * ctrl.wbar
+    @threads for k in eachindex(ctrl.caches)
+        rows = ctrl.rows[k]
+        gk = dcov2_grad!(ctrl.caches[k], view(prow, rows))
+        ng = length(rows)
+        @inbounds for (j, i) in enumerate(rows)
+            ctrl.g[i] = λw * ng * gk[j]
+        end
+    end
+    # rows of a skipped group were never written in this call, and must not add a stale value
+    @inbounds for rows in ctrl.rows, i in rows
+        grow[i] += T(ctrl.g[i] * _curvature(hrow[i], wrow[i]))
+    end
+    return nothing
+end
+
 # LambdaRank, per Burges' "From RankNet to LambdaRank to LambdaMART". Pairs within a query
 # contribute a pairwise logistic cost weighted by the NDCG change a swap would cause. The
 # lambdas stay per-document, so K = 1 and the histogram and leaf solver are untouched.

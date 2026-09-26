@@ -308,7 +308,7 @@ Main training function. Performs model fitting given configuration `params`, `dt
 - `offset_name = nothing`: name of the offset variable.
 - `group_name = nothing`: name of the variable identifying the group (query) each row belongs to. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
 - `eval_group_name = group_name`: name of the group variable in `deval`, defaulting to `group_name`. A group-aware metric such as `:ndcg` requires it. Set it on its own to evaluate over groups while training with the usual per-row sampling.
-- `ctrl_name = nothing`: name of a control variable the predictions should carry no dependence on, weighed against the base loss by `ctrl_lambda` on the learner. It adds nothing to the gradients unless `ctrl_lambda > 0`, but is still validated and is not used as a feature unless it is named in `feature_names`.
+- `ctrl_name = nothing`: name of a control variable the predictions should carry no dependence on, weighed against the base loss by `ctrl_lambda` on the learner. It adds nothing to the gradients unless `ctrl_lambda > 0`, but is still validated and is not used as a feature unless it is named in `feature_names`. With `ctrl_within_group = true` on the learner the penalty acts within each group of `group_name`.
 - `deval`: A Tables compatible evaluation data containing features and target variables. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -405,7 +405,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
 - `group_train::Vector`: group (query) id of each training row, for ranking tasks. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
 - `group_eval::Vector`: group id of each evaluation row. Required by `metric = :ndcg`.
-- `ctrl_train::Vector`: control variable of each training row, which the predictions should carry no dependence on, weighed against the base loss by `ctrl_lambda` on the learner. It adds nothing unless `ctrl_lambda > 0`, but is still validated.
+- `ctrl_train::Vector`: control variable of each training row, which the predictions should carry no dependence on, weighed against the base loss by `ctrl_lambda` on the learner. It adds nothing unless `ctrl_lambda > 0`, but is still validated. With `ctrl_within_group = true` on the learner the penalty acts within each group of `group_train`.
 - `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.

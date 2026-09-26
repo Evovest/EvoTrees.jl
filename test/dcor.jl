@@ -1,4 +1,5 @@
-using EvoTrees: dcov2, dcor2, dcov2_grad, build_ctrl, ctrl_rows, DcorCache
+using EvoTrees: dcov2, dcor2, dcov2_grad, build_ctrl, ctrl_rows, DcorCache, GroupedDcorCache,
+    build_group_index, _penalize_row!
 using Statistics: std
 
 # Direct O(n^2) transcription of the unbiased estimator (Szekely & Rizzo 2014), used only
@@ -310,6 +311,128 @@ end
         @test_throws ErrorException EvoTreeRegressor(ctrl_lambda=-1.0)
         @test_throws ErrorException EvoTreeRegressor(ctrl_lambda=Inf)
         @test_throws ErrorException EvoTreeMLE(ctrl_lambda=Inf)
+        # the within-group form needs groups to be within
+        @test_throws "no groups were given" fit(
+            EvoTreeRegressor(loss=:mse, nrounds=5, max_depth=3, ctrl_lambda=1.0, ctrl_within_group=true);
+            x_train=x, y_train=y, ctrl_train=ctrl, verbosity=0)
+    end
+end
+
+@testset "within-group penalty" begin
+    @testset "gradient matches the per-group definition" begin
+        # six groups on interleaved rows: one of exactly 4 rows, the smallest kept, one too small for
+        # the statistic and one with a constant control, the last two skipped rather than divided by zero
+        rng = Xoshiro(71)
+        sizes = (9, 12, 4, 3, 10, 8)
+        gid = vcat([fill(g, m) for (g, m) in enumerate(sizes)]...)
+        perm = randperm(rng, length(gid))
+        gid = gid[perm]
+        n = length(gid)
+        ctrl = randn(rng, n)
+        ctrl[gid.==5] .= 0.7
+        p = randn(rng, n)
+        λ = 2.0
+        cache = GroupedDcorCache(ctrl, build_group_index(gid, n, "g"))
+        @test length(cache.caches) == 4
+
+        # an :mse curvature, h = 2w, weighs the penalty by exactly 1. The row starts from a base
+        # gradient, so an assignment in place of an increment would show
+        hrow, wrow = fill(2.0, n), ones(n)
+        base_g = randn(Xoshiro(72), n)
+        grow = copy(base_g)
+        _penalize_row!(grow, hrow, wrow, p, cache, λ)
+        grow .-= base_g
+        expected = zeros(n)
+        for g in (1, 2, 3, 6)
+            r = findall(==(g), gid)
+            z = (ctrl[r] .- mean(ctrl[r])) ./ std(ctrl[r])
+            expected[r] .= λ .* length(r) .* dcov2_grad(p[r], z)
+        end
+        @test grow ≈ expected rtol = 1e-10
+        @test all(iszero, grow[gid.==4]) && all(iszero, grow[gid.==5])
+        # another curvature scales each row by `h / 2w`
+        hrow2 = 0.5 .+ rand(Xoshiro(73), n)
+        grow3 = zeros(n)
+        _penalize_row!(grow3, hrow2, wrow, p, cache, λ)
+        @test grow3 ≈ expected .* hrow2 ./ 2 rtol = 1e-10
+
+        # and it is the gradient of the objective it claims, by finite differences
+        function F(pp)
+            tot = 0.0
+            for g in (1, 2, 3, 6)
+                r = findall(==(g), gid)
+                z = (ctrl[r] .- mean(ctrl[r])) ./ std(ctrl[r])
+                tot += λ * length(r) * dcov2(pp[r], z)
+            end
+            tot
+        end
+        h = 1e-6
+        for i in (1, 11, 23, n)
+            pp = copy(p); pp[i] += h
+            pm = copy(p); pm[i] -= h
+            @test abs((F(pp) - F(pm)) / (2h) - grow[i]) < 1e-5 * max(1.0, maximum(abs, grow))
+        end
+
+        # a second call must not carry anything over from the first
+        grow2 = copy(base_g)
+        _penalize_row!(grow2, hrow, wrow, p, cache, λ)
+        @test grow2 .- base_g == grow
+
+        # nothing to act on at all is an error, not a silent no-op
+        @test_throws "No group" GroupedDcorCache(ctrl[1:6], build_group_index([1, 1, 1, 2, 2, 2], 6, "g"))
+    end
+
+    @testset "a panel keeps its date-level relationship" begin
+        # 100 dates of 50 assets, rows shuffled so a date's rows are not contiguous. The control
+        # is a date-level market term plus a cross-sectional one, and the target loads on both,
+        # so the pooled penalty has to destroy a relationship the target legitimately has while
+        # the within-group penalty only removes the cross-sectional exposure
+        rng = Xoshiro(81)
+        ndates, nassets = 100, 50
+        nobs = ndates * nassets
+        date = repeat(1:ndates, inner=nassets)
+        mkt = randn(rng, ndates)[date]
+        cs = randn(rng, nobs)
+        x = hcat(mkt .+ 0.1 .* randn(rng, nobs), cs .+ 0.3 .* randn(rng, nobs), randn(rng, nobs, 2))
+        ctrl = mkt .+ cs
+        y = mkt .+ cs .+ x[:, 3] .+ 0.3 .* randn(rng, nobs)
+        perm = randperm(Xoshiro(82), nobs)
+        date, x, ctrl, y = date[perm], x[perm, :], ctrl[perm], y[perm]
+
+        cfgp(λ, within) = EvoTreeRegressor(loss=:mse, nrounds=40, max_depth=4, eta=0.2, seed=1,
+            ctrl_lambda=λ, ctrl_within_group=within)
+        base = fit(cfgp(0.0, false); x_train=x, y_train=y, verbosity=0)
+        pooled = fit(cfgp(20.0, false); x_train=x, y_train=y, ctrl_train=ctrl, group_train=date, verbosity=0)
+        within = fit(cfgp(20.0, true); x_train=x, y_train=y, ctrl_train=ctrl, group_train=date, verbosity=0)
+
+        rows = [findall(==(d), date) for d in 1:ndates]
+        pred(m) = Float64.(predict(m, x)[:, 1])
+        dep_within(p) = mean(dcor2(p[r], ctrl[r]) for r in rows)
+        datemean(v) = [mean(v[r]) for r in rows]
+        dep_date(p) = dcor2(datemean(p), datemean(ctrl))
+        pb, pp, pw = pred(base), pred(pooled), pred(within)
+
+        # measured on Julia 1.10 and 1.12: within-date dependence 0.37 unpenalised, 0.02 pooled and
+        # -0.01 within; date-level dependence 0.97, 0.57 and 0.95
+        @test dep_within(pw) < dep_within(pb) / 3
+        # the date-level relationship survives the within-group penalty and not the pooled one
+        @test dep_date(pw) > 0.85
+        @test dep_date(pp) < 0.75
+        @test cor(pw, y) > 0.5
+
+        # a zero weight leaves the model untouched
+        base_g = fit(cfgp(0.0, false); x_train=x, y_train=y, group_train=date, verbosity=0)
+        @test predict(fit(cfgp(0.0, true); x_train=x, y_train=y, ctrl_train=ctrl, group_train=date,
+            verbosity=0), x) == predict(base_g, x)
+
+        # whole-group sampling and the table interface both reach the same code
+        @test fit(EvoTreeRegressor(loss=:mse, nrounds=10, max_depth=3, rowsample=0.5, ctrl_lambda=5.0,
+            ctrl_within_group=true); x_train=x, y_train=y, ctrl_train=ctrl, group_train=date,
+            verbosity=0) isa EvoTrees.EvoTree
+        df = (f1=x[:, 1], f2=x[:, 2], f3=x[:, 3], f4=x[:, 4], date=date, c=ctrl, y=y)
+        mt = fit(cfgp(20.0, true), df; target_name="y", group_name="date", ctrl_name="c", verbosity=0)
+        @test mt.info[:feature_names] == [:f1, :f2, :f3, :f4]
+        @test dep_within(Float64.(predict(mt, df)[:, 1])) < dep_within(pb) / 3
     end
 end
 
@@ -330,6 +453,20 @@ end
         for k in 1:2
             @test dcor2(Float64.(predict(m, x)[:, k]), ctrl) < dcor2(Float64.(predict(b, x)[:, k]), ctrl) / 2
         end
+
+        # grouped and multi-target together: each output row gets its own within-group increment.
+        # y equal to p makes the :mse base gradient exactly 0, so row k holds the penalty alone
+        gid = repeat(1:40, inner=50)
+        gc = GroupedDcorCache(build_ctrl(ctrl, nobs, "c"), build_group_index(gid, nobs, "g"))
+        P2 = Float32.(randn(Xoshiro(92), 2, nobs))
+        ∇g = zeros(Float32, 5, nobs); ∇g[5, :] .= 1
+        EvoTrees.update_grads!(∇g, P2, copy(P2), EvoTrees.MSE, cfg(3.0), nothing, gc)
+        for k in 1:2
+            ref = zeros(nobs)
+            _penalize_row!(ref, fill(2.0, nobs), ones(nobs), Float64.(P2[k, :]), gc, 3.0)
+            @test Float64.(∇g[k, :]) ≈ ref rtol = 1e-5
+        end
+        @test all(==(2), ∇g[3:4, :])
     end
 
     @testset "the location moves and the scale does not" begin

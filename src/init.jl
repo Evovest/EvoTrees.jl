@@ -209,13 +209,13 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
 end
 
 """
-    check_ctrl(params, ctrl, L)
+    check_ctrl(params, ctrl, L, group)
 
 Reject the combinations the decorrelation penalty cannot serve: a control on a learner with no
-weight for it, a penalty weight with no control variable to apply it to, and losses whose
-gradient rows the penalty cannot be added to.
+weight for it, a penalty weight with no control variable to apply it to, the within-group form
+without groups, and losses whose gradient rows the penalty cannot be added to.
 """
-function check_ctrl(params::EvoTypes, ctrl, ::Type{L}) where {L}
+function check_ctrl(params::EvoTypes, ctrl, ::Type{L}, group) where {L}
     if !isnothing(ctrl) && !hasproperty(params, :ctrl_lambda)
         error("A control variable was given but $(typeof(params)) has no `ctrl_lambda` to weigh " *
               "it with. The decorrelation penalty is available on `EvoTreeRegressor` and `EvoTreeMLE`.")
@@ -224,6 +224,11 @@ function check_ctrl(params::EvoTypes, ctrl, ::Type{L}) where {L}
     if lambda > 0 && isnothing(ctrl)
         error("`ctrl_lambda` is $lambda but no control variable was given. Pass `ctrl_name` " *
               "when fitting from a table, or `ctrl_train` alongside `x_train`.")
+    end
+    within = hasproperty(params, :ctrl_within_group) && params.ctrl_within_group
+    if within && !isnothing(ctrl) && isnothing(group)
+        error("`ctrl_within_group` is set but no groups were given. Pass `group_name` when " *
+              "fitting from a table, or `group_train` alongside `x_train`.")
     end
     # The penalty lands on the gradient rows, so it is only well posed where those rows hold a
     # per-observation derivative of the loss and the leaf negates it. `:mae` and the credibility
@@ -243,16 +248,18 @@ function check_ctrl(params::EvoTypes, ctrl, ::Type{L}) where {L}
 end
 
 """
-    dcor_cache(ctrl, w)
+    dcor_cache(params, ctrl, group, w)
 
-The penalty's fixed work and scratch. The control never changes, so its row sums and ranks are
-computed once here rather than on every round.
+The penalty's fixed work and scratch: one cache over the whole sample, or one per group when
+`ctrl_within_group` is set. The control never changes, so its row sums and ranks are computed
+once here rather than on every round.
 """
-function dcor_cache(ctrl, w)
+function dcor_cache(params::EvoTypes, ctrl, group, w)
     isnothing(ctrl) && return nothing
     wh = w isa Array ? w : Array(w)
     wbar = sum(Float64, wh) / length(wh)
-    return DcorCache(ctrl; wbar)
+    within = hasproperty(params, :ctrl_within_group) && params.ctrl_within_group
+    return within ? GroupedDcorCache(ctrl, group; wbar) : DcorCache(ctrl; wbar)
 end
 
 """
@@ -315,8 +322,8 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     L = _loss2type_dict[params.loss]
 
     K, y, μ, target_levels, target_isordered = _init_target(L, y_train, params, offset, T)
-    check_ctrl(params, ctrl, L)
-    ctrl = dcor_cache(ctrl, w)
+    check_ctrl(params, ctrl, L, group)
+    ctrl = dcor_cache(params, ctrl, group, w)
 
     # force a neutral/zero bias when offset is specified
     !isnothing(offset) && (μ .= 0)

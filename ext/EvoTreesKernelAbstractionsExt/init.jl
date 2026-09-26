@@ -9,8 +9,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
     L = EvoTrees._loss2type_dict[params.loss]
 
     K, y_cpu, μ, target_levels, target_isordered = EvoTrees._init_target(L, y_train, params, offset, T)
-    EvoTrees.check_ctrl(params, ctrl, L)
-    ctrl = EvoTrees.dcor_cache(ctrl, w)
+    EvoTrees.check_ctrl(params, ctrl, L, group)
+    ctrl = EvoTrees.dcor_cache(params, ctrl, group, w)
     y = _to_device(backend, y_cpu)
     μ = T.(μ)
     !isnothing(offset) && (μ .= 0)
