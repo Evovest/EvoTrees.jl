@@ -176,16 +176,15 @@ abstract type AbstractDcorCache end
 """
     DcorCache(ctrl)
 
-Everything `dcov2_grad!` needs about a fixed control, plus the scratch it reuses.
+Everything the penalty needs that does not change between rounds, plus the scratch it reuses.
 
-The control does not change between calls, so its row sums, their total, and the ranks used by
-the Fenwick sweeps are computed once here rather than on every call. What is left per call is one
+The control is fixed at initialisation, so its row sums, their total, and the ranks used by the
+Fenwick sweeps are computed once here rather than on every round. What is left per round is one
 `sortperm` of the predictions and the sweeps themselves, writing into buffers held here. The
-allocating `dcov2_grad` stays as the one-shot entry point; repeated calls against one control go
-through this.
+allocating `dcov2_grad` stays as the one-shot entry point; training goes through this.
 """
 struct DcorCache <: AbstractDcorCache
-    ctrl::Vector{Float64}      # the control, fixed
+    ctrl::Vector{Float64}      # standardised control
     bi::Vector{Float64}        # row sums of the control, fixed
     bb::Float64                # their total, fixed
     ry::Vector{Int}            # rank of each control value, fixed
@@ -196,13 +195,14 @@ struct DcorCache <: AbstractDcorCache
     g::Vector{Float64}
     cnt::Fenwick
     sy::Fenwick
+    wbar::Float64              # mean training weight, see `_penalize_row!`
 end
 
-function DcorCache(ctrl::Vector{Float64})
+function DcorCache(ctrl::Vector{Float64}; wbar::Float64=1.0)
     n = length(ctrl)
     bi = _rowsums(ctrl)
     DcorCache(ctrl, bi, sum(bi), invperm(sortperm(ctrl)),
-        zeros(Int, n), zeros(n), zeros(n), zeros(n), zeros(n), Fenwick(n), Fenwick(n))
+        zeros(Int, n), zeros(n), zeros(n), zeros(n), zeros(n), Fenwick(n), Fenwick(n), wbar)
 end
 
 # `_signed_ydist` against a fixed control, writing into the cache and reusing its Fenwick trees.

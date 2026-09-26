@@ -104,6 +104,53 @@ end
 update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group) where {L} =
     update_grads!(∇, p, y, L, params)
 
+# The base objective first, then the decorrelation penalty on top when a control variable
+# was supplied. Under `:mse` the penalty is `ctrl_lambda * W * dcov2(p, ctrl)`, `W` the total
+# weight: scaling by it puts the per-observation gradient on the same footing as the base loss,
+# since `dcov2` is a normalised statistic whose gradient is O(1/n) per coordinate. Under the
+# other losses the gradient is reweighted, see `_curvature`. It is piecewise linear in `p`, so
+# only the gradient rows move and the Hessian is untouched.
+function update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group, ctrl) where {L}
+    update_grads!(∇, p, y, L, params, group)
+    isnothing(ctrl) && return nothing
+    λ = hasproperty(params, :ctrl_lambda) ? params.ctrl_lambda : 0.0
+    λ > 0 || return nothing
+    K = size(p, 1)
+    for k in ctrl_rows(L, K)
+        _penalize_row!(view(∇, k, :), view(∇, K + k, :), view(∇, 2K + 1, :), view(p, k, :), ctrl, λ)
+    end
+    return nothing
+end
+
+# The prediction rows the penalty acts on, which are also the gradient rows it lands on: every
+# output of a multi-target regression. A row's Hessian sits `K` rows below its gradient and the
+# weights are in row `2K + 1`.
+ctrl_rows(::Type{<:GradientRegression}, K) = 1:K
+
+# Each row's penalty gradient is weighted by its base Hessian relative to the `:mse` curvature
+# of 2, `h / 2w`. Under `:mse` that is 1 and the gradient is added as it stands. Elsewhere it
+# keeps the penalty's pull on a leaf independent of the loss's curvature: the leaf divides the
+# summed gradient by the summed Hessian, so an unscaled penalty would dominate exactly the rows
+# where the likelihood is flattest. Those are `:logloss` rows saturating towards 0 or 1, where the
+# penalty then feeds its own growth: the fit runs away within a couple of rounds at weights that
+# work under `:mse`.
+# With the weighting a penalised leaf moves about as it would under `:mse`. The statistic carries
+# no observation weights, and neither does any single row: `w` cancels in `h / w`. The penalty as
+# a whole is scaled by the mean weight instead, so it grows with the total weight as the base loss
+# does and rescaling `w_train` leaves the fit unchanged; under unit weights that factor is 1.
+@inline _curvature(h, w) = w > 0 ? h / (2 * w) : zero(h)
+
+function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
+    prow::AbstractVector, ctrl::DcorCache, λ) where {T}
+    g = dcov2_grad!(ctrl, prow)
+    n = length(grow)
+    λw = λ * ctrl.wbar
+    @inbounds for i in 1:n
+        grow[i] += T(λw * n * g[i] * _curvature(hrow[i], wrow[i]))
+    end
+    return nothing
+end
+
 # LambdaRank, per Burges' "From RankNet to LambdaRank to LambdaMART". Pairs within a query
 # contribute a pairwise logistic cost weighted by the NDCG change a swap would cause. The
 # lambdas stay per-document, so K = 1 and the histogram and leaf solver are untouched.

@@ -208,7 +208,98 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
     return K, y, μ, target_levels, target_isordered
 end
 
-function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset, group=nothing)
+"""
+    check_ctrl(params, ctrl, L)
+
+Reject the combinations the decorrelation penalty cannot serve: a control on a learner with no
+weight for it, a penalty weight with no control variable to apply it to, and losses whose
+gradient rows the penalty cannot be added to.
+"""
+function check_ctrl(params::EvoTypes, ctrl, ::Type{L}) where {L}
+    if !isnothing(ctrl) && !hasproperty(params, :ctrl_lambda)
+        error("A control variable was given but $(typeof(params)) has no `ctrl_lambda` to weigh " *
+              "it with. The decorrelation penalty is available on `EvoTreeRegressor`.")
+    end
+    lambda = hasproperty(params, :ctrl_lambda) ? params.ctrl_lambda : 0.0
+    if lambda > 0 && isnothing(ctrl)
+        error("`ctrl_lambda` is $lambda but no control variable was given. Pass `ctrl_name` " *
+              "when fitting from a table, or `ctrl_train` alongside `x_train`.")
+    end
+    # The penalty lands on the gradient rows, so it is only well posed where those rows hold a
+    # per-observation derivative of the loss and the leaf negates it. `:mae` and the credibility
+    # losses store the negated gradient with a leaf that does not, so the same term would climb
+    # the penalty instead of descending it, and the `:quantile` leaf reads the residual row.
+    # `:lambdarank` subtypes the same abstract type as the admitted losses but its row 1 is a
+    # pairwise lambda accumulated over pairs within a query, not a per-observation gradient, so
+    # there is nothing for a per-observation derivative to be added to. The set is written out
+    # rather than taken from the type hierarchy so a new subtype does not inherit the penalty.
+    if !isnothing(ctrl) && !(L in (MSE, LogLoss, Poisson, Gamma, Tweedie))
+        error("The decorrelation penalty is available for :mse, :logloss, :poisson, :gamma " *
+              "and :tweedie, not for $(params.loss).")
+    end
+    return nothing
+end
+
+"""
+    dcor_cache(ctrl, w)
+
+The penalty's fixed work and scratch. The control never changes, so its row sums and ranks are
+computed once here rather than on every round.
+"""
+function dcor_cache(ctrl, w)
+    isnothing(ctrl) && return nothing
+    wh = w isa Array ? w : Array(w)
+    wbar = sum(Float64, wh) / length(wh)
+    return DcorCache(ctrl; wbar)
+end
+
+"""
+    build_ctrl(ctrl_raw, nobs, argname)
+
+Validate and materialise the control variable the decorrelation penalty acts against.
+
+It is held on the host on every device, because the penalty is computed there, and in `Float64`
+rather than the `Float32` the rest of the cache uses: a control on an absolute scale is exactly the
+case this is built for, and `Float32` cannot carry one. At a Unix timestamp the `Float32` step is
+128 seconds, so two minutes of distinct values would collapse to one before the statistic saw them.
+
+It is then centred and scaled to unit standard deviation. The distance covariance is homogeneous of
+degree one in each argument, so without this the penalty term would carry the control's units and
+`ctrl_lambda` would mean something different for every column: a duration in seconds rather than
+hours would multiply the penalty gradient by 3600. Standardising is a change of units in the
+control only, so it leaves what the penalty measures untouched and removes the control's units
+from `ctrl_lambda`. The prediction is not rescaled, so the weight still depends on the target's scale.
+"""
+function build_ctrl(ctrl_raw, nobs::Int, argname::AbstractString)
+    nonmissingtype(eltype(ctrl_raw)) <: Real ||
+        error("`$argname` must hold real numbers, got elements of type $(eltype(ctrl_raw)).")
+    Missing <: eltype(ctrl_raw) && any(ismissing, ctrl_raw) &&
+        error("`$argname` contains missing values. Replace them before passing it.")
+    ctrl = Vector{Float64}(vec(ctrl_raw))
+    length(ctrl) == nobs ||
+        error("`$argname` has length $(length(ctrl)) but there are $nobs observations.")
+    length(ctrl) >= 4 ||
+        error("`$argname` needs at least 4 observations for a distance covariance, got $(length(ctrl)).")
+    all(isfinite, ctrl) || error("`$argname` contains a non-finite value.")
+    # `extrema` compares with `<`, so a column mixing `0.0` and `-0.0` is correctly seen as
+    # constant. `allequal` is `isequal`-based and would let it through, and the scaling below
+    # would then divide zero by zero and hand back a control of NaN.
+    lo, hi = extrema(ctrl)
+    lo < hi ||
+        error("`$argname` is constant, so there is no dependence for the penalty to remove.")
+    m = mean(ctrl)
+    sd = std(ctrl; mean=m)
+    # the spread can still be unusable after that: it overflows above roughly 1e154 and
+    # underflows to zero below roughly 1e-162, either of which would silently yield a constant
+    # or a NaN control
+    isfinite(sd) && sd > 0 ||
+        error("`$argname` has a standard deviation of $sd, which cannot be used to scale it. " *
+              "Rescale the column before passing it.")
+    ctrl .= (ctrl .- m) ./ sd
+    return ctrl
+end
+
+function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset, group=nothing, ctrl=nothing)
 
     # binarize data into quantiles
     rng = Xoshiro(params.seed)
@@ -222,6 +313,8 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     L = _loss2type_dict[params.loss]
 
     K, y, μ, target_levels, target_isordered = _init_target(L, y_train, params, offset, T)
+    check_ctrl(params, ctrl, L)
+    ctrl = dcor_cache(ctrl, w)
 
     # force a neutral/zero bias when offset is specified
     !isnothing(offset) && (μ .= 0)
@@ -294,6 +387,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         feattypes,
         monotone_constraints,
         group,
+        ctrl,
     )
     return m, cache
 end
@@ -319,7 +413,8 @@ function init(
     feature_names=nothing,
     weight_name=nothing,
     offset_name=nothing,
-    group_name=nothing
+    group_name=nothing,
+    ctrl_name=nothing
 )
 
     # set feature_names
@@ -327,6 +422,7 @@ function init(
     _weight_name = isnothing(weight_name) ? Symbol("") : Symbol(weight_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
     _group_name = isnothing(group_name) ? Symbol("") : Symbol(group_name)
+    _ctrl_name = isnothing(ctrl_name) ? Symbol("") : Symbol(ctrl_name)
     _target_names = target_name isa AbstractVector ? Symbol.(target_name) : [Symbol(target_name)]
     if isnothing(feature_names)
         feature_names = Symbol[]
@@ -335,7 +431,7 @@ function init(
                 push!(feature_names, schema.names[i])
             end
         end
-        feature_names = setdiff(feature_names, union(_target_names, [_weight_name], [_offset_name], [_group_name]))
+        feature_names = setdiff(feature_names, union(_target_names, [_weight_name], [_offset_name], [_group_name], [_ctrl_name]))
     else
         isa(feature_names, String) ? feature_names = [feature_names] : nothing
         feature_names = Symbol.(feature_names)
@@ -355,11 +451,13 @@ function init(
     w = isnothing(weight_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(dtrain, _weight_name))
     offset = isnothing(offset_name) ? nothing : V{T}(Tables.getcolumn(dtrain, _offset_name))
     group = isnothing(group_name) ? nothing : build_group_index(Tables.getcolumn(dtrain, _group_name), nobs, "group_name")
+    ctrl = isnothing(ctrl_name) ? nothing : build_ctrl(Tables.getcolumn(dtrain, _ctrl_name), nobs, "ctrl_name")
 
-    m, cache = init_core(params, device, dtrain, feature_names, y_train, w, offset, group)
+    m, cache = init_core(params, device, dtrain, feature_names, y_train, w, offset, group, ctrl)
 
     m.info[:target_names] = _target_names
     m.info[:group_name] = isnothing(group_name) ? nothing : _group_name
+    m.info[:ctrl_name] = isnothing(ctrl_name) ? nothing : _ctrl_name
 
     return m, cache
 end
@@ -389,7 +487,8 @@ function init(
     feature_names=nothing,
     w_train=nothing,
     offset_train=nothing,
-    group_train=nothing
+    group_train=nothing,
+    ctrl_train=nothing
 )
 
     # initialize model and cache
@@ -404,7 +503,8 @@ function init(
     offset = isnothing(offset_train) ? nothing : V{T}(offset_train)
     group = isnothing(group_train) ? nothing : build_group_index(group_train, nobs, "group_train")
 
-    m, cache = init_core(params, device, x_train, feature_names, y_train, w, offset, group)
+    ctrl = isnothing(ctrl_train) ? nothing : build_ctrl(ctrl_train, nobs, "ctrl_train")
+    m, cache = init_core(params, device, x_train, feature_names, y_train, w, offset, group, ctrl)
 
     return m, cache
 end
