@@ -15,9 +15,10 @@
 
 ### Pearson losses
 - `EvoTreeRegressor` adds `loss=:pearson`, which raises the Pearson correlation between prediction and target within each group (one group per date, for example). Each group's prediction, centred on its own mean, is fitted to the group's standardised target by weighted squared error.
-- `loss=:pearson_rank` fits the rank-gauss transform of the target within each group instead, so it depends only on the within-group order and is less sensitive to heavy tails.
+- `loss=:pearson_rank` fits the rank-gauss transform of the target within each group instead, so it depends only on the within-group order and is less sensitive to heavy tails. The ranks are unweighted.
 - Both require groups (`group_name`, or `group_train` in the matrix API), so they are only available through `EvoTrees.fit`. Both default to `metric=:pearson`, which needs eval groups (`eval_group_name`, or `group_eval`).
 - Each row counts once, so a group weighs by its size. To count groups equally, pass row weights `nbar / n_g` (`n_g` the row's group size, `nbar` the mean group size) through `w_train` (or a `weight_name` column) and keep the eval weights at 1.
+- An offset is part of the prediction the loss centres within each group, so give it on the scale of a `:pearson` model's output, such as a previous `:pearson` model's predictions. An offset constant within each group has no effect.
 
 ## v0.18.8
 

@@ -66,8 +66,9 @@ train, valid, test = span(train_dates), span(valid_dates), span(test_dates)
 ## Measuring per-date correlation
 
 The helper below computes the Pearson correlation within each date and averages over dates,
-each date counting once. A date whose prediction is constant scores zero. This is the same
-quantity as `metric = :pearson` with unit weights.
+each date counting once. A date whose prediction is constant scores zero. On these data it is
+the same quantity as `metric = :pearson` with unit weights; the metric also leaves out a date
+whose target is constant, where this helper would give `NaN`.
 
 ```julia
 safe_cor(a, b) = std(a) > 0 ? cor(a, b) : 0.0
@@ -122,8 +123,8 @@ for r in (res_mse, res_pearson, res_rank)
 end
 ```
 
-The model keeps the trees grown after the best iteration, up to `early_stopping_rounds` of them,
-so the test predictions pass `ntree_limit = best_iter`.
+`best_iter` is the round with the best validation score, and the test predictions pass
+`ntree_limit = best_iter` so that they come from that round.
 
 | **Loss**        | **Best iteration** | **Test per-date r** |
 |-----------------|--------------------|---------------------|
@@ -144,18 +145,25 @@ error to the date's standardised target. Within a date that error equals `(s - r
 for prediction spread `s` and Pearson correlation `r`, so it raises the correlation while holding
 the spread near `max(r, 0)`. Each row counts once, so a date weighs by its number of rows.
 `:pearson_rank` fits the same objective to the standard normal quantile of the target's rank
-within its date instead of the standardised target. It depends only on the order of the target
-within a date, so a few extreme returns do not dominate a date's fit, and it tends to do better
-when the target has heavy tails; on a target that is already rank-transformed within each
-date the two agree. Either loss is close to `:mse` on a target you standardise or rank-transform
-within each date yourself. What the loss adds is doing that inside the fit: groups, early
-stopping on the per-date metric, and centring within each date, so a feature that is constant
-within a date, such as `z`, cannot on its own reduce the loss, though it can still enter through
-an interaction.
+within its date instead of the standardised target; the ranks are unweighted. It depends only on
+the order of the target within a date, so a few extreme returns do not dominate a date's fit, and
+it tends to do better when the target has heavy tails. On a target already replaced within each
+date by the normal quantiles of its ranks the two agree exactly; on plain ranks they differ
+slightly. Either loss is close to `:mse` on a target you standardise or rank-transform within each
+date yourself. What the loss adds is doing that inside the fit, from the same groups the metric
+uses, and centring each date's prediction on its own mean, so a feature that is constant within a
+date, such as `z`, cannot on its own reduce the loss, though it can still enter through an
+interaction.
 
 The predictions are scores within a date. Their level carries no meaning across dates, and their
 spread is on the scale of the correlation, not of the target. Rank or standardise them
 within each date before combining them with other signals or turning them into positions.
+
+An offset is part of that score. The loss centres the offset plus the trees within each date and
+holds their spread near the correlation, so an offset that is constant within a date has no
+effect, and one on the target's scale has far more spread than the loss keeps, which the trees
+then mostly work to shrink. Give it on the scale of a `:pearson` model's output, such as a
+previous `:pearson` model's predictions.
 
 To count dates equally in training rather than by size, weight each row by `nbar / n_g`, with
 `n_g` the size of its date and `nbar` the mean size, and pass it as `w_train` (or as a

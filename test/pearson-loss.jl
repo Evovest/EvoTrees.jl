@@ -271,6 +271,15 @@ _pl_fit_eval(cfg, P; kw...) = _pl_fit(cfg, P; x_eval=P.x[P.ev, :], y_eval=P.y[P.
             EvoTrees.Pearson, params, nothing))
         @test e isa ErrorException
         @test occursin(r"group_name", _pl_msg(e))
+
+        # a finite target beyond the Float32 range would turn Inf and leave its date unscored
+        yb = [1.0, 2.0, 3.0, 1e39, 5.0, 6.0, 7.0, 8.0]
+        for loss in (:pearson, :pearson_rank)
+            e = _pl_err(() -> fit(EvoTreeRegressor(; loss, nrounds=1); x_train=randn(Xoshiro(3), 8, 2),
+                y_train=yb, group_train=[1, 1, 1, 1, 2, 2, 2, 2], verbosity=0))
+            @test e isa ErrorException
+            @test occursin("Float32", _pl_msg(e))
+        end
     end
 
     @testset "U9 weights stay within their date" begin

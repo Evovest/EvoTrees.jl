@@ -193,6 +193,13 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
             y_train isa AbstractMatrix && error("`loss = :$(_pearson_name(L))` takes a single target vector, not a matrix.")
             K = 1
             y = T.(y_train)
+            # a finite target beyond the Float32 range becomes Inf here, and its group would be
+            # silently left unscored
+            i = findfirst(!isfinite, y)
+            isnothing(i) || error(
+                "Target must be finite, got $(y_train[i]) at index $i, which is beyond the Float32 " *
+                "range the target is held in. Rescale it before fitting."
+            )
             μ = T[0]
         elseif L <: GradientRegression
             if y_train isa AbstractVector
