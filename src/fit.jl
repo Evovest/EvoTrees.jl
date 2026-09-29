@@ -403,7 +403,7 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `y_eval::VecOrMat`: vector or matrix of evaluation targets of length `#observations` or size `(#observations, #targets)`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
-- `group_train::Vector`: group (query) id of each training row, for ranking tasks. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
+- `group_train::Vector`: group id of each training row, such as a query for ranking or a date for `ctrl_within_group`. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
 - `group_eval::Vector`: group id of each evaluation row. Required by `metric = :ndcg`.
 - `ctrl_train::Vector`: control variable of each training row, which the predictions should carry no dependence on, weighed against the base loss by `ctrl_lambda` on the learner. It adds nothing unless `ctrl_lambda > 0`, but is still validated. With `ctrl_within_group = true` on the learner the penalty acts within each group of `group_train`.
 - `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.

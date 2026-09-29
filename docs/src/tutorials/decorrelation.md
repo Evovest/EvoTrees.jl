@@ -242,7 +242,9 @@ than its end: past some weight the penalty overshoots, and the measured dependen
 rising again while accuracy keeps falling.
 
 The eval metric and early stopping see the base loss only, not the penalty, so early stopping
-picks the number of rounds by accuracy alone and ignores the dependence. A fixed `nrounds`, tuned
+picks the number of rounds by accuracy alone and ignores the dependence. Without an offset the
+first tree is fitted before the predictions have any spread, so it carries no penalty, and at a
+strong weight the best round by the base metric can be that first one. A fixed `nrounds`, tuned
 together with `ctrl_lambda`, keeps the trade-off in view.
 
 ## The scale of `ctrl_lambda`

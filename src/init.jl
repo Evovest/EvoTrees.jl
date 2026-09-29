@@ -221,9 +221,13 @@ function check_ctrl(params::EvoTypes, ctrl, ::Type{L}, group) where {L}
               "it with. The decorrelation penalty is available on `EvoTreeRegressor` and `EvoTreeMLE`.")
     end
     lambda = hasproperty(params, :ctrl_lambda) ? params.ctrl_lambda : 0.0
+    # the learner validates it on construction, but a field can be reassigned after that
+    hasproperty(params, :ctrl_lambda) &&
+        check_parameter(Float64, lambda, zero(Float64), floatmax(Float64), :ctrl_lambda)
     if lambda > 0 && isnothing(ctrl)
         error("`ctrl_lambda` is $lambda but no control variable was given. Pass `ctrl_name` " *
-              "when fitting from a table, or `ctrl_train` alongside `x_train`.")
+              "when fitting from a table, or `ctrl_train` alongside `x_train`, to `EvoTrees.fit`; " *
+              "the MLJ interface has no way to pass one.")
     end
     within = hasproperty(params, :ctrl_within_group) && params.ctrl_within_group
     if within && !isnothing(ctrl) && isnothing(group)
@@ -296,6 +300,13 @@ function build_ctrl(ctrl_raw, nobs::Int, argname::AbstractString)
     lo, hi = extrema(ctrl)
     lo < hi ||
         error("`$argname` is constant, so there is no dependence for the penalty to remove.")
+    # Every value tied but at most one either side of them is as good as constant: the distance
+    # matrix is then additive, `|c_i - c_j| = f_i + f_j`, which the U-centring removes, so the
+    # penalty would be zero for every prediction. An indicator set on a single row is the usual case.
+    s = sort(ctrl)
+    s[2] < s[end-1] ||
+        error("`$argname` has every value tied but at most one either side of them, so its distance " *
+              "variance is zero and there is no dependence for the penalty to remove.")
     m = mean(ctrl)
     sd = std(ctrl; mean=m)
     # the spread can still be unusable after that: it overflows above roughly 1e154 and
@@ -409,10 +420,13 @@ end
         target_name,
         feature_names=nothing,
         weight_name=nothing,
-        offset_name=nothing
+        offset_name=nothing,
+        group_name=nothing,
+        ctrl_name=nothing
     )
 
-Initialise EvoTree
+Initialise EvoTree. `group_name` and `ctrl_name` are as in `EvoTrees.fit`; a penalised learner
+(`ctrl_lambda > 0`) needs the control here.
 """
 function init(
     params::EvoTypes,
@@ -483,10 +497,13 @@ device_array_type(::Type{<:CPU}) = Array
         device::Type{<:Device}=CPU;
         feature_names=nothing,
         w_train=nothing,
-        offset_train=nothing
+        offset_train=nothing,
+        group_train=nothing,
+        ctrl_train=nothing
     )
 
-Initialise EvoTree
+Initialise EvoTree. `group_train` and `ctrl_train` are as in `EvoTrees.fit`; a penalised learner
+(`ctrl_lambda > 0`) needs the control here.
 """
 function init(
     params::EvoTypes,

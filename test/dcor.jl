@@ -163,9 +163,9 @@ end
             x_train=x, y_train=y, verbosity=0)
         @test predict(no_ctrl, x) == predict(base, x)
         # every prediction ties at the start, so the first tree is exactly unpenalised
-        one(λ) = EvoTreeRegressor(loss=:mse, nrounds=1, max_depth=4, eta=0.2, seed=1, ctrl_lambda=λ)
-        @test predict(fit(one(10.0); x_train=x, y_train=y, ctrl_train=ctrl, verbosity=0), x) ==
-              predict(fit(one(0.0); x_train=x, y_train=y, verbosity=0), x)
+        one_round(λ) = EvoTreeRegressor(loss=:mse, nrounds=1, max_depth=4, eta=0.2, seed=1, ctrl_lambda=λ)
+        @test predict(fit(one_round(10.0); x_train=x, y_train=y, ctrl_train=ctrl, verbosity=0), x) ==
+              predict(fit(one_round(0.0); x_train=x, y_train=y, verbosity=0), x)
     end
 
     @testset "a saturating loss does not run away" begin
@@ -255,6 +255,16 @@ end
             m8 = fit(cw(λ, 64.0); x_train=x, y_train=y, w_train=fill(8.0, nobs), ctrl_train=c, verbosity=0)
             @test predict(m8, x) == predict(m1, x)
         end
+        # the same through the within-group cache, whose mean weight `dcor_cache` supplies
+        gid = repeat(1:40, inner=nobs ÷ 40)
+        cg(mw) = EvoTreeRegressor(loss=:mse, nrounds=40, max_depth=4, eta=0.2, seed=1, L2=0.0,
+            min_weight=mw, ctrl_lambda=10.0, ctrl_within_group=true)
+        g1 = fit(cg(8.0); x_train=x, y_train=y, w_train=ones(nobs), ctrl_train=ctrl, group_train=gid, verbosity=0)
+        g8 = fit(cg(64.0); x_train=x, y_train=y, w_train=fill(8.0, nobs), ctrl_train=ctrl, group_train=gid,
+            verbosity=0)
+        @test predict(g8, x) == predict(g1, x)
+        gc = EvoTrees.dcor_cache(cg(8.0), build_ctrl(ctrl, nobs, "c"), build_group_index(gid, nobs, "g"), wv)
+        @test gc.wbar ≈ mean(wv) rtol = 1e-14
     end
 
     @testset "rejected combinations" begin
@@ -311,6 +321,24 @@ end
         @test_throws ErrorException EvoTreeRegressor(ctrl_lambda=-1.0)
         @test_throws ErrorException EvoTreeRegressor(ctrl_lambda=Inf)
         @test_throws ErrorException EvoTreeMLE(ctrl_lambda=Inf)
+        # a weight reassigned after construction is checked again at fit
+        for bad in (-1.0, NaN, Inf)
+            mr = cfg(1.0)
+            mr.ctrl_lambda = bad
+            @test_throws "ctrl_lambda" fit(mr; x_train=x, y_train=y, ctrl_train=ctrl, verbosity=0)
+        end
+        @test_throws "ctrl_within_group" EvoTreeRegressor(ctrl_within_group=1)
+        @test_throws "missing values" build_ctrl(Union{Missing,Float64}[1.0, missing, 2.0, 3.0, 4.0], 5, "c")
+        # every value tied but at most one either side has no distance variance, so the penalty would
+        # be zero for every prediction: an indicator on one row, or one row off either side of the tie
+        ind = zeros(nobs)
+        ind[7] = 1.0
+        @test_throws "tied but at most one" fit(cfg(1.0); x_train=x, y_train=y, ctrl_train=ind, verbosity=0)
+        ind[9] = -2.0
+        @test_throws "tied but at most one" build_ctrl(ind, nobs, "c")
+        # two rows off on the same side are a real spread
+        ind[9] = 2.0
+        @test build_ctrl(ind, nobs, "c") isa Vector{Float64}
         # the within-group form needs groups to be within
         @test_throws "no groups were given" fit(
             EvoTreeRegressor(loss=:mse, nrounds=5, max_depth=3, ctrl_lambda=1.0, ctrl_within_group=true);
@@ -380,6 +408,25 @@ end
 
         # nothing to act on at all is an error, not a silent no-op
         @test_throws "No group" GroupedDcorCache(ctrl[1:6], build_group_index([1, 1, 1, 2, 2, 2], 6, "g"))
+    end
+
+    @testset "groups without a usable spread are skipped" begin
+        # six groups of 8 rows: a real spread, an indicator on one row, one row off either side of a
+        # tie, two values one ulp apart, a spread that would underflow the scaling, a real spread
+        rng = Xoshiro(74)
+        n = 48
+        gid = repeat(1:6, inner=8)
+        c = randn(rng, n)
+        c[9:16] .= 0.0
+        c[12] = 1.0
+        c[17:24] .= 0.3
+        c[18] = -1.0
+        c[23] = 2.0
+        c[25:32] .= repeat([1.0, nextfloat(1.0)], 4)
+        c[33:40] .= repeat([0.0, 1e-300], 4)
+        cache = GroupedDcorCache(c, build_group_index(gid, n, "g"))
+        @test cache.rows == [collect(1:8), collect(41:48)]
+        @test all(dc -> all(isfinite, dc.ctrl), cache.caches)
     end
 
     @testset "a panel keeps its date-level relationship" begin

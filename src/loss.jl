@@ -139,7 +139,8 @@ ctrl_rows(::Type{<:MLE2P}, K) = 1:2:K
 # With the weighting a penalised leaf moves about as it would under `:mse`. The statistic carries
 # no observation weights, and neither does any single row: `w` cancels in `h / w`. The penalty as
 # a whole is scaled by the mean weight instead, so it grows with the total weight as the base loss
-# does and rescaling `w_train` leaves the fit unchanged; under unit weights that factor is 1.
+# does and rescaling `w_train` keeps its balance against the base loss; under unit weights that
+# factor is 1.
 @inline _curvature(h, w) = w > 0 ? h / (2 * w) : zero(h)
 
 function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
@@ -167,7 +168,8 @@ function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::Abs
             ctrl.g[i] = λw * ng * gk[j]
         end
     end
-    # rows of a skipped group were never written in this call, and must not add a stale value
+    # only the kept groups' rows carry a penalty; a skipped group's rows are never written and
+    # stay at zero, so visiting just the kept rows saves the pass over the rest
     @inbounds for rows in ctrl.rows, i in rows
         grow[i] += T(ctrl.g[i] * _curvature(hrow[i], wrow[i]))
     end

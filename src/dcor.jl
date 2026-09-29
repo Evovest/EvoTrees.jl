@@ -121,8 +121,9 @@ end
 Squared distance correlation, `dcov2(x, y) / sqrt(dcov2(x, x) * dcov2(y, y))`.
 """
 function dcor2(x::AbstractVector, y::AbstractVector)
-    # each variance is tested on its own: a product hides the case where one is zero and the
-    # other is not, and the unbiased estimator can land marginally below zero near independence
+    # each variance is a sum of squares over n(n - 3), so it is >= 0 in exact arithmetic, but the
+    # O(n log n) form can round marginally below zero for nearly constant input; testing each on its
+    # own rejects the case where both round negative, which a single `vx * vy > 0` would let through
     vx = dcov2(x, x)
     vy = dcov2(y, y)
     (vx > 0 && vy > 0) || return 0.0
@@ -286,8 +287,9 @@ One `DcorCache` per group, so the penalty acts on the dependence within each gro
 pooled over the sample. On a panel where a group is a date and a row is an asset, the pooled
 statistic is dominated by the date-level component of the control, while the exposure a portfolio
 carries is the cross-sectional one. Each group's control is standardised on its own rows, so a
-date with a wider spread does not weigh more. Groups below 4 rows, or whose control is constant,
-are skipped: the unbiased distance covariance is undefined there.
+date with a wider spread does not weigh more. Groups below 4 rows are skipped, as are groups whose
+control has no usable spread: constant up to rounding, or every value tied but at most one either
+side of them. The unbiased distance covariance is undefined or zero there.
 """
 struct GroupedDcorCache <: AbstractDcorCache
     caches::Vector{DcorCache}
@@ -305,15 +307,20 @@ function GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; wbar::Float64=1
         r = Int.(group_rows(gi, g))
         length(r) >= 4 || continue
         c = ctrl[r]
-        lo, hi = extrema(c)
-        lo < hi || continue
+        s = sort(c)
+        # every value tied but at most one either side makes the distance variance exactly zero;
+        # a spread at the rounding level of the globally standardised control is noise, and one
+        # that underflows would scale to NaN
+        s[2] < s[end-1] || continue
+        s[end] - s[1] > 64 * eps(max(1.0, abs(s[1]), abs(s[end]))) || continue
         m = mean(c)
         sd = std(c; mean=m)
+        isfinite(sd) && sd > 0 || continue
         push!(caches, DcorCache((c .- m) ./ sd))
         push!(rows, r)
     end
     isempty(caches) && error(
-        "No group has at least 4 rows and a non-constant control, so there is nothing for " *
+        "No group has at least 4 rows and a control with a usable spread, so there is nothing for " *
         "the within-group penalty to act on."
     )
     GroupedDcorCache(caches, rows, zeros(length(ctrl)), wbar)
