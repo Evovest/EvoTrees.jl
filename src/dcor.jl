@@ -23,6 +23,28 @@ function fsum(f::Fenwick, i::Int)
     s
 end
 
+# Sums in index order. `sum`, `mean` and `std` let the compiler split an array across SIMD lanes,
+# whose width depends on the CPU, so the control's scaling, and after enough rounds the trees, would
+# differ in their last bits between machines. The penalty's per-round sums already run in order.
+function _ordered_sum(x)
+    s = 0.0
+    @inbounds for v in x
+        s += Float64(v)
+    end
+    return s
+end
+
+# Mean and sample standard deviation, both summed in index order, see `_ordered_sum`.
+function _ordered_mean_std(x)
+    m = _ordered_sum(x) / length(x)
+    v = 0.0
+    @inbounds for xi in x
+        d = Float64(xi) - m
+        v += d * d
+    end
+    return m, sqrt(v / (length(x) - 1))
+end
+
 # a_i. = sum_j |x_i - x_j| for every i
 function _rowsums(x::AbstractVector)
     n = length(x)
@@ -202,7 +224,7 @@ end
 function DcorCache(ctrl::Vector{Float64}; wbar::Float64=1.0)
     n = length(ctrl)
     bi = _rowsums(ctrl)
-    DcorCache(ctrl, bi, sum(bi), invperm(sortperm(ctrl)),
+    DcorCache(ctrl, bi, _ordered_sum(bi), invperm(sortperm(ctrl)),
         zeros(Int, n), zeros(n), zeros(n), zeros(n), zeros(n), Fenwick(n), Fenwick(n), wbar)
 end
 
@@ -313,8 +335,7 @@ function GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; wbar::Float64=1
         # that underflows would scale to NaN
         s[2] < s[end-1] || continue
         s[end] - s[1] > 64 * eps(max(1.0, abs(s[1]), abs(s[end]))) || continue
-        m = mean(c)
-        sd = std(c; mean=m)
+        m, sd = _ordered_mean_std(c)
         isfinite(sd) && sd > 0 || continue
         push!(caches, DcorCache((c .- m) ./ sd))
         push!(rows, r)

@@ -261,7 +261,7 @@ once here rather than on every round.
 function dcor_cache(params::EvoTypes, ctrl, group, w)
     isnothing(ctrl) && return nothing
     wh = w isa Array ? w : Array(w)
-    wbar = sum(Float64, wh) / length(wh)
+    wbar = _ordered_sum(wh) / length(wh)
     within = hasproperty(params, :ctrl_within_group) && params.ctrl_within_group
     return within ? GroupedDcorCache(ctrl, group; wbar) : DcorCache(ctrl; wbar)
 end
@@ -307,8 +307,7 @@ function build_ctrl(ctrl_raw, nobs::Int, argname::AbstractString)
     s[2] < s[end-1] ||
         error("`$argname` has every value tied but at most one either side of them, so its distance " *
               "variance is zero and there is no dependence for the penalty to remove.")
-    m = mean(ctrl)
-    sd = std(ctrl; mean=m)
+    m, sd = _ordered_mean_std(ctrl)
     # the spread can still be unusable after that: it overflows above roughly 1e154 and
     # underflows to zero below roughly 1e-162, either of which would silently yield a constant
     # or a NaN control
