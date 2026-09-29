@@ -188,6 +188,12 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
             K = 1
             y = T.(y_train)
             μ = T[0]
+        elseif L == Pearson
+            # Correlation within a group ignores a constant bias, so none is fitted.
+            y_train isa AbstractMatrix && error("`loss = :$(_pearson_name(L))` takes a single target vector, not a matrix.")
+            K = 1
+            y = T.(y_train)
+            μ = T[0]
         elseif L <: GradientRegression
             if y_train isa AbstractVector
                 K = 1

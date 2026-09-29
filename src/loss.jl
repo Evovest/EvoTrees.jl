@@ -4,6 +4,7 @@ abstract type MLE2P <: LossType end # 2-parameters max-likelihood
 
 abstract type MSE <: GradientRegression end
 abstract type LambdaRank <: GradientRegression end
+abstract type Pearson <: GradientRegression end
 abstract type LogLoss <: GradientRegression end
 abstract type Poisson <: GradientRegression end
 abstract type Gamma <: GradientRegression end
@@ -21,6 +22,7 @@ abstract type CredStd <: Cred end
 const _loss2type_dict = Dict(
     :mse => MSE,
     :lambdarank => LambdaRank,
+    :pearson => Pearson,
     :logloss => LogLoss,
     :poisson => Poisson,
     :gamma => Gamma,
@@ -208,6 +210,114 @@ _lambdarank_no_group() = error(
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{LambdaRank}, params::EvoTypes, group) where {T}
     isnothing(group) && _lambdarank_no_group()
     _lambdarank_grads!(∇, p, y, group, params.ndcg_k)
+end
+
+# Pearson correlation within each group. Each group's prediction, centred on its own mean, is
+# fitted to the group's standardised target by weighted squared error, which is CatBoost's
+# QueryRMSE on that target. Within a group the error is (s - r)^2 + 1 - r^2 for prediction
+# spread s and correlation r, so it raises r while holding s near max(r, 0). The objective is
+# quadratic, so its curvature 2w is exact up to the dropped centring term and needs no
+# surrogate, and a group whose predictions are all equal, as in the first round, needs no rule.
+# Each row counts once, so a group weighs by its size and the gradient and curvature are those
+# of `:mse` on the centred prediction and standardised target. Counting groups equally instead
+# would give a row of a 3-row group many times the curvature of a row of a typical group, so a
+# few tiny groups would dominate the fit. To count groups equally, pass w_train = nbar / n_g per
+# row, for mean group size nbar and group size n_g.
+
+# The loss named in error texts.
+_pearson_name(::Type{Pearson}) = :pearson
+
+_pearson_no_group(::Type{L}) where {L} = error(
+    "`loss = :$(_pearson_name(L))` requires group information, one group per date for example. Pass " *
+    "`group_name` when fitting from a table, or `group_train` when fitting from a matrix."
+)
+
+# Weighted mean of p and y and the sd of y for one group, in Float64. A group with fewer than
+# two rows or a constant target is not scored.
+function _pearson_group_stats(∇, p, y, rows)
+    n = length(rows)
+    n < 2 && return (false, 0.0, 0.0, 0.0)
+    sw = swp = swy = 0.0
+    ymin = ymax = y[first(rows)]
+    @inbounds for r in rows
+        w = Float64(∇[3, r])
+        yr = y[r]
+        sw += w
+        swp += w * p[1, r]
+        swy += w * yr
+        ymin = min(ymin, yr)
+        ymax = max(ymax, yr)
+    end
+    # tested on the stored values: with unequal weights, the Float64 variance of a constant
+    # Float32 target is often above 0
+    ymin == ymax && return (false, 0.0, 0.0, 0.0)
+    pbar = swp / sw
+    ybar = swy / sw
+    vy = 0.0
+    @inbounds for r in rows
+        d = y[r] - ybar
+        vy += ∇[3, r] * d * d
+    end
+    sy = sqrt(vy / sw)
+    sy > 0 || return (false, 0.0, 0.0, 0.0)
+    return (true, pbar, ybar, sy)
+end
+
+function _pearson_stats_chunk!(stats, scored, ∇, p, y, group, chunk)
+    for g in chunk
+        ok, pbar, ybar, sy = _pearson_group_stats(∇, p, y, group_rows(group, g))
+        scored[g] = ok
+        stats[1, g] = pbar
+        stats[2, g] = ybar
+        stats[3, g] = sy
+    end
+    return nothing
+end
+
+function _pearson_write_chunk!(∇::AbstractMatrix{T}, p, y, stats, scored, group, chunk) where {T}
+    for g in chunk
+        rows = group_rows(group, g)
+        if !scored[g]
+            @inbounds for r in rows
+                ∇[1, r] = zero(T)
+                ∇[2, r] = zero(T)
+            end
+            continue
+        end
+        pbar, ybar, sy = stats[1, g], stats[2, g], stats[3, g]
+        @inbounds for r in rows
+            w2 = 2 * ∇[3, r]
+            ∇[1, r] = T(w2 * ((p[1, r] - pbar) - (y[r] - ybar) / sy))
+            ∇[2, r] = T(w2)
+        end
+    end
+    return nothing
+end
+
+# Shared by both backends: the GPU path brings its arrays to the host and calls this. Each
+# group is summed within one task, so the result does not depend on how groups are split
+# across threads.
+function _pearson_grads!(∇::AbstractMatrix, p::AbstractMatrix, y::AbstractVector, group, ::Type{L}=Pearson) where {L}
+    ng = ngroups(group)
+    stats = Matrix{Float64}(undef, 3, ng)
+    scored = Vector{Bool}(undef, ng)
+    @threads for chunk in _group_chunks(ng)
+        _pearson_stats_chunk!(stats, scored, ∇, p, y, group, chunk)
+    end
+    any(scored) || error(
+        "`loss = :$(_pearson_name(L))` found no group with at least two rows and a non-constant target, " *
+        "so there is nothing to correlate."
+    )
+    @threads for chunk in _group_chunks(ng)
+        _pearson_write_chunk!(∇, p, y, stats, scored, group, chunk)
+    end
+    return nothing
+end
+
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVector, ::Type{Pearson}, params::EvoTypes, group) where {T}
+    isnothing(group) && _pearson_no_group(Pearson)
+    _pearson_grads!(∇, p, y, group, Pearson)
+    return nothing
 end
 
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:GradientRegression}

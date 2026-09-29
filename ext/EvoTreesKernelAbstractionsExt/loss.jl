@@ -207,3 +207,20 @@ function EvoTrees.update_grads!(
     copyto!(∇, ∇_cpu)
     return nothing
 end
+
+# Pearson needs each group's weighted means, so as with LambdaRank the shared CPU
+# implementation is used.
+function EvoTrees.update_grads!(
+    ∇::CuMatrix,
+    p::CuMatrix,
+    y::CuVector,
+    ::Type{EvoTrees.Pearson},
+    params::EvoTrees.EvoTypes,
+    group,
+)
+    isnothing(group) && EvoTrees._pearson_no_group(EvoTrees.Pearson)
+    ∇_cpu = Array(∇)
+    EvoTrees._pearson_grads!(∇_cpu, Array(p), Array(y), group.index, EvoTrees.Pearson)
+    copyto!(∇, ∇_cpu)
+    return nothing
+end
