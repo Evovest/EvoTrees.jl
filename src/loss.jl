@@ -5,6 +5,7 @@ abstract type MLE2P <: LossType end # 2-parameters max-likelihood
 abstract type MSE <: GradientRegression end
 abstract type LambdaRank <: GradientRegression end
 abstract type Pearson <: GradientRegression end
+abstract type PearsonRank <: GradientRegression end
 abstract type LogLoss <: GradientRegression end
 abstract type Poisson <: GradientRegression end
 abstract type Gamma <: GradientRegression end
@@ -23,6 +24,7 @@ const _loss2type_dict = Dict(
     :mse => MSE,
     :lambdarank => LambdaRank,
     :pearson => Pearson,
+    :pearson_rank => PearsonRank,
     :logloss => LogLoss,
     :poisson => Poisson,
     :gamma => Gamma,
@@ -223,14 +225,58 @@ end
 # would give a row of a 3-row group many times the curvature of a row of a typical group, so a
 # few tiny groups would dominate the fit. To count groups equally, pass w_train = nbar / n_g per
 # row, for mean group size nbar and group size n_g.
+# `:pearson_rank` is the same objective on the rank-gauss transform of the target within each
+# group, done once at init by `_rankgauss_by_group!`, so it shares the gradient below.
 
 # The loss named in error texts.
 _pearson_name(::Type{Pearson}) = :pearson
+_pearson_name(::Type{PearsonRank}) = :pearson_rank
 
 _pearson_no_group(::Type{L}) where {L} = error(
     "`loss = :$(_pearson_name(L))` requires group information, one group per date for example. Pass " *
     "`group_name` when fitting from a table, or `group_train` when fitting from a matrix."
 )
+
+# Rank-gauss transform of one group's target, in place: tied values share their average rank,
+# u = (rank - 0.5) / n and the value becomes the standard normal quantile of u. Ties are found
+# on the stored values, so the result does not depend on the sort order among them.
+function _rankgauss_group!(y::AbstractVector{T}, ord::Vector{Int}, vals::Vector{Float64}, rows) where {T}
+    n = length(rows)
+    resize!(vals, n)
+    @inbounds for i in 1:n
+        vals[i] = y[rows[i]]
+    end
+    resize!(ord, n)
+    sortperm!(ord, vals)
+    i = 1
+    @inbounds while i <= n
+        j = i
+        while j < n && vals[ord[j+1]] == vals[ord[i]]
+            j += 1
+        end
+        u = ((i + j) / 2 - 0.5) / n
+        z = T(Distributions.quantile(Distributions.Normal(), u))
+        for k in i:j
+            y[rows[ord[k]]] = z
+        end
+        i = j + 1
+    end
+    return nothing
+end
+
+# Target transform for `loss = :pearson_rank`, applied once at init to the target copy that
+# `_init_target` returns. It makes the loss depend only on the order of the target within a
+# group. A constant group maps to all zeros, so it stays unscored as under `:pearson`.
+function _rankgauss_by_group!(y::AbstractVector, group)
+    @threads for chunk in _group_chunks(ngroups(group))
+        ord = Int[]
+        vals = Float64[]
+        for g in chunk
+            _rankgauss_group!(y, ord, vals, group_rows(group, g))
+        end
+    end
+    return y
+end
 
 # Weighted mean of p and y and the sd of y for one group, in Float64. A group with fewer than
 # two rows or a constant target is not scored.
@@ -314,9 +360,9 @@ function _pearson_grads!(∇::AbstractMatrix, p::AbstractMatrix, y::AbstractVect
     return nothing
 end
 
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVector, ::Type{Pearson}, params::EvoTypes, group) where {T}
-    isnothing(group) && _pearson_no_group(Pearson)
-    _pearson_grads!(∇, p, y, group, Pearson)
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVector, ::Type{L}, params::EvoTypes, group) where {T,L<:Union{Pearson,PearsonRank}}
+    isnothing(group) && _pearson_no_group(L)
+    _pearson_grads!(∇, p, y, group, L)
     return nothing
 end
 

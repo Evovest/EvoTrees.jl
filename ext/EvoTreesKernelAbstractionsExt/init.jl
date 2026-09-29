@@ -12,6 +12,11 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
     y = _to_device(backend, y_cpu)
     μ = T.(μ)
     !isnothing(offset) && (μ .= 0)
+    # `:pearson_rank` transforms the host copy made by `_init_target` and uploads it again
+    if L == EvoTrees.PearsonRank
+        isnothing(group) && EvoTrees._pearson_no_group(L)
+        copyto!(y, EvoTrees._rankgauss_by_group!(y_cpu, group))
+    end
 
     pred = KernelAbstractions.zeros(backend, T, K, nobs)
     pred .= _to_device(backend, μ)

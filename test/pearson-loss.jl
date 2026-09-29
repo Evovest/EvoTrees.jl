@@ -365,7 +365,7 @@ _pl_fit_eval(cfg, P; kw...) = _pl_fit(cfg, P; x_eval=P.x[P.ev, :], y_eval=P.y[P.
         p = reshape(randn(rng, N), 1, N)
         gi = build_group_index(date)
         params = EvoTreeRegressor(; loss=:pearson)
-        for L in (EvoTrees.Pearson,)
+        for L in (EvoTrees.Pearson, EvoTrees.PearsonRank)
             ∇ = zeros(3, N)
             ∇[3, :] .= w
             EvoTrees.update_grads!(∇, p, y, L, params, gi)
@@ -559,6 +559,149 @@ _pl_fit_eval(cfg, P; kw...) = _pl_fit(cfg, P; x_eval=P.x[P.ev, :], y_eval=P.y[P.
         # norm isapprox
         @test predict(m, xtr) ≈ predict(m1, xtr) .+ predict(m2, xtr) rtol = F9_RTOL
         @test predict(m, xev) ≈ predict(m1, xev) .+ predict(m2, xev) rtol = F9_RTOL
+    end
+
+end
+
+# The average-rank normal-score transform within each group, computed directly.
+function _pl_rankgauss(y::AbstractVector, q::AbstractVector)
+    z = zeros(Float64, length(y))
+    for g in unique(q)
+        idx = findall(==(g), q)
+        v = y[idx]
+        n = length(v)
+        for (j, i) in enumerate(idx)
+            rank = count(<(v[j]), v) + (count(==(v[j]), v) + 1) / 2
+            z[i] = EvoTrees.Distributions.quantile(EvoTrees.Distributions.Normal(), (rank - 0.5) / n)
+        end
+    end
+    return z
+end
+
+# A strictly increasing map that differs by date.
+function _pl_monotone(v, d, a, b)
+    k = mod(d, 4)
+    k == 0 && return v^3
+    k == 1 && return exp(v / 4)
+    k == 2 && return a * v + b
+    return v
+end
+
+@testset "pearson_rank loss" begin
+
+    @testset "RK1 rank-gauss target" begin
+        # Ties share their average rank, u = (rank - 0.5) / n, and the target becomes the normal
+        # quantile of u, within each group. Groups are interleaved and one has a single row.
+        rng = Xoshiro(31)
+        q = vcat([1, 1, 1, 2, 2, 1, 2, 2, 3, 3, 1, 2, 4], rand(rng, 5:6, 80))
+        q = q[randperm(rng, length(q))]
+        y = Float64.(rand(rng, 1:9, length(q))) ./ 2
+        y0 = copy(y)
+        x = randn(rng, length(q), 2)
+        _, cache = EvoTrees.init(EvoTreeRegressor(; loss=:pearson_rank), x, y; group_train=q)
+        @test y == y0
+        @test eltype(cache.y) == Float32
+        # Both sides take the quantile of the same half-integer rank over n, so they agree exactly.
+        @test cache.y == Float32.(_pl_rankgauss(Float32.(y), q))
+        # A Float32 target needs no conversion, and must still not be transformed in place.
+        y32 = Float32.(y)
+        _, cache32 = EvoTrees.init(EvoTreeRegressor(; loss=:pearson_rank), x, y32; group_train=q)
+        @test y32 == Float32.(y0)
+        @test cache32.y == cache.y
+    end
+
+    @testset "RK2 invariance to a monotone map per date" begin
+        # The target is on a grid of eighths, with ties. Each map keeps both the order and the
+        # ties exactly after conversion to Float32, so the ranks and the model must not change.
+        P = _pl_fit_panel(32)
+        rng = Xoshiro(32)
+        v = clamp.(round.(24 .* (P.y .- P.level[P.date]) ./ P.vol[P.date]), -200, 200) ./ 8
+        a = 0.5 .+ 4.5 .* rand(rng, 60)
+        b = 200 .* rand(rng, 60) .- 100
+        y2 = [_pl_monotone(v[i], P.date[i], a[P.date[i]], b[P.date[i]]) for i in eachindex(v)]
+        Pv, P2 = merge(P, (; y=v)), merge(P, (; y=y2))
+        cfg(loss) = EvoTreeRegressor(; loss, nrounds=20, max_depth=4, eta=0.1)
+        xev = P.x[P.ev, :]
+        @test predict(_pl_fit(cfg(:pearson_rank), Pv), xev) == predict(_pl_fit(cfg(:pearson_rank), P2), xev)
+        pp, pp2 = predict(_pl_fit(cfg(:pearson), Pv), xev), predict(_pl_fit(cfg(:pearson), P2), xev)
+        # norm isapprox
+        @test !isapprox(pp, pp2; rtol=RK2_PEARSON_MIN_CHANGE)
+    end
+
+    @testset "RK3 constant date stays unscored" begin
+        rng = Xoshiro(33)
+        q = repeat(1:3, inner=20)
+        y = randn(rng, 60)
+        y[q.==2] .= 1.5
+        x = randn(rng, 60, 3)
+        cfg = EvoTreeRegressor(; loss=:pearson_rank, nrounds=5, max_depth=3)
+        _, cache = EvoTrees.init(cfg, x, y; group_train=q)
+        c2 = findall(==(2), q)
+        @test length(unique(cache.y[c2])) == 1
+        cache.∇[1:2, :] .= NaN32
+        EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, EvoTrees.PearsonRank, cfg, cache.group)
+        @test all(==(0f0), cache.∇[1:2, c2])
+        @test all(>(0), cache.∇[2, setdiff(1:60, c2)])
+        @test all(isfinite, predict(fit(cfg; x_train=x, y_train=y, group_train=q, verbosity=0), x))
+    end
+
+    @testset "RK4 errors" begin
+        P = _pl_fit_panel(34)
+        cfg = EvoTreeRegressor(; loss=:pearson_rank, nrounds=3, max_depth=3)
+        xtr, ytr, dtr = P.x[P.tr, :], P.y[P.tr], P.date[P.tr]
+
+        e = _pl_err(() -> fit(cfg; x_train=xtr, y_train=ytr, verbosity=0))
+        @test e isa ErrorException
+        @test occursin("`loss = :pearson_rank` requires group information", _pl_msg(e))
+
+        dtrain = (date=dtr, x1=xtr[:, 1], x2=xtr[:, 2], y=ytr)
+        e = _pl_err(() -> fit(cfg, dtrain; target_name=:y, verbosity=0))
+        @test e isa ErrorException
+        @test occursin("`loss = :pearson_rank` requires group information", _pl_msg(e))
+
+        e = _pl_err(() -> fit(cfg; x_train=xtr, y_train=hcat(ytr, ytr), group_train=dtr, verbosity=0))
+        @test e isa ErrorException
+        @test occursin("`loss = :pearson_rank` takes a single target vector", _pl_msg(e))
+
+        # every date constant, so every rank-gauss value is 0
+        e = _pl_err(() -> fit(cfg; x_train=xtr, y_train=Float64.(dtr), group_train=dtr, verbosity=0))
+        @test e isa ErrorException
+        @test occursin("`loss = :pearson_rank` found no group", _pl_msg(e))
+
+        @test_throws ErrorException EvoTreeMLE(; loss=:pearson_rank)
+    end
+
+    @testset "RK5 learns, measured on the raw target" begin
+        @test EvoTreeRegressor(; loss=:pearson_rank).metric == :pearson
+        P = _pl_fit_panel(35; heavy=true)
+        cfg = EvoTreeRegressor(; loss=:pearson_rank, nrounds=300, max_depth=4, eta=0.1,
+            early_stopping_rounds=10)
+        m = _pl_fit_eval(cfg, P)
+        lg = m.info[:logger]
+        @test m.bias == [0f0]
+        @test lg[:metrics][1] == 0.0
+        @test lg[:best_iter] > 1
+        # the logged metric is the correlation with the untransformed eval target
+        xev, yev = P.x[P.ev, :], Float32.(P.y[P.ev])
+        pe = predict(m, xev; ntree_limit=lg[:best_iter])
+        manual = pearson(reshape(pe, 1, :), yev, ones(Float32, length(yev)), Float32[];
+            group=build_group_index(P.date[P.ev]))
+        @test manual ≈ lg[:best_metric] rtol = 1e-5
+    end
+
+    @testset "RK6 is :pearson on the rank-gauss target" begin
+        # Dates of unequal size and random weights, so any difference between the two losses in
+        # how rows or dates are weighted shows. Both fits see the same Float32 target and the
+        # same weights, so they must agree exactly.
+        P = _pl_fit_panel(36)
+        w = Float32.(0.2 .+ 1.8 .* rand(Xoshiro(36), count(P.tr)))
+        zr = Float32.(_pl_rankgauss(Float32.(P.y[P.tr]), P.date[P.tr]))
+        yz = copy(P.y)
+        yz[P.tr] .= zr
+        cfg(loss) = EvoTreeRegressor(; loss, nrounds=20, max_depth=4, eta=0.1)
+        xev = P.x[P.ev, :]
+        @test predict(_pl_fit(cfg(:pearson_rank), P; w_train=w), xev) ==
+              predict(_pl_fit(cfg(:pearson), merge(P, (; y=yz)); w_train=w), xev)
     end
 
 end

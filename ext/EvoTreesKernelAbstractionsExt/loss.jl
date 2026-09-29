@@ -209,18 +209,18 @@ function EvoTrees.update_grads!(
 end
 
 # Pearson needs each group's weighted means, so as with LambdaRank the shared CPU
-# implementation is used.
+# implementation is used. `:pearson_rank` transformed its target at init, so it shares it.
 function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
     y::CuVector,
-    ::Type{EvoTrees.Pearson},
+    ::Type{L},
     params::EvoTrees.EvoTypes,
     group,
-)
-    isnothing(group) && EvoTrees._pearson_no_group(EvoTrees.Pearson)
+) where {L<:Union{EvoTrees.Pearson,EvoTrees.PearsonRank}}
+    isnothing(group) && EvoTrees._pearson_no_group(L)
     ∇_cpu = Array(∇)
-    EvoTrees._pearson_grads!(∇_cpu, Array(p), Array(y), group.index, EvoTrees.Pearson)
+    EvoTrees._pearson_grads!(∇_cpu, Array(p), Array(y), group.index, L)
     copyto!(∇, ∇_cpu)
     return nothing
 end

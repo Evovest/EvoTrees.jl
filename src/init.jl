@@ -188,7 +188,7 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
             K = 1
             y = T.(y_train)
             μ = T[0]
-        elseif L == Pearson
+        elseif L == Pearson || L == PearsonRank
             # Correlation within a group ignores a constant bias, so none is fitted.
             y_train isa AbstractMatrix && error("`loss = :$(_pearson_name(L))` takes a single target vector, not a matrix.")
             K = 1
@@ -232,6 +232,13 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     # force a neutral/zero bias when offset is specified
     !isnothing(offset) && (μ .= 0)
     @assert (size(y, ndims(y)) == length(w) && minimum(w) > 0)
+
+    # `:pearson_rank` transforms the target copy made by `_init_target`, never the user's array
+    if L == PearsonRank
+        # the transform needs the groups, so unlike `:pearson` their absence is caught here
+        isnothing(group) && _pearson_no_group(L)
+        _rankgauss_by_group!(y, group)
+    end
 
     # initialize preds
     pred = zeros(T, K, nobs)
