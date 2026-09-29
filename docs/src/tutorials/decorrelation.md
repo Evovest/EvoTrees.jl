@@ -199,7 +199,7 @@ data the test period does not overlap. Fit a small grid on the training dates an
 the validation dates:
 
 ```julia
-lambdas = [0.0, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0]
+lambdas = [0.0, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0, 100.0, 300.0]
 sweep = map(lambdas) do λ
     m = EvoTrees.fit(config(λ; within=true);
         x_train, y_train, ctrl_train=beta_train, group_train=date_train, verbosity=0)
@@ -221,6 +221,8 @@ end
 | 3               | 0.3740 | 0.3844 | 0.0065 | 0.0079 |
 | 10              | 0.3676 | 0.3865 | 0.0014 | 0.0014 |
 | 30              | 0.3668 | 0.3875 | -0.0001 | 0.0001 |
+| 100             | 0.3376 | 0.3554 | -0.0006 | 0.0001 |
+| 300             | 0.2757 | 0.2767 | 0.0084 | 0.0131 |
 
 Choose on the quantity the model will be judged by. Here that is the beta-neutral correlation,
 so the weight with the best validation `corr_neutral` is kept and scored once on the test dates:
@@ -238,8 +240,9 @@ The chosen weight is 30, and on the test dates it scores `corr`
 
 Where the goal is a dependence budget rather than an accuracy target, keep the smallest weight
 whose validation `dep` is under the budget instead. Either way, look at the whole grid rather
-than its end: past some weight the penalty overshoots, and the measured dependence can start
-rising again while accuracy keeps falling.
+than its end: past some weight the penalty overshoots. Here the neutral correlation falls from 100
+on, and at 300 the measured dependence rises again while accuracy keeps falling. Before keeping a
+weight at the edge of a grid, extend the grid past it.
 
 The eval metric and early stopping see the base loss only, not the penalty, so early stopping
 picks the number of rounds by accuracy alone and ignores the dependence. Without an offset the
