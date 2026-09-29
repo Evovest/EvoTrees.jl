@@ -148,8 +148,8 @@ the spread near `max(r, 0)`. Each row counts once, so a date weighs by its numbe
 within its date instead of the standardised target; the ranks are unweighted. It depends only on
 the order of the target within a date, so a few extreme returns do not dominate a date's fit, and
 it tends to do better when the target has heavy tails. On a target already replaced within each
-date by the normal quantiles of its ranks the two agree exactly; on plain ranks they differ
-slightly. Either loss is close to `:mse` on a target you standardise or rank-transform within each
+date by the normal quantiles of `(rank - 0.5) / n`, ties sharing their average rank, the two agree
+exactly; on plain ranks, or other plotting positions, they differ slightly. Either loss is close to `:mse` on a target you standardise or rank-transform within each
 date yourself. What the loss adds is doing that inside the fit, from the same groups the metric
 uses, and centring each date's prediction on its own mean, so a feature that is constant within a
 date, such as `z`, cannot on its own reduce the loss, though it can still enter through an
@@ -161,9 +161,8 @@ within each date before combining them with other signals or turning them into p
 
 An offset is part of that score. The loss centres the offset plus the trees within each date and
 holds their spread near the correlation, so an offset that is constant within a date has no
-effect, and one on the target's scale has far more spread than the loss keeps, which the trees
-then mostly work to shrink. Give it on the scale of a `:pearson` model's output, such as a
-previous `:pearson` model's predictions.
+effect, and one on another scale is pulled toward that spread. Give it on the scale of a
+`:pearson` model's output, such as a previous `:pearson` model's predictions.
 
 To count dates equally in training rather than by size, weight each row by `nbar / n_g`, with
 `n_g` the size of its date and `nbar` the mean size, and pass it as `w_train` (or as a

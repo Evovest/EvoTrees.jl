@@ -32,8 +32,8 @@ end
     _init_target(::Type{L}, y_train, params, offset, ::Type{T})
 
 Shared (device-agnostic) target/bias initialization: validates the target,
-derives the output dimension `K`, the converted target `y` (host arrays;
-device inits copy to their backend afterwards), and the initial bias `μ`.
+derives the output dimension `K`, the converted target `y` (a host array for a
+host `y_train`; device inits copy it to their backend afterwards), and the initial bias `μ`.
 Mutates `offset` in place into link space when provided. Single source of
 truth for CPU (`src/init.jl`) and GPU (`ext/.../init.jl`) initialization.
 """
