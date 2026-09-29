@@ -34,15 +34,25 @@ function _ordered_sum(x)
     return s
 end
 
-# Mean and sample standard deviation, both summed in index order, see `_ordered_sum`.
+# Mean and sample standard deviation, both summed in index order, see `_ordered_sum`. The sums are
+# taken from the first value, so a control on an absolute scale, a timestamp or a price, keeps its
+# digits: summed as it stands, the running total of a column near 1e12 rounds at its own scale, and
+# the spread moves with it, enough to flip a split. The mean itself is then rounded at the column's
+# scale, which moves every centred value alike and so leaves the distance statistics unchanged.
 function _ordered_mean_std(x)
-    m = _ordered_sum(x) / length(x)
+    n = length(x)
+    x0 = Float64(first(x))
+    s = 0.0
+    @inbounds for xi in x
+        s += Float64(xi) - x0
+    end
+    dm = s / n
     v = 0.0
     @inbounds for xi in x
-        d = Float64(xi) - m
+        d = (Float64(xi) - x0) - dm
         v += d * d
     end
-    return m, sqrt(v / (length(x) - 1))
+    return x0 + dm, sqrt(v / (n - 1))
 end
 
 # a_i. = sum_j |x_i - x_j| for every i

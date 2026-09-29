@@ -214,6 +214,10 @@ end
         # the control is narrowed back to Float32, where an offset collapses it to a constant and
         # `build_ctrl` throws instead
         @test build_ctrl(ctrl, nobs, "c") ≈ build_ctrl(1.7e9 .+ ctrl, nobs, "c") rtol = 1e-4
+        # near 1e12 too the spread divided by is the column's own: the scaling sums deviations from
+        # the first value, where a running total of the raw values would move it by about 2e-7
+        q = ctrl .+ 1e12
+        @test diff(build_ctrl(q, nobs, "c")) ≈ diff(build_ctrl(q .- 1e12, nobs, "c")) rtol = 1e-9
         # a one ulp change in the control can flip a split tie, so the other rescalings are held to
         # closeness at the gradient, where there is no split to flip
         p = Float32.(randn(Xoshiro(23), 1, nobs))
