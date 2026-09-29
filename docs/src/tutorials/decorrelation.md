@@ -245,9 +245,9 @@ on, and at 300 the measured dependence rises again while accuracy keeps falling.
 weight at the edge of a grid, extend the grid past it.
 
 The eval metric and early stopping see the base loss only, not the penalty, so early stopping
-picks the number of rounds by accuracy alone and ignores the dependence. Without an offset the
-first tree is fitted before the predictions have any spread, so it carries no penalty, and at a
-strong weight the best round by the base metric can be that first one. A fixed `nrounds`, tuned
+picks the number of rounds by accuracy alone and ignores the dependence. Unless an offset gives
+the predictions a spread from the start, the first tree is fitted before they have any, so it
+carries no penalty, and at a strong weight the best round by the base metric can be that first one. A fixed `nrounds`, tuned
 together with `ctrl_lambda`, keeps the trade-off in view.
 
 ## The scale of `ctrl_lambda`

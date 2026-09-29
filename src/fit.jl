@@ -306,7 +306,7 @@ Main training function. Performs model fitting given configuration `params`, `dt
 - `feature_names = nothing`: the names `dtrain` variables to use as features. If not provided, it deafults to all variables that aren't one of `target`, `weight` or `offset``.
 - `weight_name = nothing`: name of the variable containing weights. If `nothing`, common weights on one will be used.
 - `offset_name = nothing`: name of the offset variable.
-- `group_name = nothing`: name of the variable identifying the group (query) each row belongs to. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
+- `group_name = nothing`: name of the variable identifying the group each row belongs to, such as a query for ranking or a date for `ctrl_within_group`. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
 - `eval_group_name = group_name`: name of the group variable in `deval`, defaulting to `group_name`. A group-aware metric such as `:ndcg` requires it. Set it on its own to evaluate over groups while training with the usual per-row sampling.
 - `ctrl_name = nothing`: name of a control variable the predictions should carry no dependence on, weighed against the base loss by `ctrl_lambda` on the learner. It adds nothing to the gradients unless `ctrl_lambda > 0`, but is still validated and is not used as a feature unless it is named in `feature_names`. With `ctrl_within_group = true` on the learner the penalty acts within each group of `group_name`.
 - `deval`: A Tables compatible evaluation data containing features and target variables. 

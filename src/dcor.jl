@@ -310,8 +310,8 @@ pooled over the sample. On a panel where a group is a date and a row is an asset
 statistic is dominated by the date-level component of the control, while the exposure a portfolio
 carries is the cross-sectional one. Each group's control is standardised on its own rows, so a
 date with a wider spread does not weigh more. Groups below 4 rows are skipped, as are groups whose
-control has no usable spread: constant up to rounding, or every value tied but at most one either
-side of them. The unbiased distance covariance is undefined or zero there.
+control has no usable spread: constant up to the rounding of the standardised control, or every
+value tied but at most one either side of them. The unbiased distance covariance is undefined or zero there.
 """
 struct GroupedDcorCache <: AbstractDcorCache
     caches::Vector{DcorCache}
