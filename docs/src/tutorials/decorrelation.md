@@ -283,6 +283,45 @@ m_y10_l10x = EvoTrees.fit(config(10 * λ0; within=true);
 A weight tuned on one target does not carry over to a target on another scale. Retune it, or
 standardise the target first.
 
+## Several controls
+
+A signal often has more than one exposure to keep out: beta, size, momentum, volatility.
+`ctrl_train` also takes a matrix with one column per control, and `ctrl_name` a vector of column
+names. Each control is centred and scaled on its own and adds its own term to the penalty, so the
+penalty acts on each control's dependence separately. `ctrl_weights` multiplies each control's
+term, 1 by default; the entries are not normalised, so doubling them all doubles the penalty.
+
+In the panel above the volatility feature is an exposure too: it tracks beta, with noise of its
+own. Keeping the signal away from both, with volatility at half the weight of beta:
+
+```julia
+vol = x[:, 2]
+m_two = EvoTrees.fit(config(λ0; within=true); x_train, y_train,
+    ctrl_train=hcat(beta_train, vol[train]), ctrl_weights=[1.0, 0.5],
+    group_train=date_train, verbosity=0)
+
+function dep_on(m, c, dates)
+    p = Float64.(m(x))
+    return mean(EvoTrees.dcor2(p[rows(d)], c[rows(d)]) for d in dates)
+end
+for (name, m) in (("none", m_base), ("beta", m_within), ("beta, vol", m_two))
+    @printf("%-10s dep on beta %.4f  dep on vol %.4f\n", name,
+        dep_on(m, beta, test_dates), dep_on(m, vol, test_dates))
+end
+```
+
+| **Controls** | **dep on beta** | **dep on vol** |
+|--------------|-----------------|----------------|
+| none         | 0.0334 | 0.0302 |
+| beta         | 0.0027 | 0.0005 |
+| beta, vol    | 0.0024 | 0.0001 |
+
+Penalising beta alone already takes most of the dependence on volatility away, since volatility
+is mostly beta, and the second control takes it down further. The terms are added rather than
+combined into one joint statistic, so a dependence that shows only in a combination of the controls
+is not penalised. Each control brings its own sort and sweep per round, so the cost grows with their
+number; over the whole sample the controls run in parallel.
+
 ## Other losses and devices
 
 The penalty is available on `EvoTreeRegressor` for `:mse`, `:logloss`, `:poisson`, `:gamma` and
