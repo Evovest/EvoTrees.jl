@@ -143,9 +143,13 @@ ctrl_rows(::Type{<:MLE2P}, K) = 1:2:K
 # factor is 1.
 @inline _curvature(h, w) = w > 0 ? h / (2 * w) : zero(h)
 
+# The gradient of one control's statistic against the prediction, into the cache's `g`. Every path,
+# one control or several, over the whole sample or within groups, goes through here.
+_ctrl_grad!(dc::DcorCache, x::AbstractVector) = dcov2_grad!(dc, x)
+
 function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
     prow::AbstractVector, ctrl::DcorCache, λ) where {T}
-    g = dcov2_grad!(ctrl, prow)
+    g = _ctrl_grad!(ctrl, prow)
     n = length(grow)
     λw = λ * ctrl.wbar
     @inbounds for i in 1:n
@@ -157,23 +161,75 @@ end
 # Within-group form: each group contributes `λ * n_g * dcov2(p_g, ctrl_g)`, so a group's
 # gradient is scaled by its own size the way the pooled form scales by `n`. Groups are
 # independent and each holds its own scratch, so the sweeps run in parallel.
-function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
-    prow::AbstractVector, ctrl::GroupedDcorCache, λ) where {T}
+function _grouped_grad!(ctrl::GroupedDcorCache, prow::AbstractVector, λ)
     λw = λ * ctrl.wbar
     @threads for k in eachindex(ctrl.caches)
         rows = ctrl.rows[k]
-        gk = dcov2_grad!(ctrl.caches[k], view(prow, rows))
+        gk = _ctrl_grad!(ctrl.caches[k], view(prow, rows))
         ng = length(rows)
         @inbounds for (j, i) in enumerate(rows)
             ctrl.g[i] = λw * ng * gk[j]
         end
     end
+    return ctrl.g
+end
+
+function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
+    prow::AbstractVector, ctrl::GroupedDcorCache, λ) where {T}
+    _grouped_grad!(ctrl, prow, λ)
     # only the kept groups' rows carry a penalty; a skipped group's rows are never written and
     # stay at zero, so visiting just the kept rows saves the pass over the rest
     @inbounds for rows in ctrl.rows, i in rows
         grow[i] += T(ctrl.g[i] * _curvature(hrow[i], wrow[i]))
     end
     return nothing
+end
+
+# Several controls, see `SummedDcorCache`. Each control's gradient comes from its own cache, and
+# they are summed in control order, each times its weight, starting from the first. Over the whole
+# sample the controls are independent and each holds its own scratch, so their sweeps run in
+# parallel; within groups each control's sweep is already parallel over the groups.
+function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
+    prow::AbstractVector, ctrl::SummedDcorCache{DcorCache}, λ) where {T}
+    caches, ω, acc = ctrl.caches, ctrl.weights, ctrl.acc
+    @threads for k in eachindex(caches)
+        _ctrl_grad!(caches[k], prow)
+    end
+    _sum_controls!(acc, caches, ω, eachindex(acc))
+    n = length(grow)
+    λw = λ * ctrl.wbar
+    @inbounds for i in 1:n
+        grow[i] += T(λw * n * acc[i] * _curvature(hrow[i], wrow[i]))
+    end
+    return nothing
+end
+
+function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
+    prow::AbstractVector, ctrl::SummedDcorCache{GroupedDcorCache}, λ) where {T}
+    caches, ω, acc = ctrl.caches, ctrl.weights, ctrl.acc
+    for c in caches
+        _grouped_grad!(c, prow, λ)
+    end
+    # a group one control skips holds zeros in that control's gradient, so it adds nothing there
+    _sum_controls!(acc, caches, ω, ctrl.rows)
+    @inbounds for i in ctrl.rows
+        grow[i] += T(acc[i] * _curvature(hrow[i], wrow[i]))
+    end
+    return nothing
+end
+
+function _sum_controls!(acc, caches, ω, rows)
+    g1 = caches[1].g
+    @inbounds for i in rows
+        acc[i] = ω[1] * g1[i]
+    end
+    for k in 2:length(caches)
+        gk = caches[k].g
+        @inbounds for i in rows
+            acc[i] += ω[k] * gk[i]
+        end
+    end
+    return acc
 end
 
 # LambdaRank, per Burges' "From RankNet to LambdaRank to LambdaMART". Pairs within a query

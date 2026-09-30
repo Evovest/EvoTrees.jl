@@ -330,7 +330,7 @@ struct GroupedDcorCache <: AbstractDcorCache
     wbar::Float64
 end
 
-function GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; wbar::Float64=1.0)
+function GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; wbar::Float64=1.0, label=nothing)
     length(gi) == length(ctrl) ||
         throw(DimensionMismatch("control and group lengths differ."))
     caches = DcorCache[]
@@ -351,8 +351,43 @@ function GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; wbar::Float64=1
         push!(rows, r)
     end
     isempty(caches) && error(
+        isnothing(label) ?
         "No group has at least 4 rows and a control with a usable spread, so there is nothing for " *
-        "the within-group penalty to act on."
+        "the within-group penalty to act on." :
+        "No group has at least 4 rows and a usable spread in $label, so there is nothing for the " *
+        "within-group penalty to act on with it."
     )
     GroupedDcorCache(caches, rows, zeros(length(ctrl)), wbar)
+end
+
+"""
+    Controls(cols, weights, labels)
+
+The control variables of a fit, each validated and standardised by `build_ctrl`, with the weight
+each one's penalty term is multiplied by and the name an error refers to it by.
+"""
+struct Controls
+    cols::Vector{Vector{Float64}}
+    weights::Vector{Float64}
+    labels::Vector{String}
+end
+
+"""
+    SummedDcorCache(caches, weights, acc, rows, wbar)
+
+Several controls at once. Each control keeps its own cache, over the whole sample or within groups,
+and the penalty is the sum of their terms, each times its weight. It acts on each control's
+own dependence, so a dependence that shows only in a combination of controls is not seen.
+
+The sum runs in the order the controls were given and starts from the first control's term rather
+than from zero, so one control of weight 1 gives exactly the gradient of its own cache, and the result
+does not depend on how the controls' sweeps are spread over threads. `rows` lists the rows any control
+acts on, which within groups leaves out the groups every control skips.
+"""
+struct SummedDcorCache{C<:AbstractDcorCache} <: AbstractDcorCache
+    caches::Vector{C}
+    weights::Vector{Float64}
+    acc::Vector{Float64}
+    rows::Vector{Int}
+    wbar::Float64
 end

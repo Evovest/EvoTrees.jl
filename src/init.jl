@@ -254,17 +254,34 @@ end
 """
     dcor_cache(params, ctrl, group, w)
 
-The penalty's fixed work and scratch: one cache over the whole sample, or one per group when
-`ctrl_within_group` is set. The control never changes, so its row sums and ranks are computed
-once here rather than on every round.
+The penalty's fixed work and scratch: one cache per control over the whole sample, or one per
+control and group when `ctrl_within_group` is set, summed by a `SummedDcorCache`. The controls never
+change, so their row sums and ranks are computed once here rather than on every round.
 """
-function dcor_cache(params::EvoTypes, ctrl, group, w)
-    isnothing(ctrl) && return nothing
+function dcor_cache(params::EvoTypes, ctrl::Controls, group, w)
     wh = w isa Array ? w : Array(w)
     wbar = _ordered_sum(wh) / length(wh)
     within = hasproperty(params, :ctrl_within_group) && params.ctrl_within_group
-    return within ? GroupedDcorCache(ctrl, group; wbar) : DcorCache(ctrl; wbar)
+    n = length(first(ctrl.cols))
+    if within
+        # a single control keeps the message that does not name it
+        many = length(ctrl.cols) > 1
+        caches = [GroupedDcorCache(c, group; wbar, label=many ? l : nothing) for (c, l) in zip(ctrl.cols, ctrl.labels)]
+        kept = falses(n)
+        for c in caches, r in c.rows
+            kept[r] .= true
+        end
+        rows = findall(kept)
+        return SummedDcorCache(caches, ctrl.weights, zeros(n), rows, wbar)
+    else
+        caches = [DcorCache(c; wbar) for c in ctrl.cols]
+        return SummedDcorCache(caches, ctrl.weights, zeros(n), Int[], wbar)
+    end
 end
+dcor_cache(::EvoTypes, ::Nothing, group, w) = nothing
+# a single control as `build_ctrl` returns it
+dcor_cache(params::EvoTypes, ctrl::AbstractVector{<:Real}, group, w) =
+    dcor_cache(params, Controls([Vector{Float64}(ctrl)], [1.0], ["the control"]), group, w)
 
 """
     build_ctrl(ctrl_raw, nobs, argname)
@@ -283,39 +300,99 @@ hours would multiply the penalty gradient by 3600. Standardising is a change of 
 control only, so it leaves what the penalty measures untouched and removes the control's units
 from `ctrl_lambda`. The prediction is not rescaled, so the weight still depends on the target's scale.
 """
-function build_ctrl(ctrl_raw, nobs::Int, argname::AbstractString)
+function build_ctrl(ctrl_raw, nobs::Int, argname::AbstractString; col=nothing)
+    # with several controls the column is named, so the message says which one failed
+    label = isnothing(col) ? "`$argname`" : "column $col of `$argname`"
     nonmissingtype(eltype(ctrl_raw)) <: Real ||
-        error("`$argname` must hold real numbers, got elements of type $(eltype(ctrl_raw)).")
+        error("$label must hold real numbers, got elements of type $(eltype(ctrl_raw)).")
     Missing <: eltype(ctrl_raw) && any(ismissing, ctrl_raw) &&
-        error("`$argname` contains missing values. Replace them before passing it.")
+        error("$label contains missing values. Replace them before passing it.")
     ctrl = Vector{Float64}(vec(ctrl_raw))
     length(ctrl) == nobs ||
-        error("`$argname` has length $(length(ctrl)) but there are $nobs observations.")
+        error("$label has length $(length(ctrl)) but there are $nobs observations.")
     length(ctrl) >= 4 ||
-        error("`$argname` needs at least 4 observations for a distance covariance, got $(length(ctrl)).")
-    all(isfinite, ctrl) || error("`$argname` contains a non-finite value.")
+        error("$label needs at least 4 observations for a distance covariance, got $(length(ctrl)).")
+    all(isfinite, ctrl) || error("$label contains a non-finite value.")
     # `extrema` compares with `<`, so a column mixing `0.0` and `-0.0` is correctly seen as
     # constant. `allequal` is `isequal`-based and would let it through, and the scaling below
     # would then divide zero by zero and hand back a control of NaN.
     lo, hi = extrema(ctrl)
     lo < hi ||
-        error("`$argname` is constant, so there is no dependence for the penalty to remove.")
+        error("$label is constant, so there is no dependence for the penalty to remove.")
     # Every value tied but at most one either side of them is as good as constant: the distance
     # matrix is then additive, `|c_i - c_j| = f_i + f_j`, which the U-centring removes, so the
     # penalty would be zero for every prediction. An indicator set on a single row is the usual case.
     s = sort(ctrl)
     s[2] < s[end-1] ||
-        error("`$argname` has every value tied but at most one either side of them, so its distance " *
+        error("$label has every value tied but at most one either side of them, so its distance " *
               "variance is zero and there is no dependence for the penalty to remove.")
     m, sd = _ordered_mean_std(ctrl)
     # the spread can still be unusable after that: it overflows above roughly 1e154 and
     # underflows to zero below roughly 1e-162, either of which would silently yield a constant
     # or a NaN control
     isfinite(sd) && sd > 0 ||
-        error("`$argname` has a standard deviation of $sd, which cannot be used to scale it. " *
+        error("$label has a standard deviation of $sd, which cannot be used to scale it. " *
               "Rescale the column before passing it.")
     ctrl .= (ctrl .- m) ./ sd
     return ctrl
+end
+
+"""
+    build_ctrl_weights(ctrl_weights, k)
+
+The weight each of the `k` controls' penalty terms is multiplied by, 1 for every control by default.
+"""
+function build_ctrl_weights(ctrl_weights, k::Int)
+    isnothing(ctrl_weights) && return ones(k)
+    ctrl_weights isa AbstractVector && all(v -> v isa Real, ctrl_weights) ||
+        error("`ctrl_weights` must be a vector of real numbers, one per control.")
+    length(ctrl_weights) == k ||
+        error("`ctrl_weights` has $(length(ctrl_weights)) entries but there are $k controls.")
+    ω = Float64.(ctrl_weights)
+    all(v -> isfinite(v) && v > 0, ω) ||
+        error("`ctrl_weights` must be positive and finite, got $(ctrl_weights).")
+    return ω
+end
+
+"""
+    build_ctrls(ctrl_train, nobs, ctrl_weights)
+
+The controls passed alongside `x_train`: a vector for one, or a matrix with one column per control
+and one row per observation, as `x_train`.
+"""
+function build_ctrls(ctrl_train, nobs::Int, ctrl_weights)
+    if ctrl_train isa AbstractMatrix
+        size(ctrl_train, 1) == nobs ||
+            error("`ctrl_train` has $(size(ctrl_train, 1)) rows but there are $nobs observations. " *
+                  "Pass one row per observation and one column per control.")
+        size(ctrl_train, 2) >= 1 || error("`ctrl_train` has no columns.")
+        js = axes(ctrl_train, 2)
+        cols = [build_ctrl(view(ctrl_train, :, j), nobs, "ctrl_train"; col=j) for j in js]
+        labels = ["column $j of `ctrl_train`" for j in js]
+    else
+        cols = [build_ctrl(ctrl_train, nobs, "ctrl_train")]
+        labels = ["`ctrl_train`"]
+    end
+    return Controls(cols, build_ctrl_weights(ctrl_weights, length(cols)), labels)
+end
+
+"""
+    build_ctrls(dtrain, ctrl_name, nobs, ctrl_weights)
+
+The controls named on a table: one column name, or a vector of them.
+"""
+function build_ctrls(dtrain, ctrl_name, nobs::Int, ctrl_weights)
+    if ctrl_name isa AbstractVector
+        names = Symbol.(ctrl_name)
+        isempty(names) && error("`ctrl_name` is empty. Pass at least one column name.")
+        allunique(names) || error("`ctrl_name` names the same column more than once.")
+        cols = [build_ctrl(Tables.getcolumn(dtrain, nm), nobs, "ctrl_name"; col="`$nm`") for nm in names]
+        labels = ["column `$nm` of `ctrl_name`" for nm in names]
+    else
+        cols = [build_ctrl(Tables.getcolumn(dtrain, Symbol(ctrl_name)), nobs, "ctrl_name")]
+        labels = ["`ctrl_name`"]
+    end
+    return Controls(cols, build_ctrl_weights(ctrl_weights, length(cols)), labels)
 end
 
 function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset, group=nothing, ctrl=nothing)
@@ -421,11 +498,12 @@ end
         weight_name=nothing,
         offset_name=nothing,
         group_name=nothing,
-        ctrl_name=nothing
+        ctrl_name=nothing,
+        ctrl_weights=nothing
     )
 
-Initialise EvoTree. `group_name` and `ctrl_name` are as in `EvoTrees.fit`; a penalised learner
-(`ctrl_lambda > 0`) needs the control here.
+Initialise EvoTree. `group_name`, `ctrl_name` and `ctrl_weights` are as in `EvoTrees.fit`; a
+penalised learner (`ctrl_lambda > 0`) needs its controls here.
 """
 function init(
     params::EvoTypes,
@@ -436,7 +514,8 @@ function init(
     weight_name=nothing,
     offset_name=nothing,
     group_name=nothing,
-    ctrl_name=nothing
+    ctrl_name=nothing,
+    ctrl_weights=nothing
 )
 
     # set feature_names
@@ -444,7 +523,7 @@ function init(
     _weight_name = isnothing(weight_name) ? Symbol("") : Symbol(weight_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
     _group_name = isnothing(group_name) ? Symbol("") : Symbol(group_name)
-    _ctrl_name = isnothing(ctrl_name) ? Symbol("") : Symbol(ctrl_name)
+    _ctrl_names = isnothing(ctrl_name) ? Symbol[] : ctrl_name isa AbstractVector ? Symbol.(ctrl_name) : [Symbol(ctrl_name)]
     _target_names = target_name isa AbstractVector ? Symbol.(target_name) : [Symbol(target_name)]
     if isnothing(feature_names)
         feature_names = Symbol[]
@@ -453,7 +532,7 @@ function init(
                 push!(feature_names, schema.names[i])
             end
         end
-        feature_names = setdiff(feature_names, union(_target_names, [_weight_name], [_offset_name], [_group_name], [_ctrl_name]))
+        feature_names = setdiff(feature_names, union(_target_names, [_weight_name], [_offset_name], [_group_name], _ctrl_names))
     else
         isa(feature_names, String) ? feature_names = [feature_names] : nothing
         feature_names = Symbol.(feature_names)
@@ -473,13 +552,15 @@ function init(
     w = isnothing(weight_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(dtrain, _weight_name))
     offset = isnothing(offset_name) ? nothing : V{T}(Tables.getcolumn(dtrain, _offset_name))
     group = isnothing(group_name) ? nothing : build_group_index(Tables.getcolumn(dtrain, _group_name), nobs, "group_name")
-    ctrl = isnothing(ctrl_name) ? nothing : build_ctrl(Tables.getcolumn(dtrain, _ctrl_name), nobs, "ctrl_name")
+    isnothing(ctrl_name) && !isnothing(ctrl_weights) &&
+        error("`ctrl_weights` was given without a control variable. Pass `ctrl_name` with it.")
+    ctrl = isnothing(ctrl_name) ? nothing : build_ctrls(dtrain, ctrl_name, nobs, ctrl_weights)
 
     m, cache = init_core(params, device, dtrain, feature_names, y_train, w, offset, group, ctrl)
 
     m.info[:target_names] = _target_names
     m.info[:group_name] = isnothing(group_name) ? nothing : _group_name
-    m.info[:ctrl_name] = isnothing(ctrl_name) ? nothing : _ctrl_name
+    m.info[:ctrl_name] = isnothing(ctrl_name) ? nothing : ctrl_name isa AbstractVector ? _ctrl_names : _ctrl_names[1]
 
     return m, cache
 end
@@ -498,11 +579,12 @@ device_array_type(::Type{<:CPU}) = Array
         w_train=nothing,
         offset_train=nothing,
         group_train=nothing,
-        ctrl_train=nothing
+        ctrl_train=nothing,
+        ctrl_weights=nothing
     )
 
-Initialise EvoTree. `group_train` and `ctrl_train` are as in `EvoTrees.fit`; a penalised learner
-(`ctrl_lambda > 0`) needs the control here.
+Initialise EvoTree. `group_train`, `ctrl_train` and `ctrl_weights` are as in `EvoTrees.fit`; a
+penalised learner (`ctrl_lambda > 0`) needs its controls here.
 """
 function init(
     params::EvoTypes,
@@ -513,7 +595,8 @@ function init(
     w_train=nothing,
     offset_train=nothing,
     group_train=nothing,
-    ctrl_train=nothing
+    ctrl_train=nothing,
+    ctrl_weights=nothing
 )
 
     # initialize model and cache
@@ -528,7 +611,9 @@ function init(
     offset = isnothing(offset_train) ? nothing : V{T}(offset_train)
     group = isnothing(group_train) ? nothing : build_group_index(group_train, nobs, "group_train")
 
-    ctrl = isnothing(ctrl_train) ? nothing : build_ctrl(ctrl_train, nobs, "ctrl_train")
+    isnothing(ctrl_train) && !isnothing(ctrl_weights) &&
+        error("`ctrl_weights` was given without a control variable. Pass `ctrl_train` with it.")
+    ctrl = isnothing(ctrl_train) ? nothing : build_ctrls(ctrl_train, nobs, ctrl_weights)
     m, cache = init_core(params, device, x_train, feature_names, y_train, w, offset, group, ctrl)
 
     return m, cache

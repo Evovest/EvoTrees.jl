@@ -284,6 +284,7 @@ post_fit_gc(::Type{<:CPU}) = nothing
         group_name=nothing,
         eval_group_name=group_name,
         ctrl_name=nothing,
+        ctrl_weights=nothing,
         deval=nothing,
         print_every_n=9999,
         verbosity=1
@@ -308,7 +309,8 @@ Main training function. Performs model fitting given configuration `params`, `dt
 - `offset_name = nothing`: name of the offset variable.
 - `group_name = nothing`: name of the variable identifying the group each row belongs to, such as a query for ranking or a date for `ctrl_within_group`. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
 - `eval_group_name = group_name`: name of the group variable in `deval`, defaulting to `group_name`. A group-aware metric such as `:ndcg` requires it. Set it on its own to evaluate over groups while training with the usual per-row sampling.
-- `ctrl_name = nothing`: name of a control variable the predictions should carry no dependence on, weighed against the base loss by `ctrl_lambda` on the learner. It adds nothing to the gradients unless `ctrl_lambda > 0`, but is still validated and is not used as a feature unless it is named in `feature_names`. With `ctrl_within_group = true` on the learner the penalty acts within each group of `group_name`.
+- `ctrl_name = nothing`: name of a control variable the predictions should carry no dependence on, or a vector of names for several, weighed against the base loss by `ctrl_lambda` on the learner. Each control adds its own penalty term, so the penalty acts on each control's dependence separately. The controls add nothing to the gradients unless `ctrl_lambda > 0`, but are still validated and are not used as features unless named in `feature_names`. With `ctrl_within_group = true` on the learner the penalty acts within each group of `group_name`.
+- `ctrl_weights = nothing`: weight of each control's penalty term, a vector with one positive entry per control, in the order of `ctrl_name`. Each term is multiplied by its entry and the entries are not normalised, so scaling them all scales the penalty as `ctrl_lambda` does. Defaults to 1 for every control.
 - `deval`: A Tables compatible evaluation data containing features and target variables. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -323,6 +325,7 @@ function fit(
     group_name=nothing,
     eval_group_name=group_name,
     ctrl_name=nothing,
+    ctrl_weights=nothing,
     deval=nothing,
     print_every_n=9999,
     verbosity=1,
@@ -332,7 +335,7 @@ function fit(
     _eval_is_train = deval === dtrain
     dtrain = Tables.columntable(dtrain)
     _device = device_type(params.device)
-    m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name, group_name, ctrl_name)
+    m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name, group_name, ctrl_name, ctrl_weights)
 
     # initialize callback and logger if deval is provided
     if !isnothing(deval)
@@ -377,6 +380,7 @@ end
         group_train=nothing,
         group_eval=nothing,
         ctrl_train=nothing,
+        ctrl_weights=nothing,
         feature_names=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
@@ -405,7 +409,8 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
 - `group_train::Vector`: group id of each training row, such as a query for ranking or a date for `ctrl_within_group`. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
 - `group_eval::Vector`: group id of each evaluation row. Required by `metric = :ndcg`.
-- `ctrl_train::Vector`: control variable of each training row, which the predictions should carry no dependence on, weighed against the base loss by `ctrl_lambda` on the learner. It adds nothing unless `ctrl_lambda > 0`, but is still validated. With `ctrl_within_group = true` on the learner the penalty acts within each group of `group_train`.
+- `ctrl_train::VecOrMat`: control variable of each training row, which the predictions should carry no dependence on, weighed against the base loss by `ctrl_lambda` on the learner. For several controls pass a matrix of size `(#observations, #controls)`; each control adds its own penalty term, so the penalty acts on each control's dependence separately. The controls add nothing unless `ctrl_lambda > 0`, but are still validated. With `ctrl_within_group = true` on the learner the penalty acts within each group of `group_train`.
+- `ctrl_weights::Vector`: weight of each control's penalty term, one positive entry per column of `ctrl_train`. Each term is multiplied by its entry and the entries are not normalised, so scaling them all scales the penalty as `ctrl_lambda` does. Defaults to 1 for every control.
 - `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -423,13 +428,14 @@ function fit(
     group_train=nothing,
     group_eval=nothing,
     ctrl_train=nothing,
+    ctrl_weights=nothing,
     feature_names=nothing,
     print_every_n=9999,
     verbosity=1
 )
 
     _device = device_type(params.device)
-    m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train, group_train, ctrl_train)
+    m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train, group_train, ctrl_train, ctrl_weights)
 
     # initialize callback and logger if tracking eval data
     metric = params.metric

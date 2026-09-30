@@ -562,3 +562,185 @@ end
             ctrl_lambda=1.0); x_train=x, y_train=y, ctrl_train=ctrl, verbosity=0)
     end
 end
+
+@testset "several controls" begin
+    rng = Xoshiro(51)
+    nobs = 2_000
+    x = randn(rng, nobs, 4)
+    # each control shares its signal with one feature, and the third feature is unrelated to both
+    c1 = x[:, 1] .+ 0.3 .* randn(rng, nobs)
+    c2 = x[:, 2] .+ 0.3 .* randn(rng, nobs)
+    y = 2 .* x[:, 1] .+ x[:, 2] .+ x[:, 3] .+ 0.2 .* randn(rng, nobs)
+    C = hcat(c1, c2)
+    gid = repeat(1:40, inner=nobs ÷ 40)
+    gi = build_group_index(gid, nobs, "g")
+    cfg(λ; within=false) = EvoTreeRegressor(loss=:mse, nrounds=40, max_depth=4, eta=0.2, seed=1,
+        ctrl_lambda=λ, ctrl_within_group=within)
+
+    # y equal to p makes the :mse base gradient exactly 0, so row 1 holds the penalty alone
+    p = Float32.(randn(Xoshiro(52), 1, nobs))
+    yp = vec(copy(p))
+    function penalty(params, ctrl)
+        ∇ = zeros(Float32, 3, nobs)
+        ∇[3, :] .= 1
+        EvoTrees.update_grads!(∇, p, yp, EvoTrees.MSE, params, nothing, ctrl)
+        return ∇[1, :]
+    end
+    b1, b2 = build_ctrl(c1, nobs, "c"), build_ctrl(c2, nobs, "c")
+    one_ctrl(params, b) = EvoTrees.dcor_cache(params, b, gi, ones(nobs))
+    two_ctrls(params, ω) = EvoTrees.dcor_cache(params, EvoTrees.Controls([b1, b2], ω, ["c1", "c2"]), gi, ones(nobs))
+
+    @testset "one control through the sum is that control exactly" begin
+        for within in (false, true)
+            params = cfg(3.0; within)
+            plain = within ? GroupedDcorCache(b1, gi) : DcorCache(b1)
+            @test penalty(params, one_ctrl(params, b1)) == penalty(params, plain)
+        end
+        # and under a loss whose curvature is not that of :mse, which the sum applies itself
+        pm = Float32.(vcat(randn(Xoshiro(56), 1, nobs), 0.1f0 .* randn(Xoshiro(57), 1, nobs)))
+        function penalty_mle(params, ctrl)
+            ∇ = zeros(Float32, 5, nobs)
+            ∇[5, :] .= 1
+            EvoTrees.update_grads!(∇, pm, pm[1, :], EvoTrees.GaussianMLE, params, nothing, ctrl)
+            return ∇[1, :]
+        end
+        for within in (false, true)
+            params = EvoTreeMLE(loss=:gaussian_mle, ctrl_lambda=1.0, ctrl_within_group=within)
+            plain = within ? GroupedDcorCache(b1, gi) : DcorCache(b1)
+            @test penalty_mle(params, one_ctrl(params, b1)) == penalty_mle(params, plain)
+        end
+        # and at the model level, however the one control is passed
+        m0 = fit(cfg(5.0); x_train=x, y_train=y, ctrl_train=c1, verbosity=0)
+        for kw in ((ctrl_train=reshape(c1, :, 1),), (ctrl_train=c1, ctrl_weights=[1.0]))
+            @test predict(fit(cfg(5.0); x_train=x, y_train=y, kw..., verbosity=0), x) == predict(m0, x)
+        end
+    end
+
+    @testset "the penalty is the weighted sum of each control's" begin
+        for within in (false, true), ω in ([1.0, 1.0], [0.5, 2.0])
+            params = cfg(3.0; within)
+            expected = ω[1] .* Float64.(penalty(params, one_ctrl(params, b1))) .+
+                       ω[2] .* Float64.(penalty(params, one_ctrl(params, b2)))
+            @test Float64.(penalty(params, two_ctrls(params, ω))) ≈ expected rtol = 1e-5
+        end
+        # multi-target: each output row gets both controls' increments
+        P2 = Float32.(randn(Xoshiro(53), 2, nobs))
+        params = cfg(3.0)
+        function penalty2(ctrl)
+            ∇ = zeros(Float32, 5, nobs)
+            ∇[5, :] .= 1
+            EvoTrees.update_grads!(∇, P2, copy(P2), EvoTrees.MSE, params, nothing, ctrl)
+            return Float64.(∇[1:2, :])
+        end
+        @test penalty2(two_ctrls(params, [1.0, 1.0])) ≈
+              penalty2(one_ctrl(params, b1)) .+ penalty2(one_ctrl(params, b2)) rtol = 1e-5
+        # the gaussian_mle location: only its row moves, by both increments
+        mle = EvoTreeMLE(loss=:gaussian_mle, ctrl_lambda=1.0)
+        pm = Float32.(vcat(randn(Xoshiro(54), 1, nobs), 0.1f0 .* randn(Xoshiro(55), 1, nobs)))
+        function penalty_mle(ctrl)
+            ∇ = zeros(Float32, 5, nobs)
+            ∇[5, :] .= 1
+            EvoTrees.update_grads!(∇, pm, pm[1, :], EvoTrees.GaussianMLE, mle, nothing, ctrl)
+            return ∇
+        end
+        ∇0 = penalty_mle(nothing)
+        ∇b = penalty_mle(two_ctrls(mle, [1.0, 1.0]))
+        inc(ctrl) = Float64.(penalty_mle(ctrl)[1, :] .- ∇0[1, :])
+        @test Float64.(∇b[1, :] .- ∇0[1, :]) ≈ inc(one_ctrl(mle, b1)) .+ inc(one_ctrl(mle, b2)) rtol = 1e-5
+        @test ∇b[2:5, :] == ∇0[2:5, :]
+    end
+
+    @testset "a group one control skips gets only the other's term" begin
+        # the second control is flat on the first date, both are flat on the second and the first is
+        # flat on the third, so each of those dates gets the increment of the control it can use
+        f1, f2 = copy(c1), copy(c2)
+        f2[1:50] .= 0.7
+        f1[51:100] .= 0.7
+        f2[51:100] .= 0.7
+        f1[101:150] .= 0.7
+        params = cfg(3.0; within=true)
+        a1, a2 = build_ctrl(f1, nobs, "c"), build_ctrl(f2, nobs, "c")
+        s = penalty(params, EvoTrees.dcor_cache(params, EvoTrees.Controls([a1, a2], [1.0, 1.0], ["c1", "c2"]),
+            gi, ones(nobs)))
+        s1 = penalty(params, one_ctrl(params, a1))
+        s2 = penalty(params, one_ctrl(params, a2))
+        @test s[1:50] == s1[1:50]
+        @test all(iszero, s[51:100])
+        @test s[101:150] == s2[101:150]
+        @test count(!iszero, s[151:end]) > 1750
+        # a control no date can use is an error that names it rather than a control silently dropped:
+        # constant within every date but not across them, so it passes as a column
+        @test_throws "column 2 of `ctrl_train`" fit(cfg(1.0; within=true); x_train=x, y_train=y,
+            ctrl_train=hcat(c1, Float64.(gid)), group_train=gid, verbosity=0)
+    end
+
+    dep(m, c) = dcor2(Float64.(predict(m, x)[:, 1]), c)
+    base = fit(cfg(0.0); x_train=x, y_train=y, verbosity=0)
+
+    @testset "both controls lose their dependence" begin
+        mb = fit(cfg(10.0); x_train=x, y_train=y, ctrl_train=C, verbosity=0)
+        m1 = fit(cfg(10.0); x_train=x, y_train=y, ctrl_train=c1, verbosity=0)
+        # over data seeds 1 to 10 each dependence falls 3.1 to 3.8 times
+        @test dep(mb, c1) < dep(base, c1) / 2
+        @test dep(mb, c2) < dep(base, c2) / 2
+        # a control left out picks up what the other sheds, as the fit leans on the second feature
+        # instead: 0.27 to 0.32 against 0.11 to 0.14 unpenalised
+        @test dep(m1, c2) > dep(base, c2)
+        # the third feature is unrelated to both and survives
+        @test cor(predict(mb, x)[:, 1], x[:, 3]) > 0.5
+        # a lighter weight on the first control leaves it more dependence and the second less
+        mw = fit(cfg(10.0); x_train=x, y_train=y, ctrl_train=C, ctrl_weights=[0.1, 1.0], verbosity=0)
+        @test dep(mw, c1) > 2 * dep(mb, c1)
+        @test dep(mw, c2) < dep(mb, c2)
+    end
+
+    @testset "table interface" begin
+        df = (f1=x[:, 1], f2=x[:, 2], f3=x[:, 3], f4=x[:, 4], c1=c1, c2=c2, y=y)
+        mt = fit(cfg(10.0), df; target_name="y", ctrl_name=["c1", "c2"], verbosity=0)
+        # both controls are roles, not features
+        @test mt.info[:feature_names] == [:f1, :f2, :f3, :f4]
+        @test mt.info[:ctrl_name] == [:c1, :c2]
+        pt = Float64.(predict(mt, df)[:, 1])
+        @test dcor2(pt, c1) < dep(base, c1) / 2
+        @test dcor2(pt, c2) < dep(base, c2) / 2
+        # weights go through the table path too
+        mtw = fit(cfg(10.0), df; target_name="y", ctrl_name=["c1", "c2"], ctrl_weights=[0.1, 1.0], verbosity=0)
+        @test dcor2(Float64.(predict(mtw, df)[:, 1]), c1) > 2 * dcor2(pt, c1)
+        # a vector of one name is the same control as the name alone
+        ms = fit(cfg(10.0), df; target_name="y", ctrl_name="c1", verbosity=0)
+        mv = fit(cfg(10.0), df; target_name="y", ctrl_name=["c1"], verbosity=0)
+        @test predict(mv, df) == predict(ms, df)
+        @test mv.info[:ctrl_name] == [:c1]
+    end
+
+    @testset "rejected inputs" begin
+        df = (f1=x[:, 1], c1=c1, c2=c2, k=fill(1.0, nobs), y=y)
+        @test_throws "more than once" fit(cfg(1.0), df; target_name="y", ctrl_name=["c1", "c1"], verbosity=0)
+        @test_throws "is empty" fit(cfg(1.0), df; target_name="y", ctrl_name=String[], verbosity=0)
+        # a failing control is named
+        @test_throws "column `k` of `ctrl_name` is constant" fit(cfg(1.0), df; target_name="y",
+            ctrl_name=["c1", "k"], verbosity=0)
+        @test_throws "column 2 of `ctrl_train` is constant" fit(cfg(1.0); x_train=x, y_train=y,
+            ctrl_train=hcat(c1, fill(1.0, nobs)), verbosity=0)
+        # one row per observation, as `x_train`
+        @test_throws "rows but there are" fit(cfg(1.0); x_train=x, y_train=y, ctrl_train=C[1:10, :],
+            verbosity=0)
+        @test_throws "rows but there are" fit(cfg(1.0); x_train=x, y_train=y, ctrl_train=permutedims(C),
+            verbosity=0)
+        # the weights: one positive, finite entry per control, and only with controls
+        @test_throws "entries but there are 2 controls" fit(cfg(1.0); x_train=x, y_train=y, ctrl_train=C,
+            ctrl_weights=[1.0], verbosity=0)
+        @test_throws "entries but there are 2 controls" fit(cfg(1.0), df; target_name="y", ctrl_name=["c1", "c2"],
+            ctrl_weights=[1.0], verbosity=0)
+        for bad in ([1.0, 0.0], [1.0, -1.0], [1.0, Inf], [1.0, NaN])
+            @test_throws "positive and finite" fit(cfg(1.0); x_train=x, y_train=y, ctrl_train=C,
+                ctrl_weights=bad, verbosity=0)
+        end
+        @test_throws "must be a vector" fit(cfg(1.0); x_train=x, y_train=y, ctrl_train=c1, ctrl_weights=2.0,
+            verbosity=0)
+        @test_throws "without a control variable" fit(cfg(0.0); x_train=x, y_train=y, ctrl_weights=[1.0],
+            verbosity=0)
+        @test_throws "without a control variable" fit(cfg(0.0), df; target_name="y", ctrl_weights=[1.0],
+            verbosity=0)
+    end
+end
