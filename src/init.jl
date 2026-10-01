@@ -300,9 +300,10 @@ hours would multiply the penalty gradient by 3600. Standardising is a change of 
 control only, so it leaves what the penalty measures untouched and removes the control's units
 from `ctrl_lambda`. The prediction is not rescaled, so the weight still depends on the target's scale.
 """
-function build_ctrl(ctrl_raw, nobs::Int, argname::AbstractString; col=nothing)
+function build_ctrl(ctrl_raw, nobs::Int, argname::AbstractString; col=nothing, eval=false)
     # with several controls the column is named, so the message says which one failed
     label = isnothing(col) ? "`$argname`" : "column $col of `$argname`"
+    why = eval ? "its dependence on the evaluation set is undefined" : "there is no dependence for the penalty to remove"
     nonmissingtype(eltype(ctrl_raw)) <: Real ||
         error("$label must hold real numbers, got elements of type $(eltype(ctrl_raw)).")
     Missing <: eltype(ctrl_raw) && any(ismissing, ctrl_raw) &&
@@ -318,14 +319,14 @@ function build_ctrl(ctrl_raw, nobs::Int, argname::AbstractString; col=nothing)
     # would then divide zero by zero and hand back a control of NaN.
     lo, hi = extrema(ctrl)
     lo < hi ||
-        error("$label is constant, so there is no dependence for the penalty to remove.")
+        error("$label is constant, so $why.")
     # Every value tied but at most one either side of them is as good as constant: the distance
     # matrix is then additive, `|c_i - c_j| = f_i + f_j`, which the U-centring removes, so the
     # penalty would be zero for every prediction. An indicator set on a single row is the usual case.
     s = sort(ctrl)
     s[2] < s[end-1] ||
         error("$label has every value tied but at most one either side of them, so its distance " *
-              "variance is zero and there is no dependence for the penalty to remove.")
+              "variance is zero and $why.")
     m, sd = _ordered_mean_std(ctrl)
     # the spread can still be unusable after that: it overflows above roughly 1e154 and
     # underflows to zero below roughly 1e-162, either of which would silently yield a constant
@@ -355,23 +356,23 @@ function build_ctrl_weights(ctrl_weights, k::Int)
 end
 
 """
-    build_ctrls(ctrl_train, nobs, ctrl_weights)
+    build_ctrls(ctrl_train, nobs, ctrl_weights; argname="ctrl_train")
 
-The controls passed alongside `x_train`: a vector for one, or a matrix with one column per control
-and one row per observation, as `x_train`.
+The controls passed alongside `x_train`, or `ctrl_eval` alongside `x_eval`: a vector for one, or a
+matrix with one column per control and one row per observation, as `x_train`.
 """
-function build_ctrls(ctrl_train, nobs::Int, ctrl_weights)
+function build_ctrls(ctrl_train, nobs::Int, ctrl_weights; argname="ctrl_train", eval=false)
     if ctrl_train isa AbstractMatrix
         size(ctrl_train, 1) == nobs ||
-            error("`ctrl_train` has $(size(ctrl_train, 1)) rows but there are $nobs observations. " *
+            error("`$argname` has $(size(ctrl_train, 1)) rows but there are $nobs observations. " *
                   "Pass one row per observation and one column per control.")
-        size(ctrl_train, 2) >= 1 || error("`ctrl_train` has no columns.")
+        size(ctrl_train, 2) >= 1 || error("`$argname` has no columns.")
         js = axes(ctrl_train, 2)
-        cols = [build_ctrl(view(ctrl_train, :, j), nobs, "ctrl_train"; col=j) for j in js]
-        labels = ["column $j of `ctrl_train`" for j in js]
+        cols = [build_ctrl(view(ctrl_train, :, j), nobs, argname; col=j, eval) for j in js]
+        labels = ["column $j of `$argname`" for j in js]
     else
-        cols = [build_ctrl(ctrl_train, nobs, "ctrl_train")]
-        labels = ["`ctrl_train`"]
+        cols = [build_ctrl(ctrl_train, nobs, argname; eval)]
+        labels = ["`$argname`"]
     end
     return Controls(cols, build_ctrl_weights(ctrl_weights, length(cols)), labels)
 end

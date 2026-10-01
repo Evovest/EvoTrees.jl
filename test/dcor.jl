@@ -744,3 +744,250 @@ end
             verbosity=0)
     end
 end
+
+@testset "penalised eval metric" begin
+    rng = Xoshiro(61)
+    nobs = 2_000
+    x = randn(rng, nobs, 4)
+    c1 = x[:, 1] .+ 0.3 .* randn(rng, nobs)
+    c2 = x[:, 2] .+ 0.3 .* randn(rng, nobs)
+    y = 2 .* x[:, 1] .+ x[:, 2] .+ x[:, 3] .+ 0.2 .* randn(rng, nobs)
+    C = hcat(c1, c2)
+    gid = repeat(1:40, inner=nobs ÷ 40)
+    wv = 0.5 .+ rand(Xoshiro(67), nobs)
+    cfg(λ; within=false, kw...) = EvoTreeRegressor(; loss=:mse, nrounds=20, max_depth=4, eta=0.2, seed=1,
+        ctrl_lambda=λ, ctrl_within_group=within, kw...)
+
+    @testset "the value from the sweep is dcov2" begin
+        n = 300
+        c = build_ctrl(c1[1:n], n, "c")
+        for xv in (randn(Xoshiro(62), n), round.(randn(Xoshiro(63), n); digits=1), 1e12 .+ randn(Xoshiro(64), n))
+            @test EvoTrees.dcov2_value!(DcorCache(c), xv) ≈ dcov2(Float64.(xv), c) rtol = 1e-8
+        end
+        @test EvoTrees.dcov2_value!(DcorCache(c), fill(0.3, n)) == 0
+        xs = randn(Xoshiro(65), 60)
+        cs = build_ctrl(c1[1:60], 60, "c")
+        @test EvoTrees.dcov2_value!(DcorCache(cs), xs) ≈ dcov2_naive(xs, cs) rtol = 1e-10
+    end
+
+    @testset "on the training set it is the training objective" begin
+        # with the training set as eval set, the penalised :mse metric is the weighted mse plus λ times
+        # the weighted sum of each control's unweighted dependence, pooled or within the eval groups,
+        # each kept group weighing by its share of all eval rows; the eval set's first 3 rows form a
+        # group too small to keep
+        λ, ω = 5.0, [1.0, 0.5]
+        geval = vcat(fill(41, 3), gid[4:end])
+        kept = [r for r in (findall(==(g), geval) for g in unique(geval)) if length(r) >= 4]
+        for within in (false, true)
+            kw = within ? (; group_train=gid, group_eval=geval) : (;)
+            m = fit(cfg(λ; within); x_train=x, y_train=y, w_train=wv, ctrl_train=C, ctrl_weights=ω, x_eval=x,
+                y_eval=y, w_eval=wv, ctrl_eval=C, kw..., verbosity=0)
+            lg = m.info[:logger]
+            @test lg[:penalized]
+            dep(p, c) = within ? sum(length(r) / nobs * dcov2(p[r], build_ctrl(c[r], length(r), "c")) for r in kept) :
+                        dcov2(p, build_ctrl(c, nobs, "c"))
+            for (j, it) in enumerate(lg[:iter])
+                p = Float64.(predict(m, x; ntree_limit=it)[:, 1])
+                d = [dep(p, c1), dep(p, c2)]
+                @test all(isapprox.(lg[:ctrl_dependence][j], d; rtol=1e-6, atol=1e-12))
+                @test lg[:base_metrics][j] ≈ sum(wv .* (p .- y) .^ 2) / sum(wv) rtol = 1e-5
+                @test lg[:metrics][j] ≈ lg[:base_metrics][j] + λ * sum(ω .* d) rtol = 1e-6
+            end
+            # the bias alone carries no dependence
+            @test lg[:ctrl_dependence][1] == [0.0, 0.0]
+        end
+        # several outputs average, as the metric averages over them
+        Y2 = hcat(y, .-y .+ x[:, 3])
+        m = fit(cfg(λ); x_train=x, y_train=Y2, ctrl_train=c1, x_eval=x, y_eval=Y2, ctrl_eval=c1, verbosity=0)
+        lg = m.info[:logger]
+        P = Float64.(predict(m, x))
+        b = build_ctrl(c1, nobs, "c")
+        @test lg[:ctrl_dependence][end][1] ≈ (dcov2(P[:, 1], b) + dcov2(P[:, 2], b)) / 2 rtol = 1e-6
+        @test lg[:metrics][end] - lg[:base_metrics][end] ≈ λ * (dcov2(P[:, 1], b) + dcov2(P[:, 2], b)) / 2 rtol = 1e-6
+        # an offset gives the first prediction a spread, so round 0 already carries a dependence
+        o = 0.5 .* c1
+        m = fit(cfg(λ); x_train=x, y_train=y, offset_train=o, ctrl_train=c1, x_eval=x, y_eval=y, offset_eval=o,
+            ctrl_eval=c1, verbosity=0)
+        lg = m.info[:logger]
+        @test lg[:ctrl_dependence][1][1] ≈ dcov2(Float64.(Float32.(o)), b) rtol = 1e-6
+        @test lg[:ctrl_dependence][1][1] > 0.1
+        @test lg[:metrics][1] ≈ lg[:base_metrics][1] + λ * lg[:ctrl_dependence][1][1] rtol = 1e-9
+    end
+
+    @testset "the eval controls are scaled on the eval set" begin
+        # a held-out eval set: the dependence is that of its own standardised controls, so an affine
+        # change of the eval control leaves it unchanged, pooled and within groups
+        tr, ev = 1:1500, 1501:2000
+        for within in (false, true)
+            kw = within ? (; group_train=gid[tr], group_eval=gid[ev]) : (;)
+            fitc(ce) = fit(cfg(5.0; within); x_train=x[tr, :], y_train=y[tr], ctrl_train=c1[tr], x_eval=x[ev, :],
+                y_eval=y[ev], ctrl_eval=ce, kw..., verbosity=0)
+            ma, mb = fitc(c1[ev]), fitc(3 .* c1[ev] .+ 7)
+            la, lb = ma.info[:logger], mb.info[:logger]
+            @test all(all(isapprox.(a, b; rtol=1e-9, atol=1e-14)) for (a, b) in zip(la[:ctrl_dependence], lb[:ctrl_dependence]))
+            @test la[:metrics] ≈ lb[:metrics] rtol = 1e-9
+            groups = [findall(==(g), gid[ev]) for g in unique(gid[ev])]
+            for (j, it) in enumerate(la[:iter])
+                p = Float64.(predict(ma, x[ev, :]; ntree_limit=it)[:, 1])
+                ref = within ? sum(length(r) / length(ev) * dcov2(p[r], build_ctrl(c1[ev][r], length(r), "c")) for r in groups) :
+                      dcov2(p, build_ctrl(c1[ev], length(ev), "c"))
+                @test la[:ctrl_dependence][j][1] ≈ ref rtol = 1e-6 atol = 1e-12
+            end
+        end
+    end
+
+    @testset "its gradient is the training penalty" begin
+        # sum(w) / m times the derivative of the eval term must equal what update_grads! adds, m being
+        # the metric's multiple of the training objective: 2 for the :poisson deviance, -1 for the
+        # :gaussian_mle log-likelihood. Exact under :mse, :logloss and :poisson; under :gamma and
+        # :tweedie at a calibrated prediction, y = exp(p); under :gaussian_mle where the scale is
+        # constant over the statistic's rows: everywhere when pooled, within each group otherwise.
+        # Unequal groups, the first too small to keep, and unequal row weights
+        n = 400
+        g400 = vcat(fill(0, 3), fill(1, 37), fill(2, 120), repeat(3:8, inner=40))
+        cb = build_ctrl(c1[1:n], n, "c")
+        gi = build_group_index(g400, n, "g")
+        w = 0.5 .+ rand(Xoshiro(68), n)
+        pr = 0.5 .* randn(Xoshiro(66), n)
+        probe = filter(i -> minimum(abs(pr[i] - pr[j]) for j in 1:n if j != i) > 1e-4, 4:n)[1:8]
+        cases = (
+            (EvoTrees.MSE, :mse, 1, pr, pr),
+            (EvoTrees.LogLoss, :logloss, 1, pr, Float64.(pr .> 0)),
+            (EvoTrees.Poisson, :poisson, 2, pr, exp.(pr) .+ 0.3),
+            (EvoTrees.Gamma, :gamma, 1, pr, exp.(pr)),
+            (EvoTrees.Tweedie, :tweedie, 1, pr, exp.(pr)),
+            (EvoTrees.GaussianMLE, :gaussian_mle, -1, pr, pr .+ 0.1),
+        )
+        for (L, loss, mL, p1, yy) in cases, within in (false, true)
+            params = L == EvoTrees.GaussianMLE ?
+                     EvoTreeMLE(loss=loss, ctrl_lambda=2.0, ctrl_within_group=within) :
+                     EvoTreeRegressor(loss=loss, ctrl_lambda=2.0, ctrl_within_group=within)
+            # the metric a fit uses by default is the one the penalty is priced in
+            feval = EvoTrees.metric_dict[params.metric]
+            @test feval === EvoTrees._own_metric(L)
+            p = L == EvoTrees.GaussianMLE ? vcat(p1', (within ? 0.1 .* g400 : fill(0.2, n))') : Matrix(p1')
+            K = size(p, 1)
+            ∇0 = zeros(2K + 1, n)
+            ∇0[2K+1, :] .= w
+            ∇1 = copy(∇0)
+            EvoTrees.update_grads!(∇0, p, yy, L, params, nothing, nothing)
+            EvoTrees.update_grads!(∇1, p, yy, L, params, nothing, EvoTrees.dcor_cache(params, cb, gi, w))
+            inc = ∇1[1, :] .- ∇0[1, :]
+            ec = EvoTrees.eval_ctrl(params, L, K, EvoTrees.Controls([cb], [1.0], ["c"]), within ? gi : nothing, feval, n)
+            @test ec.penalized
+            term(q) = EvoTrees.eval_penalty!(ec, q)[2]
+            # rows with no neighbour within 1e-4, so the step never crosses a kink of the statistic; over
+            # 11 seeds the two agree to within 2e-8 of the largest row's gradient
+            h = 1e-7
+            for i in (within ? vcat(1, probe) : probe)
+                qp = copy(p); qp[1, i] += h
+                qm = copy(p); qm[1, i] -= h
+                @test isapprox(inc[i], sum(w) / mL * (term(qp) - term(qm)) / (2h); rtol=1e-4,
+                    atol=1e-6 * maximum(abs, inc))
+            end
+            # a group too small to keep carries no penalty, in training or in the eval term
+            within && @test inc[1] == 0
+        end
+        # two :gaussian_mle targets with scales that vary by row: each location's term weighs each
+        # group's dcov2 by that group's mean of exp(-2 scale), and the targets average
+        p4 = vcat(pr', 0.3 .* randn(Xoshiro(69), 1, n), .-pr', 0.2 .* randn(Xoshiro(70), 1, n))
+        for within in (false, true)
+            params = EvoTreeMLE(loss=:gaussian_mle, ctrl_lambda=2.0, ctrl_within_group=within)
+            ec = EvoTrees.eval_ctrl(params, EvoTrees.GaussianMLE, 4, EvoTrees.Controls([cb], [1.0], ["c"]),
+                within ? gi : nothing, EvoTrees.gaussian_mle, n)
+            rows = within ? [findall(==(g), g400) for g in 1:8] : [collect(1:n)]
+            t(k) = sum(length(r) / n * mean(exp.(-2 .* p4[k+1, r])) * dcov2(p4[k, r], within ? build_ctrl(cb[r], length(r), "c") : cb)
+                       for r in rows)
+            @test EvoTrees.eval_penalty!(ec, p4)[2] ≈ -2.0 / 2 * (t(1) + t(3)) / 2 rtol = 1e-8
+        end
+    end
+
+    @testset "every admitted loss prices its own metric" begin
+        yb = Float64.(y .> 0)
+        yp = abs.(y) .+ 0.5
+        for (params, yy) in (
+            (EvoTreeRegressor(loss=:logloss, nrounds=10, max_depth=3, ctrl_lambda=5.0), yb),
+            (EvoTreeRegressor(loss=:poisson, nrounds=10, max_depth=3, ctrl_lambda=5.0), yp),
+            (EvoTreeRegressor(loss=:gamma, nrounds=10, max_depth=3, ctrl_lambda=5.0), yp),
+            (EvoTreeRegressor(loss=:tweedie, nrounds=10, max_depth=3, ctrl_lambda=5.0), yp),
+            (EvoTreeMLE(loss=:gaussian_mle, nrounds=10, max_depth=3, ctrl_lambda=5.0), y),
+        )
+            lg = fit(params; x_train=x, y_train=yy, ctrl_train=c1, x_eval=x, y_eval=yy, ctrl_eval=c1,
+                verbosity=0).info[:logger]
+            @test lg[:penalized]
+            @test lg[:metrics][end] != lg[:base_metrics][end]
+            # the log-likelihood is maximised, so the penalty lowers it
+            params isa EvoTreeMLE && @test lg[:metrics][end] < lg[:base_metrics][end]
+        end
+    end
+
+    @testset "other metrics are reported as they are" begin
+        for metric in (:rmse, :mae)
+            m = fit(cfg(5.0; metric); x_train=x, y_train=y, ctrl_train=c1, x_eval=x, y_eval=y, ctrl_eval=c1, verbosity=0)
+            lg = m.info[:logger]
+            @test !lg[:penalized]
+            @test lg[:metrics] == lg[:base_metrics]
+            @test lg[:ctrl_dependence][end][1] > 0
+        end
+        # and without a weight the metric is the base one, though the dependence is still logged
+        m0 = fit(cfg(0.0); x_train=x, y_train=y, ctrl_train=c1, x_eval=x, y_eval=y, ctrl_eval=c1, verbosity=0)
+        @test !m0.info[:logger][:penalized]
+        @test m0.info[:logger][:metrics] == m0.info[:logger][:base_metrics]
+        # a fit without controls keeps the logger it had
+        mn = fit(cfg(0.0); x_train=x, y_train=y, x_eval=x, y_eval=y, verbosity=0)
+        @test !haskey(mn.info[:logger], :base_metrics)
+        @test mn.info[:logger][:metrics] == m0.info[:logger][:metrics]
+    end
+
+    @testset "early stopping follows the penalised metric" begin
+        tr, ev = 1:1500, 1501:2000
+        m = fit(cfg(20.0; nrounds=300, eta=0.1, early_stopping_rounds=10); x_train=x[tr, :], y_train=y[tr],
+            ctrl_train=c1[tr], x_eval=x[ev, :], y_eval=y[ev], ctrl_eval=c1[ev], verbosity=0)
+        lg = m.info[:logger]
+        @test lg[:penalized]
+        @test 0 < lg[:best_iter]
+        @test lg[:nrounds] == lg[:best_iter] + 10 < 300
+        @test lg[:best_iter] == lg[:iter][argmin(lg[:metrics])]
+        # the base metric alone would have run on: over data seeds 1 to 5 and the test's own it is
+        # lowest 7 to 10 rounds after the penalised one
+        @test lg[:iter][argmin(lg[:base_metrics])] > lg[:best_iter]
+    end
+
+    @testset "table interface" begin
+        df = (f1=x[:, 1], f2=x[:, 2], f3=x[:, 3], f4=x[:, 4], c1=c1, c2=c2, y=y)
+        mt = fit(cfg(5.0), df; target_name="y", ctrl_name=["c1", "c2"], ctrl_weights=[1.0, 0.5], deval=df, verbosity=0)
+        mm = fit(cfg(5.0); x_train=x, y_train=y, ctrl_train=C, ctrl_weights=[1.0, 0.5], x_eval=x, y_eval=y,
+            ctrl_eval=C, verbosity=0)
+        lt, lm = mt.info[:logger], mm.info[:logger]
+        @test lt[:penalized]
+        @test lt[:metrics] == lm[:metrics]
+        @test lt[:ctrl_dependence] == lm[:ctrl_dependence]
+        @test_throws "has no column `c2`" fit(cfg(5.0), df; target_name="y", ctrl_name=["c1", "c2"],
+            deval=(f1=x[:, 1], f2=x[:, 2], f3=x[:, 3], f4=x[:, 4], c1=c1, y=y), verbosity=0)
+        @test_throws "column `c1` of `deval` is constant, so its dependence on the evaluation set is undefined" fit(
+            cfg(5.0), df; target_name="y", ctrl_name="c1", deval=merge(df, (c1=fill(1.0, nobs),)), verbosity=0)
+        # within groups the eval set needs its groups
+        dg = merge(df, (g=gid,))
+        @test fit(cfg(5.0; within=true), dg; target_name="y", ctrl_name="c1", group_name="g", deval=dg,
+            verbosity=0).info[:logger][:penalized]
+        @test_throws "eval set has no groups" fit(cfg(5.0; within=true), dg; target_name="y", ctrl_name="c1",
+            group_name="g", eval_group_name=nothing, deval=dg, verbosity=0)
+    end
+
+    @testset "rejected inputs" begin
+        @test_throws "not for the eval set" fit(cfg(5.0); x_train=x, y_train=y, ctrl_train=c1, x_eval=x, y_eval=y,
+            verbosity=0)
+        @test_throws "without `ctrl_train`" fit(cfg(0.0); x_train=x, y_train=y, x_eval=x, y_eval=y, ctrl_eval=c1,
+            verbosity=0)
+        @test_throws "controls but `ctrl_train` has" fit(cfg(5.0); x_train=x, y_train=y, ctrl_train=C, x_eval=x,
+            y_eval=y, ctrl_eval=c1, verbosity=0)
+        @test_throws "`ctrl_eval` has 10 rows but there are 2000" fit(cfg(5.0); x_train=x, y_train=y, ctrl_train=C,
+            x_eval=x, y_eval=y, ctrl_eval=C[1:10, :], verbosity=0)
+        @test_throws "`ctrl_eval` is constant" fit(cfg(5.0); x_train=x, y_train=y, ctrl_train=c1, x_eval=x,
+            y_eval=y, ctrl_eval=fill(1.0, nobs), verbosity=0)
+        @test_throws "column 2 of `ctrl_eval` is constant" fit(cfg(5.0); x_train=x, y_train=y, ctrl_train=C, x_eval=x,
+            y_eval=y, ctrl_eval=hcat(c1, fill(1.0, nobs)), verbosity=0)
+        @test_throws "eval set has no groups" fit(cfg(5.0; within=true); x_train=x, y_train=y, ctrl_train=c1,
+            group_train=gid, x_eval=x, y_eval=y, ctrl_eval=c1, verbosity=0)
+    end
+end

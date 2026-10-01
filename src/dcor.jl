@@ -313,6 +313,26 @@ function dcov2_grad!(dc::DcorCache, x::AbstractVector)
 end
 
 """
+    dcov2_value!(dc::DcorCache, x)
+
+`dcov2(x, dc.ctrl)` from the cached gradient sweep. The statistic is a sum over pairs of the
+distances `|x_i - x_j|`, with coefficients set by the control alone, so it is homogeneous of degree
+one in `x` and, by Euler's identity, equals `sum(g .* x)` for its gradient `g`, at ties too, where a
+distance and its subgradient's share both vanish. `g` sums to zero, so `x` is measured from its
+minimum to keep the terms small, and the sum runs in index order, so the value is the same on every
+CPU.
+"""
+function dcov2_value!(dc::DcorCache, x::AbstractVector)
+    g = dcov2_grad!(dc, x)
+    x0 = Float64(minimum(x))
+    s = 0.0
+    @inbounds for i in eachindex(g)
+        s += g[i] * (Float64(x[i]) - x0)
+    end
+    return s
+end
+
+"""
     GroupedDcorCache(ctrl, gi::GroupIndex)
 
 One `DcorCache` per group, so the penalty acts on the dependence within each group rather than
