@@ -13,6 +13,11 @@
 - `RecipesBase` and `NetworkLayout` are no longer dependencies. Layout is computed in EvoTrees; the recipe is a package extension loaded with Makie.
 - Split labels show the comparison (`≤` for numeric/ordered features, `=` for unordered categoricals). Multi-output leaves show every predicted parameter.
 
+### XE-NDCG ranking loss
+- `loss=:xendcg` adds the listwise ranking loss XE-NDCG (Bruch, "An Alternative Cross Entropy Loss for Learning-to-Rank", WWW 2021). Within each group a softmax over the scores is fitted by cross-entropy to a target with mass `2^rel - xendcg_offset` on each document, normalised over the group. Its cost is linear in the size of a group, against quadratic for `:lambdarank`, and it needs no sort. `metric` defaults to `:xendcg`, the same cross-entropy on the evaluation groups.
+- `xendcg_offset`, in [0, 1] and 0.5 by default, is fixed rather than redrawn every round as in the paper, so the target is deterministic; the paper's bound on NDCG holds for any fixed value. A group weighs by the mean of its rows' weights, as for `:ndcg`. Relevance must be non-negative. On GPU the gradient and the metric go through the host, as for `:lambdarank`.
+- `:lambdarank` and `:xendcg` reject a target with more than one column. `:lambdarank` used to fit one on the wrong values without an error.
+
 ## v0.18.8
 
 Saved `:gaussian_mle` / `:logistic_mle` models from ≤0.18.7 remain compatible: the unconstrained scale is still `exp(x)`.

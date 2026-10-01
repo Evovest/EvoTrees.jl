@@ -182,6 +182,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:cred_var`: **experimental** credibility-based gains, derived from ratio of spread to process variance.
   - `:cred_std`: **experimental** credibility-based gains, derived from ratio of spread to process std deviation.
   - `:lambdarank`: ranking objective. Pairwise within each query, weighted by the NDCG change a swap would cause. Requires groups, so it is only available through `EvoTrees.fit`, not through the MLJ interface, which has no way to pass them.
+  - `:xendcg`: listwise ranking objective (XE-NDCG). Within each query a softmax over the scores is fitted by cross-entropy to a target with mass `2^rel - xendcg_offset` on each document, normalised over the query. Cost is linear in the size of a query. A query weighs by the mean of its rows' weights. Requires groups, so like `:lambdarank` it is only available through `EvoTrees.fit`.
 - `metric`:     The evaluation metric used to track evaluation data and serves as a basis for early stopping. Supported metrics are: 
   - `:mse`:     Mean-squared error. Adapted for general regression models.
   - `:rmse`:    Root-mean-squared error. Adapted for general regression models.
@@ -195,6 +196,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:gini`: The normalized Gini between pred and target
   - `:ndcg`: Normalized discounted cumulative gain, computed within each group and averaged over groups, with truncation set by `ndcg_k`. Requires groups and evaluation data, so it is only meaningful through `EvoTrees.fit`: the MLJ interface passes neither, and the metric is simply never evaluated there.
   - `:pearson`: Weighted Pearson correlation between prediction and target, computed within each group and averaged over groups. Requires groups and evaluation data, so like `:ndcg` it is only meaningful through `EvoTrees.fit`.
+  - `:xendcg`: The `:xendcg` loss on the evaluation data, its cross-entropy within each group averaged over groups. Lower is better. Requires groups and evaluation data, so like `:ndcg` it is only meaningful through `EvoTrees.fit`.
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:               Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
@@ -205,6 +207,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 - `alpha=0.5`:            Loss specific parameter in the [0, 1] range:
                             - `:quantile`: target quantile for the regression.
 - `ndcg_k`:               Truncation rank for `metric = :ndcg` and for the `:lambdarank` objective, that is the `k` of NDCG@k. Must be >= 1. Defaults to no truncation, scoring the full list of each group. Ranking is only available through `EvoTrees.fit`, see `:lambdarank` above.
+- `xendcg_offset=0.5`:    Offset subtracted from each document's mass `2^rel` in the `:xendcg` target and metric. Must be in the [0, 1] range. At 1 the target is NDCG's gain, `2^rel - 1`.
 - `max_depth=6`:          Maximum number of splits on a leaf path. Must be >= 1. Depth 1 is a split with 2 leaves.
   A complete tree of depth N contains `2^N` terminal leaves and `2^N - 1` split nodes.
   Compute cost is proportional to `2^max_depth`. Typical optimal values are in the 3 to 9 range.

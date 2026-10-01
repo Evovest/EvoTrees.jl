@@ -207,3 +207,20 @@ function EvoTrees.update_grads!(
     copyto!(∇, ∇_cpu)
     return nothing
 end
+
+# XE-NDCG needs a softmax within each query, a segmented reduction over variable-length groups,
+# so like LambdaRank its arrays are brought to the host and the shared CPU implementation is used.
+function EvoTrees.update_grads!(
+    ∇::CuMatrix,
+    p::CuMatrix,
+    y::CuVector,
+    ::Type{EvoTrees.XENDCG},
+    params::EvoTrees.EvoTypes,
+    group,
+)
+    isnothing(group) && EvoTrees._xendcg_no_group()
+    ∇_cpu = Array(∇)
+    EvoTrees._xendcg_grads!(∇_cpu, Array(p), Array(y), group.index, params.xendcg_offset)
+    copyto!(∇, ∇_cpu)
+    return nothing
+end

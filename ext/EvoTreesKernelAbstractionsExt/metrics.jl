@@ -153,6 +153,25 @@ function EvoTrees.ndcg(
     return EvoTrees.ndcg(p_cpu, y_cpu, w_cpu, similar(w_cpu, 0); group, ndcg_k)
 end
 
+# Same reasoning as `ndcg` above: a softmax within each group is a segmented reduction, so the
+# arrays are brought to the host and scored with the CPU code.
+function EvoTrees.xendcg(
+    p::CuMatrix{T},
+    y::Union{CuVector,CuMatrix},
+    w::CuVector{T},
+    eval::CuVector{T};
+    group=nothing,
+    xendcg_offset=0.5,
+    kwargs...
+) where {T<:AbstractFloat}
+    isnothing(group) && error(
+        "`metric = :xendcg` requires group information. Pass `group_name` when fitting from a " *
+        "table, or `group_eval` alongside `x_eval` when fitting from a matrix."
+    )
+    w_cpu = Array(w)
+    return EvoTrees.xendcg(Array(p), Array(y), w_cpu, similar(w_cpu, 0); group, xendcg_offset)
+end
+
 # Same reasoning as `ndcg` above: a per-group correlation reads its rows individually, so the
 # arrays are brought to the host rather than scalar-indexed on device.
 function EvoTrees.pearson(

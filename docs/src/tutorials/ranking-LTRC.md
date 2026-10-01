@@ -249,6 +249,48 @@ noise that a regression fit must absorb and a ranking objective can ignore. Wher
 is comparable across queries, regression is already a strong baseline, which is what the
 opening of this tutorial reports.
 
+## Listwise objective: XE-NDCG
+
+`loss=:xendcg` is a listwise alternative, XE-NDCG (Bruch, "An Alternative Cross Entropy Loss
+for Learning-to-Rank", WWW 2021). Within each query a softmax runs over the documents' scores
+and is fitted by cross-entropy to a target that puts mass `2^rel - xendcg_offset` on each
+document, normalised over the query. The gradient is the softmax minus that target, so the
+cost is linear in the size of a query and needs no sort. A query's gradients sum to zero, with
+absolute values summing to at most 2 whatever its size, so large queries do not dominate.
+`metric` defaults to `:xendcg`, the same cross-entropy on the evaluation queries.
+`metric=:ndcg` tracks NDCG instead, though NDCG on held-out queries is noisy and tends to stop
+the fit early, so the default is usually the steadier choice for early stopping.
+
+```julia
+config = EvoTreeRegressor(
+    loss=:xendcg,
+    nrounds=6000,
+    early_stopping_rounds=200,
+    eta=0.02,
+    nbins=64,
+    max_depth=11,
+    rowsample=0.9,
+    colsample=0.9,
+)
+
+m = EvoTrees.fit(
+    config;
+    x_train, y_train, group_train=q_train,
+    x_eval, y_eval, group_eval=q_eval,
+    print_every_n=50,
+);
+```
+
+The grades set how top-heavy the target is: each unit of relevance doubles a document's mass,
+so grades 0 to 4 put 31 times as much mass on a top document as on a bottom one at the default
+offset. `xendcg_offset`, between 0 and 1, is subtracted from every document's mass. The paper
+redraws it uniformly every round; here it is fixed, at 0.5 by default. The paper's bound on
+NDCG holds for any fixed value, and a fixed one keeps the target deterministic. At 1 the target
+is NDCG's own gain, `2^rel - 1`, and a query whose documents all have relevance 0 carries no
+signal. Relevance must be non-negative. A query weighs by the mean of its rows' weights, as for
+`:ndcg`. A query's Hessians sum to less than 1, so `L2` acts as a much stronger prior than under
+`:mse` and is worth tuning.
+
 ## Logistic regression alternative
 
 The above regression experiment shows a performance competitive with the results outlined in CatBoost's [ranking benchmarks](https://github.com/catboost/benchmarks/blob/master/ranking/Readme.md#4-results). 

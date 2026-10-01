@@ -194,6 +194,22 @@ function _pearson_chunk!(scores, weights, p, y, w, group, chunk, K::Int, stride:
     return nothing
 end
 
+function _xendcg_metric_chunk!(scores, weights, p, y, w, group, chunk, offset::Float64)
+    buf = XENDCGScratch()
+    for g in chunk
+        rows = group_rows(group, g)
+        s = _xendcg_group_loss!(buf, p, y, rows, offset)
+        isnothing(s) && continue
+        scores[g] = s
+        sw = 0.0
+        @inbounds for r in rows
+            sw += w[r]
+        end
+        weights[g] = sw / length(rows)
+    end
+    return nothing
+end
+
 # One chunk per thread, so per-group scratch can be allocated once per chunk rather than
 # once per group. Chunks rather than `threadid()` because tasks may migrate between threads.
 function _group_chunks(ng::Int)
@@ -259,6 +275,67 @@ function ndcg(
         _ndcg_chunk!(scores, weights, p, y, w, group, chunk, ndcg_k)
     end
     return sum(scores .* weights) / sum(weights)
+end
+
+# XE-NDCG's loss within a single group: the cross-entropy between the target and the softmax
+# of the predictions. Since the target sums to one, -sum(t log softmax(p)) is
+# log(sum(exp(p - pmax))) - sum(t (p - pmax)). `nothing` for a group with no ranking signal.
+function _xendcg_group_loss!(buf::XENDCGScratch, p::AbstractMatrix, y, rows, offset::Float64)
+    length(rows) < 2 && return nothing
+    tot = _xendcg_target!(buf.a, y, rows, offset)
+    tot > 0 || return nothing
+    pmax = -Inf
+    @inbounds for r in rows
+        pmax = max(pmax, Float64(p[1, r]))
+    end
+    z = 0.0
+    tp = 0.0
+    @inbounds for (i, r) in enumerate(rows)
+        d = Float64(p[1, r]) - pmax
+        z += exp(d)
+        tp += buf.a[i] / tot * d
+    end
+    return log(z) - tp
+end
+
+"""
+    xendcg(p, y, w, eval; group, xendcg_offset, kwargs...)
+
+The loss of `:xendcg` within each group, then averaged over groups: the cross-entropy between
+the softmax of the group's predictions and a target that puts mass `2^grade - xendcg_offset` on
+each row, normalised over the group. Lower is better. Requires the group index supplied at fit
+through `group_name` or `group_eval`, and non-negative grades. As for `:ndcg`, a group weighs by
+the mean of its rows' weights. Groups of one row, and groups whose grades are all 0 at an offset
+of 1, carry no ranking signal and are left out.
+"""
+function xendcg(
+    p::AbstractMatrix{T},
+    y::AbstractVecOrMat,
+    w::AbstractVector{T},
+    eval::AbstractVector{T};
+    group=nothing,
+    xendcg_offset=0.5,
+    kwargs...
+) where {T}
+    isnothing(group) && error(
+        "`metric = :xendcg` requires group information. Pass `group_name` when fitting from a " *
+        "table, or `group_eval` alongside `x_eval` when fitting from a matrix."
+    )
+    y isa AbstractMatrix && size(y, 1) > 1 &&
+        error("`metric = :xendcg` takes a single target column, got $(size(y, 1)).")
+    minimum(y) >= 0 || error("`metric = :xendcg` requires non-negative grades.")
+    ng = ngroups(group)
+    scores = zeros(Float64, ng)
+    weights = zeros(Float64, ng)
+    @threads for chunk in _group_chunks(ng)
+        _xendcg_metric_chunk!(scores, weights, p, y, w, group, chunk, Float64(xendcg_offset))
+    end
+    sw = sum(weights)
+    sw > 0 || error(
+        "`metric = :xendcg` found no evaluation group with at least two rows and positive " *
+        "target mass."
+    )
+    return sum(scores .* weights) / sw
 end
 
 # The rows of a group are scattered, so they are gathered once into contiguous scratch and
@@ -401,6 +478,7 @@ const metric_dict = Dict(
     :multiquantile => multiquantile,
     :gini => gini,
     :ndcg => ndcg,
+    :xendcg => xendcg,
     :pearson => pearson,
 )
 
@@ -418,4 +496,5 @@ is_maximise(::typeof(wmae)) = false
 is_maximise(::typeof(multiquantile)) = false
 is_maximise(::typeof(gini)) = true
 is_maximise(::typeof(ndcg)) = true
+is_maximise(::typeof(xendcg)) = false
 is_maximise(::typeof(pearson)) = true

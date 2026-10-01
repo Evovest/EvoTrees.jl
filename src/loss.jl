@@ -4,6 +4,7 @@ abstract type MLE2P <: LossType end # 2-parameters max-likelihood
 
 abstract type MSE <: GradientRegression end
 abstract type LambdaRank <: GradientRegression end
+abstract type XENDCG <: GradientRegression end
 abstract type LogLoss <: GradientRegression end
 abstract type Poisson <: GradientRegression end
 abstract type Gamma <: GradientRegression end
@@ -21,6 +22,7 @@ abstract type CredStd <: Cred end
 const _loss2type_dict = Dict(
     :mse => MSE,
     :lambdarank => LambdaRank,
+    :xendcg => XENDCG,
     :logloss => LogLoss,
     :poisson => Poisson,
     :gamma => Gamma,
@@ -208,6 +210,102 @@ _lambdarank_no_group() = error(
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{LambdaRank}, params::EvoTypes, group) where {T}
     isnothing(group) && _lambdarank_no_group()
     _lambdarank_grads!(∇, p, y, group, params.ndcg_k)
+end
+
+# XE-NDCG, per Bruch, "An Alternative Cross Entropy Loss for Learning-to-Rank" (WWW 2021).
+# Within a query one softmax runs over the scores, fitted by cross-entropy to a target that puts
+# mass 2^grade - offset on each document, normalised over the query. The gradient is softmax
+# minus target, as for multiclass logloss with soft labels, and the Hessian its diagonal.
+# LightGBM adds second and third order terms to the gradient; they matter little once a query
+# has a few dozen documents, though in a query of two the diagonal step is twice the Newton
+# step. The paper redraws the offset uniformly on [0, 1] every round; its bound on NDCG holds
+# for any fixed offset, which keeps the target deterministic. Cost is linear in the size of a
+# query, with no sort.
+struct XENDCGScratch
+    e::Vector{Float64}
+    a::Vector{Float64}
+end
+XENDCGScratch() = XENDCGScratch(Float64[], Float64[])
+
+# Target mass of each document, scaled by 2^-max(grade) so a large grade cannot overflow; the
+# scale cancels once the masses are normalised. Returns their total.
+function _xendcg_target!(a::Vector{Float64}, y, rows, offset::Float64)
+    resize!(a, length(rows))
+    ymax = -Inf
+    @inbounds for r in rows
+        ymax = max(ymax, Float64(y[r]))
+    end
+    s = exp2(-ymax)
+    tot = 0.0
+    @inbounds for (i, r) in enumerate(rows)
+        a[i] = exp2(Float64(y[r]) - ymax) - offset * s
+        tot += a[i]
+    end
+    return tot
+end
+
+# Softmax of a query's scores into `e`, with the maximum subtracted first.
+function _xendcg_softmax!(e::Vector{Float64}, p, rows)
+    resize!(e, length(rows))
+    smax = -Inf
+    @inbounds for r in rows
+        smax = max(smax, Float64(p[1, r]))
+    end
+    z = 0.0
+    @inbounds for (i, r) in enumerate(rows)
+        e[i] = exp(Float64(p[1, r]) - smax)
+        z += e[i]
+    end
+    e ./= z
+    return e
+end
+
+# A query weighs by the mean of its rows' weights, as for `:ndcg`, so the gradient is that of
+# the weighted cross-entropy the metric reports. A weight varying within a query would scale
+# its rows' steps without corresponding to any loss.
+function _xendcg_group!(buf::XENDCGScratch, ∇::Matrix{T}, p::Matrix{T}, y, rows, offset::Float64) where {T}
+    length(rows) < 2 && return nothing
+    tot = _xendcg_target!(buf.a, y, rows, offset)
+    tot > 0 || return nothing   # every grade 0 at an offset of 1: no mass to rank by
+    ρ = _xendcg_softmax!(buf.e, p, rows)
+    w = 0.0
+    @inbounds for r in rows
+        w += ∇[3, r]
+    end
+    w /= length(rows)
+    @inbounds for (i, r) in enumerate(rows)
+        ∇[1, r] = T(w * (ρ[i] - buf.a[i] / tot))
+        ∇[2, r] = T(w * ρ[i] * (1 - ρ[i]))
+    end
+    return nothing
+end
+
+function _xendcg_chunk!(∇::Matrix{T}, p::Matrix{T}, y, group, chunk, offset::Float64) where {T}
+    buf = XENDCGScratch()
+    for g in chunk
+        _xendcg_group!(buf, ∇, p, y, group_rows(group, g), offset)
+    end
+    return nothing
+end
+
+# Shared by both backends: the GPU path brings its arrays to the host and calls this.
+function _xendcg_grads!(∇::Matrix{T}, p::Matrix{T}, y, group, offset) where {T}
+    fill!(view(∇, 1, :), zero(T))
+    fill!(view(∇, 2, :), zero(T))
+    @threads for chunk in _group_chunks(ngroups(group))
+        _xendcg_chunk!(∇, p, y, group, chunk, Float64(offset))
+    end
+    return nothing
+end
+
+_xendcg_no_group() = error(
+    "`loss = :xendcg` requires group information. Pass `group_name` when fitting " *
+    "from a table, or `group_train` when fitting from a matrix."
+)
+
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{XENDCG}, params::EvoTypes, group) where {T}
+    isnothing(group) && _xendcg_no_group()
+    _xendcg_grads!(∇, p, y, group, params.xendcg_offset)
 end
 
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:GradientRegression}
