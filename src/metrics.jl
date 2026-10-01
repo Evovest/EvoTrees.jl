@@ -202,12 +202,35 @@ function _group_chunks(ng::Int)
     return [((c - 1) * per + 1):min(c * per, ng) for c in 1:nt if (c - 1) * per + 1 <= ng]
 end
 
+@inline _ties(x, y) = x == y || (isnan(x) && isnan(y))
+
+# Ranking order within a group: highest prediction first. Tied predictions put the less
+# relevant document first, so a tie scores as its worst case, and equal relevance falls back
+# to the row index, so the order is total. Rows it separates by index have equal gain, so the
+# score does not depend on the order of the rows; without an offset every prediction in a
+# group ties at round 0. Predictions compare with `isless`, as `sortperm` does, so a NaN ranks
+# first, while -0.0 and 0.0 tie.
+@inline function _rank_before(pred, rel, a::Int, b::Int)
+    pa, pb = pred[a], pred[b]
+    _ties(pa, pb) || return isless(pb, pa)
+    return rel[a] < rel[b] || (rel[a] == rel[b] && a < b)
+end
+
+function _rank_order!(ord::Vector{Int}, pred::AbstractVector, rel::AbstractVector)
+    n = length(rel)
+    resize!(ord, n)
+    @inbounds for i in 1:n
+        ord[i] = i
+    end
+    # QuickSort is in place; the default hybrid allocates scratch on every call
+    sort!(ord; alg=QuickSort, lt=(a, b) -> _rank_before(pred, rel, a, b))
+    return ord
+end
+
 function _ndcg_group!(ord::Vector{Int}, ideal::Vector{Float64}, pred::AbstractVector, rel::AbstractVector, k::Int)
     n = length(rel)
     kk = min(k, n)
-    resize!(ord, n)
-    # QuickSort is in place; the default hybrid allocates scratch on every call
-    sortperm!(ord, pred; rev=true, alg=QuickSort)
+    _rank_order!(ord, pred, rel)
     dcg = 0.0
     @inbounds for i in 1:kk
         dcg += (2.0^rel[ord[i]] - 1) / log2(i + 1)
@@ -235,6 +258,9 @@ is the mean of its rows' weights, so the default of unit weights leaves every gr
 weighted. Only that group-level weight enters the score: NDCG is defined from the ranking of a
 group's documents, so the spread of weights within a group is deliberately ignored. Use `:pearson`
 if per-document weights need to count.
+
+Tied predictions are ranked with the less relevant document first, so a tie scores as its
+worst case and the score does not depend on the order of the rows.
 """
 function ndcg(
     p::AbstractMatrix{T},
