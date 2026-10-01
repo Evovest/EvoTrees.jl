@@ -116,9 +116,8 @@ struct LambdaRankScratch
     ideal::Vector{Float64}
     disc::Vector{Float64}
     ord::Vector{Int}
-    rank::Vector{Int}
 end
-LambdaRankScratch() = LambdaRankScratch(Float64[], Float64[], Float64[], Float64[], Int[], Int[])
+LambdaRankScratch() = LambdaRankScratch(Float64[], Float64[], Float64[], Float64[], Int[])
 
 # The chunk body is its own function so the `@threads` closure does not box its captures,
 # which would otherwise make every per-group call a dynamic dispatch.
@@ -135,12 +134,10 @@ function _lambdarank_group!(buf::LambdaRankScratch, ∇::Matrix{T}, p::Matrix{T}
     n < 2 && return nothing
 
     scores, rel, ideal = buf.scores, buf.rel, buf.ideal
-    ord, rank, disc = buf.ord, buf.rank, buf.disc
+    ord, disc = buf.ord, buf.disc
     for v in (scores, rel, ideal, disc)
         resize!(v, n)
     end
-    resize!(ord, n)
-    resize!(rank, n)
     @inbounds for (i, r) in enumerate(rows)
         scores[i] = p[1, r]
         rel[i] = y[r]
@@ -155,13 +152,28 @@ function _lambdarank_group!(buf::LambdaRankScratch, ∇::Matrix{T}, p::Matrix{T}
     end
     maxdcg <= 0 && return nothing   # no relevant document, so no ranking signal
 
-    sortperm!(ord, scores; rev=true, alg=QuickSort)
-    @inbounds for pos in 1:n
-        rank[ord[pos]] = pos
-    end
-    # Positions past k get no discount, so a pair wholly below the cutoff yields a zero delta.
-    @inbounds for pos in 1:n
-        disc[pos] = pos <= ndcg_k ? 1 / log2(pos + 1) : 0.0
+    # Each row's discount. Positions past k get none, so a pair wholly below the cutoff yields
+    # a zero delta. Rows tied on both score and relevance are interchangeable, so a run of them
+    # shares the mean discount of the positions it occupies rather than taking them in row
+    # order. A pair always spans two runs, which occupy disjoint contiguous positions, and the
+    # discount falls with position, so each pair gets its expected delta under a random order
+    # within each run.
+    _rank_order!(ord, scores, rel)
+    pos = 1
+    @inbounds while pos <= n
+        stop = pos
+        while stop < n && _ties(scores[ord[stop+1]], scores[ord[pos]]) && rel[ord[stop+1]] == rel[ord[pos]]
+            stop += 1
+        end
+        d = 0.0
+        for j in pos:stop
+            d += j <= ndcg_k ? 1 / log2(j + 1) : 0.0
+        end
+        d /= stop - pos + 1
+        for j in pos:stop
+            disc[ord[j]] = d
+        end
+        pos = stop + 1
     end
 
     @inbounds for a in 1:n
@@ -169,7 +181,7 @@ function _lambdarank_group!(buf::LambdaRankScratch, ∇::Matrix{T}, p::Matrix{T}
         for b in 1:n
             rel[a] > rel[b] || continue
             gb = 2.0^rel[b] - 1
-            delta = abs((ga - gb) * (disc[rank[a]] - disc[rank[b]])) / maxdcg
+            delta = abs((ga - gb) * (disc[a] - disc[b])) / maxdcg
             delta == 0 && continue
             ρ = 1 / (1 + exp(scores[a] - scores[b]))
             λ = -ρ * delta
