@@ -244,11 +244,37 @@ than its end: past some weight the penalty overshoots. Here the neutral correlat
 on, and at 300 the measured dependence rises again while accuracy keeps falling. Before keeping a
 weight at the edge of a grid, extend the grid past it.
 
-The eval metric and early stopping see the base loss only, not the penalty, so early stopping
-picks the number of rounds by accuracy alone and ignores the dependence. Unless an offset gives
-the predictions a spread from the start, the first tree is fitted before they have any, so it
-carries no penalty, and at a strong weight the best round by the base metric can be that first one. A fixed `nrounds`, tuned
-together with `ctrl_lambda`, keeps the trade-off in view.
+### Early stopping
+
+With evaluation data, the loss's own metric becomes the penalised objective on the evaluation set,
+so early stopping weighs the dependence as training does. The evaluation set carries its own
+controls, centred and scaled on it, and for the within-date form its own dates:
+
+```julia
+valid = span(valid_dates)
+es_config = EvoTreeRegressor(loss=:mse, nrounds=2000, eta=0.05, max_depth=5, seed=1,
+    ctrl_lambda=λ0, ctrl_within_group=true, early_stopping_rounds=50)
+m_es = EvoTrees.fit(es_config; x_train, y_train, ctrl_train=beta_train, group_train=date_train,
+    x_eval=x[valid, :], y_eval=y[valid], ctrl_eval=beta[valid], group_eval=date[valid], verbosity=0)
+
+lg = m_es.info[:logger]
+b = lg[:best_iter] + 1
+@printf("best round %d: mse %.4f, dependence %.4f, penalised %.4f\n",
+    lg[:best_iter], lg[:base_metrics][b], lg[:ctrl_dependence][b][1], lg[:metrics][b])
+```
+
+| **best round** | **mse** | **dependence** | **penalised** |
+|----------------|---------|----------------|---------------|
+| 51 | 2.5243 | 0.00022 | 2.5265 |
+
+The penalised value is the mse plus `ctrl_lambda` times the dependence, the mean over dates of each
+date's `dcov2` weighted by its size. The logger keeps both parts for every round, under
+`:base_metrics` and `:ctrl_dependence`. A metric other than the loss's own, such as `:pearson`, is
+reported as it is, with the dependence logged beside it. The model keeps every tree it grew, so
+predict with `ntree_limit=lg[:best_iter]` to use the round early stopping chose. Unless an offset
+gives the predictions a spread from the start, the first tree is fitted before the penalty acts, so
+at a strong weight the best round can be round 0, the bias alone: leave `early_stopping_rounds` some
+room.
 
 ## The scale of `ctrl_lambda`
 
