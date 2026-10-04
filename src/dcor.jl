@@ -411,3 +411,99 @@ struct SummedDcorCache{C<:AbstractDcorCache} <: AbstractDcorCache
     rows::Vector{Int}
     wbar::Float64
 end
+
+"""
+    EvalCtrl
+
+The eval set's controls, for the penalised eval metric of a fit with a decorrelation penalty: one
+cache per control, over the whole eval set or within each eval group, built on the eval controls
+centred and scaled on the eval set itself, as the training controls are on theirs. The penalty is
+then priced the same way on both sets, an eval date has a scaling of its own as a training date
+does, and the metric depends only on the model and the eval data.
+
+When `penalized`, the loss's own metric becomes the penalised objective on the eval set, in the
+metric's units: under `:mse` the training objective per unit weight is `mse + ctrl_lambda * dcov2`,
+and the eval value is the same expression on the eval predictions. `dep` holds each control's
+dependence of the last round, averaged over the penalised outputs and before `ctrl_lambda` and the
+control weights, so it compares across weights. The per-loss pieces, `_own_metric`,
+`_dep_transform` and `_dep_coef`, sit with the training penalty in `loss.jl`.
+"""
+struct EvalCtrl{L,C<:AbstractDcorCache}
+    caches::Vector{C}
+    weights::Vector{Float64}
+    lambda::Float64
+    penalized::Bool
+    sign::Float64
+    n::Int
+    rows::Vector{Int}
+    x::Vector{Float64}
+    a::Vector{Float64}
+    dep::Vector{Float64}
+end
+
+function eval_ctrl(params, ::Type{L}, K::Int, ctrl::Controls, group, feval, n::Int) where {L}
+    within = hasproperty(params, :ctrl_within_group) && params.ctrl_within_group
+    if within
+        isnothing(group) && error(
+            "`ctrl_within_group` is set but the eval set has no groups. Pass `eval_group_name` when " *
+            "fitting from a table, or `group_eval` alongside `x_eval`.")
+        caches = [GroupedDcorCache(c, group; label=l) for (c, l) in zip(ctrl.cols, ctrl.labels)]
+    else
+        caches = [DcorCache(c) for c in ctrl.cols]
+    end
+    lambda = hasproperty(params, :ctrl_lambda) ? params.ctrl_lambda : 0.0
+    penalized = lambda > 0 && feval === _own_metric(L)
+    return EvalCtrl{L,eltype(caches)}(caches, ctrl.weights, lambda, penalized,
+        is_maximise(feval) ? -1.0 : 1.0, n, collect(ctrl_rows(L, K)), zeros(n), zeros(n),
+        zeros(length(caches)))
+end
+
+# one control's dependence on a prediction row, and the same with each row weighted by `a`
+# (`:gaussian_mle`, where it is the location's curvature): over the whole eval set, or within
+# groups as the size-weighted sum `sum_g n_g / n * dcov2_g`, a skipped group adding nothing
+function _dependence(dc::DcorCache, x, a, n)
+    d = dcov2_value!(dc, x)
+    return d, isnothing(a) ? d : d * _ordered_sum(a) / length(a)
+end
+function _dependence(gc::GroupedDcorCache, x, a, n)
+    dg = zeros(length(gc.caches))
+    dag = zeros(length(gc.caches))
+    @threads for k in eachindex(gc.caches)
+        rows = gc.rows[k]
+        dg[k] = length(rows) / n * dcov2_value!(gc.caches[k], view(x, rows))
+        dag[k] = isnothing(a) ? dg[k] : dg[k] * _ordered_sum(view(a, rows)) / length(rows)
+    end
+    return _ordered_sum(dg), _ordered_sum(dag)
+end
+
+"""
+    eval_penalty!(ec::EvalCtrl, p)
+
+Each control's dependence on the eval predictions `p`, and the penalty term in the metric's units:
+`sign * ctrl_lambda * coef * mean over penalised outputs of sum_c weight_c * dependence_c`. The
+predictions are brought to the host first, as the training penalty does.
+"""
+function eval_penalty!(ec::EvalCtrl{L}, p::AbstractMatrix) where {L}
+    ph = p isa Array ? p : Array(p)
+    fill!(ec.dep, 0.0)
+    term = 0.0
+    for k in ec.rows
+        @inbounds for i in eachindex(ec.x)
+            ec.x[i] = _dep_transform(L, Float64(ph[k, i]))
+        end
+        a = nothing
+        if L <: GaussianMLE
+            @inbounds for i in eachindex(ec.a)
+                ec.a[i] = exp(-2 * Float64(ph[k+1, i]))
+            end
+            a = ec.a
+        end
+        for c in eachindex(ec.caches)
+            d, da = _dependence(ec.caches[c], ec.x, a, ec.n)
+            ec.dep[c] += d
+            term += ec.weights[c] * da
+        end
+    end
+    ec.dep ./= length(ec.rows)
+    return ec.dep, ec.sign * ec.lambda * _dep_coef(L) * term / length(ec.rows)
+end

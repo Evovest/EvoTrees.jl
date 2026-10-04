@@ -232,6 +232,33 @@ function _sum_controls!(acc, caches, ω, rows)
     return acc
 end
 
+# The eval metric prices the penalty in the loss's own metric, a fixed multiple of its training
+# objective per unit weight. Any other metric, a root, absolute, rank or correlation scale, has no
+# exchange rate for `ctrl_lambda`, so it is reported as it stands, with the dependence logged beside it.
+_own_metric(::Type{MSE}) = mse
+_own_metric(::Type{LogLoss}) = logloss
+_own_metric(::Type{Poisson}) = poisson
+_own_metric(::Type{Gamma}) = gamma
+_own_metric(::Type{Tweedie}) = tweedie
+_own_metric(::Type{GaussianMLE}) = gaussian_mle
+_own_metric(::Type) = nothing
+
+# The penalty's gradient is `ctrl_lambda * W * g * h / 2w`, and `g` sees the prediction only through
+# its ranks, so where `h / 2w` is the derivative of one increasing function of the prediction, the
+# penalty is exactly `ctrl_lambda * W * dcov2` of that function. It is the prediction under `:mse`,
+# half the probability under `:logloss` and half the mean under `:poisson`, whose deviance metric is
+# twice its objective. Under `:gamma` and `:tweedie` the weight also depends on the target and is
+# that derivative in expectation, so the term is exact at a calibrated fit; under `:gaussian_mle`
+# the location's weight `1 / 2 scale^2` is taken at the fitted scale, exact when the scale is
+# constant, and the metric is a log-likelihood, maximised, so the term is subtracted.
+_dep_transform(::Type{<:Union{MSE,Gamma,GaussianMLE}}, p) = p
+_dep_transform(::Type{LogLoss}, p) = sigmoid(p)
+_dep_transform(::Type{Poisson}, p) = exp(p)
+_dep_transform(::Type{Tweedie}, p) = exp((2 - 1.5) * p)   # rho = 1.5, as in the loss and its metric
+_dep_coef(::Type{<:Union{MSE,Poisson,Gamma}}) = 1.0
+_dep_coef(::Type{<:Union{LogLoss,GaussianMLE}}) = 0.5
+_dep_coef(::Type{Tweedie}) = 1 / (2 - 1.5)
+
 # LambdaRank, per Burges' "From RankNet to LambdaRank to LambdaMART". Pairs within a query
 # contribute a pairwise logistic cost weighted by the NDCG change a swap would cause. The
 # lambdas stay per-document, so K = 1 and the histogram and leaf solver are untouched.

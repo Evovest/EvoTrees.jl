@@ -259,7 +259,7 @@ m_es = EvoTrees.fit(es_config; x_train, y_train, ctrl_train=beta_train, group_tr
 
 lg = m_es.info[:logger]
 b = lg[:best_iter] + 1
-@printf("best round %d: mse %.4f, dependence %.4f, penalised %.4f\n",
+@printf("best round %d: mse %.4f, dependence %.5f, penalised %.4f\n",
     lg[:best_iter], lg[:base_metrics][b], lg[:ctrl_dependence][b][1], lg[:metrics][b])
 ```
 

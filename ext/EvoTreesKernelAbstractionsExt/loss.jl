@@ -190,7 +190,7 @@ function EvoTrees.update_grads!(
     return
 end
 
-# The decorrelation penalty is a global statistic over all predictions: two sorts and a
+# The decorrelation penalty is a global statistic over all predictions: a sort per control and a
 # Fenwick sweep, neither of which maps onto a per-observation kernel. The base gradients are
 # computed on device as usual, then the penalised rows are brought to the host and the penalty
 # added there. LambdaRank below also works on the host, though it copies whole matrices.

@@ -989,5 +989,8 @@ end
             y_eval=y, ctrl_eval=hcat(c1, fill(1.0, nobs)), verbosity=0)
         @test_throws "eval set has no groups" fit(cfg(5.0; within=true); x_train=x, y_train=y, ctrl_train=c1,
             group_train=gid, x_eval=x, y_eval=y, ctrl_eval=c1, verbosity=0)
+        # eval controls without an eval set track nothing, so they warn as `x_eval` alone does
+        @test_logs (:warn, r"both `x_eval` and `y_eval`") fit(cfg(5.0); x_train=x, y_train=y, ctrl_train=c1,
+            ctrl_eval=c1, verbosity=0)
     end
 end

@@ -446,7 +446,7 @@ function fit(
     # initialize callback and logger if tracking eval data
     metric = params.metric
     logging_flag = !isnothing(x_eval) && !isnothing(y_eval)
-    any_flag = !isnothing(x_eval) || !isnothing(y_eval)
+    any_flag = !isnothing(x_eval) || !isnothing(y_eval) || !isnothing(ctrl_eval)
     if !logging_flag && any_flag
         @warn "To track eval metric in logger, both `x_eval` and `y_eval` must be provided."
     end
