@@ -377,6 +377,22 @@ _pearson_rank_no_group() = error(
     "when fitting from a table, or `group_eval` alongside `x_eval` when fitting from a matrix."
 )
 
+"""
+    eval_target(feval, y, metric_kwargs)
+
+The metric a callback calls and the evaluation target it scores, set up once when the callback is
+built. A metric scores the target as given unless it defines a method here. `:pearson_rank` is
+`:pearson` on the target's rank-gauss transform, which does not change between rounds, so it is
+transformed once. `y` is the callback's own `Float32` host copy, not yet uploaded, so the caller's
+target is left untouched.
+"""
+eval_target(feval, y, metric_kwargs) = feval, y
+function eval_target(::typeof(pearson_rank), y, metric_kwargs)
+    haskey(metric_kwargs, :group) || _pearson_rank_no_group()
+    y isa AbstractVector || error("`metric = :pearson_rank` takes a single target vector, not a matrix.")
+    return pearson, _rankgauss_by_group!(y, metric_kwargs.group)
+end
+
 function gini_raw(p::AbstractVector, y::AbstractVector)
     _y = y .- minimum(y)
     if length(_y) < 2

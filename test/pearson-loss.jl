@@ -743,6 +743,22 @@ end
             x_train=P.x[P.tr, :], y_train=hcat(P.y[P.tr], P.y[P.tr]), group_train=P.date[P.tr],
             x_eval=P.x[P.ev, :], y_eval=hcat(P.y[P.ev], P.y[P.ev]), group_eval=P.date[P.ev], verbosity=0))
         @test occursin("`metric = :pearson_rank` takes a single target vector", _pl_msg(e))
+        # The callback transforms the eval target once: it holds `:pearson` and the transformed
+        # target, so no round ranks again. Ties and unequal eval weights are scored as `:pearson`
+        # scores the transformed target.
+        yt = round.(P.y[P.ev]; digits=1)
+        wt = Float32.(0.2 .+ 1.8 .* rand(Xoshiro(38), length(yt)))
+        zt = Float32.(_pl_rankgauss(Float32.(yt), P.date[P.ev]))
+        cfg = EvoTreeRegressor(; loss=:mse, metric=:pearson_rank, nrounds=15, max_depth=3)
+        m = fit(cfg; x_train=P.x[P.tr, :], y_train=P.y[P.tr], x_eval=P.x[P.ev, :], y_eval=yt, w_eval=wt,
+            group_eval=P.date[P.ev], verbosity=0)
+        cb = EvoTrees.CallBack(cfg, m, P.x[P.ev, :], yt, EvoTrees.CPU; w_eval=wt, group_eval=P.date[P.ev])
+        @test cb.feval === EvoTrees.pearson
+        @test cb.y == zt
+        lg = m.info[:logger]
+        pe = predict(m, P.x[P.ev, :]; ntree_limit=lg[:best_iter])
+        @test pearson(reshape(pe, 1, :), zt, wt, Float32[]; group=build_group_index(P.date[P.ev])) ≈
+              lg[:best_metric] rtol = 1e-5
     end
 
 end

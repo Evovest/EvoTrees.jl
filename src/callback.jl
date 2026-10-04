@@ -45,16 +45,6 @@ struct CallBack{B,P,Y,C,D,K}
     metric_kwargs::K
 end
 
-# `:pearson_rank` is `:pearson` on the eval target's rank-gauss transform, which does not change
-# between rounds, so it is done once here. `y` is the `Float32` host copy the constructor made, so
-# the caller's target is left untouched, and it is transformed before it is uploaded.
-function _rank_eval_target(feval, y, metric_kwargs)
-    feval === pearson_rank || return feval, y
-    haskey(metric_kwargs, :group) || _pearson_rank_no_group()
-    y isa AbstractVector || error("`metric = :pearson_rank` takes a single target vector, not a matrix.")
-    return pearson, _rankgauss_by_group!(y, metric_kwargs.group)
-end
-
 function CallBack(
     params::EvoTypes,
     m::EvoTree{L,K},
@@ -102,7 +92,7 @@ function CallBack(
         metric_kwargs = merge(metric_kwargs, (group=group_eval,))
     end
     hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
-    feval, y = _rank_eval_target(feval, y, metric_kwargs)
+    feval, y = eval_target(feval, y, metric_kwargs)
 
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
     if !isnothing(offset)
@@ -156,7 +146,7 @@ function CallBack(
         metric_kwargs = merge(metric_kwargs, (group=build_group_index(group_eval, nobs, "group_eval"),))
     end
     hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
-    feval, y = _rank_eval_target(feval, y, metric_kwargs)
+    feval, y = eval_target(feval, y, metric_kwargs)
 
     offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
     if !isnothing(offset)
