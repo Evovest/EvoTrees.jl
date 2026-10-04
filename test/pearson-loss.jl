@@ -680,22 +680,30 @@ end
         @test_throws ErrorException EvoTreeMLE(; loss=:pearson_rank)
     end
 
-    @testset "RK5 learns, measured on the raw target" begin
-        @test EvoTreeRegressor(; loss=:pearson_rank).metric == :pearson
+    @testset "RK5 learns, measured on the rank target by default" begin
+        @test EvoTreeRegressor(; loss=:pearson_rank).metric == :pearson_rank
         P = _pl_fit_panel(35; heavy=true)
-        cfg = EvoTreeRegressor(; loss=:pearson_rank, nrounds=300, max_depth=4, eta=0.1,
+        cfg(metric) = EvoTreeRegressor(; loss=:pearson_rank, metric, nrounds=300, max_depth=4, eta=0.1,
             early_stopping_rounds=10)
-        m = _pl_fit_eval(cfg, P)
-        lg = m.info[:logger]
-        @test m.bias == [0f0]
-        @test lg[:metrics][1] == 0.0
-        @test lg[:best_iter] > 1
-        # the logged metric is the correlation with the untransformed eval target
         xev, yev = P.x[P.ev, :], Float32.(P.y[P.ev])
-        pe = predict(m, xev; ntree_limit=lg[:best_iter])
-        manual = pearson(reshape(pe, 1, :), yev, ones(Float32, length(yev)), Float32[];
-            group=build_group_index(P.date[P.ev]))
-        @test manual ≈ lg[:best_metric] rtol = 1e-5
+        gi = build_group_index(P.date[P.ev])
+        # the rank-gauss transform of the eval target, written out on its own
+        zev = Float32.(_pl_rankgauss(yev, P.date[P.ev]))
+        ones_ev = ones(Float32, length(yev))
+        @test EvoTrees.pearson_rank(reshape(yev, 1, :), yev, ones_ev, Float32[]; group=gi) ≈
+              pearson(reshape(yev, 1, :), zev, ones_ev, Float32[]; group=gi) rtol = 1e-6
+        for (metric, target) in ((nothing, zev), (:pearson, yev))
+            m = _pl_fit_eval(cfg(metric), P)
+            lg = m.info[:logger]
+            @test m.bias == [0f0]
+            @test lg[:metrics][1] == 0.0
+            @test lg[:best_iter] > 1
+            # the default logs the correlation with the transformed eval target, `:pearson` the
+            # correlation with the untransformed one
+            pe = predict(m, xev; ntree_limit=lg[:best_iter])
+            manual = pearson(reshape(pe, 1, :), target, ones_ev, Float32[]; group=gi)
+            @test manual ≈ lg[:best_metric] rtol = 1e-5
+        end
     end
 
     @testset "RK6 is :pearson on the rank-gauss target" begin
@@ -711,6 +719,30 @@ end
         xev = P.x[P.ev, :]
         @test predict(_pl_fit(cfg(:pearson_rank), P; w_train=w), xev) ==
               predict(_pl_fit(cfg(:pearson), merge(P, (; y=yz)); w_train=w), xev)
+    end
+
+    @testset "RK7 metric = :pearson_rank with another loss" begin
+        P = _pl_fit_panel(37)
+        # usable with any loss, from a table too, and the eval target is left untouched
+        dtr = (; x1=P.x[P.tr, 1], x2=P.x[P.tr, 2], y=P.y[P.tr], d=P.date[P.tr])
+        dev = (; x1=P.x[P.ev, 1], x2=P.x[P.ev, 2], y=P.y[P.ev], d=P.date[P.ev])
+        ycopy = copy(dev.y)
+        m = fit(EvoTreeRegressor(; loss=:mse, metric=:pearson_rank, nrounds=20, max_depth=3), dtr;
+            target_name=:y, feature_names=[:x1, :x2], group_name=:d, deval=dev, verbosity=0)
+        @test dev.y == ycopy
+        @test m.info[:logger][:name] == "pearson_rank"
+        pe = predict(m, dev; ntree_limit=m.info[:logger][:best_iter])
+        @test EvoTrees.pearson_rank(reshape(pe, 1, :), Float32.(dev.y), ones(Float32, length(pe)), Float32[];
+            group=build_group_index(dev.d)) ≈ m.info[:logger][:best_metric] rtol = 1e-5
+        # the metric needs the eval groups
+        e = _pl_err(() -> fit(EvoTreeRegressor(; loss=:mse, metric=:pearson_rank, nrounds=2);
+            x_train=P.x[P.tr, :], y_train=P.y[P.tr], x_eval=P.x[P.ev, :], y_eval=P.y[P.ev], verbosity=0))
+        @test occursin("`metric = :pearson_rank` requires group information", _pl_msg(e))
+        # and a single target
+        e = _pl_err(() -> fit(EvoTreeRegressor(; loss=:mse, metric=:pearson_rank, nrounds=2);
+            x_train=P.x[P.tr, :], y_train=hcat(P.y[P.tr], P.y[P.tr]), group_train=P.date[P.tr],
+            x_eval=P.x[P.ev, :], y_eval=hcat(P.y[P.ev], P.y[P.ev]), group_eval=P.date[P.ev], verbosity=0))
+        @test occursin("`metric = :pearson_rank` takes a single target vector", _pl_msg(e))
     end
 
 end

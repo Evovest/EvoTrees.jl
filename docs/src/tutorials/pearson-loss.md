@@ -84,11 +84,12 @@ signal_r = date_cor(signal, test_dates)
 ## Three fits
 
 The three models share one configuration and differ only in the loss. The groups are the dates:
-`group_train` and `group_eval` take one date per row. `metric = :pearson` is the default for the
-two correlation losses and is set here for `:mse` too, so all three stop early on the per-date
-correlation of the validation dates. `metric = :pearson` needs `group_eval` (or
-`eval_group_name` when fitting from a table), and is measured on the untransformed target for all
-three losses.
+`group_train` and `group_eval` take one date per row. `metric = :pearson` is set for all three,
+so all three stop early on the same score, the per-date correlation of the validation dates with
+the untransformed target. It is the default for `:pearson`. `:pearson_rank` defaults to
+`metric = :pearson_rank`, the per-date correlation with the rank-gauss transform of the validation
+target, and is set to `:pearson` here so that the three are compared on one score. Both metrics need
+`group_eval` (or `eval_group_name` when fitting from a table).
 
 ```julia
 config(loss) = EvoTreeRegressor(
