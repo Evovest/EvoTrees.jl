@@ -77,6 +77,7 @@ struct CacheBaseGPU{Y,N<:EvoTrees.TrainNode,G} <: EvoTrees.CacheGPU
     obliv_gains_gpu::CuMatrix{Float64}       # Oblivious: gain summed over nodes  [nbins, n_sampled_feats]
     obliv_count_gpu::CuMatrix{Int32}         # Oblivious: #nodes with a valid gain [nbins, n_sampled_feats]
     group::G                                 # `GroupCacheGPU` for ranking, `nothing` otherwise
+    ctrl::Union{Nothing,EvoTrees.AbstractDcorCache}  # decorrelation control and its scratch, host side
 
 end
 

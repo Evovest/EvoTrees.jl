@@ -104,6 +104,161 @@ end
 update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group) where {L} =
     update_grads!(∇, p, y, L, params)
 
+# The base objective first, then the decorrelation penalty on top when a control variable
+# was supplied. Under `:mse` the penalty is `ctrl_lambda * W * dcov2(p, ctrl)`, `W` the total
+# weight: scaling by it puts the per-observation gradient on the same footing as the base loss,
+# since `dcov2` is a normalised statistic whose gradient is O(1/n) per coordinate. Under the
+# other losses the gradient is reweighted, see `_curvature`. It is piecewise linear in `p`, so
+# only the gradient rows move and the Hessian is untouched.
+function update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group, ctrl) where {L}
+    update_grads!(∇, p, y, L, params, group)
+    isnothing(ctrl) && return nothing
+    λ = hasproperty(params, :ctrl_lambda) ? params.ctrl_lambda : 0.0
+    λ > 0 || return nothing
+    K = size(p, 1)
+    for k in ctrl_rows(L, K)
+        _penalize_row!(view(∇, k, :), view(∇, K + k, :), view(∇, 2K + 1, :), view(p, k, :), ctrl, λ)
+    end
+    return nothing
+end
+
+# The prediction rows the penalty acts on, which are also the gradient rows it lands on: every
+# output of a multi-target regression, and the location of each target under a two-parameter
+# likelihood, whose rows alternate location and scale. Both layouts keep a row's Hessian `K`
+# rows below its gradient and the weights in row `2K + 1`.
+ctrl_rows(::Type{<:GradientRegression}, K) = 1:K
+ctrl_rows(::Type{<:MLE2P}, K) = 1:2:K
+
+# Each row's penalty gradient is weighted by its base Hessian relative to the `:mse` curvature
+# of 2, `h / 2w`. Under `:mse` that is 1 and the gradient is added as it stands. Elsewhere it
+# keeps the penalty's pull on a leaf independent of the loss's curvature: the leaf divides the
+# summed gradient by the summed Hessian, so an unscaled penalty would dominate exactly the rows
+# where the likelihood is flattest. Those are `:logloss` rows saturating towards 0 or 1, and
+# `:gaussian_mle` locations whose fitted scale has grown, and in both the penalty then feeds its
+# own growth: the fit runs away within a couple of rounds at weights that work under `:mse`.
+# With the weighting a penalised leaf moves about as it would under `:mse`. The statistic carries
+# no observation weights, and neither does any single row: `w` cancels in `h / w`. The penalty as
+# a whole is scaled by the mean weight instead, so it grows with the total weight as the base loss
+# does and rescaling `w_train` keeps its balance against the base loss; under unit weights that
+# factor is 1.
+@inline _curvature(h, w) = w > 0 ? h / (2 * w) : zero(h)
+
+# The gradient of one control's statistic against the prediction, into the cache's `g`. Every path,
+# one control or several, over the whole sample or within groups, goes through here.
+_ctrl_grad!(dc::DcorCache, x::AbstractVector) = dcov2_grad!(dc, x)
+
+function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
+    prow::AbstractVector, ctrl::DcorCache, λ) where {T}
+    g = _ctrl_grad!(ctrl, prow)
+    n = length(grow)
+    λw = λ * ctrl.wbar
+    @inbounds for i in 1:n
+        grow[i] += T(λw * n * g[i] * _curvature(hrow[i], wrow[i]))
+    end
+    return nothing
+end
+
+# Within-group form: each group contributes `λ * n_g * dcov2(p_g, ctrl_g)`, so a group's
+# gradient is scaled by its own size the way the pooled form scales by `n`. Groups are
+# independent and each holds its own scratch, so the sweeps run in parallel.
+function _grouped_grad!(ctrl::GroupedDcorCache, prow::AbstractVector, λ)
+    λw = λ * ctrl.wbar
+    @threads for k in eachindex(ctrl.caches)
+        rows = ctrl.rows[k]
+        gk = _ctrl_grad!(ctrl.caches[k], view(prow, rows))
+        ng = length(rows)
+        @inbounds for (j, i) in enumerate(rows)
+            ctrl.g[i] = λw * ng * gk[j]
+        end
+    end
+    return ctrl.g
+end
+
+function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
+    prow::AbstractVector, ctrl::GroupedDcorCache, λ) where {T}
+    _grouped_grad!(ctrl, prow, λ)
+    # only the kept groups' rows carry a penalty; a skipped group's rows are never written and
+    # stay at zero, so visiting just the kept rows saves the pass over the rest
+    @inbounds for rows in ctrl.rows, i in rows
+        grow[i] += T(ctrl.g[i] * _curvature(hrow[i], wrow[i]))
+    end
+    return nothing
+end
+
+# Several controls, see `SummedDcorCache`. Each control's gradient comes from its own cache, and
+# they are summed in control order, each times its weight, starting from the first. Over the whole
+# sample the controls are independent and each holds its own scratch, so their sweeps run in
+# parallel; within groups each control's sweep is already parallel over the groups.
+function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
+    prow::AbstractVector, ctrl::SummedDcorCache{DcorCache}, λ) where {T}
+    caches, ω, acc = ctrl.caches, ctrl.weights, ctrl.acc
+    @threads for k in eachindex(caches)
+        _ctrl_grad!(caches[k], prow)
+    end
+    _sum_controls!(acc, caches, ω, eachindex(acc))
+    n = length(grow)
+    λw = λ * ctrl.wbar
+    @inbounds for i in 1:n
+        grow[i] += T(λw * n * acc[i] * _curvature(hrow[i], wrow[i]))
+    end
+    return nothing
+end
+
+function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
+    prow::AbstractVector, ctrl::SummedDcorCache{GroupedDcorCache}, λ) where {T}
+    caches, ω, acc = ctrl.caches, ctrl.weights, ctrl.acc
+    for c in caches
+        _grouped_grad!(c, prow, λ)
+    end
+    # a group one control skips holds zeros in that control's gradient, so it adds nothing there
+    _sum_controls!(acc, caches, ω, ctrl.rows)
+    @inbounds for i in ctrl.rows
+        grow[i] += T(acc[i] * _curvature(hrow[i], wrow[i]))
+    end
+    return nothing
+end
+
+function _sum_controls!(acc, caches, ω, rows)
+    g1 = caches[1].g
+    @inbounds for i in rows
+        acc[i] = ω[1] * g1[i]
+    end
+    for k in 2:length(caches)
+        gk = caches[k].g
+        @inbounds for i in rows
+            acc[i] += ω[k] * gk[i]
+        end
+    end
+    return acc
+end
+
+# The eval metric prices the penalty in the loss's own metric, a fixed multiple of its training
+# objective per unit weight. Any other metric, a root, absolute, rank or correlation scale, has no
+# exchange rate for `ctrl_lambda`, so it is reported as it stands, with the dependence logged beside it.
+_own_metric(::Type{MSE}) = mse
+_own_metric(::Type{LogLoss}) = logloss
+_own_metric(::Type{Poisson}) = poisson
+_own_metric(::Type{Gamma}) = gamma
+_own_metric(::Type{Tweedie}) = tweedie
+_own_metric(::Type{GaussianMLE}) = gaussian_mle
+_own_metric(::Type) = nothing
+
+# The penalty's gradient is `ctrl_lambda * W * g * h / 2w`, and `g` sees the prediction only through
+# its ranks, so where `h / 2w` is the derivative of one increasing function of the prediction, the
+# penalty is exactly `ctrl_lambda * W * dcov2` of that function. It is the prediction under `:mse`,
+# half the probability under `:logloss` and half the mean under `:poisson`, whose deviance metric is
+# twice its objective. Under `:gamma` and `:tweedie` the weight also depends on the target and is
+# that derivative in expectation, so the term is exact at a calibrated fit; under `:gaussian_mle`
+# the location's weight `1 / 2 scale^2` is taken at the fitted scale, exact when the scale is
+# constant, and the metric is a log-likelihood, maximised, so the term is subtracted.
+_dep_transform(::Type{<:Union{MSE,Gamma,GaussianMLE}}, p) = p
+_dep_transform(::Type{LogLoss}, p) = sigmoid(p)
+_dep_transform(::Type{Poisson}, p) = exp(p)
+_dep_transform(::Type{Tweedie}, p) = exp((2 - 1.5) * p)   # rho = 1.5, as in the loss and its metric
+_dep_coef(::Type{<:Union{MSE,Poisson,Gamma}}) = 1.0
+_dep_coef(::Type{<:Union{LogLoss,GaussianMLE}}) = 0.5
+_dep_coef(::Type{Tweedie}) = 1 / (2 - 1.5)
+
 # LambdaRank, per Burges' "From RankNet to LambdaRank to LambdaMART". Pairs within a query
 # contribute a pairwise logistic cost weighted by the NDCG change a swap would cause. The
 # lambdas stay per-document, so K = 1 and the histogram and leaf solver are untouched.

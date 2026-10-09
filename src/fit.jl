@@ -6,7 +6,7 @@ Given a instantiate
 function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where {L,K}
 
     # compute gradients
-    update_grads!(cache.∇, cache.pred, cache.y, L, params, cache.group)
+    update_grads!(cache.∇, cache.pred, cache.y, L, params, cache.group, cache.ctrl)
 
     for _ in 1:params.bagging_size
 
@@ -283,6 +283,8 @@ post_fit_gc(::Type{<:CPU}) = nothing
         offset_name=nothing,
         group_name=nothing,
         eval_group_name=group_name,
+        ctrl_name=nothing,
+        ctrl_weights=nothing,
         deval=nothing,
         print_every_n=9999,
         verbosity=1
@@ -305,8 +307,10 @@ Main training function. Performs model fitting given configuration `params`, `dt
 - `feature_names = nothing`: the names `dtrain` variables to use as features. If not provided, it deafults to all variables that aren't one of `target`, `weight` or `offset``.
 - `weight_name = nothing`: name of the variable containing weights. If `nothing`, common weights on one will be used.
 - `offset_name = nothing`: name of the offset variable.
-- `group_name = nothing`: name of the variable identifying the group (query) each row belongs to. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
-- `eval_group_name = group_name`: name of the group variable in `deval`, defaulting to `group_name`. A group-aware metric such as `:ndcg` requires it. Set it on its own to evaluate over groups while training with the usual per-row sampling.
+- `group_name = nothing`: name of the variable identifying the group each row belongs to, such as a query for ranking or a date for `ctrl_within_group`. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
+- `eval_group_name = group_name`: name of the group variable in `deval`, defaulting to `group_name`. A group-aware metric such as `:ndcg` requires it, as do controls under `ctrl_within_group = true`, whose eval dependence is taken within these groups. Set it on its own to evaluate over groups while training with the usual per-row sampling.
+- `ctrl_name = nothing`: name of a control variable the predictions should carry no dependence on, or a vector of names for several, weighed against the base loss by `ctrl_lambda` on the learner. Each control adds its own penalty term, so the penalty acts on each control's dependence separately. The controls add nothing to the gradients unless `ctrl_lambda > 0`, but are still validated and are not used as features unless named in `feature_names`. With `ctrl_within_group = true` on the learner the penalty acts within each group of `group_name`. `deval` must carry the same columns: with `ctrl_lambda > 0` the loss's own metric, the default, then becomes the penalised objective on the evaluation set, which early stopping follows, and any other metric is reported unchanged. Either way the logger also keeps the base metric (`:base_metrics`) and each control's dependence (`:ctrl_dependence`).
+- `ctrl_weights = nothing`: weight of each control's penalty term, a vector with one positive entry per control, in the order of `ctrl_name`. Each term is multiplied by its entry and the entries are not normalised, so scaling them all scales the penalty as `ctrl_lambda` does. Defaults to 1 for every control.
 - `deval`: A Tables compatible evaluation data containing features and target variables. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -320,6 +324,8 @@ function fit(
     offset_name=nothing,
     group_name=nothing,
     eval_group_name=group_name,
+    ctrl_name=nothing,
+    ctrl_weights=nothing,
     deval=nothing,
     print_every_n=9999,
     verbosity=1,
@@ -329,16 +335,17 @@ function fit(
     _eval_is_train = deval === dtrain
     dtrain = Tables.columntable(dtrain)
     _device = device_type(params.device)
-    m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name, group_name)
+    m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name, group_name, ctrl_name, ctrl_weights)
 
     # initialize callback and logger if deval is provided
     if !isnothing(deval)
         deval = Tables.columntable(deval)
         cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name,
-            group_name=eval_group_name, x_bin=_eval_is_train ? cache.x_bin : nothing)
-        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
+            group_name=eval_group_name, ctrl_name, ctrl_weights=_ctrl_weights(cache),
+            x_bin=_eval_is_train ? cache.x_bin : nothing)
+        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance, cb.ctrl)
         cb(logger, 0)
-        (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
+        (verbosity > 0) && _info_round("initialization", logger)
     else
         logger, cb = nothing, nothing
     end
@@ -348,7 +355,7 @@ function fit(
         if !isnothing(logger)
             cb(logger, i, _round_trees(m, params.bagging_size))
             if i % print_every_n == 0 && verbosity > 0
-                @info "iter $i" metric = logger[:metrics][end]
+                _info_round("iter $i", logger)
             end
             (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
         end
@@ -373,6 +380,9 @@ end
         offset_eval=nothing,
         group_train=nothing,
         group_eval=nothing,
+        ctrl_train=nothing,
+        ctrl_eval=nothing,
+        ctrl_weights=nothing,
         feature_names=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
@@ -399,8 +409,11 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `y_eval::VecOrMat`: vector or matrix of evaluation targets of length `#observations` or size `(#observations, #targets)`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
-- `group_train::Vector`: group (query) id of each training row, for ranking tasks. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
-- `group_eval::Vector`: group id of each evaluation row. Required by `metric = :ndcg`.
+- `group_train::Vector`: group id of each training row, such as a query for ranking or a date for `ctrl_within_group`. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
+- `group_eval::Vector`: group id of each evaluation row. Required by `metric = :ndcg`, and by controls under `ctrl_within_group = true`, whose eval dependence is taken within these groups.
+- `ctrl_train::VecOrMat`: control variable of each training row, which the predictions should carry no dependence on, weighed against the base loss by `ctrl_lambda` on the learner. For several controls pass a matrix of size `(#observations, #controls)`; each control adds its own penalty term, so the penalty acts on each control's dependence separately. The controls add nothing unless `ctrl_lambda > 0`, but are still validated. With `ctrl_within_group = true` on the learner the penalty acts within each group of `group_train`.
+- `ctrl_weights::Vector`: weight of each control's penalty term, one positive entry per column of `ctrl_train`. Each term is multiplied by its entry and the entries are not normalised, so scaling them all scales the penalty as `ctrl_lambda` does. Defaults to 1 for every control.
+- `ctrl_eval::VecOrMat`: the controls of each evaluation row, with the same columns as `ctrl_train`. Required when `ctrl_train` and evaluation data are both given. With `ctrl_lambda > 0` the loss's own metric, the default, becomes the penalised objective on the evaluation set, which early stopping follows; any other metric is reported unchanged. Either way the logger also keeps the base metric (`:base_metrics`) and each control's dependence (`:ctrl_dependence`). With `ctrl_within_group = true` the dependence is taken within each group of `group_eval`.
 - `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -417,27 +430,37 @@ function fit(
     offset_eval=nothing,
     group_train=nothing,
     group_eval=nothing,
+    ctrl_train=nothing,
+    ctrl_eval=nothing,
+    ctrl_weights=nothing,
     feature_names=nothing,
     print_every_n=9999,
     verbosity=1
 )
 
+    !isnothing(ctrl_eval) && isnothing(ctrl_train) &&
+        error("`ctrl_eval` was given without `ctrl_train`.")
     _device = device_type(params.device)
-    m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train, group_train)
+    m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train, group_train, ctrl_train, ctrl_weights)
 
     # initialize callback and logger if tracking eval data
     metric = params.metric
     logging_flag = !isnothing(x_eval) && !isnothing(y_eval)
-    any_flag = !isnothing(x_eval) || !isnothing(y_eval)
+    any_flag = !isnothing(x_eval) || !isnothing(y_eval) || !isnothing(ctrl_eval)
     if !logging_flag && any_flag
         @warn "To track eval metric in logger, both `x_eval` and `y_eval` must be provided."
     end
+    # the eval metric prices the penalty on the eval set, so it needs the eval set's controls
+    if logging_flag && !isnothing(ctrl_train) && isnothing(ctrl_eval)
+        error("Controls were given for training but not for the eval set. Pass `ctrl_eval` alongside " *
+              "`x_eval`, with the same controls as `ctrl_train`.")
+    end
     if logging_flag
         cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval, group_eval,
-            x_bin=x_eval === x_train ? cache.x_bin : nothing)
-        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
+            ctrl_eval, ctrl_weights=_ctrl_weights(cache), x_bin=x_eval === x_train ? cache.x_bin : nothing)
+        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance, cb.ctrl)
         cb(logger, 0)
-        (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
+        (verbosity > 0) && _info_round("initialization", logger)
     else
         logger, cb = nothing, nothing
     end
@@ -447,7 +470,7 @@ function fit(
         if !isnothing(logger)
             cb(logger, i, _round_trees(m, params.bagging_size))
             if i % print_every_n == 0 && verbosity > 0
-                @info "iter $i" metric = logger[:metrics][end]
+                _info_round("iter $i", logger)
             end
             (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
         end
@@ -457,4 +480,15 @@ function fit(
 
     return m
 
+end
+
+_ctrl_weights(cache) = isnothing(cache.ctrl) ? nothing : cache.ctrl.weights
+
+function _info_round(msg, logger)
+    if haskey(logger, :base_metrics)
+        @info msg metric = logger[:metrics][end] base_metric = logger[:base_metrics][end] ctrl_dependence =
+            logger[:ctrl_dependence][end]
+    else
+        @info msg metric = logger[:metrics][end]
+    end
 end

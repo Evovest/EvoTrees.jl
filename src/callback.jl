@@ -34,7 +34,7 @@ function check_eval_data(y, w, nobs)
     return nothing
 end
 
-struct CallBack{B,P,Y,C,D,K}
+struct CallBack{B,P,Y,C,D,K,R}
     feval::Function
     x_bin::B
     p::P
@@ -43,6 +43,7 @@ struct CallBack{B,P,Y,C,D,K}
     eval::C
     feattypes::D
     metric_kwargs::K
+    ctrl::R
 end
 
 function CallBack(
@@ -54,6 +55,8 @@ function CallBack(
     weight_name=nothing,
     offset_name=nothing,
     group_name=nothing,
+    ctrl_name=nothing,
+    ctrl_weights=nothing,
     x_bin=nothing) where {L,K}
 
     T = Float32
@@ -87,11 +90,26 @@ function CallBack(
         device <: GPU && (alphas_eval = V{T}(alphas_eval))
         metric_kwargs = (alphas=alphas_eval,)
     end
+    group_eval = nothing
     if !isnothing(group_name)
         group_eval = build_group_index(Tables.getcolumn(deval, Symbol(group_name)), nobs, "group_name")
         metric_kwargs = merge(metric_kwargs, (group=group_eval,))
     end
     hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
+
+    # the eval set carries the same control columns as the training set
+    ctrl = nothing
+    if !isnothing(ctrl_name)
+        names = ctrl_name isa AbstractVector ? Symbol.(ctrl_name) : [Symbol(ctrl_name)]
+        for nm in names
+            nm in Tables.columnnames(deval) || error(
+                "`deval` has no column `$nm`. The eval set needs the same control columns as the " *
+                "training set, for the eval metric to price the penalty.")
+        end
+        cols = [build_ctrl(Tables.getcolumn(deval, nm), nobs, "deval"; col="`$nm`", eval=true) for nm in names]
+        ctrl = eval_ctrl(params, L, K, Controls(cols, ctrl_weights, ["column `$nm` of `deval`" for nm in names]),
+            group_eval, feval, nobs)
+    end
 
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
     if !isnothing(offset)
@@ -103,7 +121,7 @@ function CallBack(
         p .+= offset'
     end
 
-    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs)
+    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs, ctrl)
 end
 
 function CallBack(
@@ -115,6 +133,8 @@ function CallBack(
     w_eval=nothing,
     offset_eval=nothing,
     group_eval=nothing,
+    ctrl_eval=nothing,
+    ctrl_weights=nothing,
     x_bin=nothing) where {L,K}
 
     T = Float32
@@ -141,10 +161,18 @@ function CallBack(
         device <: GPU && (alphas_eval = V{T}(alphas_eval))
         metric_kwargs = (alphas=alphas_eval,)
     end
-    if !isnothing(group_eval)
-        metric_kwargs = merge(metric_kwargs, (group=build_group_index(group_eval, nobs, "group_eval"),))
-    end
+    gi = isnothing(group_eval) ? nothing : build_group_index(group_eval, nobs, "group_eval")
+    isnothing(gi) || (metric_kwargs = merge(metric_kwargs, (group=gi,)))
     hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
+
+    ctrl = nothing
+    if !isnothing(ctrl_eval)
+        ce = build_ctrls(ctrl_eval, nobs, nothing; argname="ctrl_eval", eval=true)
+        length(ce.cols) == length(ctrl_weights) || error(
+            "`ctrl_eval` has $(length(ce.cols)) controls but `ctrl_train` has $(length(ctrl_weights)). " *
+            "Pass the same controls for both sets, in the same order.")
+        ctrl = eval_ctrl(params, L, K, Controls(ce.cols, ctrl_weights, ce.labels), gi, feval, nobs)
+    end
 
     offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
     if !isnothing(offset)
@@ -156,12 +184,18 @@ function CallBack(
         p .+= offset'
     end
 
-    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs)
+    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs, ctrl)
 end
 
 function (cb::CallBack)(logger, iter)
     metric = cb.feval(cb.p, cb.y, cb.w, cb.eval; cb.metric_kwargs...)
-    update_logger!(logger, iter, metric)
+    if isnothing(cb.ctrl)
+        update_logger!(logger, iter, metric)
+    else
+        dep, term = eval_penalty!(cb.ctrl, cb.p)
+        value = cb.ctrl.penalized ? metric + term : metric
+        update_logger!(logger, iter, value; base=metric, dep=copy(dep))
+    end
     return nothing
 end
 
@@ -175,7 +209,9 @@ function (cb::CallBack)(logger, iter, trees)
     return cb(logger, iter)
 end
 
-function init_logger(; metric, maximise, early_stopping_rounds, early_stopping_tolerance=0.0)
+# With controls the logger also keeps, every round, the base metric and each control's dependence,
+# and whether `:metrics`, which early stopping reads, carries the penalty.
+function init_logger(; metric, maximise, early_stopping_rounds, early_stopping_tolerance=0.0, ctrl=nothing)
     logger = Dict(
         :name => String(metric),
         :maximise => maximise,
@@ -188,13 +224,20 @@ function init_logger(; metric, maximise, early_stopping_rounds, early_stopping_t
         :best_iter => 0,
         :best_metric => 0.0,
     )
+    if !isnothing(ctrl)
+        logger[:base_metrics] = Float64[]
+        logger[:ctrl_dependence] = Vector{Float64}[]
+        logger[:penalized] = ctrl.penalized
+    end
     return logger
 end
 
-function update_logger!(logger, iter, metric)
+function update_logger!(logger, iter, metric; base=nothing, dep=nothing)
     logger[:nrounds] = iter
     push!(logger[:iter], iter)
     push!(logger[:metrics], metric)
+    isnothing(base) || push!(logger[:base_metrics], base)
+    isnothing(dep) || push!(logger[:ctrl_dependence], dep)
     if iter == 0
         logger[:best_metric] = metric
     else
