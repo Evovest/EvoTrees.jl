@@ -743,6 +743,14 @@ end
     # what `save` writes now carries the version, so a later layout change has a key to read
     @test haskey(back.info, :save_version)
 
+    # `save` writes to an IO stream as well as a path, so `load` reads one back
+    io = IOBuffer()
+    EvoTrees.save(m, io)
+    seekstart(io)
+    @test predict(EvoTrees.load(io), x) == predict(m, x)
+    open(f -> EvoTrees.save(m, f), path, "w")
+    @test predict(open(EvoTrees.load, path), x) == predict(m, x)
+
     # Before v0.20 the intercept was a leading single-leaf tree and there was no `bias` field.
     # BSON rebuilds a struct by position, so such a model puts its trees into `bias` and fails to
     # load. The shape test and the upgrade are exercised directly rather than through a binary
