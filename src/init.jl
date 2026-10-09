@@ -32,8 +32,8 @@ end
     _init_target(::Type{L}, y_train, params, offset, ::Type{T})
 
 Shared (device-agnostic) target/bias initialization: validates the target,
-derives the output dimension `K`, the converted target `y` (host arrays;
-device inits copy to their backend afterwards), and the initial bias `μ`.
+derives the output dimension `K`, the converted target `y` (a host array for a
+host `y_train`; device inits copy it to their backend afterwards), and the initial bias `μ`.
 Mutates `offset` in place into link space when provided. Single source of
 truth for CPU (`src/init.jl`) and GPU (`ext/.../init.jl`) initialization.
 """
@@ -188,6 +188,19 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
             K = 1
             y = T.(y_train)
             μ = T[0]
+        elseif L == Pearson || L == PearsonRank
+            # Correlation within a group ignores a constant bias, so none is fitted.
+            y_train isa AbstractMatrix && error("`loss = :$(_pearson_name(L))` takes a single target vector, not a matrix.")
+            K = 1
+            y = T.(y_train)
+            # a finite target beyond the Float32 range becomes Inf here, and its group would be
+            # silently left unscored
+            i = findfirst(!isfinite, y)
+            isnothing(i) || error(
+                "Target must be finite, got $(y_train[i]) at index $i, which is beyond the Float32 " *
+                "range the target is held in. Rescale it before fitting."
+            )
+            μ = T[0]
         elseif L <: GradientRegression
             if y_train isa AbstractVector
                 K = 1
@@ -226,6 +239,13 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     # force a neutral/zero bias when offset is specified
     !isnothing(offset) && (μ .= 0)
     @assert (size(y, ndims(y)) == length(w) && minimum(w) > 0)
+
+    # `:pearson_rank` transforms the target copy made by `_init_target`, never the user's array
+    if L == PearsonRank
+        # the transform needs the groups, so unlike `:pearson` their absence is caught here
+        isnothing(group) && _pearson_no_group(L)
+        _rankgauss_by_group!(y, group)
+    end
 
     # initialize preds
     pred = zeros(T, K, nobs)

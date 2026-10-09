@@ -60,7 +60,7 @@ function EvoTreeRegressor(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile, :multiquantile, :cred_std, :cred_var, :lambdarank]
+    _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile, :multiquantile, :cred_std, :cred_var, :lambdarank, :pearson, :pearson_rank]
     loss = Symbol(args[:loss])
     if loss == :linear
         loss = :mse
@@ -74,7 +74,7 @@ function EvoTreeRegressor(; kwargs...)
         error("Invalid loss. Must be one of: $_loss_list")
     end
 
-    _metric_list = [:mse, :rmse, :mae, :logloss, :poisson, :gamma, :tweedie, :quantile, :multiquantile, :gini, :ndcg, :pearson]
+    _metric_list = [:mse, :rmse, :mae, :logloss, :poisson, :gamma, :tweedie, :quantile, :multiquantile, :gini, :ndcg, :pearson, :pearson_rank]
     if isnothing(args[:metric])
         if loss ∈ [:cred_std, :cred_var]
             metric = :mae

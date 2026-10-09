@@ -352,6 +352,47 @@ function pearson(
     return sum(scores .* weights) / sw
 end
 
+"""
+    pearson_rank(p, y, w, eval; group, kwargs...)
+
+`:pearson` against the rank-gauss transform of the target within each group, the transform
+`loss = :pearson_rank` fits: the standard normal quantile of `(rank - 0.5) / n`, tied values
+sharing their average rank. Groups and rows are weighted as under `:pearson`. A fit transforms the
+evaluation target once rather than on every round.
+"""
+function pearson_rank(
+    p::AbstractMatrix{T},
+    y::AbstractVector{T},
+    w::AbstractVector{T},
+    eval::AbstractVector{T};
+    group=nothing,
+    kwargs...
+) where {T}
+    isnothing(group) && _pearson_rank_no_group()
+    return pearson(p, _rankgauss_by_group!(copy(y), group), w, eval; group)
+end
+
+_pearson_rank_no_group() = error(
+    "`metric = :pearson_rank` requires group information. Pass `group_name` or `eval_group_name` " *
+    "when fitting from a table, or `group_eval` alongside `x_eval` when fitting from a matrix."
+)
+
+"""
+    eval_target(feval, y, metric_kwargs)
+
+The metric a callback calls and the evaluation target it scores, set up once when the callback is
+built. A metric scores the target as given unless it defines a method here. `:pearson_rank` is
+`:pearson` on the target's rank-gauss transform, which does not change between rounds, so it is
+transformed once. `y` is the callback's own `Float32` host copy, not yet uploaded, so the caller's
+target is left untouched.
+"""
+eval_target(feval, y, metric_kwargs) = feval, y
+function eval_target(::typeof(pearson_rank), y, metric_kwargs)
+    haskey(metric_kwargs, :group) || _pearson_rank_no_group()
+    y isa AbstractVector || error("`metric = :pearson_rank` takes a single target vector, not a matrix.")
+    return pearson, _rankgauss_by_group!(y, metric_kwargs.group)
+end
+
 function gini_raw(p::AbstractVector, y::AbstractVector)
     _y = y .- minimum(y)
     if length(_y) < 2
@@ -402,6 +443,7 @@ const metric_dict = Dict(
     :gini => gini,
     :ndcg => ndcg,
     :pearson => pearson,
+    :pearson_rank => pearson_rank,
 )
 
 is_maximise(::typeof(mse)) = false
@@ -419,3 +461,4 @@ is_maximise(::typeof(multiquantile)) = false
 is_maximise(::typeof(gini)) = true
 is_maximise(::typeof(ndcg)) = true
 is_maximise(::typeof(pearson)) = true
+is_maximise(::typeof(pearson_rank)) = true
