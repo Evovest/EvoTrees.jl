@@ -156,9 +156,8 @@ show_row("within", res_within)
 The unpenalised model depends on beta within each date. The penalised models trade some `corr` for
 a lower `dep` and a higher `corr_neutral`.
 
-Under `:mse` the within-date penalty does not change when a constant is added to a date's
-predictions, so it puts no net push on any date's mean prediction: it removes the dependence within
-dates and leaves differences between dates to the loss.
+Under `:mse` the within-date penalty's gradient sums to zero over each date, so it targets the
+dependence within dates rather than the date means.
 
 From a table, name the columns instead. The control and group columns are not used as features
 unless listed in `feature_names`:
