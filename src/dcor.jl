@@ -398,6 +398,8 @@ struct EvalCtrl{L,C<:AbstractDcorCache}
     x::Vector{Float64}
     a::Vector{Float64}
     dep::Vector{Float64}
+    d::Vector{Float64}
+    da::Vector{Float64}
 end
 
 function eval_ctrl(params, ::Type{L}, K::Int, ctrl::Controls, group, feval, n::Int) where {L}
@@ -412,9 +414,10 @@ function eval_ctrl(params, ::Type{L}, K::Int, ctrl::Controls, group, feval, n::I
     end
     lambda = hasproperty(params, :ctrl_lambda) ? params.ctrl_lambda : 0.0
     penalized = lambda > 0 && feval === _own_metric(L)
+    nc = length(caches)
     return EvalCtrl{L,eltype(caches)}(caches, ctrl.weights, lambda, penalized,
         is_maximise(feval) ? -1.0 : 1.0, n, collect(ctrl_rows(L, K)), zeros(n), zeros(n),
-        zeros(length(caches)))
+        zeros(nc), zeros(nc), zeros(nc))
 end
 
 # one control's dependence, and the same weighted by `a` (the location's curvature under
@@ -432,6 +435,18 @@ function _dependence(gc::GroupedDcorCache, x, a, n)
         dag[k] = isnothing(a) ? dg[k] : dg[k] * _ordered_sum(view(a, rows)) / length(rows)
     end
     return _ordered_sum(dg), _ordered_sum(dag)
+end
+
+# pooled controls run in parallel, as in training; within groups `_dependence` threads over groups
+function _dependences!(ec::EvalCtrl{<:Any,DcorCache}, a)
+    @threads for c in eachindex(ec.caches)
+        ec.d[c], ec.da[c] = _dependence(ec.caches[c], ec.x, a, ec.n)
+    end
+end
+function _dependences!(ec::EvalCtrl, a)
+    for c in eachindex(ec.caches)
+        ec.d[c], ec.da[c] = _dependence(ec.caches[c], ec.x, a, ec.n)
+    end
 end
 
 """
@@ -454,10 +469,10 @@ function eval_penalty!(ec::EvalCtrl{L}, p::AbstractMatrix) where {L}
             end
             a = ec.a
         end
+        _dependences!(ec, a)
         for c in eachindex(ec.caches)
-            d, da = _dependence(ec.caches[c], ec.x, a, ec.n)
-            ec.dep[c] += d
-            term += ec.weights[c] * da
+            ec.dep[c] += ec.d[c]
+            term += ec.weights[c] * ec.da[c]
         end
     end
     ec.dep ./= length(ec.rows)
