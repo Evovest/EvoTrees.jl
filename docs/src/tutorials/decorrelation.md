@@ -1,19 +1,12 @@
 # Decorrelation penalty
 
-A model can fit the target well and still owe much of its accuracy to one variable you do not
-want it to depend on. In a stock return panel this is typically a risk exposure such as market
-beta: the target loads on it, several features proxy it, and a model trained on squared error
-picks it up. `ctrl_lambda` adds a penalty on the dependence between the prediction and such a
-control variable, so the trees are pushed towards the part of the signal the control does not
-explain.
+`ctrl_lambda` penalises the dependence between the prediction and a control variable, such as an
+asset's market beta in a stock return model, so the trees favour the part of the signal the control
+does not explain. The dependence is the unbiased squared distance covariance `dcov2`, which is zero
+in population only under independence, so nonlinear dependence is penalised too.
 
-The dependence is measured by the unbiased squared distance covariance `dcov2` of the prediction
-and the control. Unlike a Pearson correlation, its population value is zero only under
-independence, so a nonlinear dependence on the control is penalised as well as a linear one.
-
-This tutorial builds a synthetic date by asset panel, fits it without a penalty, with the
-penalty pooled over the whole sample, and with the penalty applied within each date, and then
-shows how to choose `ctrl_lambda`.
+This tutorial fits a synthetic panel of assets over dates without a penalty, with the penalty over
+the whole sample, and within each date, then shows how to choose `ctrl_lambda`.
 
 ## Getting started
 
@@ -26,11 +19,10 @@ using Printf
 
 ## A synthetic panel
 
-Each row is an asset on a date. The control is the asset's market beta, which has a level
-shared by the whole universe on a date plus the asset's own exposure. The target is the
-asset's return: its beta times the market's return on that date, plus a part a model is meant
-to find, `alpha`, plus noise. The market's return is positive on average, so over the training
-period a model is rewarded for favouring high beta assets.
+Each row is an asset on a date. The control is the asset's beta: a level shared by all assets on a
+date plus the asset's own part. The return is beta times the market's return on that date, plus
+`alpha`, the part a model should find, plus noise. The market's return is positive on average, so a
+model is rewarded for favouring high beta assets.
 
 ```julia
 rng = Xoshiro(42)
@@ -51,8 +43,7 @@ x = hcat(
 )
 ```
 
-Dates are kept in order and split into train, validation and test periods, so every
-evaluation is out of sample in time:
+Dates are split in order into train, validation and test periods:
 
 ```julia
 rows(d) = ((d - 1) * nassets + 1):(d * nassets)
@@ -67,18 +58,15 @@ beta_train, date_train = beta[train], date[train]
 
 ## Measuring dependence per date
 
-A cross-sectional model is judged date by date, so every quantity below is computed within
-each date and averaged over dates:
+Each quantity below is computed within each date and averaged over dates:
 
-- `corr`: the Pearson correlation of the prediction with the target;
-- `corr_neutral`: the same against the beta-neutral target, the residual of the target after
-  regressing it on beta within the date. This is the return a beta-hedged portfolio earns;
-- `dep`: the squared distance correlation of the prediction with beta. It is bias corrected,
-  so it sits near zero under independence and can come out slightly negative;
-- `dep_pooled`: the same statistic over all rows of the period at once, dates mixed.
+- `corr`: Pearson correlation of the prediction with the target;
+- `corr_neutral`: the same against the target's residual after regressing it on beta within the date;
+- `dep`: bias-corrected squared distance correlation of the prediction with beta, near zero (and
+  possibly slightly negative) under independence;
+- `dep_pooled`: the same over all rows of the period at once.
 
-`EvoTrees.dcor2` computes the squared distance correlation in `O(n log n)`. It is internal,
-hence not exported.
+`EvoTrees.dcor2` (internal, not exported) computes the squared distance correlation.
 
 ```julia
 function neutralise(v, c)
@@ -110,8 +98,7 @@ show_row(name, r) = @printf("%-10s %8.4f %13.4f %8.4f %11.4f\n",
 
 ## Three fits
 
-All three models share one configuration and differ only in the penalty. The penalised fits
-use the weight `λ0`; how to choose it is covered further down.
+The three models differ only in the penalty. Choosing `λ0` is covered further down.
 
 ```julia
 config(λ; within=false) = EvoTreeRegressor(
@@ -132,17 +119,15 @@ Without a penalty:
 m_base = EvoTrees.fit(config(0.0); x_train, y_train, verbosity=0)
 ```
 
-With the penalty pooled over the whole training sample. The control is passed as
-`ctrl_train`, one value per training row. It is a role, not a feature: the model never sees it.
+With the penalty over the whole training sample. The control is passed as `ctrl_train`, one value
+per training row, and is not a feature.
 
 ```julia
 m_pooled = EvoTrees.fit(config(λ0); x_train, y_train, ctrl_train=beta_train, verbosity=0)
 ```
 
-With the penalty within each date. `ctrl_within_group = true` computes the statistic on each
-group of `group_train` separately, so only the cross-sectional dependence is penalised. The
-control is centred and scaled within each date, each date contributes in proportion to its
-size, and dates below 4 rows or with a constant control are skipped.
+With the penalty within each date. `ctrl_within_group = true` computes the statistic on each group
+of `group_train` separately, with the control centred and scaled within the group.
 
 ```julia
 m_within = EvoTrees.fit(config(λ0; within=true);
@@ -168,16 +153,15 @@ show_row("within", res_within)
 | pooled     | 0.3591 | 0.3824 | 0.0020 | 0.0013 |
 | within     | 0.3601 | 0.3809 | 0.0027 | 0.0026 |
 
-The unpenalised model carries a clear dependence on beta within each date. Part of its `corr`
-comes from that exposure, which pays on dates the market rises and costs on dates it falls,
-and it dilutes `corr_neutral`. The penalised models trade some raw `corr` for a lower `dep`.
+The unpenalised model depends on beta within each date. The penalised models trade some `corr` for
+a lower `dep` and a higher `corr_neutral`.
 
-The pooled statistic mixes two things: whether the prediction ranks assets by beta within a
-date, and whether it moves with the universe's beta level across dates. Only the first
-matters for a per-date ranking, and the within-date form penalises only that one.
+Under `:mse` the within-date penalty does not change when a constant is added to a date's
+predictions, so it puts no net push on any date's mean prediction: it removes the dependence within
+dates and leaves differences between dates to the loss.
 
-The same fit from a table names the columns instead. The control and group columns are then
-left out of the features unless listed in `feature_names`:
+From a table, name the columns instead. The control and group columns are not used as features
+unless listed in `feature_names`:
 
 ```julia
 df_train = (; f1=x_train[:, 1], f2=x_train[:, 2], f3=x_train[:, 3], f4=x_train[:, 4],
@@ -194,9 +178,8 @@ m_table.info[:feature_names]
 
 ## Choosing `ctrl_lambda`
 
-There is no default weight: the right value depends on the data, and it has to be chosen on
-data the test period does not overlap. Fit a small grid on the training dates and evaluate on
-the validation dates:
+The right weight depends on the data. Fit a grid on the training dates and evaluate on the
+validation dates:
 
 ```julia
 lambdas = [0.0, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0, 100.0, 300.0]
@@ -224,8 +207,8 @@ end
 | 100             | 0.3376 | 0.3554 | -0.0006 | 0.0001 |
 | 300             | 0.2757 | 0.2767 | 0.0084 | 0.0131 |
 
-Choose on the quantity the model will be judged by. Here that is the beta-neutral correlation,
-so the weight with the best validation `corr_neutral` is kept and scored once on the test dates:
+Keep the weight with the best validation score on the quantity the model is judged by, here
+`corr_neutral`, and score it once on the test dates:
 
 ```julia
 best = argmax(r -> r.corr_neutral, sweep)
@@ -238,17 +221,15 @@ The chosen weight is 30, and on the test dates it scores `corr`
 0.3547, `corr_neutral` 0.3806 and `dep`
 0.0013.
 
-Where the goal is a dependence budget rather than an accuracy target, keep the smallest weight
-whose validation `dep` is under the budget instead. Either way, look at the whole grid rather
-than its end: past some weight the penalty overshoots. Here the neutral correlation falls from 100
-on, and at 300 the measured dependence rises again while accuracy keeps falling. Before keeping a
-weight at the edge of a grid, extend the grid past it.
+For a dependence budget instead, keep the smallest weight whose validation `dep` is under it. Past
+some weight the penalty overshoots: here `corr_neutral` falls from 100 on, and at 300 `dep` rises
+again. Before keeping a weight at the edge of a grid, extend the grid past it.
 
 ### Early stopping
 
 With evaluation data, the loss's own metric becomes the penalised objective on the evaluation set,
-so early stopping weighs the dependence as training does. The evaluation set carries its own
-controls, centred and scaled on it, and for the within-date form its own dates:
+and early stopping follows it. The evaluation set needs its own controls and, within dates, its own
+dates:
 
 ```julia
 valid = span(valid_dates)
@@ -267,27 +248,19 @@ b = lg[:best_iter] + 1
 |----------------|---------|----------------|---------------|
 | 51 | 2.5243 | 0.00022 | 2.5265 |
 
-The penalised value is the mse plus `ctrl_lambda` times the dependence, the mean over dates of each
-date's `dcov2` weighted by its size. The logger keeps both parts for every round, under
-`:base_metrics` and `:ctrl_dependence`. A metric other than the loss's own, such as `:pearson`, is
-reported as it is, with the dependence logged beside it. The model keeps every tree it grew, so
-predict with `ntree_limit=lg[:best_iter]` to use the round early stopping chose. Unless an offset
-gives the predictions a spread from the start, the first tree is fitted before the penalty acts, so
-at a strong weight the best round can be round 0, the bias alone: leave `early_stopping_rounds` some
-room.
+The penalised value is the mse plus `ctrl_lambda` times the dependence (here the size-weighted mean
+of each date's `dcov2`). The logger keeps both parts for every round. Other metrics, such as
+`:pearson`, are reported unchanged. Predict with `ntree_limit=lg[:best_iter]` to use the round early
+stopping chose. Without an offset the first tree is fitted before the penalty acts, so at a strong
+weight the best round can be round 0.
 
 ## The scale of `ctrl_lambda`
 
-Under `:mse` the pooled penalty adds `ctrl_lambda * W * dcov2(prediction, control)` to the loss,
-`W` being the total training weight, with the control centred and scaled to unit standard
-deviation over the whole sample. The within-date form adds, for each date `d`,
-`ctrl_lambda * w̄ * n_d * dcov2` on that date's rows, `w̄` being the mean training weight and
-`n_d` the date's number of rows, with the control centred and scaled within the date. Either
-way the control's units do not matter: beta in percent or in units gives the same fit up to
-rounding.
-The prediction is not rescaled, and `dcov2` is not scale free: each term grows in proportion to
-the spread of the prediction. The squared error grows with the square of that spread, so a
-target `c` times larger needs about `c` times the weight for the same effect:
+Under `:mse` the penalty adds `ctrl_lambda * W * dcov2(prediction, control)` to the loss, `W` being
+the total training weight. Within dates it adds `ctrl_lambda * w̄ * n_d * dcov2` for each date `d`,
+`w̄` being the mean training weight and `n_d` the date's number of rows. The control is standardised,
+so its units do not matter. The prediction is not: `dcov2` grows linearly with its spread and the
+squared error quadratically, so a target `c` times larger needs about `c` times the weight:
 
 ```julia
 m_y10 = EvoTrees.fit(config(λ0; within=true);
@@ -306,19 +279,13 @@ m_y10_l10x = EvoTrees.fit(config(10 * λ0; within=true);
 | 10               | 10 | 0.0173 |
 | 10               | 100 | 0.0028 |
 
-A weight tuned on one target does not carry over to a target on another scale. Retune it, or
-standardise the target first.
+Retune the weight for a target on another scale, or standardise the target first.
 
 ## Several controls
 
-A signal often has more than one exposure to keep out: beta, size, momentum, volatility.
-`ctrl_train` also takes a matrix with one column per control, and `ctrl_name` a vector of column
-names. Each control is centred and scaled on its own and adds its own term to the penalty, so the
-penalty acts on each control's dependence separately. `ctrl_weights` multiplies each control's
-term, 1 by default; the entries are not normalised, so doubling them all doubles the penalty.
-
-In the panel above the volatility feature is an exposure too: it tracks beta, with noise of its
-own. Keeping the signal away from both, with volatility at half the weight of beta:
+`ctrl_train` also takes a matrix with one column per control, and `ctrl_name` a vector of names.
+Each control adds its own term, multiplied by its entry in `ctrl_weights` (1 by default). Here the
+volatility feature, a noisy proxy for beta, is added at half the weight of beta:
 
 ```julia
 vol = x[:, 2]
@@ -342,24 +309,19 @@ end
 | beta         | 0.0027 | 0.0005 |
 | beta, vol    | 0.0024 | 0.0001 |
 
-Penalising beta alone already takes most of the dependence on volatility away, since volatility
-is mostly beta, and the second control takes it down further. The terms are added rather than
-combined into one joint statistic, so a dependence that shows only in a combination of the controls
-is not penalised. Each control brings its own sort and sweep per round, so the cost grows with their
-number; over the whole sample the controls run in parallel.
+Penalising beta alone already removes most of the dependence on volatility, and the second control
+removes more. The terms are added, so a dependence that shows only in a combination of controls is
+not penalised. Each control adds a sort and a sweep per round.
 
 ## Other losses and devices
 
 The penalty is available on `EvoTreeRegressor` for `:mse`, `:logloss`, `:poisson`, `:gamma` and
-`:tweedie`, single and multi-target (one penalty per output), and on `EvoTreeMLE` for
-`:gaussian_mle`, where it acts on the location. Under the losses other than `:mse` each row's
-penalty gradient is weighted by its curvature relative to `:mse`, so a given weight has roughly
-the effect it has under `:mse`. Other losses are rejected.
+`:tweedie`, and on `EvoTreeMLE` for `:gaussian_mle`, where it acts on the location. Under losses
+other than `:mse` the penalty gradient is scaled by the loss curvature, so a given weight has about
+the same effect.
 
-On GPU the base gradients are computed on the device as usual. The penalty is a sort and a sweep
-over all predictions, which does not map onto a per-row kernel, so each round the penalised
-gradient rows are copied to the host, the penalty is added there, and the rows are copied back.
-Its cost therefore grows with the number of rows, not with the tree depth.
+On GPU the penalised gradient rows are copied to the host each round, penalised there and copied
+back, so the cost grows with the number of rows.
 
-The MLJ interface has no way to pass a control variable, so the penalty is only available through
+The MLJ interface cannot pass a control variable, so the penalty is only available through
 `EvoTrees.fit`.

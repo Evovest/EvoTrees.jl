@@ -190,10 +190,9 @@ function EvoTrees.update_grads!(
     return
 end
 
-# The decorrelation penalty is a global statistic over all predictions: a sort per control and a
-# Fenwick sweep, neither of which maps onto a per-observation kernel. The base gradients are
-# computed on device as usual, then the penalised rows are brought to the host and the penalty
-# added there. LambdaRank below also works on the host, though it copies whole matrices.
+# The decorrelation penalty is a sort and a Fenwick sweep over all predictions, which does not map
+# onto a per-observation kernel: the penalised rows are copied to the host, penalised with the CPU
+# code and copied back.
 function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
@@ -207,9 +206,7 @@ function EvoTrees.update_grads!(
     isnothing(ctrl) && return nothing
     lambda = hasproperty(params, :ctrl_lambda) ? params.ctrl_lambda : 0.0
     lambda > 0 || return nothing
-    # only the penalised prediction, gradient and Hessian rows and the weights are read and only
-    # the gradient rows written, rather than the whole (2K+1, nobs) matrix. The
-    # arithmetic itself is the CPU one, so the two devices cannot drift apart.
+    # copy only the penalised rows and the weights, not the whole (2K+1, nobs) matrix
     K = size(p, 1)
     wrow = Array(view(∇, 2K + 1, :))
     for k in EvoTrees.ctrl_rows(L, K)

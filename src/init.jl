@@ -211,9 +211,8 @@ end
 """
     check_ctrl(params, ctrl, L, group)
 
-Reject the combinations the decorrelation penalty cannot serve: a control on a learner with no
-weight for it, a penalty weight with no control variable to apply it to, the within-group form
-without groups, and losses whose gradient rows the penalty cannot be added to.
+Reject a control on a learner without `ctrl_lambda`, `ctrl_lambda > 0` without a control,
+`ctrl_within_group` without groups, and unsupported losses.
 """
 function check_ctrl(params::EvoTypes, ctrl, ::Type{L}, group) where {L}
     if !isnothing(ctrl) && !hasproperty(params, :ctrl_lambda)
@@ -234,16 +233,9 @@ function check_ctrl(params::EvoTypes, ctrl, ::Type{L}, group) where {L}
         error("`ctrl_within_group` is set but no groups were given. Pass `group_name` when " *
               "fitting from a table, or `group_train` alongside `x_train`.")
     end
-    # The penalty lands on the gradient rows, so it is only well posed where those rows hold a
-    # per-observation derivative of the loss and the leaf negates it. `:mae` and the credibility
-    # losses store the negated gradient with a leaf that does not, so the same term would climb
-    # the penalty instead of descending it, and the `:quantile` leaf reads the residual row.
-    # `:lambdarank` subtypes the same abstract type as the admitted losses but its row 1 is a
-    # pairwise lambda accumulated over pairs within a query, not a per-observation gradient, so
-    # there is nothing for a per-observation derivative to be added to. Under the two-parameter
-    # likelihoods it acts on the location rows only; the scale has its own gradient and is left
-    # alone. The set is written out rather than taken from the type hierarchy so a new subtype
-    # does not inherit the penalty.
+    # Only losses whose gradient rows hold a per-observation derivative that the leaf negates:
+    # not `:mae`, the credibility losses, `:quantile` or `:lambdarank`. Listed explicitly so a
+    # new subtype does not inherit the penalty.
     if !isnothing(ctrl) && !(L in (MSE, LogLoss, Poisson, Gamma, Tweedie, GaussianMLE))
         error("The decorrelation penalty is available for :mse, :logloss, :poisson, :gamma, " *
               ":tweedie and :gaussian_mle, not for $(params.loss).")
@@ -254,9 +246,8 @@ end
 """
     dcor_cache(params, ctrl, group, w)
 
-The penalty's fixed work and scratch: one cache per control over the whole sample, or one per
-control and group when `ctrl_within_group` is set, summed by a `SummedDcorCache`. The controls never
-change, so their row sums and ranks are computed once here rather than on every round.
+One cache per control, over the whole sample or per group under `ctrl_within_group`, summed by a
+`SummedDcorCache`.
 """
 function dcor_cache(params::EvoTypes, ctrl::Controls, group, w)
     wh = w isa Array ? w : Array(w)
@@ -286,19 +277,9 @@ dcor_cache(params::EvoTypes, ctrl::AbstractVector{<:Real}, group, w) =
 """
     build_ctrl(ctrl_raw, nobs, argname)
 
-Validate and materialise the control variable the decorrelation penalty acts against.
-
-It is held on the host on every device, because the penalty is computed there, and in `Float64`
-rather than the `Float32` the rest of the cache uses: a control on an absolute scale is exactly the
-case this is built for, and `Float32` cannot carry one. At a Unix timestamp the `Float32` step is
-128 seconds, so two minutes of distinct values would collapse to one before the statistic saw them.
-
-It is then centred and scaled to unit standard deviation. The distance covariance is homogeneous of
-degree one in each argument, so without this the penalty term would carry the control's units and
-`ctrl_lambda` would mean something different for every column: a duration in seconds rather than
-hours would multiply the penalty gradient by 3600. Standardising is a change of units in the
-control only, so it leaves what the penalty measures untouched and removes the control's units
-from `ctrl_lambda`. The prediction is not rescaled, so the weight still depends on the target's scale.
+Validate a control and return it on the host, centred and scaled to unit standard deviation so
+`ctrl_lambda` does not carry its units. It is kept in `Float64`: at a Unix timestamp the `Float32`
+step is 128 seconds.
 """
 function build_ctrl(ctrl_raw, nobs::Int, argname::AbstractString; col=nothing, eval=false)
     # with several controls the column is named, so the message says which one failed
@@ -314,23 +295,18 @@ function build_ctrl(ctrl_raw, nobs::Int, argname::AbstractString; col=nothing, e
     length(ctrl) >= 4 ||
         error("$label needs at least 4 observations for a distance covariance, got $(length(ctrl)).")
     all(isfinite, ctrl) || error("$label contains a non-finite value.")
-    # `extrema` compares with `<`, so a column mixing `0.0` and `-0.0` is correctly seen as
-    # constant. `allequal` is `isequal`-based and would let it through, and the scaling below
-    # would then divide zero by zero and hand back a control of NaN.
+    # `extrema`, unlike `allequal`, sees a column of `0.0` and `-0.0` as constant
     lo, hi = extrema(ctrl)
     lo < hi ||
         error("$label is constant, so $why.")
-    # Every value tied but at most one either side of them is as good as constant: the distance
-    # matrix is then additive, `|c_i - c_j| = f_i + f_j`, which the U-centring removes, so the
-    # penalty would be zero for every prediction. An indicator set on a single row is the usual case.
+    # all values tied but at most one either side (an indicator set on one row) give an additive
+    # distance matrix, which the U-centring removes, so the penalty would always be zero
     s = sort(ctrl)
     s[2] < s[end-1] ||
         error("$label has every value tied but at most one either side of them, so its distance " *
               "variance is zero and $why.")
     m, sd = _ordered_mean_std(ctrl)
-    # the spread can still be unusable after that: it overflows above roughly 1e154 and
-    # underflows to zero below roughly 1e-162, either of which would silently yield a constant
-    # or a NaN control
+    # the standard deviation overflows above about 1e154 and underflows below about 1e-162
     isfinite(sd) && sd > 0 ||
         error("$label has a standard deviation of $sd, which cannot be used to scale it. " *
               "Rescale the column before passing it.")
@@ -503,8 +479,7 @@ end
         ctrl_weights=nothing
     )
 
-Initialise EvoTree. `group_name`, `ctrl_name` and `ctrl_weights` are as in `EvoTrees.fit`; a
-penalised learner (`ctrl_lambda > 0`) needs its controls here.
+Initialise EvoTree. `group_name`, `ctrl_name` and `ctrl_weights` are as in `EvoTrees.fit`.
 """
 function init(
     params::EvoTypes,
@@ -584,8 +559,7 @@ device_array_type(::Type{<:CPU}) = Array
         ctrl_weights=nothing
     )
 
-Initialise EvoTree. `group_train`, `ctrl_train` and `ctrl_weights` are as in `EvoTrees.fit`; a
-penalised learner (`ctrl_lambda > 0`) needs its controls here.
+Initialise EvoTree. `group_train`, `ctrl_train` and `ctrl_weights` are as in `EvoTrees.fit`.
 """
 function init(
     params::EvoTypes,

@@ -1,7 +1,5 @@
-# Univariate distance covariance in O(n log n) (Chaudhuri & Hu 2019), with an analytic
-# gradient at the same cost. Used as a decorrelation penalty: a control variable the
-# predictions should carry no dependence on. The direct definition is O(n^2) in time and
-# memory, which rules it out as a per-round penalty at ordinary training sizes.
+# Univariate distance covariance and its gradient in O(n log n) (Chaudhuri & Hu 2019), for the
+# decorrelation penalty. The direct definition is O(n^2) in time and memory.
 
 struct Fenwick
     t::Vector{Float64}
@@ -23,9 +21,7 @@ function fsum(f::Fenwick, i::Int)
     s
 end
 
-# Sums in index order. `sum`, `mean` and `std` let the compiler split an array across SIMD lanes,
-# whose width depends on the CPU, so the control's scaling, and after enough rounds the trees, would
-# differ in their last bits between machines. The penalty's per-round sums already run in order.
+# Sums in index order, unlike `sum`, whose last bits can depend on the CPU's SIMD width.
 function _ordered_sum(x)
     s = 0.0
     @inbounds for v in x
@@ -34,11 +30,8 @@ function _ordered_sum(x)
     return s
 end
 
-# Mean and sample standard deviation, both summed in index order, see `_ordered_sum`. The sums are
-# taken from the first value, so a control on an absolute scale, a timestamp or a price, keeps its
-# digits: summed as it stands, the running total of a column near 1e12 rounds at its own scale, and
-# the spread moves with it, enough to flip a split. The mean itself is then rounded at the column's
-# scale, which moves every centred value alike and so leaves the distance statistics unchanged.
+# Mean and sample standard deviation summed in index order, measured from the first value so a
+# column on a large absolute scale, such as a timestamp, keeps its precision.
 function _ordered_mean_std(x)
     n = length(x)
     x0 = Float64(first(x))
@@ -59,9 +52,7 @@ end
 function _rowsums(x::AbstractVector)
     n = length(x)
     ord = sortperm(x)
-    # every term below is a sum of differences, so the vector is shifted to its own smallest
-    # value first. Without that the prefix sums carry the offset and the leading digits cancel:
-    # a control on an absolute scale, a timestamp or a price, loses most of its precision.
+    # shifted to its minimum so the prefix sums keep precision on a large absolute scale
     x0 = Float64(x[ord[1]])
     xs = [Float64(x[i]) - x0 for i in ord]
     cs = cumsum(xs)
@@ -86,8 +77,7 @@ function _signed_ydist(x::AbstractVector, y::AbstractVector)
         sy = Fenwick(n)
         k = 1
         while k <= n
-            # the run of equal `x` starting at k: ties belong to neither side, so the whole
-            # run is scored against what came before it and only then inserted
+            # ties belong to neither side: score the whole run of equal `x`, then insert it
             j = k
             @inbounds while j < n && x[order[j+1]] == x[order[k]]
                 j += 1
@@ -153,9 +143,7 @@ end
 Squared distance correlation, `dcov2(x, y) / sqrt(dcov2(x, x) * dcov2(y, y))`.
 """
 function dcor2(x::AbstractVector, y::AbstractVector)
-    # each variance is a sum of squares over n(n - 3), so it is >= 0 in exact arithmetic, but the
-    # O(n log n) form can round marginally below zero for nearly constant input; testing each on its
-    # own rejects the case where both round negative, which a single `vx * vy > 0` would let through
+    # each variance can round slightly below zero for nearly constant input, so test both
     vx = dcov2(x, x)
     vy = dcov2(y, y)
     (vx > 0 && vy > 0) || return 0.0
@@ -183,9 +171,8 @@ function dcov2_grad(x::AbstractVector, y::AbstractVector)
         @inbounds while j < n && x[ordx[j+1]] == x[ordx[k]]
             j += 1
         end
-        # counts and `b` masses strictly either side of this run. Boosted predictions are
-        # heavily tied, so resolving ties by index order here would make the gradient a
-        # function of row order; the symmetric subgradient is used instead.
+        # counts and `b` masses strictly either side of this run of ties. Boosted predictions
+        # are heavily tied, so the symmetric subgradient keeps the gradient independent of row order.
         lo = k - 1
         hi = n - j
         blo = k > 1 ? cb[k-1] : 0.0
@@ -209,12 +196,8 @@ abstract type AbstractDcorCache end
 """
     DcorCache(ctrl)
 
-Everything the penalty needs that does not change between rounds, plus the scratch it reuses.
-
-The control is fixed at initialisation, so its row sums, their total, and the ranks used by the
-Fenwick sweeps are computed once here rather than on every round. What is left per round is one
-`sortperm` of the predictions and the sweeps themselves, writing into buffers held here. The
-allocating `dcov2_grad` stays as the one-shot entry point; training goes through this.
+One control's fixed work (its row sums, their total and its ranks, computed once) and the scratch
+reused every round.
 """
 struct DcorCache <: AbstractDcorCache
     ctrl::Vector{Float64}      # standardised control
@@ -228,7 +211,7 @@ struct DcorCache <: AbstractDcorCache
     g::Vector{Float64}
     cnt::Fenwick
     sy::Fenwick
-    wbar::Float64              # mean training weight, see `_penalize_row!`
+    wbar::Float64              # mean training weight
 end
 
 function DcorCache(ctrl::Vector{Float64}; wbar::Float64=1.0)
@@ -315,12 +298,8 @@ end
 """
     dcov2_value!(dc::DcorCache, x)
 
-`dcov2(x, dc.ctrl)` from the cached gradient sweep. The statistic is a sum over pairs of the
-distances `|x_i - x_j|`, with coefficients set by the control alone, so it is homogeneous of degree
-one in `x` and, by Euler's identity, equals `sum(g .* x)` for its gradient `g`, at ties too, where a
-distance and its subgradient's share both vanish. `g` sums to zero, so `x` is measured from its
-minimum to keep the terms small, and the sum runs in index order, so the value is the same on every
-CPU.
+`dcov2(x, dc.ctrl)` as `sum(g .* x)` for its gradient `g`, which holds because the statistic is
+homogeneous of degree one in `x`. `g` sums to zero, so `x` is measured from its minimum.
 """
 function dcov2_value!(dc::DcorCache, x::AbstractVector)
     g = dcov2_grad!(dc, x)
@@ -335,13 +314,8 @@ end
 """
     GroupedDcorCache(ctrl, gi::GroupIndex)
 
-One `DcorCache` per group, so the penalty acts on the dependence within each group rather than
-pooled over the sample. On a panel where a group is a date and a row is an asset, the pooled
-statistic is dominated by the date-level component of the control, while the exposure a portfolio
-carries is the cross-sectional one. Each group's control is standardised on its own rows, so a
-date with a wider spread does not weigh more. Groups below 4 rows are skipped, as are groups whose
-control has no usable spread: constant up to the rounding of the standardised control, or every
-value tied but at most one either side of them. The unbiased distance covariance is undefined or zero there.
+One `DcorCache` per group for `ctrl_within_group`, each with the control standardised on the
+group's rows. Groups below 4 rows, or whose control has no usable spread, are skipped.
 """
 struct GroupedDcorCache <: AbstractDcorCache
     caches::Vector{DcorCache}
@@ -360,9 +334,8 @@ function GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; wbar::Float64=1
         length(r) >= 4 || continue
         c = ctrl[r]
         s = sort(c)
-        # every value tied but at most one either side makes the distance variance exactly zero;
-        # a spread at the rounding level of the globally standardised control is noise, and one
-        # that underflows would scale to NaN
+        # all tied but at most one either side gives zero distance variance; a spread at
+        # rounding level is noise, and one that underflows would scale to NaN
         s[2] < s[end-1] || continue
         s[end] - s[1] > 64 * eps(max(1.0, abs(s[1]), abs(s[end]))) || continue
         m, sd = _ordered_mean_std(c)
@@ -383,8 +356,7 @@ end
 """
     Controls(cols, weights, labels)
 
-The control variables of a fit, each validated and standardised by `build_ctrl`, with the weight
-each one's penalty term is multiplied by and the name an error refers to it by.
+The controls of a fit as `build_ctrl` returns them, with their weights and the labels errors use.
 """
 struct Controls
     cols::Vector{Vector{Float64}}
@@ -395,14 +367,9 @@ end
 """
     SummedDcorCache(caches, weights, acc, rows, wbar)
 
-Several controls at once. Each control keeps its own cache, over the whole sample or within groups,
-and the penalty is the sum of their terms, each times its weight. It acts on each control's
-own dependence, so a dependence that shows only in a combination of controls is not seen.
-
-The sum runs in the order the controls were given and starts from the first control's term rather
-than from zero, so one control of weight 1 gives exactly the gradient of its own cache, and the result
-does not depend on how the controls' sweeps are spread over threads. `rows` lists the rows any control
-acts on, which within groups leaves out the groups every control skips.
+One cache per control; the penalty is the weighted sum of their terms, so a dependence that shows
+only in a combination of controls is not seen. The sum starts from the first control's term, so a
+single control of weight 1 matches its own cache exactly. `rows` lists the rows any control acts on.
 """
 struct SummedDcorCache{C<:AbstractDcorCache} <: AbstractDcorCache
     caches::Vector{C}
@@ -415,18 +382,10 @@ end
 """
     EvalCtrl
 
-The eval set's controls, for the penalised eval metric of a fit with a decorrelation penalty: one
-cache per control, over the whole eval set or within each eval group, built on the eval controls
-centred and scaled on the eval set itself, as the training controls are on theirs. The penalty is
-then priced the same way on both sets, an eval date has a scaling of its own as a training date
-does, and the metric depends only on the model and the eval data.
-
-When `penalized`, the loss's own metric becomes the penalised objective on the eval set, in the
-metric's units: under `:mse` the training objective per unit weight is `mse + ctrl_lambda * dcov2`,
-and the eval value is the same expression on the eval predictions. `dep` holds each control's
-dependence of the last round, averaged over the penalised outputs and before `ctrl_lambda` and the
-control weights, so it compares across weights. The per-loss pieces, `_own_metric`,
-`_dep_transform` and `_dep_coef`, sit with the training penalty in `loss.jl`.
+The eval set's controls, standardised on the eval set (within each eval group under
+`ctrl_within_group`). When `penalized`, the loss's own metric becomes the penalised objective,
+under `:mse` `mse + ctrl_lambda * dcov2`. `dep` holds each control's dependence of the last round,
+before `ctrl_lambda` and the control weights.
 """
 struct EvalCtrl{L,C<:AbstractDcorCache}
     caches::Vector{C}
@@ -458,9 +417,8 @@ function eval_ctrl(params, ::Type{L}, K::Int, ctrl::Controls, group, feval, n::I
         zeros(length(caches)))
 end
 
-# one control's dependence on a prediction row, and the same with each row weighted by `a`
-# (`:gaussian_mle`, where it is the location's curvature): over the whole eval set, or within
-# groups as the size-weighted sum `sum_g n_g / n * dcov2_g`, a skipped group adding nothing
+# one control's dependence, and the same weighted by `a` (the location's curvature under
+# `:gaussian_mle`); within groups the size-weighted sum `sum_g n_g / n * dcov2_g`
 function _dependence(dc::DcorCache, x, a, n)
     d = dcov2_value!(dc, x)
     return d, isnothing(a) ? d : d * _ordered_sum(a) / length(a)
@@ -479,9 +437,7 @@ end
 """
     eval_penalty!(ec::EvalCtrl, p)
 
-Each control's dependence on the eval predictions `p`, and the penalty term in the metric's units:
-`sign * ctrl_lambda * coef * mean over penalised outputs of sum_c weight_c * dependence_c`. The
-predictions are brought to the host first, as the training penalty does.
+Each control's dependence on the eval predictions `p`, and the penalty term in the metric's units.
 """
 function eval_penalty!(ec::EvalCtrl{L}, p::AbstractMatrix) where {L}
     ph = p isa Array ? p : Array(p)

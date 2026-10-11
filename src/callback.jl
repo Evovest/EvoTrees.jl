@@ -209,8 +209,8 @@ function (cb::CallBack)(logger, iter, trees)
     return cb(logger, iter)
 end
 
-# With controls the logger also keeps, every round, the base metric and each control's dependence,
-# and whether `:metrics`, which early stopping reads, carries the penalty.
+# With controls the logger also keeps the base metric and each control's dependence per round,
+# and whether `:metrics`, which early stopping reads, includes the penalty.
 function init_logger(; metric, maximise, early_stopping_rounds, early_stopping_tolerance=0.0, ctrl=nothing)
     logger = Dict(
         :name => String(metric),
