@@ -62,6 +62,7 @@ function CallBack(
     _target_names = target_name isa AbstractVector ? Symbol.(target_name) : [Symbol(target_name)]
 
     if isnothing(x_bin)
+        check_features(deval, m.info[:feature_names])
         x_bin = binarize(device, deval; feature_names=m.info[:feature_names], edges=m.info[:edges])
     end
     nobs = length(Tables.getcolumn(deval, 1))
@@ -120,6 +121,7 @@ function CallBack(
     T = Float32
     nobs = size(x_eval, 1)
     if isnothing(x_bin)
+        check_features(x_eval, m.info[:feature_names])
         x_bin = binarize(device, x_eval; feature_names=m.info[:feature_names], edges=m.info[:edges])
     end
     p = zeros(T, K, nobs)
