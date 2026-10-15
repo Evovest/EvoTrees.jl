@@ -152,12 +152,8 @@ function _lambdarank_group!(buf::LambdaRankScratch, ∇::Matrix{T}, p::Matrix{T}
     end
     maxdcg <= 0 && return nothing   # no relevant document, so no ranking signal
 
-    # Each row's discount. Positions past k get none, so a pair wholly below the cutoff yields
-    # a zero delta. Rows tied on both score and relevance are interchangeable, so a run of them
-    # shares the mean discount of the positions it occupies rather than taking them in row
-    # order. A pair always spans two runs, which occupy disjoint contiguous positions, and the
-    # discount falls with position, so each pair gets its expected delta under a random order
-    # within each run.
+    # Positions past k get no discount, so a pair wholly below the cutoff yields a zero delta.
+    # Rows tied on both score and relevance share the mean discount of their positions.
     _rank_order!(ord, scores, rel)
     pos = 1
     @inbounds while pos <= n
