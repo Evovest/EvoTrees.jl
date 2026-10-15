@@ -27,6 +27,7 @@ m = fit(config, dtrain; target_name="y", group_name="date", ctrl_name=["beta", "
 
 ### Pearson loss
 - `EvoTreeRegressor` adds `loss=:pearson`, for the Pearson correlation between prediction and target within each group (one group per date, for example): each group's centred prediction is fitted to its standardised target. It requires groups, so it is only available through `EvoTrees.fit`, and defaults to `metric=:pearson`.
+- `loss=:pearson` takes the decorrelation penalty with `ctrl_within_group=true`. Its default metric, `:pearson`, is reported without the penalty; `metric=:pearson_mse`, the loss's own objective, includes it, and early stopping then follows the penalised objective.
 
 ## v0.18.8
 

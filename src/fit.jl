@@ -410,10 +410,10 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
 - `group_train::Vector`: group id of each training row, such as a query for ranking or a date for `:pearson` or `ctrl_within_group`. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
-- `group_eval::Vector`: group id of each evaluation row. Required by `metric = :ndcg` and `metric = :pearson`, and by controls under `ctrl_within_group = true`.
+- `group_eval::Vector`: group id of each evaluation row. Required by `metric = :ndcg`, `:pearson` and `:pearson_mse`, and by controls under `ctrl_within_group = true`.
 - `ctrl_train::VecOrMat`: control variable of each training row, or a matrix of size `(#observations, #controls)` for several, penalised with `ctrl_lambda` on the learner.
 - `ctrl_weights::Vector`: weight of each control's penalty term, one per column of `ctrl_train`. Defaults to 1 for every control.
-- `ctrl_eval::VecOrMat`: the controls of each evaluation row, with the same columns as `ctrl_train`. Required when `ctrl_train` and evaluation data are both given. With `ctrl_lambda > 0` the loss's own metric includes the penalty. The logger also records the base metric and each control's dependence under `:base_metrics` and `:ctrl_dependence`.
+- `ctrl_eval::VecOrMat`: the controls of each evaluation row, with the same columns as `ctrl_train`. Required when `ctrl_train` and evaluation data are both given. With `ctrl_lambda > 0` the loss's own metric includes the penalty (`:pearson_mse` under `loss = :pearson`). The logger also records the base metric and each control's dependence under `:base_metrics` and `:ctrl_dependence`.
 - `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.

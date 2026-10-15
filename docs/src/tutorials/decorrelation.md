@@ -249,9 +249,10 @@ b = lg[:best_iter] + 1
 
 The penalised value is the mse plus `ctrl_lambda` times the dependence (here the size-weighted mean
 of each date's `dcov2`). The logger keeps both parts for every round. Other metrics, such as
-`:pearson`, are reported unchanged. Predict with `ntree_limit=lg[:best_iter]` to use the round early
-stopping chose. Without an offset the first tree is fitted before the penalty acts, so at a strong
-weight the best round can be round 0.
+`:pearson`, are reported unchanged; under `loss = :pearson` the metric that includes the penalty is
+`:pearson_mse`, the loss's own objective. Predict with `ntree_limit=lg[:best_iter]` to use the
+round early stopping chose. Without an offset the first tree is fitted before the penalty acts, so
+at a strong weight the best round can be round 0.
 
 ## The scale of `ctrl_lambda`
 
