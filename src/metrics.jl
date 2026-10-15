@@ -277,9 +277,7 @@ function ndcg(
     return sum(scores .* weights) / sum(weights)
 end
 
-# XE-NDCG's loss within a single group: the cross-entropy between the target and the softmax
-# of the predictions. Since the target sums to one, -sum(t log softmax(p)) is
-# log(sum(exp(p - pmax))) - sum(t (p - pmax)). `nothing` for a group with no ranking signal.
+# -sum(t log softmax(p)) is log(sum(exp(p - pmax))) - sum(t (p - pmax)), as t sums to 1.
 function _xendcg_group_loss!(buf::XENDCGScratch, p::AbstractMatrix, y, rows, offset::Float64)
     length(rows) < 2 && return nothing
     tot = _xendcg_target!(buf.a, y, rows, offset)
@@ -301,12 +299,9 @@ end
 """
     xendcg(p, y, w, eval; group, xendcg_offset, kwargs...)
 
-The loss of `:xendcg` within each group, then averaged over groups: the cross-entropy between
-the softmax of the group's predictions and a target that puts mass `2^grade - xendcg_offset` on
-each row, normalised over the group. Lower is better. Requires the group index supplied at fit
-through `group_name` or `group_eval`, and non-negative grades. As for `:ndcg`, a group weighs by
-the mean of its rows' weights. Groups of one row, and groups whose grades are all 0 at an offset
-of 1, carry no ranking signal and are left out.
+The `:xendcg` loss, computed within each group then averaged over groups. Lower is better.
+Requires the group index supplied at fit through `group_name` or `group_eval`. As for `:ndcg`, a
+group weighs by the mean of its rows' weights. Groups with no ranking signal are left out.
 """
 function xendcg(
     p::AbstractMatrix{T},

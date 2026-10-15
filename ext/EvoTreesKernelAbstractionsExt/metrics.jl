@@ -153,8 +153,7 @@ function EvoTrees.ndcg(
     return EvoTrees.ndcg(p_cpu, y_cpu, w_cpu, similar(w_cpu, 0); group, ndcg_k)
 end
 
-# Same reasoning as `ndcg` above: a softmax within each group is a segmented reduction, so the
-# arrays are brought to the host and scored with the CPU code.
+# As for `ndcg` above, scored on the host.
 function EvoTrees.xendcg(
     p::CuMatrix{T},
     y::Union{CuVector,CuMatrix},

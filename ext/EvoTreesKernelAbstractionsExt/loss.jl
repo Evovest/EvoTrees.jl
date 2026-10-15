@@ -208,8 +208,7 @@ function EvoTrees.update_grads!(
     return nothing
 end
 
-# XE-NDCG needs a softmax within each query, a segmented reduction over variable-length groups,
-# so like LambdaRank its arrays are brought to the host and the shared CPU implementation is used.
+# A softmax per query is a segmented reduction, so as for LambdaRank it runs on the host.
 function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,

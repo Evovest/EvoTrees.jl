@@ -168,9 +168,6 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
     end
 
     @testset "xendcg gradients" begin
-        # One softmax per query, fitted by cross-entropy to a target t with mass
-        # 2^grade - offset on each document: the gradient is softmax minus t and the Hessian
-        # the diagonal of the softmax's.
         function xe_loss(s, grade, off)
             local t = (exp2.(grade) .- off) ./ sum(exp2.(grade) .- off)
             local smax = maximum(s)
@@ -197,19 +194,15 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
             ρ = exp.(s) ./ sum(exp.(s))
             @test all(isapprox.(∇[2, :], ρ .* (1 .- ρ); atol=1e-6))
             @test sum(∇[1, :]) ≈ 0 atol = 1e-6
-            # a shift common to the query's scores changes nothing
             @test all(isapprox.(xe_grads(s .+ 3, grade, off), ∇; atol=1e-6))
-            # no sort, so permuting the rows permutes the gradients
             perm = randperm(rng, n)
             @test all(isapprox.(xe_grads(s[perm], grade[perm], off), ∇[:, perm]; atol=1e-6))
         end
 
-        # At equal scores the gradient is 1/n minus the target. At an offset of 1 the target is
-        # NDCG's own gain, 2^grade - 1, normalised.
+        # At equal scores the gradient is 1/n minus the target.
         @test xe_grads(zeros(4), [0.0, 0, 1, 2], 1.0)[1, :] ≈ [0.25, 0.25, 0, -0.5]
         @test xe_grads(zeros(4), [0.0, 0, 1, 2], 0.0)[1, :] ≈ 0.25 .- [1, 1, 2, 4] ./ 8
 
-        # Each query is its own softmax: two queries, each summing to zero.
         q = [1, 2, 1, 2, 2, 1, 2]
         s = randn(rng, 7)
         gr = Float64[3, 0, 1, 2, 2, 0, 4]
@@ -219,26 +212,20 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
             @test all(isapprox.(∇[:, q.==g], xe_grads(s[q.==g], gr[q.==g], 0.5); atol=1e-6))
         end
 
-        # A query weighs by the mean of its rows' weights, so its gradient is that of the
-        # weighted cross-entropy: query 1 has weights 1, 3, 4 and query 2 has 2, 1, 1, 4.
+        # A query weighs by the mean of its rows' weights: 8/3 for query 1, 2 for query 2.
         wv = [1.0, 2, 3, 1, 1, 4, 4]
         ∇w = xe_grads(s, gr, 0.5; q, w=wv)
         @test all(isapprox.(∇w[1:2, q.==1], ∇[1:2, q.==1] .* (8 / 3); atol=1e-6))
         @test all(isapprox.(∇w[1:2, q.==2], ∇[1:2, q.==2] .* 2; atol=1e-6))
 
-        # The maximum is taken out before the softmax, so a dominant score stays finite and a
-        # shift common to the query still changes nothing.
         big = xe_grads([1000.0, 999, 0], [2.0, 1, 0], 0.5)
         @test all(isfinite, big)
         @test all(isapprox.(big, xe_grads([0.0, -1, -1000], [2.0, 1, 0], 0.5); atol=1e-6))
 
-        # Grades past the Float64 range of 2^grade do not overflow: the target is taken
-        # relative to the query's top grade.
         ∇big = xe_grads([0.0, 0, 0], [2000.0, 1999, 0], 0.5)
         @test all(isfinite, ∇big)
         @test ∇big[1, :] ≈ [1 / 3 - 2 / 3, 1 / 3 - 1 / 3, 1 / 3] atol = 1e-6
 
-        # No ranking signal: a single document, or every grade 0 at an offset of 1.
         @test all(iszero, xe_grads([1.0], [2.0], 0.5)[1:2, :])
         @test all(iszero, xe_grads([1.0, 2.0, 3.0], [0.0, 0, 0], 1.0)[1:2, :])
     end
@@ -255,23 +242,19 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         end
         for off in (0.0, 0.5, 1.0)
             got = EvoTrees.xendcg(reshape(pv, 1, :), gr, wv, Float32[]; group=gi, xendcg_offset=off)
-            # the single-row group 3 carries no signal and is left out; groups weigh by the
-            # mean of their rows' weights, as for :ndcg
+            # the single-row group 3 is left out
             c1 = ce(Float64.(pv[1:3]), Float64.(gr[1:3]), off)
             c2 = ce(Float64.(pv[4:7]), Float64.(gr[4:7]), off)
             @test got ≈ (c1 * 1 + c2 * 3) / 4 rtol = 1e-6
         end
-        # A query with no target mass, every grade 0 at an offset of 1, is left out too.
         q0 = [1, 1, 1, 2, 2]
         p0 = Float32[0.5, -1, 0.2, 3, 1]
         g0 = Float32[2, 0, 1, 0, 0]
         @test EvoTrees.xendcg(reshape(p0, 1, :), g0, ones(Float32, 5), Float32[];
             group=build_group_index(q0), xendcg_offset=1.0) ≈ ce(Float64.(p0[1:3]), Float64.(g0[1:3]), 1.0) rtol = 1e-6
-        # A dominant prediction stays finite, as a shift common to the query changes nothing.
         @test EvoTrees.xendcg(Float32[1000 999 0], Float32[2, 1, 0], ones(Float32, 3), Float32[];
             group=build_group_index(ones(Int, 3))) ≈ EvoTrees.xendcg(Float32[0 -1 -1000], Float32[2, 1, 0],
             ones(Float32, 3), Float32[]; group=build_group_index(ones(Int, 3))) rtol = 1e-6
-        # the cross-entropy is smallest when the softmax equals the target
         t = (exp2.(Float64.(gr[4:7])) .- 0.5) ./ sum(exp2.(Float64.(gr[4:7])) .- 0.5)
         best = EvoTrees.xendcg(reshape(Float32.(log.(t)), 1, :), gr[4:7], ones(Float32, 4), Float32[];
             group=build_group_index(ones(Int, 4)))
@@ -281,7 +264,6 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         @test !EvoTrees.is_maximise(EvoTrees.xendcg)
         @test_throws ErrorException EvoTrees.xendcg(reshape(pv, 1, :), gr, wv, Float32[])
         @test_throws ErrorException EvoTrees.xendcg(reshape(pv, 1, :), gr .- 1, wv, Float32[]; group=gi)
-        # Nothing to score: every query has a single row.
         @test_throws ErrorException EvoTrees.xendcg(reshape(pv, 1, :), gr, wv, Float32[];
             group=build_group_index(collect(1:8)))
     end
@@ -364,8 +346,6 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
             EvoTreeRegressor(; loss=:lambdarank, nrounds=5, max_depth=3);
             x_train=x[tr, :], y_train=y[tr] .- 1, group_train=qid[tr], verbosity=0)
 
-        # XE-NDCG on the same queries: its own cross-entropy is the default metric and falls,
-        # and `:ndcg` can be tracked instead.
         cfg_xe(; kw...) = EvoTreeRegressor(; loss=:xendcg, nrounds=150, max_depth=5, eta=0.05,
             rowsample=0.7, kw...)
         fit_xe(cfg) = fit(cfg; x_train=x[tr, :], y_train=y[tr], group_train=qid[tr],
@@ -380,16 +360,13 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         px = predict(mx, x[te, :])
         @test cor(px, pm) < 0.999
         @test cor(px, pl) < 0.999
-        # the offset changes the target and so the fit, and a fit is reproducible
         m1 = fit_xe(cfg_xe(; xendcg_offset=1.0))
         @test predict(m1, x[te, :]) != px
         @test predict(fit_xe(cfg_xe()), x[te, :]) == px
-        # and the logged metric is scored at the same offset as training
         logged_vs_direct(m, xe) = (m.info[:logger][:metrics][end],
             EvoTrees.xendcg(reshape(Float32.(predict(m, xe)), 1, :), Float32.(y[te]), ones(Float32, sum(te)),
                 Float32[]; group=build_group_index(qid[te]), xendcg_offset=1.0))
         @test ≈(logged_vs_direct(m1, x[te, :])...; rtol=1e-4)
-        # a one-column matrix target is the vector target
         @test predict(fit(cfg_xe(); x_train=x[tr, :], y_train=reshape(y[tr], :, 1), group_train=qid[tr],
             x_eval=x[te, :], y_eval=reshape(y[te], :, 1), group_eval=qid[te], verbosity=0), x[te, :]) == px
 
@@ -403,7 +380,6 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
                 x_train=x[tr, :], y_train=hcat(y[tr], y[tr]), group_train=qid[tr], verbosity=0)
         end
 
-        # Table API, with the group column left out of the features.
         dtr = (q=qid[tr], f1=x[tr, 1], f2=x[tr, 2], f3=x[tr, 3], f4=x[tr, 4], y=y[tr])
         dte = (q=qid[te], f1=x[te, 1], f2=x[te, 2], f3=x[te, 3], f4=x[te, 4], y=y[te])
         mt = fit(cfg_xe(), dtr; target_name=:y, group_name=:q, deval=dte, verbosity=0)

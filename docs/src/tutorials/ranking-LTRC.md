@@ -251,15 +251,10 @@ opening of this tutorial reports.
 
 ## Listwise objective: XE-NDCG
 
-`loss=:xendcg` is a listwise alternative, XE-NDCG (Bruch, "An Alternative Cross Entropy Loss
-for Learning-to-Rank", WWW 2021). Within each query a softmax runs over the documents' scores
-and is fitted by cross-entropy to a target that puts mass `2^rel - xendcg_offset` on each
-document, normalised over the query. The gradient is the softmax minus that target, so the
-cost is linear in the size of a query and needs no sort. A query's gradients sum to zero, with
-absolute values summing to at most 2 whatever its size, so large queries do not dominate.
-`metric` defaults to `:xendcg`, the same cross-entropy on the evaluation queries.
-`metric=:ndcg` tracks NDCG instead, though NDCG on held-out queries is noisy and tends to stop
-the fit early, so the default is usually the steadier choice for early stopping.
+`loss=:xendcg` (Bruch, "An Alternative Cross Entropy Loss for Learning-to-Rank", WWW 2021) fits a
+softmax over each query's scores, by cross-entropy, to a target with mass `2^rel - xendcg_offset`
+on each document. Its cost is linear in the size of a query, with no sort. `metric` defaults to
+`:xendcg`, the same loss on the evaluation queries; `metric=:ndcg` tracks NDCG instead.
 
 ```julia
 config = EvoTreeRegressor(
@@ -281,15 +276,9 @@ m = EvoTrees.fit(
 );
 ```
 
-The grades set how top-heavy the target is: each unit of relevance doubles a document's mass,
-so grades 0 to 4 put 31 times as much mass on a top document as on a bottom one at the default
-offset. `xendcg_offset`, between 0 and 1, is subtracted from every document's mass. The paper
-redraws it uniformly every round; here it is fixed, at 0.5 by default. The paper's bound on
-NDCG holds for any fixed value, and a fixed one keeps the target deterministic. At 1 the target
-is NDCG's own gain, `2^rel - 1`, and a query whose documents all have relevance 0 carries no
-signal. Relevance must be non-negative. A query weighs by the mean of its rows' weights, as for
-`:ndcg`. A query's Hessians sum to less than 1, so `L2` acts as a much stronger prior than under
-`:mse` and is worth tuning.
+`xendcg_offset` is in [0, 1], 0.5 by default; the paper draws it at random every round.
+Relevance must be non-negative. A query's Hessians sum to less than 1, so `L2` regularises
+more strongly than under `:mse`.
 
 ## Logistic regression alternative
 

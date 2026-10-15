@@ -213,22 +213,17 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
 end
 
 # XE-NDCG, per Bruch, "An Alternative Cross Entropy Loss for Learning-to-Rank" (WWW 2021).
-# Within a query one softmax runs over the scores, fitted by cross-entropy to a target that puts
-# mass 2^grade - offset on each document, normalised over the query. The gradient is softmax
-# minus target, as for multiclass logloss with soft labels, and the Hessian its diagonal.
-# LightGBM adds second and third order terms to the gradient; they matter little once a query
-# has a few dozen documents, though in a query of two the diagonal step is twice the Newton
-# step. The paper redraws the offset uniformly on [0, 1] every round; its bound on NDCG holds
-# for any fixed offset, which keeps the target deterministic. Cost is linear in the size of a
-# query, with no sort.
+# Cross-entropy between the softmax of a query's scores and a target of mass 2^grade - offset
+# per document. The gradient is softmax minus target and the Hessian its diagonal.
+# Float64 scratch: the metric shares it, and Float32 sums over a large query err by as much as
+# the metric moves between late rounds.
 struct XENDCGScratch
     e::Vector{Float64}
     a::Vector{Float64}
 end
 XENDCGScratch() = XENDCGScratch(Float64[], Float64[])
 
-# Target mass of each document, scaled by 2^-max(grade) so a large grade cannot overflow; the
-# scale cancels once the masses are normalised. Returns their total.
+# Scaled by 2^-max(grade) so a large grade cannot overflow; the scale cancels on normalising.
 function _xendcg_target!(a::Vector{Float64}, y, rows, offset::Float64)
     resize!(a, length(rows))
     ymax = -Inf
@@ -244,7 +239,6 @@ function _xendcg_target!(a::Vector{Float64}, y, rows, offset::Float64)
     return tot
 end
 
-# Softmax of a query's scores into `e`, with the maximum subtracted first.
 function _xendcg_softmax!(e::Vector{Float64}, p, rows)
     resize!(e, length(rows))
     smax = -Inf
@@ -260,13 +254,11 @@ function _xendcg_softmax!(e::Vector{Float64}, p, rows)
     return e
 end
 
-# A query weighs by the mean of its rows' weights, as for `:ndcg`, so the gradient is that of
-# the weighted cross-entropy the metric reports. A weight varying within a query would scale
-# its rows' steps without corresponding to any loss.
+# A query weighs by the mean of its rows' weights, as for `:ndcg`.
 function _xendcg_group!(buf::XENDCGScratch, ∇::Matrix{T}, p::Matrix{T}, y, rows, offset::Float64) where {T}
     length(rows) < 2 && return nothing
     tot = _xendcg_target!(buf.a, y, rows, offset)
-    tot > 0 || return nothing   # every grade 0 at an offset of 1: no mass to rank by
+    tot > 0 || return nothing   # every grade 0 at an offset of 1
     ρ = _xendcg_softmax!(buf.e, p, rows)
     w = 0.0
     @inbounds for r in rows
