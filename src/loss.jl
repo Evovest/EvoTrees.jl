@@ -228,8 +228,8 @@ _own_metric(::Type) = nothing
 # `g` sees the prediction only through its ranks, so the weighted gradient `g * h / 2w` is the
 # gradient of `dcov2` of an increasing transform of the prediction: `_dep_transform` is that
 # transform and `_dep_coef` puts the term in the metric's units. Exact under `:mse`, `:logloss`,
-# `:poisson` and `:pearson`; under `:gamma` and `:tweedie` at a calibrated fit; under
-# `:gaussian_mle` at a constant scale.
+# `:poisson`, and `:pearson` on the dates it scores; under `:gamma` and `:tweedie` at a calibrated
+# fit; under `:gaussian_mle` at a constant scale.
 _dep_transform(::Type{<:Union{MSE,Gamma,GaussianMLE,Pearson}}, p) = p
 _dep_transform(::Type{LogLoss}, p) = sigmoid(p)
 _dep_transform(::Type{Poisson}, p) = exp(p)
