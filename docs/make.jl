@@ -15,6 +15,7 @@ pages = [
         "Classification - IRIS" => "tutorials/classification-iris.md",
         "Ranking - Yahoo! LTRC" => "tutorials/ranking-LTRC.md",
         "Decorrelation penalty" => "tutorials/decorrelation.md",
+        "Per-date correlation" => "tutorials/pearson-loss.md",
         "Credibility-based loss" => "tutorials/cred-loss.md",
         "Internal API" => "tutorials/examples-API.md",
         "MLJ API" => "tutorials/examples-MLJ.md",
