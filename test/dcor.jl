@@ -994,3 +994,136 @@ end
             ctrl_eval=c1, verbosity=0)
     end
 end
+
+@testset "loss = :pearson" begin
+    zscore(v) = (v .- mean(v)) ./ std(v)
+    # 100 dates of 50 assets, rows shuffled. Within a date the control is the cross-sectional term
+    # `cs`, which also carries a third of the target's per-date signal
+    function panel(seed)
+        rng = Xoshiro(seed)
+        nobs = 100 * 50
+        date = repeat(1:100, inner=50)
+        mkt = randn(rng, 100)[date]
+        cs = randn(rng, nobs)
+        x = hcat(cs .+ 0.3 .* randn(rng, nobs), randn(rng, nobs, 3), mkt .+ 0.1 .* randn(rng, nobs))
+        y = 3 .* mkt .+ cs .+ x[:, 2] .+ 0.5 .* randn(rng, nobs)
+        perm = randperm(rng, nobs)
+        return (; date=date[perm], x=x[perm, :], ctrl=(mkt.+cs)[perm], y=y[perm])
+    end
+
+    @testset "within groups only" begin
+        P = panel(1)
+        cfg(within) = EvoTreeRegressor(loss=:pearson, nrounds=5, max_depth=3, ctrl_lambda=1.0, ctrl_within_group=within)
+        @test_throws "Set `ctrl_within_group = true`" fit(cfg(false); x_train=P.x, y_train=P.y, group_train=P.date,
+            ctrl_train=P.ctrl, verbosity=0)
+        @test fit(cfg(true); x_train=P.x, y_train=P.y, group_train=P.date, ctrl_train=P.ctrl,
+            verbosity=0) isa EvoTrees.EvoTree
+    end
+
+    @testset "the penalty lands on the gradient unchanged" begin
+        # the loss's curvature is 2w, so each kept group adds `λ * wbar * n_g` times its gradient. Group 3
+        # is too small for the penalty, and group 1 has a constant target, so the loss gives it no
+        # curvature and no penalty. Over 21 seeds the error was at most 1.4e-7, Float32 rounding
+        rng = Xoshiro(91)
+        gid = vcat([fill(g, m) for (g, m) in enumerate((9, 12, 3, 10, 8))]...)
+        gid = gid[randperm(rng, length(gid))]
+        n = length(gid)
+        ctrl = randn(rng, n)
+        y = Float32.(3 .* randn(rng, n) .+ 10)
+        y[gid.==1] .= 7.0f0
+        p = Float32.(0.4 .* randn(rng, 1, n))
+        w = Float32.(0.5 .+ rand(rng, n))
+        gi = build_group_index(gid, n, "g")
+        params = EvoTreeRegressor(loss=:pearson, ctrl_lambda=2.0, ctrl_within_group=true)
+        ∇a = zeros(Float32, 3, n)
+        ∇a[3, :] .= w
+        ∇b = copy(∇a)
+        EvoTrees.update_grads!(∇a, p, y, EvoTrees.Pearson, params, gi, nothing)
+        EvoTrees.update_grads!(∇b, p, y, EvoTrees.Pearson, params, gi, EvoTrees.dcor_cache(params, ctrl, gi, w))
+        expected = zeros(n)
+        for g in (2, 4, 5)
+            r = findall(==(g), gid)
+            expected[r] .= 2.0 * mean(Float64.(w)) * length(r) .* dcov2_grad(Float64.(p[1, r]), zscore(ctrl[r]))
+        end
+        @test Float64.(∇b[1, :] .- ∇a[1, :]) ≈ expected rtol = 1e-5
+        skipped = (gid .== 1) .| (gid .== 3)
+        @test ∇b[1, skipped] == ∇a[1, skipped]
+        @test ∇b[2:3, :] == ∇a[2:3, :]
+    end
+
+    @testset "metric = :pearson_mse is the training objective" begin
+        # the loss's weighted squared error per unit weight, so its gradient times the total weight is the
+        # loss's gradient row, and with the penalty the penalised eval value's is the training row. A date
+        # of one row and one with a constant target are not scored. Over 21 seeds: value 4.4e-16
+        # relative, gradients within 2.4e-10 and 9.4e-10 of the largest row
+        rng = Xoshiro(96)
+        gid = repeat(1:8, inner=40)
+        gid[1] = 9
+        n = length(gid)
+        gi = build_group_index(gid, n, "g")
+        c1, c2 = randn(rng, n), randn(rng, n)
+        y = c1 .+ randn(rng, n) .+ 5 .* gid
+        y[gid.==2] .= 0.5
+        w = 0.5 .+ rand(rng, n)
+        p = 0.5 .* randn(rng, 1, n)
+        metric(q) = EvoTrees.pearson_mse(q, y, w, similar(w); group=gi)
+        obj = 0.0
+        for g in (1, 3, 4, 5, 6, 7, 8)
+            r = findall(==(g), gid)
+            sw = sum(w[r])
+            pb, yb = sum(w[r] .* p[1, r]) / sw, sum(w[r] .* y[r]) / sw
+            sy = sqrt(sum(w[r] .* (y[r] .- yb) .^ 2) / sw)
+            obj += sum(w[r] .* ((p[1, r] .- pb) .- (y[r] .- yb) ./ sy) .^ 2) / sum(w)
+        end
+        @test metric(p) ≈ obj rtol = 1e-12
+        fd(f, i, h) = (qp = copy(p); qp[1, i] += h; qm = copy(p); qm[1, i] -= h; sum(w) * (f(qp) - f(qm)) / (2h))
+        ∇0 = zeros(3, n)
+        ∇0[3, :] .= w
+        EvoTrees.update_grads!(∇0, p, y, EvoTrees.Pearson, EvoTreeRegressor(loss=:pearson), gi)
+        @test maximum(abs, [fd(metric, i, 1e-4) for i in 1:n] .- ∇0[1, :]) < 1e-7 * maximum(abs, ∇0[1, :])
+        ctrls = EvoTrees.Controls([build_ctrl(c1, n, "c"), build_ctrl(c2, n, "c")], [1.0, 0.5], ["c1", "c2"])
+        params = EvoTreeRegressor(loss=:pearson, metric=:pearson_mse, ctrl_lambda=2.0, ctrl_within_group=true)
+        ec = EvoTrees.eval_ctrl(params, EvoTrees.Pearson, 1, ctrls, gi, EvoTrees.pearson_mse, n)
+        @test ec.penalized
+        ∇ = zeros(3, n)
+        ∇[3, :] .= w
+        EvoTrees.update_grads!(∇, p, y, EvoTrees.Pearson, params, gi, EvoTrees.dcor_cache(params, ctrls, gi, w))
+        value(q) = metric(q) + EvoTrees.eval_penalty!(ec, q)[2]
+        # rows with no neighbour within 1e-4 in their date, so the step crosses no kink of the statistic
+        probe = filter(i -> 2 < gid[i] < 9 &&
+            minimum(abs(p[i] - p[j]) for j in 1:n if j != i && gid[j] == gid[i]) > 1e-4, 1:n)[1:8]
+        @test maximum(abs(∇[1, i] - fd(value, i, 1e-5)) for i in probe) < 1e-6 * maximum(abs, ∇[1, :])
+    end
+
+    @testset "early stopping" begin
+        # the default metric, the per-date correlation, is reported as it stands. The first tree sees no
+        # penalty and the correlation falls as the penalty sheds the control's share of the signal, so
+        # over 21 seeds it stopped at round 1 every time; `:pearson_mse` ran 26 to 62 rounds, to a
+        # within-date dcor2 at most 0.11 of round 1's
+        P = panel(2)
+        tr, ev = P.date .<= 70, P.date .> 70
+        rows = [findall(==(d), P.date[ev]) for d in 71:100]
+        dep(m, it) = (q = Float64.(predict(m, P.x[ev, :]; ntree_limit=it)[:, 1]);
+                      mean(dcor2(q[r], P.ctrl[ev][r]) for r in rows))
+        fitc(loss, metric) = fit(EvoTreeRegressor(; loss, metric, nrounds=200, max_depth=4, eta=0.1, seed=1,
+                early_stopping_rounds=10, ctrl_lambda=10.0, ctrl_within_group=true);
+            x_train=P.x[tr, :], y_train=P.y[tr], group_train=P.date[tr], ctrl_train=P.ctrl[tr], x_eval=P.x[ev, :],
+            y_eval=P.y[ev], group_eval=P.date[ev], ctrl_eval=P.ctrl[ev], verbosity=0)
+        ma, mb = fitc(:pearson, nothing), fitc(:pearson, :pearson_mse)
+        la, lb = ma.info[:logger], mb.info[:logger]
+        @test !la[:penalized]
+        @test la[:metrics] == la[:base_metrics]
+        @test la[:best_iter] == 1
+        @test lb[:penalized]
+        @test lb[:metrics] ≈ lb[:base_metrics] .+ 10.0 .* first.(lb[:ctrl_dependence]) rtol = 1e-9
+        @test lb[:best_iter] == lb[:iter][argmin(lb[:metrics])]
+        @test lb[:nrounds] == lb[:best_iter] + 10 < 200
+        @test dep(mb, lb[:best_iter]) < dep(ma, la[:best_iter]) / 2
+        # under another loss it is reported as it stands, and it needs the eval groups
+        lm = fitc(:mse, :pearson_mse).info[:logger]
+        @test !lm[:penalized] && lm[:metrics] == lm[:base_metrics]
+        @test_throws "`metric = :pearson_mse` requires group information" fit(
+            EvoTreeRegressor(loss=:mse, metric=:pearson_mse, nrounds=2); x_train=P.x[tr, :], y_train=P.y[tr],
+            x_eval=P.x[ev, :], y_eval=P.y[ev], verbosity=0)
+    end
+end
