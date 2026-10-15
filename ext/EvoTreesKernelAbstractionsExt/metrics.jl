@@ -172,3 +172,10 @@ function EvoTrees.pearson(
     w_cpu = Array(w)
     return EvoTrees.pearson(p_cpu, y_cpu, w_cpu, similar(w_cpu, 0); group)
 end
+
+# scored on the host, as `pearson` is
+function EvoTrees.pearson_mse(p::CuMatrix{T}, y::CuVector, w::CuVector{T}, eval::CuVector{T};
+    group=nothing, kwargs...) where {T<:AbstractFloat}
+    w_cpu = Array(w)
+    return EvoTrees.pearson_mse(Array(p), Array(y), w_cpu, similar(w_cpu); group)
+end

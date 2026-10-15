@@ -222,18 +222,19 @@ _own_metric(::Type{Poisson}) = poisson
 _own_metric(::Type{Gamma}) = gamma
 _own_metric(::Type{Tweedie}) = tweedie
 _own_metric(::Type{GaussianMLE}) = gaussian_mle
+_own_metric(::Type{Pearson}) = pearson_mse
 _own_metric(::Type) = nothing
 
 # `g` sees the prediction only through its ranks, so the weighted gradient `g * h / 2w` is the
 # gradient of `dcov2` of an increasing transform of the prediction: `_dep_transform` is that
-# transform and `_dep_coef` puts the term in the metric's units. Exact under `:mse`, `:logloss`
-# and `:poisson`; under `:gamma` and `:tweedie` at a calibrated fit; under `:gaussian_mle` at a
-# constant scale.
-_dep_transform(::Type{<:Union{MSE,Gamma,GaussianMLE}}, p) = p
+# transform and `_dep_coef` puts the term in the metric's units. Exact under `:mse`, `:logloss`,
+# `:poisson` and `:pearson`; under `:gamma` and `:tweedie` at a calibrated fit; under
+# `:gaussian_mle` at a constant scale.
+_dep_transform(::Type{<:Union{MSE,Gamma,GaussianMLE,Pearson}}, p) = p
 _dep_transform(::Type{LogLoss}, p) = sigmoid(p)
 _dep_transform(::Type{Poisson}, p) = exp(p)
 _dep_transform(::Type{Tweedie}, p) = exp((2 - 1.5) * p)   # rho = 1.5, as in the loss and its metric
-_dep_coef(::Type{<:Union{MSE,Poisson,Gamma}}) = 1.0
+_dep_coef(::Type{<:Union{MSE,Poisson,Gamma,Pearson}}) = 1.0
 _dep_coef(::Type{<:Union{LogLoss,GaussianMLE}}) = 0.5
 _dep_coef(::Type{Tweedie}) = 1 / (2 - 1.5)
 
@@ -353,19 +354,19 @@ _pearson_no_group() = error(
     "`group_name` when fitting from a table, or `group_train` when fitting from a matrix."
 )
 
-# Weighted means of p and y and the sd of y for one group. A group with fewer than two rows or
-# a constant target is not scored.
-function _pearson_group_stats(∇, p, y, rows)
+# Weighted means of p and y and the sd of y for one group, shared with `pearson_mse`. A group
+# with fewer than two rows or a constant target is not scored.
+function _pearson_group_stats(w, p, y, rows)
     n = length(rows)
     n < 2 && return (false, 0.0, 0.0, 0.0)
     sw = swp = swy = 0.0
     ymin = ymax = y[first(rows)]
     @inbounds for r in rows
-        w = Float64(∇[3, r])
+        wr = Float64(w[r])
         yr = y[r]
-        sw += w
-        swp += w * p[1, r]
-        swy += w * yr
+        sw += wr
+        swp += wr * p[1, r]
+        swy += wr * yr
         ymin = min(ymin, yr)
         ymax = max(ymax, yr)
     end
@@ -376,7 +377,7 @@ function _pearson_group_stats(∇, p, y, rows)
     vy = 0.0
     @inbounds for r in rows
         d = y[r] - ybar
-        vy += ∇[3, r] * d * d
+        vy += w[r] * d * d
     end
     sy = sqrt(vy / sw)
     sy > 0 || return (false, 0.0, 0.0, 0.0)
@@ -384,8 +385,9 @@ function _pearson_group_stats(∇, p, y, rows)
 end
 
 function _pearson_stats_chunk!(stats, scored, ∇, p, y, group, chunk)
+    w = view(∇, 3, :)
     for g in chunk
-        ok, pbar, ybar, sy = _pearson_group_stats(∇, p, y, group_rows(group, g))
+        ok, pbar, ybar, sy = _pearson_group_stats(w, p, y, group_rows(group, g))
         scored[g] = ok
         stats[1, g] = pbar
         stats[2, g] = ybar

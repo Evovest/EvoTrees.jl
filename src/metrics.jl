@@ -352,6 +352,44 @@ function pearson(
     return sum(scores .* weights) / sw
 end
 
+"""
+    pearson_mse(p, y, w, eval; group, kwargs...)
+
+The objective `loss = :pearson` fits, per unit weight: within each group, the weighted squared
+error of the centred prediction against the standardised target, summed over the groups the loss
+scores and divided by the total weight. Under `loss = :pearson` with `ctrl_lambda > 0` it includes
+the decorrelation penalty, so early stopping follows the penalised objective.
+"""
+function pearson_mse(
+    p::AbstractMatrix{T},
+    y::AbstractVector{T},
+    w::AbstractVector{T},
+    eval::AbstractVector{T};
+    group=nothing,
+    kwargs...
+) where {T}
+    isnothing(group) && error(
+        "`metric = :pearson_mse` requires group information. Pass `group_name` or `eval_group_name` " *
+        "when fitting from a table, or `group_eval` alongside `x_eval` when fitting from a matrix."
+    )
+    @threads for chunk in _group_chunks(ngroups(group))
+        _pearson_mse_chunk!(eval, p, y, w, group, chunk)
+    end
+    return sum(Float64, eval) / sum(Float64, w)
+end
+
+function _pearson_mse_chunk!(eval::AbstractVector{T}, p, y, w, group, chunk) where {T}
+    for g in chunk
+        rows = group_rows(group, g)
+        ok, pbar, ybar, sy = _pearson_group_stats(w, p, y, rows)
+        @inbounds for r in rows
+            e = ok ? (p[1, r] - pbar) - (y[r] - ybar) / sy : 0.0
+            eval[r] = T(w[r] * e * e)
+        end
+    end
+    return nothing
+end
+
 function gini_raw(p::AbstractVector, y::AbstractVector)
     _y = y .- minimum(y)
     if length(_y) < 2
@@ -402,6 +440,7 @@ const metric_dict = Dict(
     :gini => gini,
     :ndcg => ndcg,
     :pearson => pearson,
+    :pearson_mse => pearson_mse,
 )
 
 is_maximise(::typeof(mse)) = false
@@ -419,3 +458,4 @@ is_maximise(::typeof(multiquantile)) = false
 is_maximise(::typeof(gini)) = true
 is_maximise(::typeof(ndcg)) = true
 is_maximise(::typeof(pearson)) = true
+is_maximise(::typeof(pearson_mse)) = false
