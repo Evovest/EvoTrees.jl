@@ -50,25 +50,20 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         @test ndcg_group([3.0, 2, 1], [0.0, 0, 0], 100) == 1.0
         # Ties in the prediction must not error.
         @test ndcg_group([1.0, 1.0, 1.0], [2.0, 1.0, 0.0], 100) isa Float64
-        # Tied predictions score as their worst case whatever the order of the rows, so a
-        # constant prediction cannot read as a perfect ranking because the rows came sorted.
+        # Tied predictions score as their worst case whatever the order of the rows.
         worst = ndcg_group(-rel, rel, 100)
         @test worst < 1.0
         for perm in (1:6, sortperm(rel), sortperm(rel; rev=true), [4, 1, 6, 2, 5, 3])
             @test ndcg_group(fill(0.5, 6), rel[perm], 100) == worst
             @test ndcg_group(fill(0.5, 6), rel[perm], 3) == ndcg_group(-rel, rel, 3)
         end
-        # Only the tied block is resolved against relevance; distinct scores keep their order.
-        # Rows 2 to 4 tie at 1 with relevance 2, 3, 0 and rows 5 and 6 at 0 with 1, 2, so the
-        # worst case within each tie is the order 1, 4, 2, 3, 5, 6.
+        # Only tied rows are reordered by relevance: the worst case is the order 1, 4, 2, 3, 5, 6.
         part = [2.0, 1, 1, 1, 0, 0]
         resolved = [2.0, 1.1, 1.0, 1.2, 0.1, 0.0]
         for perm in ([1, 2, 3, 4, 5, 6], [6, 3, 1, 5, 2, 4])
             @test ndcg_group(part[perm], rel[perm], 100) == ndcg_group(resolved, rel, 100)
         end
-        # Predictions compare as `sortperm` compares them, so the order stays total: a NaN ranks
-        # first and NaNs tie with each other, and -0.0 ties with 0.0. The resolved scores encode
-        # the order 5, 2, 4, 1, 3, 6.
+        # NaN ranks first and ties with NaN, and -0.0 ties with 0.0: the order 5, 2, 4, 1, 3, 6.
         pn = [0.5, NaN, 0.5, 1.0, NaN, 0.0]
         for perm in ([6, 5, 4, 3, 2, 1], [2, 4, 6, 1, 3, 5], [5, 1, 4, 2, 6, 3])
             @test ndcg_group(pn[perm], rel[perm], 100) == ndcg_group([2.5, 4.1, 2.0, 3.0, 4.2, 1.0], rel, 100)
@@ -197,8 +192,7 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
             reshape(Float32[4, 3, 2, 1], 1, 4), Float32[0, 0, 0, 0], collect(1:4), 10)
         @test all(iszero, ∇0[1:2, :])
 
-        # Tied scores are resolved by relevance rather than row order, and rows tied on both
-        # share a discount, so permuting a query permutes its gradients and changes nothing else.
+        # Permuting a query's rows permutes its gradients and changes nothing else.
         function lr_grads(sc, rel; k=10)
             out = zeros(Float32, 3, length(rel))
             out[3, :] .= 1
@@ -208,7 +202,7 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         end
         perms = ([8, 7, 6, 5, 4, 3, 2, 1], [3, 6, 1, 8, 5, 2, 7, 4], [4, 8, 2, 6, 5, 3, 7, 1])
         rel_t = [4.0, 1, 3, 0, 2, 6, 5, 7]
-        # rows 2 and 6, 3 and 7, 4 and 8 tie on relevance, and so on score at a constant score
+        # rows 2 and 6, 3 and 7, 4 and 8 tie on relevance
         rel_d = [4.0, 1, 3, 0, 2, 1, 3, 0]
         for rel in (rel_t, rel_d), sc in (zeros(8), [1.0, 1, 0, 0, 2, 2, 1, 0]), k in (10, 3)
             g = lr_grads(sc, rel; k)
@@ -216,12 +210,10 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
             for perm in perms
                 @test all(isapprox.(lr_grads(sc[perm], rel[perm]; k), g[:, perm]; atol=1e-4))
             end
-            # Tied scores count at their worst: the same gradients as scores nudged so the less
-            # relevant document ranks higher.
+            # Ties count at their worst, as if the less relevant row scored slightly higher.
             @test all(isapprox.(lr_grads(sc .- 1e-6 .* rel, rel; k), g; atol=1e-4))
         end
-        # Rows tied on both score and relevance get the same gradients, rather than splitting
-        # their positions by row order.
+        # Rows tied on both score and relevance get the same gradients.
         g = lr_grads(zeros(8), rel_d)
         for (i, j) in ((2, 6), (3, 7), (4, 8))
             @test all(isapprox.(g[:, i], g[:, j]; atol=1e-4))
@@ -236,10 +228,7 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
             end
             @test all(isapprox.(lr_grads(-1e-6 .* rel_n, rel_n), gn; atol=1e-4))
         end
-        # A run of rows tied on both score and relevance shares the mean discount of the
-        # positions it occupies, so its gradients are the mean, over every order the tie could
-        # be broken in, of the gradients that order gives. Checked against all 7! orders, with
-        # runs that straddle the cutoff.
+        # A shared discount gives the mean gradients over all 7! orders of the tied rows.
         function order_grads(sc, rel, k, o)
             n = length(rel)
             rank = invperm(o)
@@ -264,7 +253,7 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
                            for o in allperms(collect(1:7))) / factorial(7)
             @test all(isapprox.(lr_grads(sc, rel; k), expected; atol=1e-5))
         end
-        # Tied NaN scores form a run too, so which rows turn NaN does not depend on row order.
+        # Tied NaN scores share a discount too.
         let g = lr_grads([NaN, NaN, 0, 0, 0, 0], [1.0, 1, 0, 2, 0, 3]; k=1)
             @test isnan.(g[:, 1]) == isnan.(g[:, 2])
         end
@@ -437,8 +426,7 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
             end
         end
 
-        # Fitted predictions do tie within a group, so the hand computation breaks ties the
-        # way the metric does, against the more relevant document.
+        # Ties break as the metric breaks them, less relevant first.
         function tutorial_ndcg(p, target, k=10)
             k = min(k, length(p))
             p_order = sortperm(collect(zip(-p, target)))[1:k]
@@ -450,8 +438,7 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
             return idcg == 0 ? 1.0 : dcg / idcg
         end
 
-        # The eval rows' order within a group changes nothing: at round 0 every prediction ties,
-        # so an eval set stored best first must not score 1.0 there and stop at best_iter 0.
+        # Eval rows stored best first must not score 1.0 at round 0, where every prediction ties.
         let
             o = sortperm(collect(zip(qid[te], -y[te])))
             cfg = EvoTreeRegressor(; nrounds=60, max_depth=4, eta=0.1, metric=:ndcg, ndcg_k=10,

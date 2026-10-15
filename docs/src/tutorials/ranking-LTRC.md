@@ -95,7 +95,7 @@ For ranking problems, a commonly used metric is the [Normalized Discounted Cumul
 ```julia
 function ndcg(p, y, k=10)
     k = min(k, length(p))
-    p_order = sortperm(collect(zip(-p, y)))[1:k]   # ties: less relevant first, as metric = :ndcg does
+    p_order = sortperm(collect(zip(-p, y)))[1:k]   # ties: less relevant first
     y_order = partialsortperm(y, 1:k, rev=true)
     _y = y[p_order]
     gains = 2 .^ _y .- 1
@@ -159,8 +159,7 @@ This changes two behaviours.
 `metric = :ndcg` computes NDCG within each group and averages over groups, which is the same
 quantity the `groupby` above produces, so early stopping now selects on ranking quality
 rather than on squared error. `ndcg_k` sets the truncation rank, and defaults to scoring the
-full list. Tied predictions are ranked with the less relevant document first, so a tie
-counts at its worst and the score does not depend on the order of the rows.
+full list. Tied predictions rank the less relevant document first.
 
 `rowsample` becomes group aware: whole groups are sampled rather than individual rows, so a
 query is never split across the sampled and unsampled sets. This matters because a group is

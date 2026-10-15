@@ -204,12 +204,8 @@ end
 
 @inline _ties(x, y) = x == y || (isnan(x) && isnan(y))
 
-# Ranking order within a group: highest prediction first. Tied predictions put the less
-# relevant document first, so a tie scores as its worst case, and equal relevance falls back
-# to the row index, so the order is total. Rows it separates by index have equal gain, so the
-# score does not depend on the order of the rows; without an offset every prediction in a
-# group ties at round 0. Predictions compare with `isless`, as `sortperm` does, so a NaN ranks
-# first, while -0.0 and 0.0 tie.
+# Highest prediction first, NaN first as in `sortperm`. A tie puts the less relevant row
+# first, so it scores as its worst case whatever the order of the rows.
 @inline function _rank_before(pred, rel, a::Int, b::Int)
     pa, pb = pred[a], pred[b]
     _ties(pa, pb) || return isless(pb, pa)
@@ -257,10 +253,7 @@ Requires the group index supplied at fit through `group_name` or `group_eval`. A
 is the mean of its rows' weights, so the default of unit weights leaves every group equally
 weighted. Only that group-level weight enters the score: NDCG is defined from the ranking of a
 group's documents, so the spread of weights within a group is deliberately ignored. Use `:pearson`
-if per-document weights need to count.
-
-Tied predictions are ranked with the less relevant document first, so a tie scores as its
-worst case and the score does not depend on the order of the rows.
+if per-document weights need to count. Tied predictions rank the less relevant document first.
 """
 function ndcg(
     p::AbstractMatrix{T},
