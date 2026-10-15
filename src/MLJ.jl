@@ -182,7 +182,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:cred_var`: **experimental** credibility-based gains, derived from ratio of spread to process variance.
   - `:cred_std`: **experimental** credibility-based gains, derived from ratio of spread to process std deviation.
   - `:lambdarank`: ranking objective. Pairwise within each query, weighted by the NDCG change a swap would cause. Requires groups, so it is only available through `EvoTrees.fit`, not through the MLJ interface, which has no way to pass them.
-  - `:xendcg`: listwise ranking objective (XE-NDCG), a softmax over each query's scores fitted by cross-entropy to targets from the relevance. Requires groups, so like `:lambdarank` it is only available through `EvoTrees.fit`.
+  - `:xendcg`: listwise ranking objective (XE-NDCG), a softmax over each query's scores fitted by cross-entropy to a target of mass `2^rel - 1/2` per document. Requires groups, so like `:lambdarank` it is only available through `EvoTrees.fit`.
 - `metric`:     The evaluation metric used to track evaluation data and serves as a basis for early stopping. Supported metrics are: 
   - `:mse`:     Mean-squared error. Adapted for general regression models.
   - `:rmse`:    Root-mean-squared error. Adapted for general regression models.
@@ -207,7 +207,6 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 - `alpha=0.5`:            Loss specific parameter in the [0, 1] range:
                             - `:quantile`: target quantile for the regression.
 - `ndcg_k`:               Truncation rank for `metric = :ndcg` and for the `:lambdarank` objective, that is the `k` of NDCG@k. Must be >= 1. Defaults to no truncation, scoring the full list of each group. Ranking is only available through `EvoTrees.fit`, see `:lambdarank` above.
-- `xendcg_offset=0.5`:    Offset in the `:xendcg` target mass `2^rel - xendcg_offset`. Must be in the [0, 1] range.
 - `max_depth=6`:          Maximum number of splits on a leaf path. Must be >= 1. Depth 1 is a split with 2 leaves.
   A complete tree of depth N contains `2^N` terminal leaves and `2^N - 1` split nodes.
   Compute cost is proportional to `2^max_depth`. Typical optimal values are in the 3 to 9 range.

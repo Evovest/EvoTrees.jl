@@ -168,66 +168,67 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
     end
 
     @testset "xendcg gradients" begin
-        function xe_loss(s, grade, off)
-            local t = (exp2.(grade) .- off) ./ sum(exp2.(grade) .- off)
+        function xe_loss(s, grade)
+            local t = (exp2.(grade) .- 0.5) ./ sum(exp2.(grade) .- 0.5)
             local smax = maximum(s)
             return -sum(t .* (s .- smax .- log(sum(exp.(s .- smax)))))
         end
-        function xe_grads(s, grade, off; q=ones(Int, length(s)), w=ones(length(s)))
+        function xe_grads(s, grade; q=ones(Int, length(s)), w=ones(length(s)))
             local out = zeros(Float32, 3, length(s))
             out[3, :] .= w
-            EvoTrees._xendcg_grads!(out, reshape(Float32.(s), 1, :), Float32.(grade), build_group_index(q), off)
+            EvoTrees._xendcg_grads!(out, reshape(Float32.(s), 1, :), Float32.(grade), build_group_index(q))
             return out
         end
 
         rng = Xoshiro(5)
-        for _ in 1:3, off in (0.0, 0.5, 1.0)
+        for _ in 1:5
             n = 9
             grade = Float64.(rand(rng, 0:4, n))
             s = randn(rng, n)
-            ∇ = xe_grads(s, grade, off)
+            ∇ = xe_grads(s, grade)
             h = 1e-6
             for i in 1:n
                 e = h .* (1:n .== i)
-                @test ∇[1, i] ≈ (xe_loss(s .+ e, grade, off) - xe_loss(s .- e, grade, off)) / (2h) atol = 1e-6
+                @test ∇[1, i] ≈ (xe_loss(s .+ e, grade) - xe_loss(s .- e, grade)) / (2h) atol = 1e-6
             end
             ρ = exp.(s) ./ sum(exp.(s))
             @test all(isapprox.(∇[2, :], ρ .* (1 .- ρ); atol=1e-6))
             @test sum(∇[1, :]) ≈ 0 atol = 1e-6
-            @test all(isapprox.(xe_grads(s .+ 3, grade, off), ∇; atol=1e-6))
+            @test all(isapprox.(xe_grads(s .+ 3, grade), ∇; atol=1e-6))
             perm = randperm(rng, n)
-            @test all(isapprox.(xe_grads(s[perm], grade[perm], off), ∇[:, perm]; atol=1e-6))
+            @test all(isapprox.(xe_grads(s[perm], grade[perm]), ∇[:, perm]; atol=1e-6))
         end
 
         # At equal scores the gradient is 1/n minus the target.
-        @test xe_grads(zeros(4), [0.0, 0, 1, 2], 1.0)[1, :] ≈ [0.25, 0.25, 0, -0.5]
-        @test xe_grads(zeros(4), [0.0, 0, 1, 2], 0.0)[1, :] ≈ 0.25 .- [1, 1, 2, 4] ./ 8
+        @test xe_grads(zeros(4), [0.0, 0, 1, 2])[1, :] ≈ 0.25 .- [0.5, 0.5, 1.5, 3.5] ./ 6
+        # Every grade 0 gives a uniform target.
+        ρ3 = exp.([1.0, 2, 3]) ./ sum(exp.([1.0, 2, 3]))
+        @test xe_grads([1.0, 2, 3], zeros(3))[1, :] ≈ ρ3 .- 1 / 3 atol = 1e-6
 
         q = [1, 2, 1, 2, 2, 1, 2]
         s = randn(rng, 7)
         gr = Float64[3, 0, 1, 2, 2, 0, 4]
-        ∇ = xe_grads(s, gr, 0.5; q)
+        ∇ = xe_grads(s, gr; q)
         for g in 1:2
             @test sum(∇[1, q.==g]) ≈ 0 atol = 1e-6
-            @test all(isapprox.(∇[:, q.==g], xe_grads(s[q.==g], gr[q.==g], 0.5); atol=1e-6))
+            @test all(isapprox.(∇[:, q.==g], xe_grads(s[q.==g], gr[q.==g]); atol=1e-6))
         end
 
         # A query weighs by the mean of its rows' weights: 8/3 for query 1, 2 for query 2.
         wv = [1.0, 2, 3, 1, 1, 4, 4]
-        ∇w = xe_grads(s, gr, 0.5; q, w=wv)
+        ∇w = xe_grads(s, gr; q, w=wv)
         @test all(isapprox.(∇w[1:2, q.==1], ∇[1:2, q.==1] .* (8 / 3); atol=1e-6))
         @test all(isapprox.(∇w[1:2, q.==2], ∇[1:2, q.==2] .* 2; atol=1e-6))
 
-        big = xe_grads([1000.0, 999, 0], [2.0, 1, 0], 0.5)
+        big = xe_grads([1000.0, 999, 0], [2.0, 1, 0])
         @test all(isfinite, big)
-        @test all(isapprox.(big, xe_grads([0.0, -1, -1000], [2.0, 1, 0], 0.5); atol=1e-6))
+        @test all(isapprox.(big, xe_grads([0.0, -1, -1000], [2.0, 1, 0]); atol=1e-6))
 
-        ∇big = xe_grads([0.0, 0, 0], [2000.0, 1999, 0], 0.5)
+        ∇big = xe_grads([0.0, 0, 0], [2000.0, 1999, 0])
         @test all(isfinite, ∇big)
         @test ∇big[1, :] ≈ [1 / 3 - 2 / 3, 1 / 3 - 1 / 3, 1 / 3] atol = 1e-6
 
-        @test all(iszero, xe_grads([1.0], [2.0], 0.5)[1:2, :])
-        @test all(iszero, xe_grads([1.0, 2.0, 3.0], [0.0, 0, 0], 1.0)[1:2, :])
+        @test all(iszero, xe_grads([1.0], [2.0])[1:2, :])
     end
 
     @testset "xendcg metric" begin
@@ -236,22 +237,20 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         pv = Float32[0.5, -1, 0.2, 1.5, 0.3, -0.4, 0.0, 9.0]
         wv = Float32[1, 1, 1, 3, 3, 3, 3, 5]
         gi = build_group_index(q)
-        function ce(s, grade, off)
-            local t = (exp2.(grade) .- off) ./ sum(exp2.(grade) .- off)
+        function ce(s, grade)
+            local t = (exp2.(grade) .- 0.5) ./ sum(exp2.(grade) .- 0.5)
             return -sum(t .* log.(exp.(s) ./ sum(exp.(s))))
         end
-        for off in (0.0, 0.5, 1.0)
-            got = EvoTrees.xendcg(reshape(pv, 1, :), gr, wv, Float32[]; group=gi, xendcg_offset=off)
-            # the single-row group 3 is left out
-            c1 = ce(Float64.(pv[1:3]), Float64.(gr[1:3]), off)
-            c2 = ce(Float64.(pv[4:7]), Float64.(gr[4:7]), off)
-            @test got ≈ (c1 * 1 + c2 * 3) / 4 rtol = 1e-6
-        end
+        got = EvoTrees.xendcg(reshape(pv, 1, :), gr, wv, Float32[]; group=gi)
+        # the single-row group 3 is left out
+        c1 = ce(Float64.(pv[1:3]), Float64.(gr[1:3]))
+        c2 = ce(Float64.(pv[4:7]), Float64.(gr[4:7]))
+        @test got ≈ (c1 * 1 + c2 * 3) / 4 rtol = 1e-6
         q0 = [1, 1, 1, 2, 2]
         p0 = Float32[0.5, -1, 0.2, 3, 1]
         g0 = Float32[2, 0, 1, 0, 0]
-        @test EvoTrees.xendcg(reshape(p0, 1, :), g0, ones(Float32, 5), Float32[];
-            group=build_group_index(q0), xendcg_offset=1.0) ≈ ce(Float64.(p0[1:3]), Float64.(g0[1:3]), 1.0) rtol = 1e-6
+        @test EvoTrees.xendcg(reshape(p0, 1, :), g0, ones(Float32, 5), Float32[]; group=build_group_index(q0)) ≈
+              (ce(Float64.(p0[1:3]), Float64.(g0[1:3])) + ce(Float64.(p0[4:5]), Float64.(g0[4:5]))) / 2 rtol = 1e-6
         @test EvoTrees.xendcg(Float32[1000 999 0], Float32[2, 1, 0], ones(Float32, 3), Float32[];
             group=build_group_index(ones(Int, 3))) ≈ EvoTrees.xendcg(Float32[0 -1 -1000], Float32[2, 1, 0],
             ones(Float32, 3), Float32[]; group=build_group_index(ones(Int, 3))) rtol = 1e-6
@@ -351,7 +350,6 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         fit_xe(cfg) = fit(cfg; x_train=x[tr, :], y_train=y[tr], group_train=qid[tr],
             x_eval=x[te, :], y_eval=y[te], group_eval=qid[te], verbosity=0)
         @test EvoTreeRegressor(; loss=:xendcg).metric == :xendcg
-        @test EvoTreeRegressor(; loss=:xendcg).xendcg_offset == 0.5
         mx = fit_xe(cfg_xe())
         mets = mx.info[:logger][:metrics]
         @test mets[end] < mets[1]
@@ -360,18 +358,14 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         px = predict(mx, x[te, :])
         @test cor(px, pm) < 0.999
         @test cor(px, pl) < 0.999
-        m1 = fit_xe(cfg_xe(; xendcg_offset=1.0))
-        @test predict(m1, x[te, :]) != px
         @test predict(fit_xe(cfg_xe()), x[te, :]) == px
         logged_vs_direct(m, xe) = (m.info[:logger][:metrics][end],
             EvoTrees.xendcg(reshape(Float32.(predict(m, xe)), 1, :), Float32.(y[te]), ones(Float32, sum(te)),
-                Float32[]; group=build_group_index(qid[te]), xendcg_offset=1.0))
-        @test ≈(logged_vs_direct(m1, x[te, :])...; rtol=1e-4)
+                Float32[]; group=build_group_index(qid[te])))
+        @test ≈(logged_vs_direct(mx, x[te, :])...; rtol=1e-4)
         @test predict(fit(cfg_xe(); x_train=x[tr, :], y_train=reshape(y[tr], :, 1), group_train=qid[tr],
             x_eval=x[te, :], y_eval=reshape(y[te], :, 1), group_eval=qid[te], verbosity=0), x[te, :]) == px
 
-        @test_throws ErrorException EvoTreeRegressor(; loss=:xendcg, xendcg_offset=1.5)
-        @test_throws ErrorException EvoTreeRegressor(; loss=:xendcg, xendcg_offset=-0.1)
         @test_throws ErrorException fit(cfg_xe(; nrounds=5); x_train=x[tr, :], y_train=y[tr], verbosity=0)
         @test_throws AssertionError fit(cfg_xe(; nrounds=5);
             x_train=x[tr, :], y_train=y[tr] .- 1, group_train=qid[tr], verbosity=0)
@@ -385,8 +379,7 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         mt = fit(cfg_xe(), dtr; target_name=:y, group_name=:q, deval=dte, verbosity=0)
         @test mt.info[:feature_names] == [:f1, :f2, :f3, :f4]
         @test mt.info[:logger][:metrics][end] < mt.info[:logger][:metrics][1]
-        mt1 = fit(cfg_xe(; xendcg_offset=1.0), dtr; target_name=:y, group_name=:q, deval=dte, verbosity=0)
-        @test ≈(logged_vs_direct(mt1, dte)...; rtol=1e-4)
+        @test ≈(logged_vs_direct(mt, dte)...; rtol=1e-4)
     end
 
     @testset "fit with groups" begin

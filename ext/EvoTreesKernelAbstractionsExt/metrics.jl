@@ -160,7 +160,6 @@ function EvoTrees.xendcg(
     w::CuVector{T},
     eval::CuVector{T};
     group=nothing,
-    xendcg_offset=0.5,
     kwargs...
 ) where {T<:AbstractFloat}
     isnothing(group) && error(
@@ -168,7 +167,7 @@ function EvoTrees.xendcg(
         "table, or `group_eval` alongside `x_eval` when fitting from a matrix."
     )
     w_cpu = Array(w)
-    return EvoTrees.xendcg(Array(p), Array(y), w_cpu, similar(w_cpu, 0); group, xendcg_offset)
+    return EvoTrees.xendcg(Array(p), Array(y), w_cpu, similar(w_cpu, 0); group)
 end
 
 # Same reasoning as `ndcg` above: a per-group correlation reads its rows individually, so the

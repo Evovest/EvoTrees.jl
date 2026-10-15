@@ -219,7 +219,7 @@ function EvoTrees.update_grads!(
 )
     isnothing(group) && EvoTrees._xendcg_no_group()
     ∇_cpu = Array(∇)
-    EvoTrees._xendcg_grads!(∇_cpu, Array(p), Array(y), group.index, params.xendcg_offset)
+    EvoTrees._xendcg_grads!(∇_cpu, Array(p), Array(y), group.index)
     copyto!(∇, ∇_cpu)
     return nothing
 end

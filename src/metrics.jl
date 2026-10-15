@@ -194,11 +194,11 @@ function _pearson_chunk!(scores, weights, p, y, w, group, chunk, K::Int, stride:
     return nothing
 end
 
-function _xendcg_metric_chunk!(scores, weights, p, y, w, group, chunk, offset::Float64)
+function _xendcg_metric_chunk!(scores, weights, p, y, w, group, chunk)
     buf = XENDCGScratch()
     for g in chunk
         rows = group_rows(group, g)
-        s = _xendcg_group_loss!(buf, p, y, rows, offset)
+        s = _xendcg_group_loss!(buf, p, y, rows)
         isnothing(s) && continue
         scores[g] = s
         sw = 0.0
@@ -278,10 +278,9 @@ function ndcg(
 end
 
 # -sum(t log softmax(p)) is log(sum(exp(p - pmax))) - sum(t (p - pmax)), as t sums to 1.
-function _xendcg_group_loss!(buf::XENDCGScratch, p::AbstractMatrix, y, rows, offset::Float64)
+function _xendcg_group_loss!(buf::XENDCGScratch, p::AbstractMatrix, y, rows)
     length(rows) < 2 && return nothing
-    tot = _xendcg_target!(buf.a, y, rows, offset)
-    tot > 0 || return nothing
+    tot = _xendcg_target!(buf.a, y, rows)
     pmax = -Inf
     @inbounds for r in rows
         pmax = max(pmax, Float64(p[1, r]))
@@ -297,11 +296,11 @@ function _xendcg_group_loss!(buf::XENDCGScratch, p::AbstractMatrix, y, rows, off
 end
 
 """
-    xendcg(p, y, w, eval; group, xendcg_offset, kwargs...)
+    xendcg(p, y, w, eval; group, kwargs...)
 
 The `:xendcg` loss, computed within each group then averaged over groups. Lower is better.
 Requires the group index supplied at fit through `group_name` or `group_eval`. As for `:ndcg`, a
-group weighs by the mean of its rows' weights. Groups with no ranking signal are left out.
+group weighs by the mean of its rows' weights. Groups of one row are left out.
 """
 function xendcg(
     p::AbstractMatrix{T},
@@ -309,7 +308,6 @@ function xendcg(
     w::AbstractVector{T},
     eval::AbstractVector{T};
     group=nothing,
-    xendcg_offset=0.5,
     kwargs...
 ) where {T}
     isnothing(group) && error(
@@ -323,13 +321,10 @@ function xendcg(
     scores = zeros(Float64, ng)
     weights = zeros(Float64, ng)
     @threads for chunk in _group_chunks(ng)
-        _xendcg_metric_chunk!(scores, weights, p, y, w, group, chunk, Float64(xendcg_offset))
+        _xendcg_metric_chunk!(scores, weights, p, y, w, group, chunk)
     end
     sw = sum(weights)
-    sw > 0 || error(
-        "`metric = :xendcg` found no evaluation group with at least two rows and positive " *
-        "target mass."
-    )
+    sw > 0 || error("`metric = :xendcg` found no evaluation group with at least two rows.")
     return sum(scores .* weights) / sw
 end
 

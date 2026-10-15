@@ -17,7 +17,6 @@ mutable struct EvoTreeRegressor <: MMI.Deterministic
     alpha::Float64
     alphas::Vector{Float64}
     ndcg_k::Int
-    xendcg_offset::Float64
     monotone_constraints::Dict{Int,Int}
     tree_type::Symbol
     seed::Int
@@ -46,7 +45,6 @@ function EvoTreeRegressor(; kwargs...)
         :alpha => 0.5,
         :alphas => [0.1, 0.5, 0.9],
         :ndcg_k => typemax(Int),
-        :xendcg_offset => 0.5,
         :monotone_constraints => Dict{Int,Int}(),
         :tree_type => :binary,
         :seed => 123,
@@ -116,7 +114,6 @@ function EvoTreeRegressor(; kwargs...)
         args[:alpha],
         alphas,
         args[:ndcg_k],
-        Float64(args[:xendcg_offset]),
         args[:monotone_constraints],
         tree_type,
         args[:seed],
@@ -549,7 +546,6 @@ function check_args(args::Dict{Symbol,Any})
     check_parameter(Float64, args[:colsample], eps(Float64), one(Float64), :colsample)
     check_parameter(Float64, args[:eta], zero(Float64), typemax(Float64), :eta)
     haskey(args, :alpha) && check_parameter(Float64, args[:alpha], zero(Float64), one(Float64), :alpha)
-    haskey(args, :xendcg_offset) && check_parameter(Float64, args[:xendcg_offset], zero(Float64), one(Float64), :xendcg_offset)
     if get(args, :loss, nothing) == :multiquantile
         haskey(args, :alphas) || error("Missing parameter `alphas` for loss :multiquantile.")
         check_alphas(args[:alphas])
@@ -592,7 +588,6 @@ function check_args(model::EvoTypes)
     check_parameter(Float64, model.colsample, eps(Float64), one(Float64), :colsample)
     check_parameter(Float64, model.eta, zero(Float64), typemax(Float64), :eta)
     hasproperty(model, :alpha) && check_parameter(Float64, model.alpha, zero(Float64), one(Float64), :alpha)
-    hasproperty(model, :xendcg_offset) && check_parameter(Float64, model.xendcg_offset, zero(Float64), one(Float64), :xendcg_offset)
     if hasproperty(model, :loss) && model.loss == :multiquantile
         hasproperty(model, :alphas) || error("Missing parameter `alphas` for loss :multiquantile.")
         check_alphas(model.alphas)

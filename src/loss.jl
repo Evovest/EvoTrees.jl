@@ -213,8 +213,9 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
 end
 
 # XE-NDCG, per Bruch, "An Alternative Cross Entropy Loss for Learning-to-Rank" (WWW 2021).
-# Cross-entropy between the softmax of a query's scores and a target of mass 2^grade - offset
-# per document. The gradient is softmax minus target and the Hessian its diagonal.
+# Cross-entropy between the softmax of a query's scores and a target of mass 2^grade - 1/2 per
+# document; the paper draws the 1/2 from [0, 1] each round. The gradient is softmax minus target
+# and the Hessian its diagonal.
 # Float64 scratch: the metric shares it, and Float32 sums over a large query err by as much as
 # the metric moves between late rounds.
 struct XENDCGScratch
@@ -224,16 +225,16 @@ end
 XENDCGScratch() = XENDCGScratch(Float64[], Float64[])
 
 # Scaled by 2^-max(grade) so a large grade cannot overflow; the scale cancels on normalising.
-function _xendcg_target!(a::Vector{Float64}, y, rows, offset::Float64)
+function _xendcg_target!(a::Vector{Float64}, y, rows)
     resize!(a, length(rows))
     ymax = -Inf
     @inbounds for r in rows
         ymax = max(ymax, Float64(y[r]))
     end
-    s = exp2(-ymax)
+    h = exp2(-ymax) / 2
     tot = 0.0
     @inbounds for (i, r) in enumerate(rows)
-        a[i] = exp2(Float64(y[r]) - ymax) - offset * s
+        a[i] = exp2(Float64(y[r]) - ymax) - h
         tot += a[i]
     end
     return tot
@@ -255,10 +256,9 @@ function _xendcg_softmax!(e::Vector{Float64}, p, rows)
 end
 
 # A query weighs by the mean of its rows' weights, as for `:ndcg`.
-function _xendcg_group!(buf::XENDCGScratch, ∇::Matrix{T}, p::Matrix{T}, y, rows, offset::Float64) where {T}
+function _xendcg_group!(buf::XENDCGScratch, ∇::Matrix{T}, p::Matrix{T}, y, rows) where {T}
     length(rows) < 2 && return nothing
-    tot = _xendcg_target!(buf.a, y, rows, offset)
-    tot > 0 || return nothing   # every grade 0 at an offset of 1
+    tot = _xendcg_target!(buf.a, y, rows)
     ρ = _xendcg_softmax!(buf.e, p, rows)
     w = 0.0
     @inbounds for r in rows
@@ -272,20 +272,20 @@ function _xendcg_group!(buf::XENDCGScratch, ∇::Matrix{T}, p::Matrix{T}, y, row
     return nothing
 end
 
-function _xendcg_chunk!(∇::Matrix{T}, p::Matrix{T}, y, group, chunk, offset::Float64) where {T}
+function _xendcg_chunk!(∇::Matrix{T}, p::Matrix{T}, y, group, chunk) where {T}
     buf = XENDCGScratch()
     for g in chunk
-        _xendcg_group!(buf, ∇, p, y, group_rows(group, g), offset)
+        _xendcg_group!(buf, ∇, p, y, group_rows(group, g))
     end
     return nothing
 end
 
 # Shared by both backends: the GPU path brings its arrays to the host and calls this.
-function _xendcg_grads!(∇::Matrix{T}, p::Matrix{T}, y, group, offset) where {T}
+function _xendcg_grads!(∇::Matrix{T}, p::Matrix{T}, y, group) where {T}
     fill!(view(∇, 1, :), zero(T))
     fill!(view(∇, 2, :), zero(T))
     @threads for chunk in _group_chunks(ngroups(group))
-        _xendcg_chunk!(∇, p, y, group, chunk, Float64(offset))
+        _xendcg_chunk!(∇, p, y, group, chunk)
     end
     return nothing
 end
@@ -297,7 +297,7 @@ _xendcg_no_group() = error(
 
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{XENDCG}, params::EvoTypes, group) where {T}
     isnothing(group) && _xendcg_no_group()
-    _xendcg_grads!(∇, p, y, group, params.xendcg_offset)
+    _xendcg_grads!(∇, p, y, group)
 end
 
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:GradientRegression}

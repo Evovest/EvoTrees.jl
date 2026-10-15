@@ -550,9 +550,6 @@ end
         config = EvoTreeRegressor(nrounds=5)
         config.bagging_size = 0
         @test_throws Exception check_args(config)
-        config = EvoTreeRegressor(loss=:xendcg, nrounds=5)
-        config.xendcg_offset = 2.0
-        @test_throws Exception check_args(config)
     end
 
     # Test all EvoTypes that they have *some* checks in place
