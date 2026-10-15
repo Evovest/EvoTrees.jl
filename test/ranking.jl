@@ -257,6 +257,12 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         let g = lr_grads([NaN, NaN, 0, 0, 0, 0], [1.0, 1, 0, 2, 0, 3]; k=1)
             @test isnan.(g[:, 1]) == isnan.(g[:, 2])
         end
+        # Skipping the pairs past the cutoff loses nothing, checked against every pair.
+        let n = 60, rel = Float64.(rand(Xoshiro(60), 0:4, n)), sc = Float64.(randn(Xoshiro(61), Float32, n))
+            for k in (1, 10, n - 1, n)
+                @test all(isapprox.(lr_grads(sc, rel; k), order_grads(sc, rel, k, sortperm(-sc)); atol=1e-4))
+            end
+        end
     end
 
     @testset "eval-only grouping" begin
