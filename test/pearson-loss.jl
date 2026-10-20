@@ -304,11 +304,12 @@ _pl_fit_eval(cfg, P; kw...) = _pl_fit(cfg, P; x_eval=P.x[P.ev, :], y_eval=P.y[P.
         ng = ngroups(U.gi)
         stats = zeros(3, ng)
         scored = zeros(Bool, ng)
+        w = view(ref, 3, :)
         for g in 1:ng
-            EvoTrees._pearson_stats_chunk!(stats, scored, ref, P, U.y, U.gi, g:g)
+            EvoTrees._pearson_stats_chunk!(stats, scored, w, U.y, U.gi, g:g)
         end
         for g in 1:ng
-            EvoTrees._pearson_write_chunk!(ref, P, U.y, stats, scored, U.gi, g:g)
+            EvoTrees._pearson_write_chunk!(ref, w, P, U.y, stats, scored, U.gi, g:g)
         end
         @test ∇ == ref
     end

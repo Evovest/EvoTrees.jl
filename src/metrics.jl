@@ -381,7 +381,12 @@ end
 function _pearson_mse_chunk!(eval::AbstractVector{T}, p, y, w, group, chunk) where {T}
     for g in chunk
         rows = group_rows(group, g)
-        ok, pbar, ybar, sy = _pearson_group_stats(w, p, y, rows)
+        ok, sw, ybar, sy = _pearson_group_stats(w, y, rows)
+        swp = 0.0
+        @inbounds for r in rows
+            swp += Float64(w[r]) * p[1, r]
+        end
+        pbar = swp / sw
         @inbounds for r in rows
             e = ok ? (p[1, r] - pbar) - (y[r] - ybar) / sy : 0.0
             eval[r] = T(w[r] * e * e)

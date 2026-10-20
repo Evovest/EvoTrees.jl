@@ -235,7 +235,25 @@ function EvoTrees.update_grads!(
     return nothing
 end
 
-# `:pearson` needs each group's weighted means, so as with LambdaRank the CPU implementation is used.
+# `:pearson` needs each group's weighted means, so as with LambdaRank the CPU implementation is
+# used. y, w and each group's target stats do not change between rounds, so they stay on the
+# host from init and a round copies only p down and g, h back up.
+struct PearsonHost{T,M}
+    p::Matrix{T}
+    ∇::Matrix{T}
+    ∇_gpu::M
+    y::Vector{T}
+    w::Vector{T}
+    stats::Matrix{Float64}
+    scored::Vector{Bool}
+end
+
+function PearsonHost(backend, y::Vector{T}, w::Vector{T}, group) where {T}
+    stats, scored = EvoTrees._pearson_stats(w, y, group)
+    n = length(y)
+    return PearsonHost(zeros(T, 1, n), zeros(T, 2, n), KernelAbstractions.zeros(backend, T, 2, n), y, w, stats, scored)
+end
+
 function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
@@ -245,8 +263,10 @@ function EvoTrees.update_grads!(
     group,
 )
     isnothing(group) && EvoTrees._pearson_no_group()
-    ∇_cpu = Array(∇)
-    EvoTrees._pearson_grads!(∇_cpu, Array(p), Array(y), group.index)
-    copyto!(∇, ∇_cpu)
+    h = group.host
+    copyto!(h.p, p)
+    EvoTrees._pearson_grads!(h.∇, h.w, h.p, h.y, h.stats, h.scored, group.index)
+    copyto!(h.∇_gpu, h.∇)
+    view(∇, 1:2, :) .= h.∇_gpu
     return nothing
 end

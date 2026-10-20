@@ -354,25 +354,24 @@ _pearson_no_group() = error(
     "`group_name` when fitting from a table, or `group_train` when fitting from a matrix."
 )
 
-# Weighted means of p and y and the sd of y for one group, shared with `pearson_mse`. A group
-# with fewer than two rows or a constant target is not scored.
-function _pearson_group_stats(w, p, y, rows)
+# Weight sum, weighted mean and sd of y for one group. They do not depend on the prediction, so
+# the GPU path computes them once. A group with fewer than two rows or a constant target is not
+# scored.
+function _pearson_group_stats(w, y, rows)
     n = length(rows)
     n < 2 && return (false, 0.0, 0.0, 0.0)
-    sw = swp = swy = 0.0
+    sw = swy = 0.0
     ymin = ymax = y[first(rows)]
     @inbounds for r in rows
         wr = Float64(w[r])
         yr = y[r]
         sw += wr
-        swp += wr * p[1, r]
         swy += wr * yr
         ymin = min(ymin, yr)
         ymax = max(ymax, yr)
     end
     # tested on the stored values: the Float64 variance of a constant Float32 target can be above 0
     ymin == ymax && return (false, 0.0, 0.0, 0.0)
-    pbar = swp / sw
     ybar = swy / sw
     vy = 0.0
     @inbounds for r in rows
@@ -381,22 +380,36 @@ function _pearson_group_stats(w, p, y, rows)
     end
     sy = sqrt(vy / sw)
     sy > 0 || return (false, 0.0, 0.0, 0.0)
-    return (true, pbar, ybar, sy)
+    return (true, sw, ybar, sy)
 end
 
-function _pearson_stats_chunk!(stats, scored, ∇, p, y, group, chunk)
-    w = view(∇, 3, :)
+function _pearson_stats_chunk!(stats, scored, w, y, group, chunk)
     for g in chunk
-        ok, pbar, ybar, sy = _pearson_group_stats(w, p, y, group_rows(group, g))
+        ok, sw, ybar, sy = _pearson_group_stats(w, y, group_rows(group, g))
         scored[g] = ok
-        stats[1, g] = pbar
+        stats[1, g] = sw
         stats[2, g] = ybar
         stats[3, g] = sy
     end
     return nothing
 end
 
-function _pearson_write_chunk!(∇::AbstractMatrix{T}, p, y, stats, scored, group, chunk) where {T}
+function _pearson_stats(w, y, group)
+    ng = ngroups(group)
+    stats = Matrix{Float64}(undef, 3, ng)
+    scored = Vector{Bool}(undef, ng)
+    @threads for chunk in _group_chunks(ng)
+        _pearson_stats_chunk!(stats, scored, w, y, group, chunk)
+    end
+    any(scored) || error(
+        "`loss = :pearson` found no group with at least two rows and a non-constant target, " *
+        "so there is nothing to correlate."
+    )
+    return stats, scored
+end
+
+# Writes g and h to rows 1 and 2 of ∇, centring p on its weighted mean within the group.
+function _pearson_write_chunk!(∇::AbstractMatrix{T}, w, p, y, stats, scored, group, chunk) where {T}
     for g in chunk
         rows = group_rows(group, g)
         if !scored[g]
@@ -406,9 +419,14 @@ function _pearson_write_chunk!(∇::AbstractMatrix{T}, p, y, stats, scored, grou
             end
             continue
         end
-        pbar, ybar, sy = stats[1, g], stats[2, g], stats[3, g]
+        sw, ybar, sy = stats[1, g], stats[2, g], stats[3, g]
+        swp = 0.0
         @inbounds for r in rows
-            w2 = 2 * ∇[3, r]
+            swp += Float64(w[r]) * p[1, r]
+        end
+        pbar = swp / sw
+        @inbounds for r in rows
+            w2 = 2 * w[r]
             ∇[1, r] = T(w2 * ((p[1, r] - pbar) - (y[r] - ybar) / sy))
             ∇[2, r] = T(w2)
         end
@@ -416,23 +434,20 @@ function _pearson_write_chunk!(∇::AbstractMatrix{T}, p, y, stats, scored, grou
     return nothing
 end
 
-# Shared by both backends. Each group is summed within one task, so the result does not depend
+# Shared by both backends: the GPU path keeps w, y and the group stats from init and writes to
+# its own two-row buffer. Each group is summed within one task, so the result does not depend
 # on the thread partition.
-function _pearson_grads!(∇::AbstractMatrix, p::AbstractMatrix, y::AbstractVector, group)
-    ng = ngroups(group)
-    stats = Matrix{Float64}(undef, 3, ng)
-    scored = Vector{Bool}(undef, ng)
-    @threads for chunk in _group_chunks(ng)
-        _pearson_stats_chunk!(stats, scored, ∇, p, y, group, chunk)
-    end
-    any(scored) || error(
-        "`loss = :pearson` found no group with at least two rows and a non-constant target, " *
-        "so there is nothing to correlate."
-    )
-    @threads for chunk in _group_chunks(ng)
-        _pearson_write_chunk!(∇, p, y, stats, scored, group, chunk)
+function _pearson_grads!(∇::AbstractMatrix, w, p, y, stats, scored, group)
+    @threads for chunk in _group_chunks(ngroups(group))
+        _pearson_write_chunk!(∇, w, p, y, stats, scored, group, chunk)
     end
     return nothing
+end
+
+function _pearson_grads!(∇::AbstractMatrix, p::AbstractMatrix, y::AbstractVector, group)
+    w = view(∇, 3, :)
+    stats, scored = _pearson_stats(w, y, group)
+    return _pearson_grads!(∇, w, p, y, stats, scored, group)
 end
 
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVector, ::Type{Pearson}, params::EvoTypes, group) where {T}

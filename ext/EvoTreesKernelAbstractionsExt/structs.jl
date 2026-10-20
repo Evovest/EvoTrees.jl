@@ -3,13 +3,15 @@
 
 Device-side companion to [`EvoTrees.GroupIndex`](@ref). `group_gpu` is the per-row group id
 that sampling gathers through, `mask_cpu` / `mask_gpu` are per-group, and `index` stays on
-the host for the metric.
+the host for the metric. `host` holds what a loss computed on the host keeps between rounds,
+or `nothing`.
 """
-struct GroupCacheGPU{V,M}
+struct GroupCacheGPU{V,M,H}
     index::EvoTrees.GroupIndex
     group_gpu::V
     mask_cpu::Vector{UInt8}
     mask_gpu::M
+    host::H
 end
 
 """
