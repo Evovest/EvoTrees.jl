@@ -18,6 +18,7 @@ using Test
         include("missings.jl")
         include("multi-target.jl")
         include("ranking.jl")
+        include("plot.jl")
     end
 
     @testset "MLJ" begin

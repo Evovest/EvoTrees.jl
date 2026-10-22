@@ -155,7 +155,7 @@ end
 
 # Same reasoning as `ndcg` above: a per-group correlation reads its rows individually, so the
 # arrays are brought to the host rather than scalar-indexed on device.
-function EvoTrees.corr(
+function EvoTrees.pearson(
     p::CuMatrix{T},
     y::Union{CuVector,CuMatrix},
     w::CuVector{T},
@@ -164,11 +164,11 @@ function EvoTrees.corr(
     kwargs...
 ) where {T<:AbstractFloat}
     isnothing(group) && error(
-        "`metric = :corr` requires group information. Pass `group_name` or `eval_group_name` " *
+        "`metric = :pearson` requires group information. Pass `group_name` or `eval_group_name` " *
         "when fitting from a table, or `group_eval` alongside `x_eval` when fitting from a matrix."
     )
     p_cpu = Array(p)
     y_cpu = Array(y)
     w_cpu = Array(w)
-    return EvoTrees.corr(p_cpu, y_cpu, w_cpu, similar(w_cpu, 0); group)
+    return EvoTrees.pearson(p_cpu, y_cpu, w_cpu, similar(w_cpu, 0); group)
 end

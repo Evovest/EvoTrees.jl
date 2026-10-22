@@ -1,4 +1,34 @@
 """
+    orient_matrix_target(y, nobs)
+
+Bring a matrix target to the internal layout `(n_targets, nobs)`.
+
+The public matrix `fit` API takes `y` as `(nobs, n_targets)`, matching `x_train`
+`(nobs, nfeats)`. Gradients are stored `(K, nobs)`, so this permutes once at the
+boundary. A matrix that is already `(n_targets, nobs)` (second dim equals `nobs`,
+first does not) is left as-is. Vectors are returned unchanged.
+"""
+function orient_matrix_target(y::AbstractVector, nobs::Integer)
+    length(y) == nobs || error(
+        "`y` has length $(length(y)) but there are $nobs observations. They must match."
+    )
+    return y
+end
+function orient_matrix_target(y::AbstractMatrix, nobs::Integer)
+    nrows, ncols = size(y)
+    if nrows == nobs
+        return permutedims(y)
+    elseif ncols == nobs
+        return y
+    else
+        error(
+            "`y` has size $(size(y)); one dimension must equal the number of observations ($nobs). " *
+            "Pass `(nobs, n_targets)` to match `x_train`."
+        )
+    end
+end
+
+"""
     _init_target(::Type{L}, y_train, params, offset, ::Type{T})
 
 Shared (device-agnostic) target/bias initialization: validates the target,
@@ -13,6 +43,14 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
               "(mse, logloss, poisson, gamma, tweedie), mae, quantile, the MLE losses " *
               "(gaussian_mle, logistic_mle), and credibility losses (cred_var, cred_std). " *
               "Got loss $(params.loss).")
+    end
+    if eltype(y_train) <: Real
+        i = findfirst(!isfinite, y_train)
+        isnothing(i) || error(
+            "Target must be finite, got $(y_train[i]) at index $i. A non-finite target " *
+            "propagates through the initial bias into every gradient and leaf, leaving a " *
+            "model that predicts NaN everywhere."
+        )
     end
     target_levels = nothing
     target_isordered = false
@@ -35,6 +73,18 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
             ymin <= 0 && error(
                 "Gamma regression requires a strictly positive target, got a minimum of $ymin. " *
                 "The gamma deviance is undefined at 0."
+            )
+        elseif L == Tweedie
+            ymin = minimum(y_train)
+            ymin < 0 && error(
+                "Tweedie regression requires a non-negative target, got a minimum of $ymin. " *
+                "The tweedie deviance is undefined below 0."
+            )
+        elseif L == Poisson
+            ymin = minimum(y_train)
+            ymin < 0 && error(
+                "Poisson regression requires a non-negative target, got a minimum of $ymin. " *
+                "The poisson deviance is undefined below 0."
             )
         end
         if y_train isa AbstractVector
@@ -173,7 +223,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
 
     K, y, μ, target_levels, target_isordered = _init_target(L, y_train, params, offset, T)
 
-    # force a neutral/zero bias/initial tree when offset is specified
+    # force a neutral/zero bias when offset is specified
     !isnothing(offset) && (μ .= 0)
     @assert (size(y, ndims(y)) == length(w) && minimum(w) > 0)
 
@@ -210,14 +260,13 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         :feattypes => feattypes,
     )
 
-    # Shared 4D hist storage (same layout as KA GPU cache). Each TrainNode
-    # holds a contiguous view into trailing node dimension.
-    nnodes = 2^params.max_depth - 1
+    # `h∇` is indexed by splittable node; `TrainNode` also exists for leaves (∑ / pred).
+    n_hist = 2^params.max_depth - 1
+    n_nodes = 2^(params.max_depth + 1) - 1
     nbins = params.nbins
-    h∇ = zeros(Float64, 2 * K + 1, nbins, nfeats, nnodes)
-    nodes = [TrainNode(zero(Float64), view(is, 1:0), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), view(h∇, :, :, :, n), zeros(nbins, nfeats)) for n = 1:nnodes]
-    bias = [Tree{L,K}(μ)]
-    m = EvoTree{L,K}(L, K, bias, info)
+    h∇ = zeros(Float64, 2 * K + 1, nbins, nfeats, n_hist)
+    nodes = [TrainNode(zero(Float64), view(is, 1:0), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), view(h∇, :, :, :, min(n, n_hist)), zeros(nbins, nfeats)) for n = 1:n_nodes]
+    m = EvoTree{L,K}(L, K, μ, info)
 
     # build cache
     Y = typeof(y)
@@ -349,6 +398,7 @@ function init(
 
     T = Float32
     nobs = size(x_train, 1)
+    y_train = orient_matrix_target(y_train, nobs)
     V = device_array_type(device)
     w = isnothing(w_train) ? device_ones(device, T, nobs) : V{T}(w_train)
     offset = isnothing(offset_train) ? nothing : V{T}(offset_train)

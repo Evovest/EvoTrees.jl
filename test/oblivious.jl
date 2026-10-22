@@ -144,3 +144,32 @@ end
     @test acc > 0.85
 
 end
+
+@testset "oblivious importance counts each depth once" begin
+    # A depth of an oblivious tree shares one split, and its gain is summed over every node of
+    # the depth. `importance` adds `tree.gain` once per split node, so storing the depth total on
+    # each node counted depth `d` 2^(d-1) times. Here binary and oblivious fit the same tree, so
+    # their importance has to agree.
+    seed!(7)
+    n = 20_000
+    x = hcat(Float64.(rand(Bool, n)), Float64.(rand(Bool, n)), randn(n))
+    y = 3 .* x[:, 1] .+ 1.5 .* x[:, 2] .+ 0.1 .* randn(n)
+    kw = (loss=:mse, nrounds=1, eta=1.0, lambda=0.0, L2=0.0, max_depth=2, nbins=16)
+
+    mb = fit(EvoTreeRegressor(; kw..., gamma=0.0); x_train=x, y_train=y, verbosity=0)
+    # gamma sits between a depth-1 node's share and the depth total, so dividing before the
+    # gamma check instead of only in the stored value would reject the second depth
+    mo = fit(EvoTreeRegressor(; kw..., gamma=8000.0, tree_type=:oblivious); x_train=x, y_train=y, verbosity=0)
+
+    tree = mo.trees[1]
+    @test sum(tree.split) == 3
+    @test mb(x) == mo(x)
+
+    ib = Dict(EvoTrees.importance(mb))
+    io = Dict(EvoTrees.importance(mo))
+    @test all(isapprox(io[k], ib[k]; atol=1e-5) for k in keys(ib))
+
+    # the stored gains of a tree sum to its loss reduction, as they do for binary trees
+    sse(p) = sum(abs2, y .- p)
+    @test sum(tree.gain[tree.split]) ≈ sse(fill(mean(y), n)) - sse(mo(x)) rtol = 1e-4
+end

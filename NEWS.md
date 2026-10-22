@@ -1,5 +1,18 @@
 # NEWS
 
+## v0.20.0
+
+### Model structure
+- The intercept is stored on `EvoTree` as `bias::Vector{Float32}` (unconstrained / link space). `trees` holds only boosting rounds, so `length(m.trees) == nrounds * bagging_size` (and is empty when `nrounds = 0`).
+- `predict` always applies `bias`, then the first `ntree_limit` trees. `ntree_limit=0` is bias only.
+- `treeplot` defaults to `n=1` (the first learned tree).
+- `max_depth` is the maximum number of splits on a leaf path (`1` is a split with 2 leaves).
+
+### Plotting
+- Tree plots now use a **Makie recipe** instead of Plots.jl / RecipesBase. Load a backend (`CairoMakie` or `GLMakie`) and call `treeplot(model)` or `plot(model, 1)`.
+- `RecipesBase` and `NetworkLayout` are no longer dependencies. Layout is computed in EvoTrees; the recipe is a package extension loaded with Makie.
+- Split labels show the comparison (`≤` for numeric/ordered features, `=` for unordered categoricals). Multi-output leaves show every predicted parameter.
+
 ## v0.18.8
 
 Saved `:gaussian_mle` / `:logistic_mle` models from ≤0.18.7 remain compatible: the unconstrained scale is still `exp(x)`.
@@ -15,7 +28,7 @@ Saved `:gaussian_mle` / `:logistic_mle` models from ≤0.18.7 remain compatible:
 - The unconstrained scale parameter remains `exp(x)`. `predict` still returns the positive scale (`σ` / `s`). User-facing offsets remain the positive scale and are mapped internally with `log`.
 
 ### Multi-target regression
-- Several losses can now be fit jointly on a vector of targets, with shared tree structure and a vector-valued leaf. Pass a matrix `y_train` of size `(n_targets, nobs)`, or `target_name=["y1", "y2", ...]` on a table.
+- Several losses can now be fit jointly on a vector of targets, with shared tree structure and a vector-valued leaf. Pass a matrix `y_train` of size `(nobs, n_targets)`, matching `x_train`'s `(nobs, nfeats)`, or `target_name=["y1", "y2", ...]` on a table.
 - Supported: `:mse`, `:logloss`, `:poisson`, `:gamma`, `:tweedie`, `:mae`, `:quantile`, `:cred_std`, `:cred_var`, `:gaussian_mle`, `:logistic_mle`. Not supported: `:mlogloss`, `:multiquantile`.
 - Predictions are `(nobs, n_targets)`. MLE losses return `(nobs, 2 * n_targets)` with interleaved location and positive scale per target.
 

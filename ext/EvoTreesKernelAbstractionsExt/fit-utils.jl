@@ -31,22 +31,6 @@ Update observation-to-node assignments by traversing splits (left child = node*2
 end
 
 """
-	count_nodes_kernel!(node_counts, nidx, is)
-
-Count the number of observations assigned to each node (raw counts), using atomic increments.
-"""
-@kernel function count_nodes_kernel!(node_counts, @Const(nidx), @Const(is))
-    idx = @index(Global)
-    @inbounds if idx <= length(is)
-        obs = is[idx]
-        node = nidx[obs]
-        if node > 0 && node <= length(node_counts)
-            Atomix.@atomic node_counts[node] += 1
-        end
-    end
-end
-
-"""
 	hist_kernel!(h∇, ∇, x_bin, nidx, js, is, K, chunk_size, target_mask)
 
 Build per-node gradient histograms using atomic updates.
@@ -174,27 +158,28 @@ function EvoTrees.update_hist!(h∇, ∇, x_bin, nidx, js, is, active_nodes, K, 
 end
 
 """
-	separate_nodes_kernel!(build_nodes, build_count, subtract_nodes, subtract_count, active_nodes, node_counts)
+	separate_nodes_kernel!(build_nodes, build_count, subtract_nodes, subtract_count, active_nodes, nodes_sum)
 
 Split active sibling nodes into:
-- **build_nodes**: nodes whose histograms should be built via observation scan (smaller sibling)
-- **subtract_nodes**: nodes whose histograms should be computed as `parent - sibling` (larger sibling)
+- **build_nodes**: nodes whose histograms should be built via observation scan (lighter sibling)
+- **subtract_nodes**: nodes whose histograms should be computed as `parent - sibling` (heavier sibling)
 
-Ties are broken by node id.
+Node size is the weight sum `nodes_sum[end, node]`, already written by `apply_splits_kernel!`
+when the parent was split. Ties are broken by node id.
 """
 @kernel function separate_nodes_kernel!(
     build_nodes, build_count,
     subtract_nodes, subtract_count,
     @Const(active_nodes),
-    @Const(node_counts)
+    @Const(nodes_sum)
 )
     idx = @index(Global)
     @inbounds if idx <= length(active_nodes)
         node = active_nodes[idx]
         if node > 0
             sibling = node ⊻ 1
-            w_node = node_counts[node]
-            w_sibling = node_counts[sibling]
+            w_node = nodes_sum[end, node]
+            w_sibling = nodes_sum[end, sibling]
 
             if w_node < w_sibling || (w_node == w_sibling && node < sibling)
                 pos = Atomix.@atomic build_count[1] += 1
@@ -229,22 +214,6 @@ function EvoTrees.subtract_hist!(h∇::GPUArraysCore.AbstractGPUArray{<:Any,4}, 
     h = reshape(h∇, :, size(h∇, 3), size(h∇, 4))
     subtract_hist_kernel!(backend)(h, js, nodes; ndrange=(size(h, 1), length(js), length(nodes)))
     KernelAbstractions.synchronize(backend)
-end
-
-"""
-	reduce_root_sums_kernel!(nodes_sum, ∇, is)
-
-Accumulate (atomic) gradient sums over observations `is` into the root node (node id = 1).
-"""
-@kernel function reduce_root_sums_kernel!(nodes_sum, @Const(∇), @Const(is))
-    idx = @index(Global)
-    @inbounds if idx <= length(is)
-        obs = is[idx]
-        n_k = size(∇, 1)
-        for k in 1:n_k
-            Atomix.@atomic nodes_sum[k, 1] += ∇[k, obs]
-        end
-    end
 end
 
 """
@@ -342,7 +311,7 @@ Base.@propagate_inbounds function _eval_split_bin(
             h∇, f, b, node, is_numeric, acc1, acc2, accw,
         )
         w_l, w_r = accw, w_p - accw
-        (w_l < min_weight || w_r < min_weight) && return (T(-Inf), acc1, acc2, accw)
+        (w_l <= min_weight || w_r <= min_weight) && return (T(-Inf), acc1, acc2, accw)
         check_monotone(
             L, constraint,
             acc1, acc2,
@@ -357,7 +326,7 @@ Base.@propagate_inbounds function _eval_split_bin(
         EvoTrees._acc_left!(sums_temp, temp_idx, h∇, f, b, node, 2 * K + 1, is_numeric)
         w_l = sums_temp[2*K+1, temp_idx]
         w_r = w_p - w_l
-        (w_l < min_weight || w_r < min_weight) && return (T(-Inf), acc1, acc2, accw)
+        (w_l <= min_weight || w_r <= min_weight) && return (T(-Inf), acc1, acc2, accw)
         check_monotone(
             L, constraint,
             sums_temp[1, temp_idx], sums_temp[K+1, temp_idx],

@@ -190,7 +190,7 @@ Only that group-level weight reaches `:ndcg`. NDCG is defined from the ranking o
 documents, so the spread of weights *within* a group is deliberately ignored, which matches the
 canonical definition and the per-query weights other ranking libraries accept.
 
-Where per-document weights should count, `metric = :corr` scores the weighted Pearson
+Where per-document weights should count, `metric = :pearson` scores the weighted Pearson
 correlation between prediction and target within each group and averages over groups. A row's
 own weight enters its group's correlation, and the group weighs by the mean of its rows'
 weights. Groups of fewer than two rows, and groups whose target is constant, carry no signal
@@ -202,7 +202,7 @@ A grouped metric does not require grouped training. `eval_group_name` sets the g
 tracked:
 
 ```julia
-config = EvoTreeRegressor(loss=:mse, metric=:corr)
+config = EvoTreeRegressor(loss=:mse, metric=:pearson)
 m = EvoTrees.fit(config, df_train; target_name="y", eval_group_name="q", deval=df_eval)
 ```
 

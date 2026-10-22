@@ -10,7 +10,7 @@ using CairoMakie
 
 # prepare a dataset
 tree_type = :binary # binary/oblivious
-_device = :gpu
+_device = :cpu
 assets = joinpath(@__DIR__, "..", "docs", "src", "assets")
 
 Random.seed!(123)

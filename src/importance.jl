@@ -19,7 +19,7 @@ function importance(model::EvoTree; feature_names=model.info[:feature_names])
         importance!(gain, tree)
     end
 
-    # A model can contain no split at all (`max_depth = 1`, `nrounds = 0`, or a `gamma` high
+    # A model can contain no split at all (`nrounds = 0`, or a `gamma` high
     # enough to reject every candidate), in which case the total gain is zero and normalising
     # would return `NaN` for every feature.
     total = sum(gain)

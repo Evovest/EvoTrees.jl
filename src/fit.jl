@@ -62,7 +62,7 @@ function grow_tree!(
 
     # initialize
     n_current = [1]
-    depth = 1
+    depth = 0
 
     # initialize summary stats
     nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
@@ -164,7 +164,7 @@ function grow_otree!(
 
     # initialize
     n_current = [1]
-    depth = 1
+    depth = 0
 
     # initialize summary stats
     nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
@@ -195,7 +195,7 @@ function grow_otree!(
             end
 
             # initialize gains for node 1 in which all gains of a given depth will be accumulated
-            if depth > 1
+            if depth > 0
                 view(nodes[1].gains, :, js) .= 0
             end
             gain = 0
@@ -217,8 +217,11 @@ function grow_otree!(
             best_bin = best[2][1]
             best_feat = js[best[2][2]]
             if best_gain > params.gamma
+                # `best_gain` is summed over every node of the depth, and `importance` adds
+                # `tree.gain` once per split node, so each node stores its equal share
+                share = best_gain / length(n_current)
                 for n in n_current
-                    tree.gain[n] = best_gain
+                    tree.gain[n] = share
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
                     tree.split[n] = best_bin != 0
@@ -265,6 +268,9 @@ function grow_otree!(
 end
 
 # A no-op on the CPU, but on the GPU we perform garbage collection
+# The trees appended by the round just grown. `grow_evotree!` pushes `bagging_size` of them.
+_round_trees(m, n) = view(m.trees, (lastindex(m.trees)-n+1):lastindex(m.trees))
+
 post_fit_gc(::Type{<:CPU}) = nothing
 
 """
@@ -320,6 +326,7 @@ function fit(
 )
 
     @assert Tables.istable(dtrain) "fit(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
+    _eval_is_train = deval === dtrain
     dtrain = Tables.columntable(dtrain)
     _device = device_type(params.device)
     m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name, group_name)
@@ -327,9 +334,10 @@ function fit(
     # initialize callback and logger if deval is provided
     if !isnothing(deval)
         deval = Tables.columntable(deval)
-        cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name, group_name=eval_group_name)
+        cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name,
+            group_name=eval_group_name, x_bin=_eval_is_train ? cache.x_bin : nothing)
         logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
-        cb(logger, 0, m.trees[end])
+        cb(logger, 0)
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
     else
         logger, cb = nothing, nothing
@@ -338,7 +346,7 @@ function fit(
     for i = 1:params.nrounds
         grow_evotree!(m, cache, params)
         if !isnothing(logger)
-            cb(logger, i, m.trees[end])
+            cb(logger, i, _round_trees(m, params.bagging_size))
             if i % print_every_n == 0 && verbosity > 0
                 @info "iter $i" metric = logger[:metrics][end]
             end
@@ -384,11 +392,11 @@ Main training function. Performs model fitting given configuration `params`, `x_
 # Keyword arguments
 
 - `x_train::Matrix`: training data of size `[#observations, #features]`. 
-- `y_train::VecOrMat`: vector or matrix of train targets of length `#observations` or size `(#targets, #observations)`.
+- `y_train::VecOrMat`: vector or matrix of train targets of length `#observations` or size `(#observations, #targets)`.
 - `w_train::Vector`: vector of train weights of length `#observations`. If `nothing`, a vector of ones is assumed.
 - `offset_train::VecOrMat`: offset for the training data. Should match the size of the predictions.
 - `x_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
-- `y_eval::VecOrMat`: vector or matrix of evaluation targets of length `#observations` or size `(#targets, #observations)`.
+- `y_eval::VecOrMat`: vector or matrix of evaluation targets of length `#observations` or size `(#observations, #targets)`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
 - `group_train::Vector`: group (query) id of each training row, for ranking tasks. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
@@ -425,9 +433,10 @@ function fit(
         @warn "To track eval metric in logger, both `x_eval` and `y_eval` must be provided."
     end
     if logging_flag
-        cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval, group_eval)
+        cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval, group_eval,
+            x_bin=x_eval === x_train ? cache.x_bin : nothing)
         logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
-        cb(logger, 0, m.trees[end])
+        cb(logger, 0)
         (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
     else
         logger, cb = nothing, nothing
@@ -436,7 +445,7 @@ function fit(
     for i = 1:params.nrounds
         grow_evotree!(m, cache, params)
         if !isnothing(logger)
-            cb(logger, i, m.trees[end])
+            cb(logger, i, _round_trees(m, params.bagging_size))
             if i % print_every_n == 0 && verbosity > 0
                 @info "iter $i" metric = logger[:metrics][end]
             end

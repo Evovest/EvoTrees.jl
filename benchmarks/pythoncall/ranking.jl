@@ -19,7 +19,7 @@ nthreads = Base.Threads.nthreads()
 group_size_list = [10, 20, 100]
 nobs_list = Int.([1e5, 1e6])
 nfeats_list = [100]
-max_depth_list = [6]
+max_depth_list = [5, 10]
 ndcg_k = 10
 
 device_list = [:cpu, :gpu]

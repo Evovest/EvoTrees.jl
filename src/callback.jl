@@ -53,16 +53,20 @@ function CallBack(
     target_name,
     weight_name=nothing,
     offset_name=nothing,
-    group_name=nothing) where {L,K}
+    group_name=nothing,
+    x_bin=nothing) where {L,K}
 
     T = Float32
     _weight_name = isnothing(weight_name) ? Symbol("") : Symbol(weight_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
     _target_names = target_name isa AbstractVector ? Symbol.(target_name) : [Symbol(target_name)]
 
-    x_bin = binarize(deval; feature_names=m.info[:feature_names], edges=m.info[:edges])
+    if isnothing(x_bin)
+        x_bin = binarize(device, deval; feature_names=m.info[:feature_names], edges=m.info[:edges])
+    end
     nobs = length(Tables.getcolumn(deval, 1))
     p = zeros(T, K, nobs)
+    p .= m.bias
 
     y_eval = length(_target_names) == 1 ?
         Tables.getcolumn(deval, _target_names[1]) :
@@ -110,11 +114,17 @@ function CallBack(
     device::Type{<:Device};
     w_eval=nothing,
     offset_eval=nothing,
-    group_eval=nothing) where {L,K}
+    group_eval=nothing,
+    x_bin=nothing) where {L,K}
 
     T = Float32
-    x_bin = binarize(x_eval; feature_names=m.info[:feature_names], edges=m.info[:edges])
-    p = zeros(T, K, size(x_eval, 1))
+    nobs = size(x_eval, 1)
+    if isnothing(x_bin)
+        x_bin = binarize(device, x_eval; feature_names=m.info[:feature_names], edges=m.info[:edges])
+    end
+    p = zeros(T, K, nobs)
+    p .= m.bias
+    y_eval = orient_matrix_target(y_eval, nobs)
 
     if L == MLogLoss
         y = eval_levelcode(y_eval, m.info[:target_levels])
@@ -123,8 +133,8 @@ function CallBack(
     end
     feval = metric_dict[params.metric]
     V = device_array_type(device)
-    w = isnothing(w_eval) ? device_ones(device, T, size(x_eval, 1)) : V{T}(w_eval)
-    check_eval_data(y, w, size(x_eval, 1))
+    w = isnothing(w_eval) ? device_ones(device, T, nobs) : V{T}(w_eval)
+    check_eval_data(y, w, nobs)
     metric_kwargs = hasproperty(params, :alpha) ? (alpha=T(params.alpha),) : (;)
     if params.metric == :multiquantile
         alphas_eval = T.(params.alphas)
@@ -132,7 +142,7 @@ function CallBack(
         metric_kwargs = (alphas=alphas_eval,)
     end
     if !isnothing(group_eval)
-        metric_kwargs = merge(metric_kwargs, (group=build_group_index(group_eval, size(x_eval, 1), "group_eval"),))
+        metric_kwargs = merge(metric_kwargs, (group=build_group_index(group_eval, nobs, "group_eval"),))
     end
     hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
 
@@ -149,11 +159,20 @@ function CallBack(
     return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs)
 end
 
-function (cb::CallBack)(logger, iter, tree)
-    predict!(cb.p, tree, cb.x_bin, cb.feattypes)
+function (cb::CallBack)(logger, iter)
     metric = cb.feval(cb.p, cb.y, cb.w, cb.eval; cb.metric_kwargs...)
     update_logger!(logger, iter, metric)
     return nothing
+end
+
+# `trees` is every tree added by the round being logged. With `bagging_size > 1` a round adds
+# that many, each scaled by `1 / bagging_size`, so accumulating only one leaves the eval
+# prediction at a fraction of the model the round actually produced.
+function (cb::CallBack)(logger, iter, trees)
+    for tree in trees
+        predict!(cb.p, tree, cb.x_bin, cb.feattypes)
+    end
+    return cb(logger, iter)
 end
 
 function init_logger(; metric, maximise, early_stopping_rounds, early_stopping_tolerance=0.0)
