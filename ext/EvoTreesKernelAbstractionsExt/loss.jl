@@ -190,9 +190,7 @@ function EvoTrees.update_grads!(
     return
 end
 
-# The decorrelation penalty is a sort and a Fenwick sweep over all predictions, which does not map
-# onto a per-observation kernel: the penalised rows are copied to the host, penalised with the CPU
-# code and copied back.
+# The decorrelation penalty runs on the host: the penalised rows are copied over and back.
 function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
@@ -206,7 +204,6 @@ function EvoTrees.update_grads!(
     isnothing(ctrl) && return nothing
     lambda = hasproperty(params, :ctrl_lambda) ? params.ctrl_lambda : 0.0
     lambda > 0 || return nothing
-    # copy only the penalised rows and the weights, not the whole (2K+1, nobs) matrix
     K = size(p, 1)
     wrow = Array(view(∇, 2K + 1, :))
     for k in EvoTrees.ctrl_rows(L, K)

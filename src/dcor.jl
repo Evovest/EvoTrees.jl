@@ -1,5 +1,5 @@
-# Univariate distance covariance and its gradient in O(n log n) (Chaudhuri & Hu 2019), for the
-# decorrelation penalty. The direct definition is O(n^2) in time and memory.
+# Distance covariance of two vectors and its gradient in O(n log n), after Chaudhuri & Hu (2019).
+# See docs/src/dcov-design.md.
 
 struct Fenwick
     t::Vector{Float64}
@@ -21,7 +21,7 @@ function fsum(f::Fenwick, i::Int)
     s
 end
 
-# Sums in index order, unlike `sum`, whose last bits can depend on the CPU's SIMD width.
+# Sum in index order: the last bits of `sum` can differ across CPUs.
 function _ordered_sum(x)
     s = 0.0
     @inbounds for v in x
@@ -30,8 +30,7 @@ function _ordered_sum(x)
     return s
 end
 
-# Mean and sample standard deviation summed in index order, measured from the first value so a
-# column on a large absolute scale, such as a timestamp, keeps its precision.
+# `(mean, std)` of a vector, summed in index order from its first value.
 function _ordered_mean_std(x)
     n = length(x)
     x0 = Float64(first(x))
@@ -48,12 +47,11 @@ function _ordered_mean_std(x)
     return x0 + dm, sqrt(v / (n - 1))
 end
 
-# a_i. = sum_j |x_i - x_j| for every i
+# Vector of length n: sum_j |x_i - x_j| for each i.
 function _rowsums(x::AbstractVector)
     n = length(x)
     ord = sortperm(x)
-    # shifted to its minimum so the prefix sums keep precision on a large absolute scale
-    x0 = Float64(x[ord[1]])
+    x0 = Float64(x[ord[1]])   # shifted to the minimum for precision
     xs = [Float64(x[i]) - x0 for i in ord]
     cs = cumsum(xs)
     out = zeros(n)
@@ -63,13 +61,12 @@ function _rowsums(x::AbstractVector)
     out
 end
 
-# For each i: L_i = sum over {j : x_j < x_i} of |y_i - y_j|, R_i the same over x_j > x_i.
-# Fenwick trees over the rank of y hold counts and sums of y for the js seen so far.
+# Vectors `L`, `R` of length n: L_i = sum over x_j < x_i of |y_i - y_j|, R_i the same over x_j > x_i.
 function _signed_ydist(x::AbstractVector, y::AbstractVector)
     n = length(x)
     ordx = sortperm(x)
     ry = invperm(sortperm(y))
-    y0 = Float64(minimum(y))          # shift-invariant, see `_rowsums`
+    y0 = Float64(minimum(y))
     L = zeros(n)
     R = zeros(n)
     for (out, order) in ((L, ordx), (R, reverse(ordx)))
@@ -77,7 +74,7 @@ function _signed_ydist(x::AbstractVector, y::AbstractVector)
         sy = Fenwick(n)
         k = 1
         while k <= n
-            # ties belong to neither side: score the whole run of equal `x`, then insert it
+            # tied x go to neither side
             j = k
             @inbounds while j < n && x[order[j+1]] == x[order[k]]
                 j += 1
@@ -101,13 +98,13 @@ function _signed_ydist(x::AbstractVector, y::AbstractVector)
     L, R
 end
 
-# sum_ij |x_i - x_j| |y_i - y_j|
+# Scalar: sum_ij |x_i - x_j| |y_i - y_j|.
 function _cross_term(x::AbstractVector, y::AbstractVector)
     n = length(x)
     ordx = sortperm(x)
     ry = invperm(sortperm(y))
     cnt = Fenwick(n); sy = Fenwick(n); sx = Fenwick(n); sxy = Fenwick(n)
-    x0 = Float64(minimum(x)); y0 = Float64(minimum(y))   # shift-invariant, see `_rowsums`
+    x0 = Float64(minimum(x)); y0 = Float64(minimum(y))
     tot = 0.0
     for i in ordx
         r = ry[i]; xi = Float64(x[i]) - x0; yi = Float64(y[i]) - y0
@@ -122,9 +119,9 @@ function _cross_term(x::AbstractVector, y::AbstractVector)
 end
 
 """
-    dcov2(x, y)
+    dcov2(x::AbstractVector, y::AbstractVector)
 
-Unbiased squared distance covariance of two real vectors (Szekely & Rizzo 2014), in O(n log n).
+Unbiased squared distance covariance of `x` and `y`, both of length `n >= 4`. Returns a scalar.
 """
 function dcov2(x::AbstractVector, y::AbstractVector)
     n = length(x)
@@ -138,12 +135,12 @@ function dcov2(x::AbstractVector, y::AbstractVector)
 end
 
 """
-    dcor2(x, y)
+    dcor2(x::AbstractVector, y::AbstractVector)
 
-Squared distance correlation, `dcov2(x, y) / sqrt(dcov2(x, x) * dcov2(y, y))`.
+Squared distance correlation of `x` and `y`, both of length `n >= 4`:
+`dcov2(x, y) / sqrt(dcov2(x, x) * dcov2(y, y))`, or 0 if either variance is not positive.
 """
 function dcor2(x::AbstractVector, y::AbstractVector)
-    # each variance can round slightly below zero for nearly constant input, so test both
     vx = dcov2(x, x)
     vy = dcov2(y, y)
     (vx > 0 && vy > 0) || return 0.0
@@ -151,10 +148,9 @@ function dcor2(x::AbstractVector, y::AbstractVector)
 end
 
 """
-    dcov2_grad(x, y)
+    dcov2_grad(x::AbstractVector, y::AbstractVector)
 
-Gradient of `dcov2(x, y)` with respect to `x`, holding `y` fixed, in O(n log n). `dcov2` is
-piecewise linear in `x`, so its Hessian is zero almost everywhere and is not returned.
+Gradient of `dcov2(x, y)` with respect to `x`, a vector of length `n`.
 """
 function dcov2_grad(x::AbstractVector, y::AbstractVector)
     n = length(x)
@@ -171,8 +167,7 @@ function dcov2_grad(x::AbstractVector, y::AbstractVector)
         @inbounds while j < n && x[ordx[j+1]] == x[ordx[k]]
             j += 1
         end
-        # counts and `b` masses strictly either side of this run of ties. Boosted predictions
-        # are heavily tied, so the symmetric subgradient keeps the gradient independent of row order.
+        # a run of tied x shares the symmetric subgradient
         lo = k - 1
         hi = n - j
         blo = k > 1 ? cb[k-1] : 0.0
@@ -194,16 +189,15 @@ end
 abstract type AbstractDcorCache end
 
 """
-    DcorCache(ctrl)
+    DcorCache(ctrl::Vector{Float64}; wbar=1.0)
 
-One control's fixed work (its row sums, their total and its ranks, computed once) and the scratch
-reused every round.
+One control of length `n`: its fixed row sums and ranks, and per-round scratch.
 """
 struct DcorCache <: AbstractDcorCache
     ctrl::Vector{Float64}      # standardised control
-    bi::Vector{Float64}        # row sums of the control, fixed
-    bb::Float64                # their total, fixed
-    ry::Vector{Int}            # rank of each control value, fixed
+    bi::Vector{Float64}        # row sums of the control
+    bb::Float64                # their total
+    ry::Vector{Int}            # rank of each control value
     ordx::Vector{Int}          # scratch from here down
     L::Vector{Float64}
     R::Vector{Float64}
@@ -221,7 +215,7 @@ function DcorCache(ctrl::Vector{Float64}; wbar::Float64=1.0)
         zeros(Int, n), zeros(n), zeros(n), zeros(n), zeros(n), Fenwick(n), Fenwick(n), wbar)
 end
 
-# `_signed_ydist` against a fixed control, writing into the cache and reusing its Fenwick trees.
+# `_signed_ydist(x, dc.ctrl)` into `dc.L` and `dc.R`.
 function _signed_ydist!(dc::DcorCache, x::AbstractVector)
     n = length(x)
     y, ry, ordx = dc.ctrl, dc.ry, dc.ordx
@@ -254,9 +248,9 @@ function _signed_ydist!(dc::DcorCache, x::AbstractVector)
 end
 
 """
-    dcov2_grad!(dc::DcorCache, x)
+    dcov2_grad!(dc::DcorCache, x::AbstractVector)
 
-`dcov2_grad(x, dc.ctrl)` into `dc.g`, reusing the cache's buffers and its control-side work.
+`dcov2_grad(x, dc.ctrl)` written to `dc.g`, a vector of length `n`, and returned.
 """
 function dcov2_grad!(dc::DcorCache, x::AbstractVector)
     n = length(x)
@@ -296,10 +290,9 @@ function dcov2_grad!(dc::DcorCache, x::AbstractVector)
 end
 
 """
-    dcov2_value!(dc::DcorCache, x)
+    dcov2_value!(dc::DcorCache, x::AbstractVector)
 
-`dcov2(x, dc.ctrl)` as `sum(g .* x)` for its gradient `g`, which holds because the statistic is
-homogeneous of degree one in `x`. `g` sums to zero, so `x` is measured from its minimum.
+`dcov2(x, dc.ctrl)` as `sum(g .* x)`, `g` from `dcov2_grad!`. Returns a scalar.
 """
 function dcov2_value!(dc::DcorCache, x::AbstractVector)
     g = dcov2_grad!(dc, x)
@@ -312,10 +305,10 @@ function dcov2_value!(dc::DcorCache, x::AbstractVector)
 end
 
 """
-    GroupedDcorCache(ctrl, gi::GroupIndex)
+    GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; wbar=1.0, label=nothing)
 
-One `DcorCache` per group for `ctrl_within_group`, each with the control standardised on the
-group's rows. Groups below 4 rows, or whose control has no usable spread, are skipped.
+One `DcorCache` per group of `gi`, the control standardised within the group. Groups below 4 rows,
+or whose control has no usable spread, are skipped.
 """
 struct GroupedDcorCache <: AbstractDcorCache
     caches::Vector{DcorCache}
@@ -334,8 +327,7 @@ function GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; wbar::Float64=1
         length(r) >= 4 || continue
         c = ctrl[r]
         s = sort(c)
-        # all tied but at most one either side gives zero distance variance; a spread at
-        # rounding level is noise, and one that underflows would scale to NaN
+        # no usable spread: at most one value either side of a tie, or a spread at rounding level
         s[2] < s[end-1] || continue
         s[end] - s[1] > 64 * eps(max(1.0, abs(s[1]), abs(s[end]))) || continue
         m, sd = _ordered_mean_std(c)
@@ -356,7 +348,7 @@ end
 """
     Controls(cols, weights, labels)
 
-The controls of a fit as `build_ctrl` returns them, with their weights and the labels errors use.
+`k` standardised controls of length `n`, their `k` weights and `k` labels for error messages.
 """
 struct Controls
     cols::Vector{Vector{Float64}}
@@ -367,9 +359,8 @@ end
 """
     SummedDcorCache(caches, weights, acc, rows, wbar)
 
-One cache per control; the penalty is the weighted sum of their terms, so a dependence that shows
-only in a combination of controls is not seen. The sum starts from the first control's term, so a
-single control of weight 1 matches its own cache exactly. `rows` lists the rows any control acts on.
+`k` control caches whose gradients are summed with `weights` into `acc`, of length `n`. `rows` are
+the rows any control acts on within groups.
 """
 struct SummedDcorCache{C<:AbstractDcorCache} <: AbstractDcorCache
     caches::Vector{C}
@@ -380,12 +371,10 @@ struct SummedDcorCache{C<:AbstractDcorCache} <: AbstractDcorCache
 end
 
 """
-    EvalCtrl
+    EvalCtrl{L,C}
 
-The eval set's controls, standardised on the eval set (within each eval group under
-`ctrl_within_group`). When `penalized`, the loss's own metric becomes the penalised objective,
-under `:mse` `mse + ctrl_lambda * dcov2`. `dep` holds each control's dependence of the last round,
-before `ctrl_lambda` and the control weights.
+The `k` controls of the eval set and the scratch of `eval_penalty!`. `dep` holds the `k`
+dependences of the last call.
 """
 struct EvalCtrl{L,C<:AbstractDcorCache}
     caches::Vector{C}
@@ -420,8 +409,7 @@ function eval_ctrl(params, ::Type{L}, K::Int, ctrl::Controls, group, feval, n::I
         zeros(nc), zeros(nc), zeros(nc))
 end
 
-# one control's dependence, and the same weighted by `a` (the location's curvature under
-# `:gaussian_mle`); within groups the size-weighted sum `sum_g n_g / n * dcov2_g`
+# `(d, da)`: one control's dependence, and the same weighted by `a` under `:gaussian_mle`
 function _dependence(dc::DcorCache, x, a, n)
     d = dcov2_value!(dc, x)
     return d, isnothing(a) ? d : d * _ordered_sum(a) / length(a)
@@ -437,7 +425,7 @@ function _dependence(gc::GroupedDcorCache, x, a, n)
     return _ordered_sum(dg), _ordered_sum(dag)
 end
 
-# pooled controls run in parallel, as in training; within groups `_dependence` threads over groups
+# pooled controls run in parallel; within groups `_dependence` threads over the groups
 function _dependences!(ec::EvalCtrl{<:Any,DcorCache}, a)
     @threads for c in eachindex(ec.caches)
         ec.d[c], ec.da[c] = _dependence(ec.caches[c], ec.x, a, ec.n)
@@ -450,9 +438,9 @@ function _dependences!(ec::EvalCtrl, a)
 end
 
 """
-    eval_penalty!(ec::EvalCtrl, p)
+    eval_penalty!(ec::EvalCtrl, p::AbstractMatrix)
 
-Each control's dependence on the eval predictions `p`, and the penalty term in the metric's units.
+For predictions `p` of size `(K, n)`, the `k` dependences and the penalty added to the metric.
 """
 function eval_penalty!(ec::EvalCtrl{L}, p::AbstractMatrix) where {L}
     ph = p isa Array ? p : Array(p)

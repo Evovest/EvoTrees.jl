@@ -211,8 +211,7 @@ end
 """
     check_ctrl(params, ctrl, L, group)
 
-Reject a control on a learner without `ctrl_lambda`, `ctrl_lambda > 0` without a control,
-`ctrl_within_group` without groups, and unsupported losses.
+Throw if the controls, groups, learner and loss are not a valid combination.
 """
 function check_ctrl(params::EvoTypes, ctrl, ::Type{L}, group) where {L}
     if !isnothing(ctrl) && !hasproperty(params, :ctrl_lambda)
@@ -220,7 +219,7 @@ function check_ctrl(params::EvoTypes, ctrl, ::Type{L}, group) where {L}
               "it with. The decorrelation penalty is available on `EvoTreeRegressor` and `EvoTreeMLE`.")
     end
     lambda = hasproperty(params, :ctrl_lambda) ? params.ctrl_lambda : 0.0
-    # the learner validates it on construction, but a field can be reassigned after that
+    # the field can be reassigned after construction
     hasproperty(params, :ctrl_lambda) &&
         check_parameter(Float64, lambda, zero(Float64), floatmax(Float64), :ctrl_lambda)
     if lambda > 0 && isnothing(ctrl)
@@ -233,9 +232,7 @@ function check_ctrl(params::EvoTypes, ctrl, ::Type{L}, group) where {L}
         error("`ctrl_within_group` is set but no groups were given. Pass `group_name` when " *
               "fitting from a table, or `group_train` alongside `x_train`.")
     end
-    # Only losses whose gradient rows hold a per-observation derivative that the leaf negates:
-    # not `:mae`, the credibility losses, `:quantile` or `:lambdarank`. Listed explicitly so a
-    # new subtype does not inherit the penalty.
+    # listed explicitly so a new subtype does not inherit the penalty
     if !isnothing(ctrl) && !(L in (MSE, LogLoss, Poisson, Gamma, Tweedie, GaussianMLE))
         error("The decorrelation penalty is available for :mse, :logloss, :poisson, :gamma, " *
               ":tweedie and :gaussian_mle, not for $(params.loss).")
@@ -244,10 +241,9 @@ function check_ctrl(params::EvoTypes, ctrl, ::Type{L}, group) where {L}
 end
 
 """
-    dcor_cache(params, ctrl, group, w)
+    dcor_cache(params, ctrl::Controls, group, w)
 
-One cache per control, over the whole sample or per group under `ctrl_within_group`, summed by a
-`SummedDcorCache`.
+A `SummedDcorCache` over the `k` controls, pooled or per group.
 """
 function dcor_cache(params::EvoTypes, ctrl::Controls, group, w)
     wh = w isa Array ? w : Array(w)
@@ -255,7 +251,6 @@ function dcor_cache(params::EvoTypes, ctrl::Controls, group, w)
     within = hasproperty(params, :ctrl_within_group) && params.ctrl_within_group
     n = length(first(ctrl.cols))
     if within
-        # a single control keeps the message that does not name it
         many = length(ctrl.cols) > 1
         caches = [GroupedDcorCache(c, group; wbar, label=many ? l : nothing) for (c, l) in zip(ctrl.cols, ctrl.labels)]
         kept = falses(n)
@@ -275,14 +270,11 @@ dcor_cache(params::EvoTypes, ctrl::AbstractVector{<:Real}, group, w) =
     dcor_cache(params, Controls([Vector{Float64}(ctrl)], [1.0], ["the control"]), group, w)
 
 """
-    build_ctrl(ctrl_raw, nobs, argname)
+    build_ctrl(ctrl_raw, nobs, argname; col=nothing, eval=false)
 
-Validate a control and return it on the host, centred and scaled to unit standard deviation so
-`ctrl_lambda` does not carry its units. It is kept in `Float64`: at a Unix timestamp the `Float32`
-step is 128 seconds.
+Validate a control of length `nobs` and return it standardised, as a `Vector{Float64}` on the host.
 """
 function build_ctrl(ctrl_raw, nobs::Int, argname::AbstractString; col=nothing, eval=false)
-    # with several controls the column is named, so the message says which one failed
     label = isnothing(col) ? "`$argname`" : "column $col of `$argname`"
     why = eval ? "its dependence on the evaluation set is undefined" : "there is no dependence for the penalty to remove"
     nonmissingtype(eltype(ctrl_raw)) <: Real ||
@@ -295,18 +287,16 @@ function build_ctrl(ctrl_raw, nobs::Int, argname::AbstractString; col=nothing, e
     length(ctrl) >= 4 ||
         error("$label needs at least 4 observations for a distance covariance, got $(length(ctrl)).")
     all(isfinite, ctrl) || error("$label contains a non-finite value.")
-    # `extrema`, unlike `allequal`, sees a column of `0.0` and `-0.0` as constant
+    # `extrema`, unlike `allequal`, sees `0.0` and `-0.0` as equal
     lo, hi = extrema(ctrl)
     lo < hi ||
         error("$label is constant, so $why.")
-    # all values tied but at most one either side (an indicator set on one row) give an additive
-    # distance matrix, which the U-centring removes, so the penalty would always be zero
+    # at most one value either side of a tie gives zero distance variance
     s = sort(ctrl)
     s[2] < s[end-1] ||
         error("$label has every value tied but at most one either side of them, so its distance " *
               "variance is zero and $why.")
     m, sd = _ordered_mean_std(ctrl)
-    # the standard deviation overflows above about 1e154 and underflows below about 1e-162
     isfinite(sd) && sd > 0 ||
         error("$label has a standard deviation of $sd, which cannot be used to scale it. " *
               "Rescale the column before passing it.")
@@ -317,7 +307,7 @@ end
 """
     build_ctrl_weights(ctrl_weights, k)
 
-The weight each of the `k` controls' penalty terms is multiplied by, 1 for every control by default.
+Validated weights of the `k` controls as a `Vector{Float64}`, ones by default.
 """
 function build_ctrl_weights(ctrl_weights, k::Int)
     isnothing(ctrl_weights) && return ones(k)
@@ -332,10 +322,9 @@ function build_ctrl_weights(ctrl_weights, k::Int)
 end
 
 """
-    build_ctrls(ctrl_train, nobs, ctrl_weights; argname="ctrl_train")
+    build_ctrls(ctrl_train, nobs, ctrl_weights; argname="ctrl_train", eval=false)
 
-The controls passed alongside `x_train`, or `ctrl_eval` alongside `x_eval`: a vector for one, or a
-matrix with one column per control and one row per observation, as `x_train`.
+`Controls` from a vector of length `nobs` or a matrix of size `(nobs, k)`.
 """
 function build_ctrls(ctrl_train, nobs::Int, ctrl_weights; argname="ctrl_train", eval=false)
     if ctrl_train isa AbstractMatrix
@@ -356,7 +345,7 @@ end
 """
     build_ctrls(dtrain, ctrl_name, nobs, ctrl_weights)
 
-The controls named on a table: one column name, or a vector of them.
+`Controls` from the columns of `dtrain` named by `ctrl_name`, one name or a vector of names.
 """
 function build_ctrls(dtrain, ctrl_name, nobs::Int, ctrl_weights)
     if ctrl_name isa AbstractVector

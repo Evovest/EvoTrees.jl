@@ -97,7 +97,6 @@ function CallBack(
     end
     hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
 
-    # the eval set carries the same control columns as the training set
     ctrl = nothing
     if !isnothing(ctrl_name)
         names = ctrl_name isa AbstractVector ? Symbol.(ctrl_name) : [Symbol(ctrl_name)]
@@ -209,8 +208,7 @@ function (cb::CallBack)(logger, iter, trees)
     return cb(logger, iter)
 end
 
-# With controls the logger also keeps the base metric and each control's dependence per round,
-# and whether `:metrics`, which early stopping reads, includes the penalty.
+# With controls the logger also keeps `:base_metrics`, `:ctrl_dependence` and `:penalized`.
 function init_logger(; metric, maximise, early_stopping_rounds, early_stopping_tolerance=0.0, ctrl=nothing)
     logger = Dict(
         :name => String(metric),
