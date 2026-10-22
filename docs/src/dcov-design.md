@@ -3,9 +3,9 @@
 This page describes how `ctrl_lambda` is defined and computed, and why. For usage, see the
 [decorrelation tutorial](tutorials/decorrelation.md).
 
-Notation: `n` training rows with weights `w_i`, total weight `W` and mean weight `w̄ = W / n`; `p`
-the raw predictions (on the link scale); controls `c_1, ..., c_k`, each centred and scaled to unit
-standard deviation; `λ = ctrl_lambda` and `ω_j` the entries of `ctrl_weights` (1 by default).
+Notation: `n` training rows with weights `w_i` and total weight `W`; `p` the raw predictions (on
+the link scale); controls `c_1, ..., c_k`, each centred and scaled to unit standard deviation;
+`λ = ctrl_lambda` and `ω_j` the entries of `ctrl_weights` (1 by default).
 
 ## Statistic
 
@@ -26,14 +26,23 @@ sample value can fall below zero near independence. It needs at least 4 rows. A 
 most one value either side of a tie has zero distance variance and is rejected, or skipped within
 a group.
 
-TODO (open): clipping each control's `dcov2` at zero, so a negative estimate adds no penalty.
+The estimate is kept unbiased, with no floor at zero. Near independence it is negative about half
+the time: with 150 rows per group, the mean of `dcor2` over 75 independent groups has a standard
+deviation of about 0.0011 around zero.
+
+Two alternatives were tried. Clipping each group's estimate at zero, `max(dcov2_g, 0)`, switched off
+54 to 60% of the groups in each round at a moderate weight, left more held-out dependence wherever
+the fit settled, and made 3 to 12% of the groups switch on or off from one round to the next. The
+V-statistic, which is never negative, shrank the predictions and lowered their correlation with the
+target in every run. With the unbiased estimate, very large weights still inflate the predictions
+(see Step size below), so the weight is best tuned on held-out data.
 
 ## Objective
 
 Under `:mse` the training objective is
 
 ```
-sum_i w_i (p_i - y_i)^2 + λ W sum_j ω_j dcov2(p, c_j)
+sum_i w_i (y_i - p_i)^2 + λ W sum_j ω_j dcov2(p, c_j)
 ```
 
 that is, `W` times the sum of the weighted mean squared error and `λ sum_j ω_j dcov2(p, c_j)`. The
@@ -43,10 +52,11 @@ does not depend on their units. `dcov2` is homogeneous of degree one in `p` and 
 of degree two, so `λ` scales with the target: a target 10 times larger needs 10 times the weight.
 
 `dcov2` is piecewise linear in `p`, so its Hessian is zero almost everywhere. The penalty adds
-`λ w̄ n ∂dcov2/∂p_i` to the gradient of row `i` and leaves the Hessian unchanged.
+`λ W ∂dcov2/∂p_i` to the gradient of row `i` and leaves the Hessian unchanged.
 
-TODO (open): the treatment of `offset`. The penalty is currently computed on the raw prediction
-including any offset, in training and in evaluation.
+The penalty acts on the full prediction, offset included, in training and in evaluation, since that
+is the prediction that is scored and the one the evaluation metric prices. Under `:mse`, fitting
+`y - offset` without an offset penalises the trees' part alone.
 
 ### Curvature weighting
 
@@ -75,17 +85,25 @@ the coefficient `_dep_coef`.
 ## Pooled and within groups
 
 By default one `dcov2` is computed over all rows. With `ctrl_within_group = true`, group `g` of
-`group_name` / `group_train` adds `λ w̄ n_g dcov2(p_g, c_g)`, with `n_g` its number of rows and the
-control standardised within the group. Groups with fewer than 4 rows, or whose control has no
-usable spread, are skipped.
+`group_name` / `group_train` adds `λ W_g dcov2(p_g, c_g)`, with `W_g` the total training weight of
+its rows (its number of rows without weights) and the control standardised within the group. Under
+`:mse` the objective is
+
+```
+sum_i w_i (y_i - p_i)^2 + λ sum_j ω_j sum_g W_g dcov2(p_g, c_jg)
+```
+
+with `p_g` and `c_jg` the predictions and control `j` on the rows of group `g`. Each group's penalty
+carries the weight its rows carry in the loss, and `dcov2` itself is unweighted within a group. With
+the mean weight times the number of rows in place of `W_g`, the penalty per unit of loss weight
+would vary between groups with their mean weight. Groups with fewer than 4 rows, or whose control
+has no usable spread, are skipped.
 
 This targets the dependence within each group: differences in the control's level or spread
 between groups do not count. Under `:mse` the gradient sums to zero within each group, since
 `dcov2` does not change when a constant is added to `p_g`. The trees can still move group means
 through features that vary between groups, and the loss then corrects those moves. Groups run in
 parallel.
-
-TODO (open): weighting each group by its total training weight `W_g` instead of `w̄ n_g`.
 
 ## Several controls
 
@@ -129,10 +147,12 @@ about 0.025 s per round.
 
 With evaluation data, `λ > 0` and the loss's own metric (the default), the logged metric adds the
 penalty term of the table above, computed on the evaluation set with its controls standardised
-there (within each evaluation group under `ctrl_within_group`). For a maximised metric such as
-`:gaussian_mle` the term is subtracted. Early stopping then follows the objective that training
-minimises, rather than the base metric, which ignores the dependence. Other metrics have no exchange
-rate with `λ` and are reported unchanged.
+there (within each evaluation group under `ctrl_within_group`, each group's term weighted by
+`W_g / W` from the evaluation weights). Under `:mse` the metric is then the training objective on
+the evaluation set divided by its total weight. For a maximised metric such as `:gaussian_mle` the
+term is subtracted. Early stopping then follows the objective that training minimises, rather than
+the base metric, which ignores the dependence. Other metrics have no exchange rate with `λ` and are
+reported unchanged.
 
 The logger also keeps `:base_metrics`, the metric without the penalty, and `:ctrl_dependence`, each
 control's `dcov2(φ(p), c_j)` before `λ` and the weights. The callback adds what `eval_penalty!`

@@ -259,7 +259,7 @@ end
             m8 = fit(cw(λ, 64.0); x_train=x, y_train=y, w_train=fill(8.0, nobs), ctrl_train=c, verbosity=0)
             @test predict(m8, x) == predict(m1, x)
         end
-        # the same through the within-group cache, whose mean weight `dcor_cache` supplies
+        # the same within groups, where `dcor_cache` gives each group the sum of its weights
         gid = repeat(1:40, inner=nobs ÷ 40)
         cg(mw) = EvoTreeRegressor(loss=:mse, nrounds=40, max_depth=4, eta=0.2, seed=1, L2=0.0,
             min_weight=mw, ctrl_lambda=10.0, ctrl_within_group=true)
@@ -268,7 +268,7 @@ end
             verbosity=0)
         @test predict(g8, x) == predict(g1, x)
         gc = EvoTrees.dcor_cache(cg(8.0), build_ctrl(ctrl, nobs, "c"), build_group_index(gid, nobs, "g"), wv)
-        @test gc.wbar ≈ mean(wv) rtol = 1e-14
+        @test gc.caches[1].Wg ≈ [sum(wv[gid.==g]) for g in 1:40] rtol = 1e-14
     end
 
     @testset "rejected combinations" begin
@@ -431,6 +431,60 @@ end
         cache = GroupedDcorCache(c, build_group_index(gid, n, "g"))
         @test cache.rows == [collect(1:8), collect(41:48)]
         @test all(dc -> all(isfinite, dc.ctrl), cache.caches)
+    end
+
+    @testset "each group weighs by its total weight" begin
+        # weights that vary within and between groups: group g adds λ W_g dcov2(p_g, c_g), W_g the
+        # sum of its weights. y equal to p makes the :mse base gradient exactly 0 and its curvature
+        # exactly 1, so row 1 holds the penalty alone
+        rng = Xoshiro(76)
+        sizes = (30, 45, 60, 25, 50, 40)
+        gid = vcat([fill(g, m) for (g, m) in enumerate(sizes)]...)
+        gid = gid[randperm(rng, length(gid))]
+        n = length(gid)
+        c = randn(rng, n)
+        p = 0.4 .* c .+ randn(rng, n)
+        w = exp.(randn(rng, length(sizes)))[gid] .* (0.5 .+ rand(rng, n))
+        gi = build_group_index(gid, n, "g")
+        cb = build_ctrl(c, n, "c")
+        λ = 3.0
+        params = EvoTreeRegressor(loss=:mse, ctrl_lambda=λ, ctrl_within_group=true)
+        function penalty(wv)
+            ∇ = zeros(3, n); ∇[3, :] .= wv
+            EvoTrees.update_grads!(∇, reshape(p, 1, n), p, EvoTrees.MSE, params, nothing,
+                EvoTrees.dcor_cache(params, cb, gi, wv))
+            return ∇[1, :]
+        end
+        groups = [findall(==(g), gid) for g in eachindex(sizes)]
+        z(r) = (c[r] .- mean(c[r])) ./ std(c[r])
+        ref = zeros(n)
+        for r in groups
+            ref[r] .= λ * sum(w[r]) .* dcov2_grad(p[r], z(r))
+        end
+        pw = penalty(w)
+        @test pw ≈ ref rtol = 1e-10
+        # scaling one group's weights scales its penalty alone, exactly for a power of two
+        w4 = copy(w)
+        w4[groups[2]] .*= 4
+        p4 = penalty(w4)
+        @test p4[groups[2]] == 4 .* pw[groups[2]]
+        @test p4[gid.!=2] == pw[gid.!=2]
+        # the eval term weighs each group by its share of the eval weight
+        ec = EvoTrees.eval_ctrl(params, EvoTrees.MSE, 1, EvoTrees.Controls([cb], [1.0], ["c"]), gi,
+            EvoTrees.mse, w)
+        dep, term = EvoTrees.eval_penalty!(ec, reshape(p, 1, n))
+        d = sum(sum(w[r]) / sum(w) * dcov2(p[r], z(r)) for r in groups)
+        @test dep[1] ≈ d rtol = 1e-8
+        @test term ≈ λ * d rtol = 1e-8
+        # unit weights give each group its number of rows, the factor used before weights counted,
+        # so an unweighted fit is unchanged bit for bit
+        gc = EvoTrees.dcor_cache(params, cb, gi, ones(Float32, n)).caches[1]
+        @test gc.Wg == length.(gc.rows)
+        before = zeros(n)
+        for (k, r) in enumerate(gc.rows)
+            before[r] .= λ * length(r) .* EvoTrees.dcov2_grad!(gc.caches[k], view(p, r))
+        end
+        @test penalty(ones(n)) == before
     end
 
     @testset "a panel keeps its date-level relationship" begin
@@ -773,7 +827,7 @@ end
     @testset "on the training set it is the training objective" begin
         # with the training set as eval set, the penalised :mse metric is the weighted mse plus λ times
         # the weighted sum of each control's unweighted dependence, pooled or within the eval groups,
-        # each kept group weighing by its share of all eval rows; the eval set's first 3 rows form a
+        # each kept group weighing by its share of the eval weight; the eval set's first 3 rows form a
         # group too small to keep
         λ, ω = 5.0, [1.0, 0.5]
         geval = vcat(fill(41, 3), gid[4:end])
@@ -784,7 +838,7 @@ end
                 y_eval=y, w_eval=wv, ctrl_eval=C, kw..., verbosity=0)
             lg = m.info[:logger]
             @test lg[:penalized]
-            dep(p, c) = within ? sum(length(r) / nobs * dcov2(p[r], build_ctrl(c[r], length(r), "c")) for r in kept) :
+            dep(p, c) = within ? sum(sum(wv[r]) / sum(wv) * dcov2(p[r], build_ctrl(c[r], length(r), "c")) for r in kept) :
                         dcov2(p, build_ctrl(c, nobs, "c"))
             for (j, it) in enumerate(lg[:iter])
                 p = Float64.(predict(m, x; ntree_limit=it)[:, 1])
@@ -873,7 +927,7 @@ end
             EvoTrees.update_grads!(∇0, p, yy, L, params, nothing, nothing)
             EvoTrees.update_grads!(∇1, p, yy, L, params, nothing, EvoTrees.dcor_cache(params, cb, gi, w))
             inc = ∇1[1, :] .- ∇0[1, :]
-            ec = EvoTrees.eval_ctrl(params, L, K, EvoTrees.Controls([cb], [1.0], ["c"]), within ? gi : nothing, feval, n)
+            ec = EvoTrees.eval_ctrl(params, L, K, EvoTrees.Controls([cb], [1.0], ["c"]), within ? gi : nothing, feval, w)
             @test ec.penalized
             term(q) = EvoTrees.eval_penalty!(ec, q)[2]
             # rows with no neighbour within 1e-4, so the step never crosses a kink of the statistic; over
@@ -894,7 +948,7 @@ end
         for within in (false, true)
             params = EvoTreeMLE(loss=:gaussian_mle, ctrl_lambda=2.0, ctrl_within_group=within)
             ec = EvoTrees.eval_ctrl(params, EvoTrees.GaussianMLE, 4, EvoTrees.Controls([cb], [1.0], ["c"]),
-                within ? gi : nothing, EvoTrees.gaussian_mle, n)
+                within ? gi : nothing, EvoTrees.gaussian_mle, ones(n))
             rows = within ? [findall(==(g), g400) for g in 1:8] : [collect(1:n)]
             t(k) = sum(length(r) / n * mean(exp.(-2 .* p4[k+1, r])) * dcov2(p4[k, r], within ? build_ctrl(cb[r], length(r), "c") : cb)
                        for r in rows)

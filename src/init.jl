@@ -252,7 +252,7 @@ function dcor_cache(params::EvoTypes, ctrl::Controls, group, w)
     n = length(first(ctrl.cols))
     if within
         many = length(ctrl.cols) > 1
-        caches = [GroupedDcorCache(c, group; wbar, label=many ? l : nothing) for (c, l) in zip(ctrl.cols, ctrl.labels)]
+        caches = [GroupedDcorCache(c, group; w=wh, label=many ? l : nothing) for (c, l) in zip(ctrl.cols, ctrl.labels)]
         kept = falses(n)
         for c in caches, r in c.rows
             kept[r] .= true

@@ -138,15 +138,14 @@ function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::Abs
     return nothing
 end
 
-# Penalty gradient of each group into `ctrl.g`, groups in parallel.
+# Penalty gradient of each group, `λ W_g ∂dcov2_g`, into `ctrl.g`, groups in parallel.
 function _grouped_grad!(ctrl::GroupedDcorCache, prow::AbstractVector, λ)
-    λw = λ * ctrl.wbar
     @threads for k in eachindex(ctrl.caches)
         rows = ctrl.rows[k]
         gk = _ctrl_grad!(ctrl.caches[k], view(prow, rows))
-        ng = length(rows)
+        λW = λ * ctrl.Wg[k]
         @inbounds for (j, i) in enumerate(rows)
-            ctrl.g[i] = λw * ng * gk[j]
+            ctrl.g[i] = λW * gk[j]
         end
     end
     return ctrl.g

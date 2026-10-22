@@ -305,19 +305,20 @@ function dcov2_value!(dc::DcorCache, x::AbstractVector)
 end
 
 """
-    GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; wbar=1.0, label=nothing)
+    GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; w=nothing, label=nothing)
 
-One `DcorCache` per group of `gi`, the control standardised within the group. Groups below 4 rows,
-or whose control has no usable spread, are skipped.
+One `DcorCache` per group of `gi`, the control standardised within the group, and the sum of each
+group's weights `w` (its number of rows without `w`). Groups below 4 rows, or whose control has no
+usable spread, are skipped.
 """
 struct GroupedDcorCache <: AbstractDcorCache
     caches::Vector{DcorCache}
     rows::Vector{Vector{Int}}
     g::Vector{Float64}
-    wbar::Float64
+    Wg::Vector{Float64}        # weight sum of each kept group
 end
 
-function GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; wbar::Float64=1.0, label=nothing)
+function GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; w=nothing, label=nothing)
     length(gi) == length(ctrl) ||
         throw(DimensionMismatch("control and group lengths differ."))
     caches = DcorCache[]
@@ -342,7 +343,8 @@ function GroupedDcorCache(ctrl::Vector{Float64}, gi::GroupIndex; wbar::Float64=1
         "No group has at least 4 rows and a usable spread in $label, so there is nothing for the " *
         "within-group penalty to act on with it."
     )
-    GroupedDcorCache(caches, rows, zeros(length(ctrl)), wbar)
+    Wg = [isnothing(w) ? Float64(length(r)) : _ordered_sum(view(w, r)) for r in rows]
+    GroupedDcorCache(caches, rows, zeros(length(ctrl)), Wg)
 end
 
 """
@@ -382,7 +384,7 @@ struct EvalCtrl{L,C<:AbstractDcorCache}
     lambda::Float64
     penalized::Bool
     sign::Float64
-    n::Int
+    W::Float64                 # total eval weight
     rows::Vector{Int}
     x::Vector{Float64}
     a::Vector{Float64}
@@ -391,13 +393,15 @@ struct EvalCtrl{L,C<:AbstractDcorCache}
     da::Vector{Float64}
 end
 
-function eval_ctrl(params, ::Type{L}, K::Int, ctrl::Controls, group, feval, n::Int) where {L}
+function eval_ctrl(params, ::Type{L}, K::Int, ctrl::Controls, group, feval, w) where {L}
+    wh = w isa Array ? w : Array(w)
+    n = length(wh)
     within = hasproperty(params, :ctrl_within_group) && params.ctrl_within_group
     if within
         isnothing(group) && error(
             "`ctrl_within_group` is set but the eval set has no groups. Pass `eval_group_name` when " *
             "fitting from a table, or `group_eval` alongside `x_eval`.")
-        caches = [GroupedDcorCache(c, group; label=l) for (c, l) in zip(ctrl.cols, ctrl.labels)]
+        caches = [GroupedDcorCache(c, group; w=wh, label=l) for (c, l) in zip(ctrl.cols, ctrl.labels)]
     else
         caches = [DcorCache(c) for c in ctrl.cols]
     end
@@ -405,21 +409,22 @@ function eval_ctrl(params, ::Type{L}, K::Int, ctrl::Controls, group, feval, n::I
     penalized = lambda > 0 && feval === _own_metric(L)
     nc = length(caches)
     return EvalCtrl{L,eltype(caches)}(caches, ctrl.weights, lambda, penalized,
-        is_maximise(feval) ? -1.0 : 1.0, n, collect(ctrl_rows(L, K)), zeros(n), zeros(n),
+        is_maximise(feval) ? -1.0 : 1.0, _ordered_sum(wh), collect(ctrl_rows(L, K)), zeros(n), zeros(n),
         zeros(nc), zeros(nc), zeros(nc))
 end
 
-# `(d, da)`: one control's dependence, and the same weighted by `a` under `:gaussian_mle`
-function _dependence(dc::DcorCache, x, a, n)
+# `(d, da)`: one control's dependence, and the same weighted by `a` under `:gaussian_mle`; within
+# groups the sum over groups of `W_g / W * dcov2_g`
+function _dependence(dc::DcorCache, x, a, W)
     d = dcov2_value!(dc, x)
     return d, isnothing(a) ? d : d * _ordered_sum(a) / length(a)
 end
-function _dependence(gc::GroupedDcorCache, x, a, n)
+function _dependence(gc::GroupedDcorCache, x, a, W)
     dg = zeros(length(gc.caches))
     dag = zeros(length(gc.caches))
     @threads for k in eachindex(gc.caches)
         rows = gc.rows[k]
-        dg[k] = length(rows) / n * dcov2_value!(gc.caches[k], view(x, rows))
+        dg[k] = gc.Wg[k] / W * dcov2_value!(gc.caches[k], view(x, rows))
         dag[k] = isnothing(a) ? dg[k] : dg[k] * _ordered_sum(view(a, rows)) / length(rows)
     end
     return _ordered_sum(dg), _ordered_sum(dag)
@@ -428,12 +433,12 @@ end
 # pooled controls run in parallel; within groups `_dependence` threads over the groups
 function _dependences!(ec::EvalCtrl{<:Any,DcorCache}, a)
     @threads for c in eachindex(ec.caches)
-        ec.d[c], ec.da[c] = _dependence(ec.caches[c], ec.x, a, ec.n)
+        ec.d[c], ec.da[c] = _dependence(ec.caches[c], ec.x, a, ec.W)
     end
 end
 function _dependences!(ec::EvalCtrl, a)
     for c in eachindex(ec.caches)
-        ec.d[c], ec.da[c] = _dependence(ec.caches[c], ec.x, a, ec.n)
+        ec.d[c], ec.da[c] = _dependence(ec.caches[c], ec.x, a, ec.W)
     end
 end
 

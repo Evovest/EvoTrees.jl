@@ -107,7 +107,7 @@ function CallBack(
         end
         cols = [build_ctrl(Tables.getcolumn(deval, nm), nobs, "deval"; col="`$nm`", eval=true) for nm in names]
         ctrl = eval_ctrl(params, L, K, Controls(cols, ctrl_weights, ["column `$nm` of `deval`" for nm in names]),
-            group_eval, feval, nobs)
+            group_eval, feval, w)
     end
 
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
@@ -170,7 +170,7 @@ function CallBack(
         length(ce.cols) == length(ctrl_weights) || error(
             "`ctrl_eval` has $(length(ce.cols)) controls but `ctrl_train` has $(length(ctrl_weights)). " *
             "Pass the same controls for both sets, in the same order.")
-        ctrl = eval_ctrl(params, L, K, Controls(ce.cols, ctrl_weights, ce.labels), gi, feval, nobs)
+        ctrl = eval_ctrl(params, L, K, Controls(ce.cols, ctrl_weights, ce.labels), gi, feval, w)
     end
 
     offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
