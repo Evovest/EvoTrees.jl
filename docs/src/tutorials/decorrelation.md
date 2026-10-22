@@ -1,326 +1,188 @@
 # Decorrelation penalty
 
-`ctrl_lambda` penalises the dependence between the prediction and a control variable, such as an
-asset's market beta in a stock return model, so the trees favour the part of the signal the control
-does not explain. The dependence is the unbiased squared distance covariance `dcov2`, which is zero
-in population only under independence, so nonlinear dependence is penalised too.
+`ctrl_lambda` penalises the dependence between a model's predictions and one or more control
+variables. The roles of the inputs are:
 
-This tutorial fits a synthetic panel of assets over dates without a penalty, with the penalty over
-the whole sample, and within each date, then shows how to choose `ctrl_lambda`.
+- `X`: the input features;
+- `Y`: the target;
+- `C`: a control variable whose dependence with the predictions should be reduced. `C` may or may
+  not be one of the features.
 
-## Getting started
+Dependence is measured by distance covariance, which is zero only under independence, so the
+penalty also removes nonlinear dependence that a correlation does not see. The
+[design notes](../dcov-design.md) describe how the penalty is defined and computed.
 
-```julia
-using EvoTrees
-using Random
-using Statistics
-using Printf
-```
+## Data
 
-## A synthetic panel
-
-Each row is an asset on a date. The control is the asset's beta: a level shared by all assets on a
-date plus the asset's own part. The return is beta times the market's return on that date, plus
-`alpha`, the part a model should find, plus noise. The market's return is positive on average, so a
-model is rewarded for favouring high beta assets.
+The target depends on `C` only through its square. `C` is not a feature, but the first feature is a
+noisy measurement of it, so a model can learn that dependence. `Y0` is the part of `Y` that does not
+depend on `C`. Rows come in groups of 200, identified by `group`.
 
 ```julia
-rng = Xoshiro(42)
-ndates, nassets = 400, 150
-nobs = ndates * nassets
-date = repeat(1:ndates, inner=nassets)
+using EvoTrees, Random, Statistics, Printf
 
-beta = 1.0 .+ 0.3 .* randn(rng, ndates)[date] .+ 0.4 .* randn(rng, nobs)
-mkt = 0.5 .+ randn(rng, ndates)
-alpha = randn(rng, nobs)
-y = beta .* mkt[date] .+ 0.5 .* alpha .+ randn(rng, nobs)
-
-x = hcat(
-    alpha .+ 0.5 .* randn(rng, nobs),                         # a noisy view of alpha
-    beta .+ 0.2 .* randn(rng, nobs),                          # volatility, a proxy for beta
-    0.5 .* alpha .+ 0.5 .* beta .+ 0.5 .* randn(rng, nobs),   # a feature mixing both
-    randn(rng, nobs),                                         # noise
-)
-```
-
-Dates are split in order into train, validation and test periods:
-
-```julia
-rows(d) = ((d - 1) * nassets + 1):(d * nassets)
-span(dates) = first(rows(first(dates))):last(rows(last(dates)))
-
-train_dates, valid_dates, test_dates = 1:250, 251:325, 326:400
-train = span(train_dates)
-
-x_train, y_train = x[train, :], y[train]
-beta_train, date_train = beta[train], date[train]
-```
-
-## Measuring dependence per date
-
-Each quantity below is computed within each date and averaged over dates:
-
-- `corr`: Pearson correlation of the prediction with the target;
-- `corr_neutral`: the same against the target's residual after regressing it on beta within the date;
-- `dep`: bias-corrected squared distance correlation of the prediction with beta, near zero (and
-  possibly slightly negative) under independence;
-- `dep_pooled`: the same over all rows of the period at once.
-
-`EvoTrees.dcor2` (internal, not exported) computes the squared distance correlation.
-
-```julia
-function neutralise(v, c)
-    out = similar(v)
-    for d in 1:ndates
-        r = rows(d)
-        vd = v[r] .- mean(v[r])
-        cc = c[r] .- mean(c[r])
-        out[r] = vd .- (sum(vd .* cc) / sum(cc .^ 2)) .* cc
-    end
-    return out
-end
-y_neutral = neutralise(y, beta)
-
-safe_cor(a, b) = std(a) > 0 ? cor(a, b) : 0.0
-
-function evaluate(m, dates)
-    p = Float64.(m(x))
-    corr = mean(safe_cor(p[rows(d)], y[rows(d)]) for d in dates)
-    corr_neutral = mean(safe_cor(p[rows(d)], y_neutral[rows(d)]) for d in dates)
-    dep = mean(EvoTrees.dcor2(p[rows(d)], beta[rows(d)]) for d in dates)
-    dep_pooled = EvoTrees.dcor2(p[span(dates)], beta[span(dates)])
-    return (; corr, corr_neutral, dep, dep_pooled)
+function simulate(rng; ngroups=200, group_size=200)
+    n = ngroups * group_size
+    group = repeat(1:ngroups, inner=group_size)
+    c = randn(rng, n)
+    x = hcat(c .+ 0.2 .* randn(rng, n), randn(rng, n, 3))
+    y0 = x[:, 2] .+ 0.5 .* x[:, 3] .+ 0.5 .* x[:, 4]
+    y = y0 .+ 0.8 .* (c .^ 2 .- 1) .+ 0.5 .* randn(rng, n)
+    return (; x, y, y0, c, group)
 end
 
-show_row(name, r) = @printf("%-10s %8.4f %13.4f %8.4f %11.4f\n",
-    name, r.corr, r.corr_neutral, r.dep, r.dep_pooled)
+rng = Xoshiro(1)
+train, valid, test = simulate(rng), simulate(rng), simulate(rng)
 ```
 
-## Three fits
+## Fitting with the penalty
 
-The three models differ only in the penalty. Choosing `λ0` is covered further down.
+The control is passed as `ctrl_train`, one value per row. From a table, pass its column name as
+`ctrl_name` instead; the column is not used as a feature unless listed in `feature_names`.
 
 ```julia
-config(λ; within=false) = EvoTreeRegressor(
-    loss=:mse,
-    nrounds=200,
-    eta=0.05,
-    max_depth=5,
-    seed=1,
-    ctrl_lambda=λ,
-    ctrl_within_group=within,
-)
-λ0 = 10.0
+config(λ) = EvoTreeRegressor(loss=:mse, nrounds=200, eta=0.05, max_depth=5, ctrl_lambda=λ)
+
+m0 = EvoTrees.fit(config(0.0); x_train=train.x, y_train=train.y, verbosity=0)
+m1 = EvoTrees.fit(config(30.0); x_train=train.x, y_train=train.y, ctrl_train=train.c, verbosity=0)
 ```
 
-Without a penalty:
+On the test set, compare the Pearson correlation and the squared distance correlation
+(`EvoTrees.dcor2`, near zero under independence) of the predictions with `C`, and their correlation
+with `Y` and with `Y0`:
 
 ```julia
-m_base = EvoTrees.fit(config(0.0); x_train, y_train, verbosity=0)
+for (name, m) in (("no penalty", m0), ("ctrl_lambda = 30", m1))
+    p = m(test.x)
+    @printf("%-16s  cor(p, C) %.3f  dcor2(p, C) %.3f  cor(p, Y) %.3f  cor(p, Y0) %.3f\n", name,
+        cor(p, test.c), EvoTrees.dcor2(p, test.c), cor(p, test.y), cor(p, test.y0))
+end
 ```
 
-With the penalty over the whole training sample. The control is passed as `ctrl_train`, one value
-per training row, and is not a feature.
+```
+no penalty        cor(p, C) 0.012  dcor2(p, C) 0.085  cor(p, Y) 0.926  cor(p, Y0) 0.754
+ctrl_lambda = 30  cor(p, C) 0.007  dcor2(p, C) 0.016  cor(p, Y) 0.860  cor(p, Y0) 0.902
+```
+
+![Test predictions against the control, without and with the penalty](../assets/decorrelation-control.png)
+
+Without the penalty the predictions follow the square of `C` (left), yet their Pearson correlation
+with `C` is near zero, so a penalty on the correlation would have nothing to remove. The distance
+correlation sees the dependence, and the penalty removes most of it. The predictions then track
+`Y0` more closely and `Y` less, since part of `Y` comes from `C`.
+
+## Within groups
+
+To remove the dependence within each group only, set `ctrl_within_group = true` and pass the group
+ids. The control is then standardised and the penalty computed within each group.
 
 ```julia
-m_pooled = EvoTrees.fit(config(λ0); x_train, y_train, ctrl_train=beta_train, verbosity=0)
-```
+config_g = EvoTreeRegressor(loss=:mse, nrounds=200, eta=0.05, max_depth=5,
+    ctrl_lambda=30.0, ctrl_within_group=true)
+m2 = EvoTrees.fit(config_g; x_train=train.x, y_train=train.y, ctrl_train=train.c,
+    group_train=train.group, verbosity=0)
 
-With the penalty within each date. `ctrl_within_group = true` computes the statistic on each group
-of `group_train` separately, with the control centred and scaled within the group.
-
-```julia
-m_within = EvoTrees.fit(config(λ0; within=true);
-    x_train, y_train, ctrl_train=beta_train, group_train=date_train, verbosity=0)
-```
-
-Evaluated on the test dates:
-
-```julia
-res_base = evaluate(m_base, test_dates)
-res_pooled = evaluate(m_pooled, test_dates)
-res_within = evaluate(m_within, test_dates)
-
-println("model          corr  corr_neutral      dep  dep_pooled")
-show_row("none", res_base)
-show_row("pooled", res_pooled)
-show_row("within", res_within)
-```
-
-| **Model**  | **corr** | **corr_neutral** | **dep** | **dep_pooled** |
-|------------|----------|------------------|---------|----------------|
-| none       | 0.3745 | 0.3734 | 0.0334 | 0.0496 |
-| pooled     | 0.3591 | 0.3824 | 0.0020 | 0.0013 |
-| within     | 0.3601 | 0.3809 | 0.0027 | 0.0026 |
-
-The unpenalised model depends on beta within each date. The penalised models trade some `corr` for
-a lower `dep` and a higher `corr_neutral`.
-
-Under `:mse` the within-date penalty's gradient sums to zero over each date, so it targets the
-dependence within dates rather than the date means.
-
-From a table, name the columns instead. The control and group columns are not used as features
-unless listed in `feature_names`:
-
-```julia
-df_train = (; f1=x_train[:, 1], f2=x_train[:, 2], f3=x_train[:, 3], f4=x_train[:, 4],
-    beta=beta_train, date=date_train, y=y_train)
-
-m_table = EvoTrees.fit(config(λ0; within=true), df_train;
-    target_name="y", ctrl_name="beta", group_name="date", verbosity=0)
-m_table.info[:feature_names]
+rows = [findall(==(g), test.group) for g in unique(test.group)]
+for (name, m) in (("no penalty", m0), ("within groups", m2))
+    p = m(test.x)
+    @printf("%-14s  mean dcor2(p, C) within groups %.3f\n", name,
+        mean(EvoTrees.dcor2(p[r], test.c[r]) for r in rows))
+end
 ```
 
 ```
-[:f1, :f2, :f3, :f4]
+no penalty      mean dcor2(p, C) within groups 0.084
+within groups   mean dcor2(p, C) within groups 0.016
 ```
+
+Here the groups have no structure of their own, so the result is close to the pooled fit. The two
+forms differ when `C` or `Y` has a group-level component: the pooled penalty also acts on the
+dependence between groups, the within-group penalty only on the dependence within them.
 
 ## Choosing `ctrl_lambda`
 
-The right weight depends on the data. Fit a grid on the training dates and evaluate on the
-validation dates:
+Fit a few weights and compare them on validation data. The error rises as the dependence falls:
 
 ```julia
-lambdas = [0.0, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0, 100.0, 300.0]
-sweep = map(lambdas) do λ
-    m = EvoTrees.fit(config(λ; within=true);
-        x_train, y_train, ctrl_train=beta_train, group_train=date_train, verbosity=0)
-    merge((; λ, m), evaluate(m, valid_dates))
-end
-
-println("lambda         corr  corr_neutral      dep  dep_pooled")
-for r in sweep
-    show_row(string(r.λ), r)
+for λ in (0.0, 3.0, 10.0, 30.0, 100.0, 300.0)
+    m = EvoTrees.fit(config(λ); x_train=train.x, y_train=train.y, ctrl_train=train.c, verbosity=0)
+    p = m(valid.x)
+    @printf("ctrl_lambda %5g  mse %.3f  cor(p, C) %+.3f  dcor2(p, C) %.4f\n", λ,
+        mean((p .- valid.y) .^ 2), cor(p, valid.c), EvoTrees.dcor2(p, valid.c))
 end
 ```
 
-| **ctrl_lambda** | **corr** | **corr_neutral** | **dep** | **dep_pooled** |
-|-----------------|----------|------------------|---------|----------------|
-| 0               | 0.3814 | 0.3792 | 0.0315 | 0.0423 |
-| 0.1             | 0.3790 | 0.3771 | 0.0292 | 0.0393 |
-| 0.3             | 0.3805 | 0.3799 | 0.0251 | 0.0336 |
-| 1               | 0.3757 | 0.3801 | 0.0157 | 0.0205 |
-| 3               | 0.3740 | 0.3844 | 0.0065 | 0.0079 |
-| 10              | 0.3676 | 0.3865 | 0.0014 | 0.0014 |
-| 30              | 0.3668 | 0.3875 | -0.0001 | 0.0001 |
-| 100             | 0.3376 | 0.3554 | -0.0006 | 0.0001 |
-| 300             | 0.2757 | 0.2767 | 0.0084 | 0.0131 |
-
-Keep the weight with the best validation score on the quantity the model is judged by, here
-`corr_neutral`, and score it once on the test dates:
-
-```julia
-best = argmax(r -> r.corr_neutral, sweep)
-res_best = evaluate(best.m, test_dates)
-println("chosen ctrl_lambda = ", best.λ)
-show_row("test", res_best)
+```
+ctrl_lambda     0  mse 0.430  cor(p, C) -0.000  dcor2(p, C) 0.0833
+ctrl_lambda     3  mse 0.450  cor(p, C) -0.002  dcor2(p, C) 0.0640
+ctrl_lambda    10  mse 0.556  cor(p, C) -0.003  dcor2(p, C) 0.0382
+ctrl_lambda    30  mse 0.805  cor(p, C) -0.004  dcor2(p, C) 0.0147
+ctrl_lambda   100  mse 1.151  cor(p, C) -0.003  dcor2(p, C) 0.0035
+ctrl_lambda   300  mse 4.265  cor(p, C) +0.159  dcor2(p, C) 0.0229
 ```
 
-The chosen weight is 30, and on the test dates it scores `corr`
-0.3547, `corr_neutral` 0.3806 and `dep`
-0.0013.
-
-For a dependence budget instead, keep the smallest weight whose validation `dep` is under it. Past
-some weight the penalty overshoots: here `corr_neutral` falls from 100 on, and at 300 `dep` rises
-again. Before keeping a weight at the edge of a grid, extend the grid past it.
-
-### Early stopping
-
-With evaluation data, the loss's own metric becomes the penalised objective on the evaluation set,
-and early stopping follows it. The evaluation set needs its own controls and, within dates, its own
-dates:
-
-```julia
-valid = span(valid_dates)
-es_config = EvoTreeRegressor(loss=:mse, nrounds=2000, eta=0.05, max_depth=5, seed=1,
-    ctrl_lambda=λ0, ctrl_within_group=true, early_stopping_rounds=50)
-m_es = EvoTrees.fit(es_config; x_train, y_train, ctrl_train=beta_train, group_train=date_train,
-    x_eval=x[valid, :], y_eval=y[valid], ctrl_eval=beta[valid], group_eval=date[valid], verbosity=0)
-
-lg = m_es.info[:logger]
-b = lg[:best_iter] + 1
-@printf("best round %d: mse %.4f, dependence %.5f, penalised %.4f\n",
-    lg[:best_iter], lg[:base_metrics][b], lg[:ctrl_dependence][b][1], lg[:metrics][b])
-```
-
-| **best round** | **mse** | **dependence** | **penalised** |
-|----------------|---------|----------------|---------------|
-| 51 | 2.5243 | 0.00022 | 2.5265 |
-
-The penalised value is the mse plus `ctrl_lambda` times the dependence (here the size-weighted mean
-of each date's `dcov2`). The logger keeps both parts for every round. Other metrics, such as
-`:pearson`, are reported unchanged. Predict with `ntree_limit=lg[:best_iter]` to use the round early
-stopping chose. Without an offset the first tree is fitted before the penalty acts, so at a strong
-weight the best round can be round 0.
-
-## The scale of `ctrl_lambda`
-
-Under `:mse` the penalty adds `ctrl_lambda * W * dcov2(prediction, control)` to the loss, `W` being
-the total training weight. Within dates it adds `ctrl_lambda * w̄ * n_d * dcov2` for each date `d`,
-`w̄` being the mean training weight and `n_d` the date's number of rows. The control is standardised,
-so its units do not matter. The prediction is not: `dcov2` grows linearly with its spread and the
-squared error quadratically, so a target `c` times larger needs about `c` times the weight:
-
-```julia
-m_y10 = EvoTrees.fit(config(λ0; within=true);
-    x_train, y_train=10 .* y_train, ctrl_train=beta_train, group_train=date_train, verbosity=0)
-m_y10_l10x = EvoTrees.fit(config(10 * λ0; within=true);
-    x_train, y_train=10 .* y_train, ctrl_train=beta_train, group_train=date_train, verbosity=0)
-
-@printf("target x1,  lambda %g:  dep %.4f\n", λ0, res_within.dep)
-@printf("target x10, lambda %g:  dep %.4f\n", λ0, evaluate(m_y10, test_dates).dep)
-@printf("target x10, lambda %g: dep %.4f\n", 10 * λ0, evaluate(m_y10_l10x, test_dates).dep)
-```
-
-| **Target scale** | **ctrl_lambda** | **dep** |
-|------------------|-----------------|---------|
-| 1                | 10 | 0.0027 |
-| 10               | 10 | 0.0173 |
-| 10               | 100 | 0.0028 |
-
-Retune the weight for a target on another scale, or standardise the target first.
+Past some `ctrl_lambda * eta`, between 5 and 15 here, each round overshoots and the fit oscillates
+instead of settling, as at 300. A larger weight needs a smaller `eta`. The weight also scales with
+the target: a target 10 times larger needs about 10 times the weight, so standardise `Y` or retune
+it.
 
 ## Several controls
 
 `ctrl_train` also takes a matrix with one column per control, and `ctrl_name` a vector of names.
-Each control adds its own term, multiplied by its entry in `ctrl_weights` (1 by default). Here the
-volatility feature, a noisy proxy for beta, is added at half the weight of beta:
+Each control adds its own term, multiplied by its entry in `ctrl_weights`. Here the fourth feature
+is added as a second control with half the weight:
 
 ```julia
-vol = x[:, 2]
-m_two = EvoTrees.fit(config(λ0; within=true); x_train, y_train,
-    ctrl_train=hcat(beta_train, vol[train]), ctrl_weights=[1.0, 0.5],
-    group_train=date_train, verbosity=0)
+m3 = EvoTrees.fit(config(30.0); x_train=train.x, y_train=train.y,
+    ctrl_train=hcat(train.c, train.x[:, 4]), ctrl_weights=[1.0, 0.5], verbosity=0)
 
-function dep_on(m, c, dates)
-    p = Float64.(m(x))
-    return mean(EvoTrees.dcor2(p[rows(d)], c[rows(d)]) for d in dates)
-end
-for (name, m) in (("none", m_base), ("beta", m_within), ("beta, vol", m_two))
-    @printf("%-10s dep on beta %.4f  dep on vol %.4f\n", name,
-        dep_on(m, beta, test_dates), dep_on(m, vol, test_dates))
+for (name, m) in (("no penalty", m0), ("C", m1), ("C and X4", m3))
+    p = m(test.x)
+    @printf("%-10s  dcor2(p, C) %.3f  dcor2(p, X4) %.3f\n", name,
+        EvoTrees.dcor2(p, test.c), EvoTrees.dcor2(p, test.x[:, 4]))
 end
 ```
 
-| **Controls** | **dep on beta** | **dep on vol** |
-|--------------|-----------------|----------------|
-| none         | 0.0334 | 0.0302 |
-| beta         | 0.0027 | 0.0005 |
-| beta, vol    | 0.0024 | 0.0001 |
+```
+no penalty  dcor2(p, C) 0.085  dcor2(p, X4) 0.088
+C           dcor2(p, C) 0.016  dcor2(p, X4) 0.124
+C and X4    dcor2(p, C) 0.017  dcor2(p, X4) 0.006
+```
 
-Penalising beta alone already removes most of the dependence on volatility, and the second control
-removes more. The terms are added, so a dependence that shows only in a combination of controls is
-not penalised. Each control adds a sort and a sweep per round.
+Penalising `C` alone makes the model lean more on the fourth feature, and the second control limits
+that. The terms are summed, so a dependence that shows only in a combination of controls is not
+penalised.
+
+## Early stopping
+
+With evaluation data, the loss's own metric includes the penalty, so early stopping follows the
+penalised objective. The evaluation data needs the same controls (`ctrl_eval`, or the `ctrl_name`
+columns in `deval`), and its groups under `ctrl_within_group`.
+
+```julia
+config_es = EvoTreeRegressor(loss=:mse, nrounds=2000, eta=0.05, max_depth=5,
+    ctrl_lambda=30.0, early_stopping_rounds=50)
+m4 = EvoTrees.fit(config_es; x_train=train.x, y_train=train.y, ctrl_train=train.c,
+    x_eval=valid.x, y_eval=valid.y, ctrl_eval=valid.c, verbosity=0)
+
+logger = m4.info[:logger]
+i = logger[:best_iter] + 1
+@printf("best round %d: mse %.4f, dependence %.5f, penalised %.4f\n", logger[:best_iter],
+    logger[:base_metrics][i], logger[:ctrl_dependence][i][1], logger[:metrics][i])
+```
+
+```
+best round 281: mse 0.8030, dependence 0.00793, penalised 1.0408
+```
+
+The penalised value is the mse plus `ctrl_lambda` times the dependence, here `dcov2` of the
+predictions and the standardised control. The logger keeps both parts for every round under
+`:base_metrics` and `:ctrl_dependence`. Other metrics, such as `:mae`, are reported unchanged.
 
 ## Other losses and devices
 
 The penalty is available on `EvoTreeRegressor` for `:mse`, `:logloss`, `:poisson`, `:gamma` and
 `:tweedie`, and on `EvoTreeMLE` for `:gaussian_mle`, where it acts on the location. Under losses
-other than `:mse` the penalty gradient is scaled by the loss curvature, so a given weight has about
-the same effect.
-
-On GPU the penalised gradient rows are copied to the host each round, penalised there and copied
-back, so the cost grows with the number of rows.
-
-The MLJ interface cannot pass a control variable, so the penalty is only available through
-`EvoTrees.fit`.
+other than `:mse` its gradient is weighted by the loss's curvature, so a given weight has about the
+same effect. On GPU the penalty is computed on the host. The MLJ interface cannot pass controls, so
+the penalty is only available through `EvoTrees.fit`.

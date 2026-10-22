@@ -7,7 +7,8 @@ pages = [
     "Models" => "models.md",
     "API" => [
         "Public" => "api.md",
-        "Internals" => "internals.md"
+        "Internals" => "internals.md",
+        "Decorrelation design" => "dcov-design.md"
     ],
     "Tutorials" => [
         "Regression - Boston" => "tutorials/regression-boston.md",

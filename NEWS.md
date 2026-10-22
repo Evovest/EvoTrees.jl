@@ -3,15 +3,15 @@
 ## v0.20.0
 
 ### Decorrelation penalty
-- `ctrl_lambda` penalises dependence between the prediction and one or more control variables, measured by the unbiased squared distance covariance `dcov2`, which also picks up nonlinear dependence. Under `:mse` it adds `ctrl_lambda * W * dcov2(prediction, control)` to the loss, `W` being the total training weight. Each control is centred and scaled first, so `ctrl_lambda` does not depend on its units, but it does depend on the scale of the target. Past some `ctrl_lambda * eta` the penalty overshoots and the fit oscillates between rounds, so a larger weight needs a smaller `eta`.
-- Pass the controls to `EvoTrees.fit` with `ctrl_name` on a table (not used as features unless listed in `feature_names`) or `ctrl_train` alongside `x_train`. With several controls each adds its own term, multiplied by its entry in `ctrl_weights`.
-- `ctrl_within_group = true` computes the penalty within each group of `group_name` / `group_train`, for example one group per date. Under `:mse` its gradient sums to zero within each group, so it targets dependence within groups rather than group means. Groups below 4 rows, or whose control has no usable spread, are skipped.
-- Available for `:mse`, `:logloss`, `:poisson`, `:gamma` and `:tweedie` on `EvoTreeRegressor` and for `:gaussian_mle` (on the location) on `EvoTreeMLE`. Under losses other than `:mse` the penalty gradient is scaled by the loss curvature, so a given `ctrl_lambda` has about the same effect. On GPU the penalty is computed on the host.
-- With evaluation data, the loss's own metric becomes the penalised objective on the evaluation set, and early stopping follows it. The evaluation set then needs the same controls (`ctrl_name` columns in `deval`, or `ctrl_eval`), and its groups under `ctrl_within_group`. The logger also records the base metric and each control's dependence under `:base_metrics` and `:ctrl_dependence`.
+- `ctrl_lambda` penalises the dependence between the predictions and one or more control variables, measured by distance covariance, which also captures nonlinear dependence. Pass the controls to `EvoTrees.fit` with `ctrl_name` on a table or `ctrl_train` alongside `x_train`, and their relative weights with `ctrl_weights`.
+- `ctrl_within_group = true` computes the penalty within each group of `group_name` / `group_train`.
+- Available for `:mse`, `:logloss`, `:poisson`, `:gamma`, `:tweedie` and `:gaussian_mle` (on the location), on CPU and GPU.
+- With evaluation data, the loss's own metric includes the penalty, so early stopping follows the penalised objective. The evaluation data then needs the same controls.
+- `ctrl_lambda` scales with the target. Past some `ctrl_lambda * eta` the fit oscillates between rounds, so a larger weight needs a smaller `eta`.
 
 ```julia
-config = EvoTreeRegressor(; loss=:mse, ctrl_lambda=5.0, ctrl_within_group=true)
-m = fit(config, dtrain; target_name="y", group_name="date", ctrl_name=["beta", "size"])
+config = EvoTreeRegressor(; loss=:mse, ctrl_lambda=10.0, ctrl_within_group=true)
+m = fit(config, dtrain; target_name="y", group_name="group", ctrl_name=["c1", "c2"])
 ```
 
 ### Model structure
