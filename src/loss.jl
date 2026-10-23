@@ -4,6 +4,7 @@ abstract type MLE2P <: LossType end # 2-parameters max-likelihood
 
 abstract type MSE <: GradientRegression end
 abstract type LambdaRank <: GradientRegression end
+abstract type Pearson <: GradientRegression end
 abstract type LogLoss <: GradientRegression end
 abstract type Poisson <: GradientRegression end
 abstract type Gamma <: GradientRegression end
@@ -21,6 +22,7 @@ abstract type CredStd <: Cred end
 const _loss2type_dict = Dict(
     :mse => MSE,
     :lambdarank => LambdaRank,
+    :pearson => Pearson,
     :logloss => LogLoss,
     :poisson => Poisson,
     :gamma => Gamma,
@@ -208,6 +210,112 @@ _lambdarank_no_group() = error(
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{LambdaRank}, params::EvoTypes, group) where {T}
     isnothing(group) && _lambdarank_no_group()
     _lambdarank_grads!(∇, p, y, group, params.ndcg_k)
+end
+
+# `:pearson`: each group's centred prediction is fitted to its standardised target by weighted
+# squared error. See docs/src/pearson-design.md.
+
+_pearson_no_group() = error(
+    "`loss = :pearson` requires group information, one group per date for example. Pass " *
+    "`group_name` when fitting from a table, or `group_train` when fitting from a matrix."
+)
+
+# `(scored, sw, ybar, sy)` of one group: weight sum, weighted mean and sd of `y`.
+function _pearson_group_stats(w, y, rows)
+    n = length(rows)
+    n < 2 && return (false, 0.0, 0.0, 0.0)
+    sw = swy = 0.0
+    ymin = ymax = y[first(rows)]
+    @inbounds for r in rows
+        wr = Float64(w[r])
+        yr = y[r]
+        sw += wr
+        swy += wr * yr
+        ymin = min(ymin, yr)
+        ymax = max(ymax, yr)
+    end
+    # the Float64 variance of a constant Float32 target can be above 0
+    ymin == ymax && return (false, 0.0, 0.0, 0.0)
+    ybar = swy / sw
+    vy = 0.0
+    @inbounds for r in rows
+        d = y[r] - ybar
+        vy += w[r] * d * d
+    end
+    sy = sqrt(vy / sw)
+    sy > 0 || return (false, 0.0, 0.0, 0.0)
+    return (true, sw, ybar, sy)
+end
+
+function _pearson_stats_chunk!(stats, scored, w, y, group, chunk)
+    for g in chunk
+        ok, sw, ybar, sy = _pearson_group_stats(w, y, group_rows(group, g))
+        scored[g] = ok
+        stats[1, g] = sw
+        stats[2, g] = ybar
+        stats[3, g] = sy
+    end
+    return nothing
+end
+
+function _pearson_stats(w, y, group)
+    ng = ngroups(group)
+    stats = Matrix{Float64}(undef, 3, ng)
+    scored = Vector{Bool}(undef, ng)
+    @threads for chunk in _group_chunks(ng)
+        _pearson_stats_chunk!(stats, scored, w, y, group, chunk)
+    end
+    any(scored) || error(
+        "`loss = :pearson` found no group with at least two rows and a non-constant target, " *
+        "so there is nothing to correlate."
+    )
+    return stats, scored
+end
+
+# g and h of the groups in `chunk` into rows 1 and 2 of `∇`.
+function _pearson_write_chunk!(∇::AbstractMatrix{T}, w, p, y, stats, scored, group, chunk) where {T}
+    for g in chunk
+        rows = group_rows(group, g)
+        if !scored[g]
+            @inbounds for r in rows
+                ∇[1, r] = zero(T)
+                ∇[2, r] = zero(T)
+            end
+            continue
+        end
+        sw, ybar, sy = stats[1, g], stats[2, g], stats[3, g]
+        swp = 0.0
+        @inbounds for r in rows
+            swp += Float64(w[r]) * p[1, r]
+        end
+        pbar = swp / sw
+        @inbounds for r in rows
+            w2 = 2 * w[r]
+            ∇[1, r] = T(w2 * ((p[1, r] - pbar) - (y[r] - ybar) / sy))
+            ∇[2, r] = T(w2)
+        end
+    end
+    return nothing
+end
+
+# Shared by both backends.
+function _pearson_grads!(∇::AbstractMatrix, w, p, y, stats, scored, group)
+    @threads for chunk in _group_chunks(ngroups(group))
+        _pearson_write_chunk!(∇, w, p, y, stats, scored, group, chunk)
+    end
+    return nothing
+end
+
+function _pearson_grads!(∇::AbstractMatrix, p::AbstractMatrix, y::AbstractVector, group)
+    w = view(∇, 3, :)
+    stats, scored = _pearson_stats(w, y, group)
+    return _pearson_grads!(∇, w, p, y, stats, scored, group)
+end
+
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVector, ::Type{Pearson}, params::EvoTypes, group) where {T}
+    isnothing(group) && _pearson_no_group()
+    _pearson_grads!(∇, p, y, group)
+    return nothing
 end
 
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:GradientRegression}

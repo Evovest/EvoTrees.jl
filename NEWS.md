@@ -13,6 +13,9 @@
 - `RecipesBase` and `NetworkLayout` are no longer dependencies. Layout is computed in EvoTrees; the recipe is a package extension loaded with Makie.
 - Split labels show the comparison (`≤` for numeric/ordered features, `=` for unordered categoricals). Multi-output leaves show every predicted parameter.
 
+### Pearson loss
+- `loss=:pearson` fits the Pearson correlation between the predictions and the target within each group of `group_name` / `group_train`, so it is only available through `EvoTrees.fit`. `metric` defaults to `:pearson`.
+
 ## v0.18.8
 
 Saved `:gaussian_mle` / `:logistic_mle` models from ≤0.18.7 remain compatible: the unconstrained scale is still `exp(x)`.
