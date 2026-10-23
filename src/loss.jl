@@ -212,19 +212,15 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
     _lambdarank_grads!(∇, p, y, group, params.ndcg_k)
 end
 
-# `:pearson`: each group's centred prediction is fitted to the group's standardised target by
-# weighted squared error (CatBoost's QueryRMSE). Within a group the error is
-# (s - r)^2 + 1 - r^2 for prediction spread s and correlation r. The curvature 2w is exact up to
-# the dropped centring term. Each row counts once, so a group weighs by its size.
+# `:pearson`: each group's centred prediction is fitted to its standardised target by weighted
+# squared error. See docs/src/pearson-design.md.
 
 _pearson_no_group() = error(
     "`loss = :pearson` requires group information, one group per date for example. Pass " *
     "`group_name` when fitting from a table, or `group_train` when fitting from a matrix."
 )
 
-# Weight sum, weighted mean and sd of y for one group. They do not depend on the prediction, so
-# the GPU path computes them once. A group with fewer than two rows or a constant target is not
-# scored.
+# `(scored, sw, ybar, sy)` of one group: weight sum, weighted mean and sd of `y`.
 function _pearson_group_stats(w, y, rows)
     n = length(rows)
     n < 2 && return (false, 0.0, 0.0, 0.0)
@@ -238,7 +234,7 @@ function _pearson_group_stats(w, y, rows)
         ymin = min(ymin, yr)
         ymax = max(ymax, yr)
     end
-    # tested on the stored values: the Float64 variance of a constant Float32 target can be above 0
+    # the Float64 variance of a constant Float32 target can be above 0
     ymin == ymax && return (false, 0.0, 0.0, 0.0)
     ybar = swy / sw
     vy = 0.0
@@ -276,7 +272,7 @@ function _pearson_stats(w, y, group)
     return stats, scored
 end
 
-# Writes g and h to rows 1 and 2 of ∇, centring p on its weighted mean within the group.
+# g and h of the groups in `chunk` into rows 1 and 2 of `∇`.
 function _pearson_write_chunk!(∇::AbstractMatrix{T}, w, p, y, stats, scored, group, chunk) where {T}
     for g in chunk
         rows = group_rows(group, g)
@@ -302,9 +298,7 @@ function _pearson_write_chunk!(∇::AbstractMatrix{T}, w, p, y, stats, scored, g
     return nothing
 end
 
-# Shared by both backends: the GPU path keeps w, y and the group stats from init and writes to
-# its own two-row buffer. Each group is summed within one task, so the result does not depend
-# on the thread partition.
+# Shared by both backends.
 function _pearson_grads!(∇::AbstractMatrix, w, p, y, stats, scored, group)
     @threads for chunk in _group_chunks(ngroups(group))
         _pearson_write_chunk!(∇, w, p, y, stats, scored, group, chunk)

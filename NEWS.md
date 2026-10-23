@@ -14,7 +14,7 @@
 - Split labels show the comparison (`≤` for numeric/ordered features, `=` for unordered categoricals). Multi-output leaves show every predicted parameter.
 
 ### Pearson loss
-- `EvoTreeRegressor` adds `loss=:pearson`, for the Pearson correlation between prediction and target within each group (one group per date, for example): each group's centred prediction is fitted to its standardised target. It requires groups, so it is only available through `EvoTrees.fit`, and defaults to `metric=:pearson`.
+- `loss=:pearson` fits the Pearson correlation between the predictions and the target within each group of `group_name` / `group_train`, so it is only available through `EvoTrees.fit`. `metric` defaults to `:pearson`.
 
 ## v0.18.8
 
