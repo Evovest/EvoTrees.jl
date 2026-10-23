@@ -353,12 +353,12 @@ function pearson(
 end
 
 """
-    pearson_mse(p, y, w, eval; group, kwargs...)
+    pearson_mse(p::AbstractMatrix, y::AbstractVector, w::AbstractVector, eval::AbstractVector; group)
 
-The objective `loss = :pearson` fits, per unit weight: within each group, the weighted squared
-error of the centred prediction against the standardised target, summed over the groups the loss
-scores and divided by the total weight. Under `loss = :pearson` with `ctrl_lambda > 0` it includes
-the decorrelation penalty, so early stopping follows the penalised objective.
+The objective of `loss = :pearson` per unit weight, for predictions `p` of size `(1, n)`: the
+weighted squared error of each group's centred prediction against its standardised target, summed
+over the groups of `group` with at least two rows and a non-constant target, divided by `sum(w)`.
+Writes each row's term to `eval` and returns a scalar.
 """
 function pearson_mse(
     p::AbstractMatrix{T},
