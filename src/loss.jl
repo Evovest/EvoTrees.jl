@@ -106,10 +106,7 @@ end
 update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group) where {L} =
     update_grads!(∇, p, y, L, params)
 
-# Base gradients, then the decorrelation penalty. Under `:mse` the penalty is
-# `ctrl_lambda * W * dcov2(p, ctrl)`, `W` the total weight, which puts its O(1/n) per-row gradient
-# on the base loss's footing.
-# It is piecewise linear in `p`, so the Hessian is untouched.
+# Base gradients, then the decorrelation penalty on the gradient rows. See docs/src/dcov-design.md.
 function update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group, ctrl) where {L}
     update_grads!(∇, p, y, L, params, group)
     isnothing(ctrl) && return nothing
@@ -122,14 +119,12 @@ function update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group, ctrl) wher
     return nothing
 end
 
-# The rows the penalty acts on: every output, or each target's location under a two-parameter
-# likelihood. A row's Hessian is `K` rows below it and the weights are in row `2K + 1`.
+# Penalised rows of `∇`: every output, or each location under `MLE2P`. Hessians are `K` rows below,
+# weights in row `2K + 1`.
 ctrl_rows(::Type{<:GradientRegression}, K) = 1:K
 ctrl_rows(::Type{<:MLE2P}, K) = 1:2:K
 
-# Each row's penalty gradient is weighted by its Hessian relative to the `:mse` curvature, `h / 2w`
-# (1 under `:mse`), so a penalised leaf moves about as it would under `:mse`. Unweighted, the
-# penalty dominates rows where the likelihood is flat and the fit diverges.
+# Curvature relative to `:mse`, 1 under `:mse`.
 @inline _curvature(h, w) = w > 0 ? h / (2 * w) : zero(h)
 
 _ctrl_grad!(dc::DcorCache, x::AbstractVector) = dcov2_grad!(dc, x)
@@ -145,15 +140,14 @@ function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::Abs
     return nothing
 end
 
-# Within groups each group adds `λ * wbar * n_g * dcov2(p_g, ctrl_g)`; the groups run in parallel.
+# Penalty gradient of each group, `λ W_g ∂dcov2_g`, into `ctrl.g`, groups in parallel.
 function _grouped_grad!(ctrl::GroupedDcorCache, prow::AbstractVector, λ)
-    λw = λ * ctrl.wbar
     @threads for k in eachindex(ctrl.caches)
         rows = ctrl.rows[k]
         gk = _ctrl_grad!(ctrl.caches[k], view(prow, rows))
-        ng = length(rows)
+        λW = λ * ctrl.Wg[k]
         @inbounds for (j, i) in enumerate(rows)
-            ctrl.g[i] = λw * ng * gk[j]
+            ctrl.g[i] = λW * gk[j]
         end
     end
     return ctrl.g
@@ -169,8 +163,7 @@ function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::Abs
     return nothing
 end
 
-# Several controls, see `SummedDcorCache`. Over the whole sample the controls run in parallel,
-# within groups the groups do.
+# Several controls: pooled controls run in parallel, within groups the groups do.
 function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
     prow::AbstractVector, ctrl::SummedDcorCache{DcorCache}, λ) where {T}
     caches, ω, acc = ctrl.caches, ctrl.weights, ctrl.acc
@@ -192,7 +185,7 @@ function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::Abs
     for c in caches
         _grouped_grad!(c, prow, λ)
     end
-    # a group one control skips holds zeros in that control's gradient, so it adds nothing there
+    # rows a control skips hold zeros in its gradient
     _sum_controls!(acc, caches, ω, ctrl.rows)
     @inbounds for i in ctrl.rows
         grow[i] += T(acc[i] * _curvature(hrow[i], wrow[i]))
@@ -214,8 +207,7 @@ function _sum_controls!(acc, caches, ω, rows)
     return acc
 end
 
-# The metric the eval penalty is added to. Other metrics have no exchange rate for `ctrl_lambda`
-# and are reported unchanged.
+# The metric the eval penalty is added to; other metrics are reported unchanged.
 _own_metric(::Type{MSE}) = mse
 _own_metric(::Type{LogLoss}) = logloss
 _own_metric(::Type{Poisson}) = poisson
@@ -225,11 +217,7 @@ _own_metric(::Type{GaussianMLE}) = gaussian_mle
 _own_metric(::Type{Pearson}) = pearson_mse
 _own_metric(::Type) = nothing
 
-# `g` sees the prediction only through its ranks, so the weighted gradient `g * h / 2w` is the
-# gradient of `dcov2` of an increasing transform of the prediction: `_dep_transform` is that
-# transform and `_dep_coef` puts the term in the metric's units. Exact under `:mse`, `:logloss`,
-# `:poisson`, and `:pearson` on the dates it scores; under `:gamma` and `:tweedie` at a calibrated
-# fit; under `:gaussian_mle` at a constant scale.
+# Eval penalty: `_dep_coef(L) * dcov2(_dep_transform(L, p), ctrl)`, see docs/src/dcov-design.md.
 _dep_transform(::Type{<:Union{MSE,Gamma,GaussianMLE,Pearson}}, p) = p
 _dep_transform(::Type{LogLoss}, p) = sigmoid(p)
 _dep_transform(::Type{Poisson}, p) = exp(p)

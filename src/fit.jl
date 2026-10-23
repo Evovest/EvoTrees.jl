@@ -307,10 +307,10 @@ Main training function. Performs model fitting given configuration `params`, `dt
 - `feature_names = nothing`: the names `dtrain` variables to use as features. If not provided, it deafults to all variables that aren't one of `target`, `weight` or `offset``.
 - `weight_name = nothing`: name of the variable containing weights. If `nothing`, common weights on one will be used.
 - `offset_name = nothing`: name of the offset variable.
-- `group_name = nothing`: name of the variable identifying the group each row belongs to, such as a query for ranking or a date for `:pearson` or `ctrl_within_group`. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
-- `eval_group_name = group_name`: name of the group variable in `deval`, defaulting to `group_name`. A group-aware metric such as `:ndcg` or `:pearson` requires it, as do controls under `ctrl_within_group = true`. Set it on its own to evaluate over groups while training with the usual per-row sampling.
-- `ctrl_name = nothing`: name of a control variable the predictions should not depend on, or a vector of names, penalised with `ctrl_lambda` on the learner. These columns are not used as features unless listed in `feature_names`, and `deval` must carry them too.
-- `ctrl_weights = nothing`: weight of each control's penalty term, in the order of `ctrl_name`. Defaults to 1 for every control.
+- `group_name = nothing`: name of the variable identifying the group (query) each row belongs to, for ranking, `:pearson` or `ctrl_within_group`. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
+- `eval_group_name = group_name`: name of the group variable in `deval`, defaulting to `group_name`. A group-aware metric such as `:ndcg` or `:pearson` requires it, as does `ctrl_within_group`. Set it on its own to evaluate over groups while training with the usual per-row sampling.
+- `ctrl_name = nothing`: name of the control variable, or a vector of names, whose dependence with the predictions is penalised by `ctrl_lambda`. Not used as a feature unless listed in `feature_names`. Must also be in `deval`, and the loss's own eval metric then includes the penalty (`:pearson_mse` under `loss = :pearson`).
+- `ctrl_weights = nothing`: weight of each control in `ctrl_name`. Defaults to 1 for each.
 - `deval`: A Tables compatible evaluation data containing features and target variables. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -409,11 +409,11 @@ Main training function. Performs model fitting given configuration `params`, `x_
 - `y_eval::VecOrMat`: vector or matrix of evaluation targets of length `#observations` or size `(#observations, #targets)`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
-- `group_train::Vector`: group id of each training row, such as a query for ranking or a date for `:pearson` or `ctrl_within_group`. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
-- `group_eval::Vector`: group id of each evaluation row. Required by `metric = :ndcg`, `:pearson` and `:pearson_mse`, and by controls under `ctrl_within_group = true`.
-- `ctrl_train::VecOrMat`: control variable of each training row, or a matrix of size `(#observations, #controls)` for several, penalised with `ctrl_lambda` on the learner.
-- `ctrl_weights::Vector`: weight of each control's penalty term, one per column of `ctrl_train`. Defaults to 1 for every control.
-- `ctrl_eval::VecOrMat`: the controls of each evaluation row, with the same columns as `ctrl_train`. Required when `ctrl_train` and evaluation data are both given. With `ctrl_lambda > 0` the loss's own metric includes the penalty (`:pearson_mse` under `loss = :pearson`). The logger also records the base metric and each control's dependence under `:base_metrics` and `:ctrl_dependence`.
+- `group_train::Vector`: group (query) id of each training row, for ranking tasks, `:pearson` or `ctrl_within_group`. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
+- `group_eval::Vector`: group id of each evaluation row. Required by `metric = :ndcg`, `:pearson` and `:pearson_mse`, and by `ctrl_within_group`.
+- `ctrl_train::VecOrMat`: control variable of length `#observations`, or matrix of size `(#observations, #controls)`, whose dependence with the predictions is penalised by `ctrl_lambda`.
+- `ctrl_eval::VecOrMat`: evaluation controls, with the same columns as `ctrl_train`. Required when `ctrl_train` and evaluation data are given. The loss's own metric then includes the penalty (`:pearson_mse` under `loss = :pearson`).
+- `ctrl_weights::Vector`: weight of each column of `ctrl_train`. Defaults to 1 for each.
 - `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -450,7 +450,6 @@ function fit(
     if !logging_flag && any_flag
         @warn "To track eval metric in logger, both `x_eval` and `y_eval` must be provided."
     end
-    # the eval metric includes the penalty, so it needs the eval set's controls
     if logging_flag && !isnothing(ctrl_train) && isnothing(ctrl_eval)
         error("Controls were given for training but not for the eval set. Pass `ctrl_eval` alongside " *
               "`x_eval`, with the same controls as `ctrl_train`.")

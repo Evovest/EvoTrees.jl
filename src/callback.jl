@@ -97,7 +97,6 @@ function CallBack(
     end
     hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
 
-    # the eval set carries the same control columns as the training set
     ctrl = nothing
     if !isnothing(ctrl_name)
         names = ctrl_name isa AbstractVector ? Symbol.(ctrl_name) : [Symbol(ctrl_name)]
@@ -108,7 +107,7 @@ function CallBack(
         end
         cols = [build_ctrl(Tables.getcolumn(deval, nm), nobs, "deval"; col="`$nm`", eval=true) for nm in names]
         ctrl = eval_ctrl(params, L, K, Controls(cols, ctrl_weights, ["column `$nm` of `deval`" for nm in names]),
-            group_eval, feval, nobs)
+            group_eval, feval, w)
     end
 
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
@@ -171,7 +170,7 @@ function CallBack(
         length(ce.cols) == length(ctrl_weights) || error(
             "`ctrl_eval` has $(length(ce.cols)) controls but `ctrl_train` has $(length(ctrl_weights)). " *
             "Pass the same controls for both sets, in the same order.")
-        ctrl = eval_ctrl(params, L, K, Controls(ce.cols, ctrl_weights, ce.labels), gi, feval, nobs)
+        ctrl = eval_ctrl(params, L, K, Controls(ce.cols, ctrl_weights, ce.labels), gi, feval, w)
     end
 
     offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
@@ -209,8 +208,7 @@ function (cb::CallBack)(logger, iter, trees)
     return cb(logger, iter)
 end
 
-# With controls the logger also keeps the base metric and each control's dependence per round,
-# and whether `:metrics`, which early stopping reads, includes the penalty.
+# With controls the logger also keeps `:base_metrics`, `:ctrl_dependence` and `:penalized`.
 function init_logger(; metric, maximise, early_stopping_rounds, early_stopping_tolerance=0.0, ctrl=nothing)
     logger = Dict(
         :name => String(metric),
