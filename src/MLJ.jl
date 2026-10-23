@@ -205,6 +205,8 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 - `alpha=0.5`:            Loss specific parameter in the [0, 1] range:
                             - `:quantile`: target quantile for the regression.
 - `ndcg_k`:               Truncation rank for `metric = :ndcg` and for the `:lambdarank` objective, that is the `k` of NDCG@k. Must be >= 1. Defaults to no truncation, scoring the full list of each group. Ranking is only available through `EvoTrees.fit`, see `:lambdarank` above.
+- `ctrl_lambda=0.0`:      Weight of the penalty on the distance covariance between the predictions and the control variables. Must be >= 0. Supported for `:mse`, `:logloss`, `:poisson`, `:gamma` and `:tweedie`. Controls are passed to `EvoTrees.fit` (`ctrl_name` or `ctrl_train`), not through MLJ.
+- `ctrl_within_group=false`: Whether to compute the penalty within each group (`group_name` or `group_train`) rather than over all observations.
 - `max_depth=6`:          Maximum number of splits on a leaf path. Must be >= 1. Depth 1 is a split with 2 leaves.
   A complete tree of depth N contains `2^N` terminal leaves and `2^N - 1` split nodes.
   Compute cost is proportional to `2^max_depth`. Typical optimal values are in the 3 to 9 range.
@@ -733,6 +735,8 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
 - `rowsample=1.0`:        Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`. When groups are supplied, whole groups are sampled rather than individual rows, so a group is never split across the sampled and unsampled sets.
 - `colsample=1.0`:        Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `nbins=64`:             Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
+- `ctrl_lambda=0.0`:      Weight of the penalty on the distance covariance between the predicted location and the control variables. Must be >= 0. Supported for `:gaussian_mle`. Controls are passed to `EvoTrees.fit` (`ctrl_name` or `ctrl_train`), not through MLJ.
+- `ctrl_within_group=false`: Whether to compute the penalty within each group (`group_name` or `group_train`) rather than over all observations.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   !Experimental feature: note that for MLE regression, constraints may not be enforced systematically.
 - `tree_type=:binary`     Tree structure to be used. One of:

@@ -28,6 +28,7 @@ import Base: convert
 import Base: depwarn
 
 include("groups.jl")
+include("dcor.jl")
 include("learners.jl")
 include("loss.jl")
 include("split.jl")
