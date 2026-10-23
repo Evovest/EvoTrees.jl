@@ -207,3 +207,19 @@ function EvoTrees.update_grads!(
     copyto!(∇, ∇_cpu)
     return nothing
 end
+
+# Computed on the host, as for `:lambdarank`.
+function EvoTrees.update_grads!(
+    ∇::CuMatrix,
+    p::CuMatrix,
+    y::CuVector,
+    ::Type{EvoTrees.XENDCG},
+    params::EvoTrees.EvoTypes,
+    group,
+)
+    isnothing(group) && EvoTrees._xendcg_no_group()
+    ∇_cpu = Array(∇)
+    EvoTrees._xendcg_grads!(∇_cpu, Array(p), Array(y), group.index)
+    copyto!(∇, ∇_cpu)
+    return nothing
+end

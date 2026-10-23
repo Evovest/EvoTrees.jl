@@ -13,6 +13,10 @@
 - `RecipesBase` and `NetworkLayout` are no longer dependencies. Layout is computed in EvoTrees; the recipe is a package extension loaded with Makie.
 - Split labels show the comparison (`≤` for numeric/ordered features, `=` for unordered categoricals). Multi-output leaves show every predicted parameter.
 
+### XE-NDCG ranking loss
+- `loss=:xendcg`: the XE-NDCG listwise ranking loss (Bruch, WWW 2021), linear in the size of each group. `metric` defaults to `:xendcg`, the same loss on the evaluation groups.
+- `:lambdarank` and `:xendcg` reject a multi-column target, which `:lambdarank` used to fit on the wrong values.
+
 ## v0.18.8
 
 Saved `:gaussian_mle` / `:logistic_mle` models from ≤0.18.7 remain compatible: the unconstrained scale is still `exp(x)`.

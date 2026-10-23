@@ -4,6 +4,7 @@ abstract type MLE2P <: LossType end # 2-parameters max-likelihood
 
 abstract type MSE <: GradientRegression end
 abstract type LambdaRank <: GradientRegression end
+abstract type XENDCG <: GradientRegression end
 abstract type LogLoss <: GradientRegression end
 abstract type Poisson <: GradientRegression end
 abstract type Gamma <: GradientRegression end
@@ -21,6 +22,7 @@ abstract type CredStd <: Cred end
 const _loss2type_dict = Dict(
     :mse => MSE,
     :lambdarank => LambdaRank,
+    :xendcg => XENDCG,
     :logloss => LogLoss,
     :poisson => Poisson,
     :gamma => Gamma,
@@ -208,6 +210,91 @@ _lambdarank_no_group() = error(
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{LambdaRank}, params::EvoTypes, group) where {T}
     isnothing(group) && _lambdarank_no_group()
     _lambdarank_grads!(∇, p, y, group, params.ndcg_k)
+end
+
+# XE-NDCG (Bruch, "An Alternative Cross Entropy Loss for Learning-to-Rank", WWW 2021). The paper
+# draws the 1/2 of the target 2^grade - 1/2 from [0, 1] each round; it is fixed here. Scratch is
+# Float64, as Float32 sums over a large query are too coarse for the metric.
+struct XENDCGScratch
+    e::Vector{Float64}
+    a::Vector{Float64}
+end
+XENDCGScratch() = XENDCGScratch(Float64[], Float64[])
+
+# Target masses of a query into `a`, scaled by 2^-max(grade) against overflow. Returns their sum.
+function _xendcg_target!(a::Vector{Float64}, y, rows)
+    resize!(a, length(rows))
+    ymax = -Inf
+    @inbounds for r in rows
+        ymax = max(ymax, Float64(y[r]))
+    end
+    h = exp2(-ymax) / 2
+    tot = 0.0
+    @inbounds for (i, r) in enumerate(rows)
+        a[i] = exp2(Float64(y[r]) - ymax) - h
+        tot += a[i]
+    end
+    return tot
+end
+
+function _xendcg_softmax!(e::Vector{Float64}, p, rows)
+    resize!(e, length(rows))
+    smax = -Inf
+    @inbounds for r in rows
+        smax = max(smax, Float64(p[1, r]))
+    end
+    z = 0.0
+    @inbounds for (i, r) in enumerate(rows)
+        e[i] = exp(Float64(p[1, r]) - smax)
+        z += e[i]
+    end
+    e ./= z
+    return e
+end
+
+# A query weighs by the mean of its rows' weights, as for `:ndcg`.
+function _xendcg_group!(buf::XENDCGScratch, ∇::Matrix{T}, p::Matrix{T}, y, rows) where {T}
+    length(rows) < 2 && return nothing
+    tot = _xendcg_target!(buf.a, y, rows)
+    ρ = _xendcg_softmax!(buf.e, p, rows)
+    w = 0.0
+    @inbounds for r in rows
+        w += ∇[3, r]
+    end
+    w /= length(rows)
+    @inbounds for (i, r) in enumerate(rows)
+        ∇[1, r] = T(w * (ρ[i] - buf.a[i] / tot))
+        ∇[2, r] = T(w * ρ[i] * (1 - ρ[i]))
+    end
+    return nothing
+end
+
+function _xendcg_chunk!(∇::Matrix{T}, p::Matrix{T}, y, group, chunk) where {T}
+    buf = XENDCGScratch()
+    for g in chunk
+        _xendcg_group!(buf, ∇, p, y, group_rows(group, g))
+    end
+    return nothing
+end
+
+# Shared by both backends.
+function _xendcg_grads!(∇::Matrix{T}, p::Matrix{T}, y, group) where {T}
+    fill!(view(∇, 1, :), zero(T))
+    fill!(view(∇, 2, :), zero(T))
+    @threads for chunk in _group_chunks(ngroups(group))
+        _xendcg_chunk!(∇, p, y, group, chunk)
+    end
+    return nothing
+end
+
+_xendcg_no_group() = error(
+    "`loss = :xendcg` requires group information. Pass `group_name` when fitting " *
+    "from a table, or `group_train` when fitting from a matrix."
+)
+
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{XENDCG}, params::EvoTypes, group) where {T}
+    isnothing(group) && _xendcg_no_group()
+    _xendcg_grads!(∇, p, y, group)
 end
 
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:GradientRegression}

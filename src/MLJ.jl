@@ -182,6 +182,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:cred_var`: **experimental** credibility-based gains, derived from ratio of spread to process variance.
   - `:cred_std`: **experimental** credibility-based gains, derived from ratio of spread to process std deviation.
   - `:lambdarank`: ranking objective. Pairwise within each query, weighted by the NDCG change a swap would cause. Requires groups, so it is only available through `EvoTrees.fit`, not through the MLJ interface, which has no way to pass them.
+  - `:xendcg`: listwise ranking objective (XE-NDCG). Cross-entropy between the softmax of each query's scores and a target proportional to `2^rel - 1/2`. Requires groups, so like `:lambdarank` it is only available through `EvoTrees.fit`.
 - `metric`:     The evaluation metric used to track evaluation data and serves as a basis for early stopping. Supported metrics are: 
   - `:mse`:     Mean-squared error. Adapted for general regression models.
   - `:rmse`:    Root-mean-squared error. Adapted for general regression models.
@@ -195,6 +196,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:gini`: The normalized Gini between pred and target
   - `:ndcg`: Normalized discounted cumulative gain, computed within each group and averaged over groups, with truncation set by `ndcg_k`. Requires groups and evaluation data, so it is only meaningful through `EvoTrees.fit`: the MLJ interface passes neither, and the metric is simply never evaluated there.
   - `:pearson`: Weighted Pearson correlation between prediction and target, computed within each group and averaged over groups. Requires groups and evaluation data, so like `:ndcg` it is only meaningful through `EvoTrees.fit`.
+  - `:xendcg`: The `:xendcg` loss, averaged over groups. Requires groups, so like `:ndcg` it is only meaningful through `EvoTrees.fit`.
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:               Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
