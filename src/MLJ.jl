@@ -182,7 +182,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:cred_var`: **experimental** credibility-based gains, derived from ratio of spread to process variance.
   - `:cred_std`: **experimental** credibility-based gains, derived from ratio of spread to process std deviation.
   - `:lambdarank`: ranking objective. Pairwise within each query, weighted by the NDCG change a swap would cause. Requires groups, so it is only available through `EvoTrees.fit`, not through the MLJ interface, which has no way to pass them.
-  - `:xendcg`: listwise ranking objective (XE-NDCG), a softmax over each query's scores fitted by cross-entropy to a target of mass `2^rel - 1/2` per document. Requires groups, so like `:lambdarank` it is only available through `EvoTrees.fit`.
+  - `:xendcg`: listwise ranking objective (XE-NDCG). Cross-entropy between the softmax of each query's scores and a target proportional to `2^rel - 1/2`. Requires groups, so like `:lambdarank` it is only available through `EvoTrees.fit`.
 - `metric`:     The evaluation metric used to track evaluation data and serves as a basis for early stopping. Supported metrics are: 
   - `:mse`:     Mean-squared error. Adapted for general regression models.
   - `:rmse`:    Root-mean-squared error. Adapted for general regression models.

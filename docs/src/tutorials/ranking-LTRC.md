@@ -251,10 +251,9 @@ opening of this tutorial reports.
 
 ## Listwise objective: XE-NDCG
 
-`loss=:xendcg` (Bruch, "An Alternative Cross Entropy Loss for Learning-to-Rank", WWW 2021) fits a
-softmax over each query's scores, by cross-entropy, to a target with mass `2^rel - 1/2` on each
-document. Its cost is linear in the size of a query, with no sort. `metric` defaults to
-`:xendcg`, the same loss on the evaluation queries; `metric=:ndcg` tracks NDCG instead.
+`loss=:xendcg` is the listwise loss of Bruch, "An Alternative Cross Entropy Loss for
+Learning-to-Rank" (WWW 2021). Its cost is linear in the size of a query. `metric` defaults to
+`:xendcg`; set `metric=:ndcg` to track NDCG instead.
 
 ```julia
 config = EvoTreeRegressor(
@@ -276,9 +275,8 @@ m = EvoTrees.fit(
 );
 ```
 
-The paper draws the 1/2 uniformly from [0, 1] every round; here it is fixed at that mean.
-Relevance must be non-negative. A query's Hessians sum to less than 1, so `L2` regularises
-more strongly than under `:mse`.
+Relevance must be non-negative. A query's Hessians sum to less than 1, so `L2` regularises more
+strongly than under `:mse`.
 
 ## Logistic regression alternative
 

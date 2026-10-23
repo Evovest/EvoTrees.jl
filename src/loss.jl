@@ -212,19 +212,16 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
     _lambdarank_grads!(∇, p, y, group, params.ndcg_k)
 end
 
-# XE-NDCG, per Bruch, "An Alternative Cross Entropy Loss for Learning-to-Rank" (WWW 2021).
-# Cross-entropy between the softmax of a query's scores and a target of mass 2^grade - 1/2 per
-# document; the paper draws the 1/2 from [0, 1] each round. The gradient is softmax minus target
-# and the Hessian its diagonal.
-# Float64 scratch: the metric shares it, and Float32 sums over a large query err by as much as
-# the metric moves between late rounds.
+# XE-NDCG (Bruch, "An Alternative Cross Entropy Loss for Learning-to-Rank", WWW 2021). The paper
+# draws the 1/2 of the target 2^grade - 1/2 from [0, 1] each round; it is fixed here. Scratch is
+# Float64, as Float32 sums over a large query are too coarse for the metric.
 struct XENDCGScratch
     e::Vector{Float64}
     a::Vector{Float64}
 end
 XENDCGScratch() = XENDCGScratch(Float64[], Float64[])
 
-# Scaled by 2^-max(grade) so a large grade cannot overflow; the scale cancels on normalising.
+# Target masses of a query into `a`, scaled by 2^-max(grade) against overflow. Returns their sum.
 function _xendcg_target!(a::Vector{Float64}, y, rows)
     resize!(a, length(rows))
     ymax = -Inf
@@ -280,7 +277,7 @@ function _xendcg_chunk!(∇::Matrix{T}, p::Matrix{T}, y, group, chunk) where {T}
     return nothing
 end
 
-# Shared by both backends: the GPU path brings its arrays to the host and calls this.
+# Shared by both backends.
 function _xendcg_grads!(∇::Matrix{T}, p::Matrix{T}, y, group) where {T}
     fill!(view(∇, 1, :), zero(T))
     fill!(view(∇, 2, :), zero(T))

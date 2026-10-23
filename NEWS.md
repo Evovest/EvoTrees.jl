@@ -14,8 +14,8 @@
 - Split labels show the comparison (`≤` for numeric/ordered features, `=` for unordered categoricals). Multi-output leaves show every predicted parameter.
 
 ### XE-NDCG ranking loss
-- `loss=:xendcg`: listwise ranking loss (Bruch, WWW 2021), a softmax over each group's scores fitted by cross-entropy to a target of mass `2^rel - 1/2` per document. Linear in group size, with no sort. `metric` defaults to `:xendcg`, its loss on the evaluation groups. On GPU both run on the host, as for `:lambdarank`.
-- `:lambdarank` and `:xendcg` reject a multi-column target, which `:lambdarank` used to fit silently on the wrong values.
+- `loss=:xendcg`: the XE-NDCG listwise ranking loss (Bruch, WWW 2021), linear in the size of each group. `metric` defaults to `:xendcg`, the same loss on the evaluation groups.
+- `:lambdarank` and `:xendcg` reject a multi-column target, which `:lambdarank` used to fit on the wrong values.
 
 ## v0.18.8
 

@@ -298,9 +298,8 @@ end
 """
     xendcg(p, y, w, eval; group, kwargs...)
 
-The `:xendcg` loss, computed within each group then averaged over groups. Lower is better.
-Requires the group index supplied at fit through `group_name` or `group_eval`. As for `:ndcg`, a
-group weighs by the mean of its rows' weights. Groups of one row are left out.
+The `:xendcg` loss within each group, averaged over groups weighted by their mean row weight.
+Groups of one row are left out. Returns a scalar, lower is better.
 """
 function xendcg(
     p::AbstractMatrix{T},

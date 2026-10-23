@@ -208,7 +208,7 @@ function EvoTrees.update_grads!(
     return nothing
 end
 
-# A softmax per query is a segmented reduction, so as for LambdaRank it runs on the host.
+# Computed on the host, as for `:lambdarank`.
 function EvoTrees.update_grads!(
     ∇::CuMatrix,
     p::CuMatrix,
