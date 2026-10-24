@@ -17,7 +17,8 @@ pages = [
         "Credibility-based loss" => "tutorials/cred-loss.md",
         "Internal API" => "tutorials/examples-API.md",
         "MLJ API" => "tutorials/examples-MLJ.md",
-        "Offset Usage" => "tutorials/offset-usage.md"]
+        "Offset Usage" => "tutorials/offset-usage.md",
+        "Custom Loss" => "tutorials/custom-loss.md"]
 ]
 
 makedocs(;
