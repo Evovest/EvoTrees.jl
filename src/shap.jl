@@ -14,16 +14,18 @@ struct ShapTree
     children_left::Vector{Int}
     children_right::Vector{Int}
     thresholds::Vector{UInt8}
+    feattypes::Vector{Bool}
     max_depth::Int
     num_nodes::Int
 end
 
 """
-    ShapTree(tree::EvoTrees.Tree)
+    ShapTree(tree::EvoTrees.Tree, feattypes::Vector{Bool})
 
 Copy an EvoTrees.Tree into a struct compatible with the linear-tree-shap algorithm.
+`feattypes` is the model's `info[:feattypes]`, so splits are routed as in `predict`.
 """
-function ShapTree(tree::EvoTrees.Tree)
+function ShapTree(tree::EvoTrees.Tree, feattypes::Vector{Bool})
     n = length(tree.feat)
     weights = ones(Float64, n)
     leaf_predictions = zeros(Float64, n)
@@ -95,7 +97,7 @@ function ShapTree(tree::EvoTrees.Tree)
         max_split_idx = maximum(split_indices)
         depth_from_splits = Int(floor(log2(max_split_idx))) + 1
     end
-    return ShapTree(weights, leaf_predictions, parents, edge_heights, features, children_left, children_right, thresholds, depth_from_splits, n)
+    return ShapTree(weights, leaf_predictions, parents, edge_heights, features, children_left, children_right, thresholds, feattypes, depth_from_splits, n)
 end
 
 """
@@ -155,8 +157,9 @@ Peng Yu, Chao Xu, Albert Bifet, Jesse Read Linear Tree Shap (2022). In [Proceedi
 function shap(m::EvoTree, data; ntree_limit=length(m.trees))
     x_bin = EvoTrees.binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges])
     out = zeros(Float64, size(x_bin))
+    feattypes = m.info[:feattypes]
     for i in 1:ntree_limit
-        tree = ShapTree(m.trees[i])
+        tree = ShapTree(m.trees[i], feattypes)
         inference!(out, tree, x_bin)
     end
     return out
@@ -233,7 +236,9 @@ function _inference!(out_row, tree::ShapTree, x, activation, D::AbstractVector{<
 
     if left >= 1
         if child_edge_feature >= 1 && child_edge_feature <= length(x)
-            if x[child_edge_feature] <= tree.thresholds[node]
+            # numeric features go left at or below the threshold, categorical ones on equality, as in predict
+            xf, thr = x[child_edge_feature], tree.thresholds[node]
+            if tree.feattypes[child_edge_feature] ? xf <= thr : xf == thr
                 activation[left] = true
                 activation[right] = false
             else
