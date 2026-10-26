@@ -95,6 +95,7 @@ function CallBack(
 
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
     if !isnothing(offset)
+        check_offset(offset, nobs, K)
         L == LogLoss && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
         L == MLogLoss && (offset .= log.(offset))
@@ -148,6 +149,7 @@ function CallBack(
 
     offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
     if !isnothing(offset)
+        check_offset(offset, nobs, K)
         L == LogLoss && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
         L == MLogLoss && (offset .= log.(offset))
