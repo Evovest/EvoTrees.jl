@@ -182,7 +182,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:cred_var`: **experimental** credibility-based gains, derived from ratio of spread to process variance.
   - `:cred_std`: **experimental** credibility-based gains, derived from ratio of spread to process std deviation.
   - `:lambdarank`: ranking objective. Pairwise within each query, weighted by the NDCG change a swap would cause. Requires groups, so it is only available through `EvoTrees.fit`, not through the MLJ interface, which has no way to pass them.
-  - `:pearson`: Pearson correlation within each group (one group per date, for example): each group's centred prediction is fitted to its standardised target by squared error. Ranking or rank-gauss transforming the target within each group first gives a Spearman-style variant. Defaults to `metric = :pearson`. Requires groups, so like `:lambdarank` it is only available through `EvoTrees.fit`.
+  - `:pearson`: Pearson correlation within each group. Each group's centred prediction is fitted to its standardised target by squared error. Ranking the target within each group first gives a Spearman-style variant. Requires groups, so like `:lambdarank` it is only available through `EvoTrees.fit`.
 - `metric`:     The evaluation metric used to track evaluation data and serves as a basis for early stopping. Supported metrics are: 
   - `:mse`:     Mean-squared error. Adapted for general regression models.
   - `:rmse`:    Root-mean-squared error. Adapted for general regression models.

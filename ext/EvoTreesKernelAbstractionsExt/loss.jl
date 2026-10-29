@@ -232,9 +232,8 @@ function EvoTrees.update_grads!(
     return nothing
 end
 
-# `:pearson` needs each group's weighted means, so as with LambdaRank the CPU implementation is
-# used. y, w and each group's target stats do not change between rounds, so they stay on the
-# host from init and a round copies only p down and g, h back up.
+# `:pearson` runs on the host, as `:lambdarank` does. `y`, `w` and the group stats stay on the host
+# from init.
 struct PearsonHost{T,M}
     p::Matrix{T}
     ∇::Matrix{T}
