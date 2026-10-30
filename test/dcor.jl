@@ -2,8 +2,7 @@ using EvoTrees: dcov2, dcor2, dcov2_grad, build_ctrl, ctrl_rows, DcorCache, Grou
     build_group_index, _penalize_row!
 using Statistics: std
 
-# Direct O(n^2) transcription of the unbiased estimator (Szekely & Rizzo 2014), used only
-# to hold the O(n log n) implementation to the definition it claims to compute.
+# O(n^2) unbiased estimator (Szekely & Rizzo 2014), the reference for the O(n log n) one.
 function dcov2_naive(x, y)
     n = length(x)
     a = [abs(x[i] - x[j]) for i in 1:n, j in 1:n]
@@ -21,30 +20,24 @@ end
             rng = Xoshiro(seed)
             x, y = randn(rng, n), randn(rng, n)
             @test dcov2(x, y) ≈ dcov2_naive(x, y) rtol = 1e-10
-            # the sweep sorts on the first argument, so symmetry holds to accumulation error
+            # symmetric up to accumulation error
             @test dcov2(x, y) ≈ dcov2(y, x) rtol = 1e-9
         end
-        # a control on an absolute scale, such as a timestamp. Every term is a difference, so
-        # an offset must not move the answer, and it does if the sums carry the offset instead of
-        # being shifted first. The pair is deliberately DEPENDENT: on independent draws the
-        # statistic estimates zero, and a relative tolerance against a near-zero quantity measures
-        # sampling noise rather than the property under test
+        # an offset, as on a timestamp, leaves the value unchanged. The pair is dependent, so the
+        # reference is not near zero
         rng = Xoshiro(31)
         xo = randn(rng, 200)
         yo = 0.7 .* xo .+ 0.7 .* randn(rng, 200)
-        @test dcov2(xo, yo) > 0.05                     # the reference is Θ(1), not noise
+        @test dcov2(xo, yo) > 0.05
         for off in (1e6, 1.7e9)
             @test dcov2(xo, yo .+ off) ≈ dcov2(xo, yo) rtol = 1e-6
             @test dcov2_grad(xo, yo .+ off) ≈ dcov2_grad(xo, yo) rtol = 1e-6
-            # the prediction side carries the target's offset in production. Only the value
-            # needs pinning: the gradient reads x through `sortperm` and an equality test and
-            # never through its magnitude, so an offset leaves it bit-identical by construction
-            # and asserting that would test nothing
+            # on the prediction side the gradient depends only on the order, so it is unchanged exactly
             @test dcov2(xo .+ off, yo) ≈ dcov2(xo, yo) rtol = 1e-6
             @test dcov2_grad(xo .+ off, yo) == dcov2_grad(xo, yo)
         end
 
-        # ties in both inputs, where the rank bookkeeping is easiest to get wrong
+        # ties in both inputs
         rng = Xoshiro(4)
         xt = Float64.(rand(rng, 1:3, 60))
         yt = Float64.(rand(rng, 1:2, 60))
@@ -56,19 +49,15 @@ end
         x = randn(rng, 300)
         @test dcor2(x, x) ≈ 1.0 rtol = 1e-10
         @test dcor2(x, 3 .* x .+ 7) ≈ 1.0 rtol = 1e-10
-        # independent draws carry no dependence, up to estimator noise
+        # independent draws, up to estimator noise
         @test abs(dcor2(x, randn(Xoshiro(6), 300))) < 0.05
-        # a symmetric relationship is invisible to Pearson and visible here. Pairing each
-        # draw with its negation makes the Pearson correlation exactly zero by construction
-        # rather than merely small in this sample
+        # a symmetric relationship with a Pearson correlation of exactly zero
         u = randn(Xoshiro(8), 150)
         xs = vcat(u, -u)
         zs = abs.(xs)
         @test abs(cor(xs, zs)) < 1e-12
         @test dcor2(xs, zs) > 0.2
-        # a constant carries nothing, and must not divide by zero. 2.0 is a power of two and
-        # its prefix sums are exact, so it passes even when the accumulation is not shifted;
-        # the other two are the cases that discriminate
+        # a constant gives 0, including values whose prefix sums are inexact
         @test dcor2(x, fill(2.0, 300)) == 0.0
         @test dcor2(x, fill(0.1, 300)) == 0.0
         @test dcor2(x, fill(1 / 3, 300)) == 0.0
@@ -88,16 +77,14 @@ end
             fd = (dcov2(xp, y) - dcov2(xm, y)) / (2h)
             @test abs(fd - g[i]) / scale < 1e-5
         end
-        # the statistic is homogeneous of degree one in each argument, so the gradient is linear
-        # in y and does not move when x is rescaled
+        # linear in y, and unchanged when x is rescaled
         @test dcov2_grad(x, 2 .* y) ≈ 2 .* g rtol = 1e-10
         @test dcov2_grad(3 .* x, y) ≈ g rtol = 1e-12
     end
 
     @testset "tied predictions" begin
-        # boosted predictions are heavily tied. At a tie the statistic has a kink, and the gradient
-        # is the symmetric subgradient, which the central difference of a piecewise linear function
-        # reproduces exactly for a step below the gap between tied values
+        # at ties the gradient is the symmetric subgradient, which a central difference with a step
+        # below the gap between values reproduces
         rng = Xoshiro(12)
         xt = Float64.(rand(rng, 1:4, 30))
         yc = randn(rng, 30)
@@ -108,7 +95,7 @@ end
                 @test abs((dcov2(xp, yc) - dcov2(xm, yc)) / 2e-4 - g[i]) < 1e-8
             end
         end
-        # so the gradient does not depend on row order, and vanishes when every prediction ties
+        # independent of row order, and zero when every prediction ties
         pm = randperm(rng, 30)
         @test dcov2_grad(xt[pm], yc[pm]) ≈ dcov2_grad(xt, yc)[pm] rtol = 1e-12
         @test all(iszero, dcov2_grad(fill(0.3, 30), yc))
@@ -126,8 +113,7 @@ end
     rng = Xoshiro(11)
     nobs = 2_000
     x = randn(rng, nobs, 4)
-    # the control shares most of its signal with the first feature, so an unconstrained fit
-    # picks up a dependence on it
+    # the control tracks the first feature
     ctrl = x[:, 1] .+ 0.3 .* randn(rng, nobs)
     y = 2 .* x[:, 1] .+ x[:, 2] .+ 0.2 .* randn(rng, nobs)
 
@@ -141,38 +127,32 @@ end
     rmse(m) = sqrt(mean((predict(m, x)[:, 1] .- y) .^ 2))
     d_base, d_mid, d_pen = dep(base), dep(mid), dep(pen)
 
-    @test d_pen < d_base / 3                    # the dependence is materially reduced
-    @test d_base > d_mid > d_pen                # and monotonically in the penalty weight
-    @test rmse(base) < rmse(mid) < rmse(pen)    # paid for in fit, as a penalty must be
+    @test d_pen < d_base / 3
+    @test d_base > d_mid > d_pen
+    @test rmse(base) < rmse(mid) < rmse(pen)
 
-    # a penalised model must still be a model: destroying the fit would satisfy the three
-    # assertions above on its own, so hold it to predicting the target and to not driving the
-    # statistic through zero into an anti-arrangement
+    # the penalised model still fits the target and does not overshoot to a negative dcov2
     @test cor(predict(pen, x)[:, 1], y) > 0.5
     @test std(predict(pen, x)[:, 1]) > 0.25 * std(y)
     @test dcov2(Float64.(predict(pen, x)[:, 1]), Float64.(ctrl)) > 0
-    # the second feature carries signal the control does not, so it must survive the penalty
+    # the signal independent of the control remains
     @test cor(predict(pen, x)[:, 1], x[:, 2]) > 0.2
 
     @testset "the default path is untouched" begin
-        # no control at all, and a control with a zero weight, must both reproduce the base
-        # model exactly rather than approximately
+        # no control, or a zero weight, gives the base model exactly
         zero_weight = fit(cfg(0.0); x_train=x, y_train=y, ctrl_train=ctrl, verbosity=0)
         @test predict(zero_weight, x) == predict(base, x)
         no_ctrl = fit(EvoTreeRegressor(loss=:mse, nrounds=40, max_depth=4, eta=0.2, seed=1);
             x_train=x, y_train=y, verbosity=0)
         @test predict(no_ctrl, x) == predict(base, x)
-        # every prediction ties at the start, so the first tree is exactly unpenalised
+        # predictions all tie at the start, so the first tree is unpenalised
         one_round(λ) = EvoTreeRegressor(loss=:mse, nrounds=1, max_depth=4, eta=0.2, seed=1, ctrl_lambda=λ)
         @test predict(fit(one_round(10.0); x_train=x, y_train=y, ctrl_train=ctrl, verbosity=0), x) ==
               predict(fit(one_round(0.0); x_train=x, y_train=y, verbosity=0), x)
     end
 
     @testset "a saturating loss does not run away" begin
-        # without the curvature weighting the penalty dominated the rows :logloss saturates and the
-        # fit ran away within a couple of rounds, with scores blowing up and AUC below 0.5. Measured
-        # on Julia 1.10 and 1.12 at this weight: dependence 0.49 unpenalised and 0.11 penalised, AUC
-        # 0.94, raw score spread 5.6 unpenalised and 2.7 penalised
+        # the curvature weighting keeps :logloss stable
         yb = Float64.(y .> 0)
         cl(λ) = EvoTreeRegressor(loss=:logloss, nrounds=40, max_depth=4, eta=0.2, seed=1, ctrl_lambda=λ)
         pb = predict(fit(cl(0.0); x_train=x, y_train=yb, verbosity=0), x)[:, 1]
@@ -191,35 +171,26 @@ end
     @testset "table interface" begin
         df = (f1=x[:, 1], f2=x[:, 2], f3=x[:, 3], f4=x[:, 4], c=ctrl, y=y)
         mt = fit(cfg(10.0), df; target_name="y", ctrl_name="c", verbosity=0)
-        # the control is a role, not a feature, so it must not be learned from
+        # the control is not a feature
         @test mt.info[:feature_names] == [:f1, :f2, :f3, :f4]
         @test mt.info[:ctrl_names] == [:c]
         @test dcor2(Float64.(predict(mt, df)[:, 1]), Float64.(ctrl)) < d_base / 3
     end
 
     @testset "the control's units do not matter" begin
-        # `build_ctrl` centres and scales, so a control differing only by offset or by unit is
-        # the same control. Without that, the penalty carries the column's units and the same
-        # ctrl_lambda means something different for every problem: the raw gradient grows from
-        # 0.006 to 168000 as the spread goes from 1 to 3e7
+        # controls are standardised, so their offset and units do not matter
         @test std(build_ctrl(ctrl, nobs, "c")) ≈ 1.0
-        # a change of unit is recovered exactly, so the fit is bit-identical
+        # a change of unit is exact for a power of two, so the fit is identical
         @test build_ctrl(ctrl, nobs, "c") == build_ctrl(1024 .* ctrl, nobs, "c")
         @test build_ctrl(ctrl, nobs, "c") ≈ build_ctrl(3600 .* ctrl, nobs, "c") rtol = 1e-12
-        # only the power of two is recovered bit for bit, so only it is compared at the model level
         mexact = fit(cfg(10.0); x_train=x, y_train=y, ctrl_train=(1024 .* ctrl), verbosity=0)
         @test predict(mexact, x) == predict(pen, x)
-        # an offset is recovered only to the input's own resolution: at 1.7e9 the Float64 step
-        # is 2.4e-7, so the standardised control differs by about 1e-7. It still fails loudly if
-        # the control is narrowed back to Float32, where an offset collapses it to a constant and
-        # `build_ctrl` throws instead
+        # an offset is recovered to the input's resolution
         @test build_ctrl(ctrl, nobs, "c") ≈ build_ctrl(1.7e9 .+ ctrl, nobs, "c") rtol = 1e-4
-        # near 1e12 too the spread divided by is the column's own: the scaling sums deviations from
-        # the first value, where a running total of the raw values would move it by about 2e-7
+        # near 1e12 the spread is still the column's own
         q = ctrl .+ 1e12
         @test diff(build_ctrl(q, nobs, "c")) ≈ diff(build_ctrl(q .- 1e12, nobs, "c")) rtol = 1e-9
-        # a one ulp change in the control can flip a split tie, so the other rescalings are held to
-        # closeness at the gradient, where there is no split to flip
+        # other rescalings can flip a split tie, so they are compared at the gradient
         p = Float32.(randn(Xoshiro(23), 1, nobs))
         ∇a = zeros(Float32, 3, nobs); ∇a[3, :] .= 1
         EvoTrees.update_grads!(∇a, p, vec(p), EvoTrees.MSE, cfg(10.0), nothing, DcorCache(build_ctrl(ctrl, nobs, "c")))
@@ -228,14 +199,12 @@ end
             EvoTrees.update_grads!(∇b, p, vec(p), EvoTrees.MSE, cfg(10.0), nothing, DcorCache(build_ctrl(c2, nobs, "c")))
             @test ∇b[1, :] ≈ ∇a[1, :] rtol = 1e-5
         end
-        # exact distinctness is the wrong assertion: at 1.7e9 the Float64 step is 2.4e-7, so a
-        # collision among 2000 draws is an ordinary birthday event and says nothing about the code
+        # at 1.7e9 a few collisions among 2000 draws are expected
         @test length(unique(build_ctrl(1.7e9 .+ ctrl, nobs, "c"))) > 0.99 * nobs
     end
 
     @testset "weights do not change the penalty" begin
-        # the statistic is unweighted. With y equal to p the :mse base gradient is exactly 0, so
-        # row 1 holds the penalty alone and two weightings can be compared bit for bit
+        # the statistic is unweighted. With y = p, row 1 holds the penalty alone
         wv = 0.5 .+ rand(Xoshiro(21), nobs)
         p = Float32.(randn(Xoshiro(22), 1, nobs))
         yp = vec(copy(p))
@@ -248,9 +217,8 @@ end
         @test Float64.(∇u[1, :]) ≈ 10.0 .* nobs .* dcov2_grad(Float64.(yp), c) rtol = 1e-5
         mw = fit(cfg(10.0); x_train=x, y_train=y, w_train=wv, ctrl_train=ctrl, verbosity=0)
         @test dcor2(Float64.(predict(mw, x)[:, 1]), Float64.(ctrl)) < d_base / 2
-        # the penalty is scaled by the mean weight, so a uniform rescaling of the weights leaves the
-        # fit unchanged, as it does without a control. A power of two keeps every sum exact, and
-        # L2 = 0 with a matching min_weight keeps the base step itself scale free
+        # a uniform rescaling of the weights leaves the fit unchanged. L2 = 0 and a matching
+        # min_weight keep the base step scale free
         cw(λ, mw) = EvoTreeRegressor(loss=:mse, nrounds=40, max_depth=4, eta=0.2, seed=1, L2=0.0,
             min_weight=mw, ctrl_lambda=λ)
         for λ in (0.0, 10.0)
@@ -259,7 +227,7 @@ end
             m8 = fit(cw(λ, 64.0); x_train=x, y_train=y, w_train=fill(8.0, nobs), ctrl_train=c, verbosity=0)
             @test predict(m8, x) == predict(m1, x)
         end
-        # the same within groups, where `dcor_cache` gives each group the sum of its weights
+        # the same within groups, each group weighing by its total weight
         gid = repeat(1:40, inner=nobs ÷ 40)
         cg(mw) = EvoTreeRegressor(loss=:mse, nrounds=40, max_depth=4, eta=0.2, seed=1, L2=0.0,
             min_weight=mw, ctrl_lambda=10.0, ctrl_within_group=true)
@@ -272,40 +240,35 @@ end
     end
 
     @testset "rejected combinations" begin
-        # a weight with nothing to apply it to
+        # a weight without a control
         @test_throws ErrorException fit(cfg(1.0); x_train=x, y_train=y, verbosity=0)
-        # a control that cannot line up with the data
+        # a control of the wrong length, or constant
         @test_throws ErrorException fit(cfg(1.0); x_train=x, y_train=y, ctrl_train=ctrl[1:10], verbosity=0)
         @test_throws ErrorException fit(cfg(1.0); x_train=x, y_train=y,
             ctrl_train=fill(1.0, nobs), verbosity=0)
-        # a column mixing 0.0 and -0.0 is constant, but `isequal` says otherwise, so a guard
-        # written with `allequal` lets it through and the scaling then returns all NaN
+        # 0.0 and -0.0 count as equal
         @test_throws "is constant" build_ctrl(repeat([0.0, -0.0], nobs ÷ 2), nobs, "c")
-        # and a spread that overflows or underflows the variance is equally unusable
+        # a spread that overflows or underflows the variance, and a NaN
         @test_throws ErrorException build_ctrl(1e160 .* randn(Xoshiro(41), nobs), nobs, "c")
         @test_throws ErrorException build_ctrl(1e-170 .* randn(Xoshiro(42), nobs), nobs, "c")
         @test_throws ErrorException fit(cfg(1.0); x_train=x, y_train=y,
             ctrl_train=vcat(NaN, ctrl[2:end]), verbosity=0)
-        # a learner with no weight for a control must reject one rather than ignore it
+        # learners without `ctrl_lambda`
         @test_throws "no `ctrl_lambda`" fit(EvoTreeClassifier(nrounds=5, max_depth=3);
             x_train=x, y_train=Int.(y .> 0), ctrl_train=ctrl, verbosity=0)
         @test_throws "no `ctrl_lambda`" fit(EvoTreeCount(nrounds=5, max_depth=3);
             x_train=x, y_train=abs.(round.(y)), ctrl_train=ctrl, verbosity=0)
-        # losses whose gradient row is negated, or whose leaf reads another row, are rejected
-        # rather than silently climbing the penalty
+        # losses whose gradient row is negated, or whose leaf reads another row
         for bad in (:mae, :quantile, :cred_var, :cred_std)
             cfgb = EvoTreeRegressor(loss=bad, nrounds=5, max_depth=3, ctrl_lambda=1.0)
             @test_throws ErrorException fit(cfgb; x_train=x, y_train=y, ctrl_train=ctrl, verbosity=0)
         end
-        # :lambdarank subtypes the same abstract type as the supported losses, but its row 1 is a
-        # pairwise lambda rather than a per-observation gradient. It needs a non-negative target
-        # of its own, or the target check fires first and hides which guard is being tested
+        # :lambdarank, whose row 1 is a pairwise lambda, with a valid target so this guard is reached
         @test_throws ErrorException fit(
             EvoTreeRegressor(loss=:lambdarank, nrounds=5, max_depth=3, ctrl_lambda=1.0);
             x_train=x, y_train=abs.(y), group_train=UInt32.((0:nobs-1) .÷ 10 .+ 1),
             ctrl_train=ctrl, verbosity=0)
-        # and the ones that are supported all run, with the penalty landing on their gradient row
-        # weighted by the row's curvature relative to :mse, `h / 2w`, and nowhere else
+        # the supported losses add the penalty to the gradient row only, weighted by `h / 2w`
         c = build_ctrl(ctrl, nobs, "c")
         pz = Float32.(0.5 .* randn(Xoshiro(23), 1, nobs))
         for good in (:mse, :logloss, :poisson, :gamma, :tweedie)
@@ -321,11 +284,11 @@ end
             @test Float64.(∇b[1, :] .- ∇a[1, :]) ≈ expected rtol = 1e-3
             @test ∇b[2:3, :] == ∇a[2:3, :]
         end
-        # and the weight itself is validated like every other one
+        # invalid weights
         @test_throws ErrorException EvoTreeRegressor(ctrl_lambda=-1.0)
         @test_throws ErrorException EvoTreeRegressor(ctrl_lambda=Inf)
         @test_throws ErrorException EvoTreeMLE(ctrl_lambda=Inf)
-        # a weight reassigned after construction is checked again at fit
+        # a weight reassigned after construction is checked at fit
         for bad in (-1.0, NaN, Inf)
             mr = cfg(1.0)
             mr.ctrl_lambda = bad
@@ -333,17 +296,16 @@ end
         end
         @test_throws "ctrl_within_group" EvoTreeRegressor(ctrl_within_group=1)
         @test_throws "missing values" build_ctrl(Union{Missing,Float64}[1.0, missing, 2.0, 3.0, 4.0], 5, "c")
-        # every value tied but at most one either side has no distance variance, so the penalty would
-        # be zero for every prediction: an indicator on one row, or one row off either side of the tie
+        # no distance variance: an indicator on one row, or one row either side of a tie
         ind = zeros(nobs)
         ind[7] = 1.0
         @test_throws "tied but at most one" fit(cfg(1.0); x_train=x, y_train=y, ctrl_train=ind, verbosity=0)
         ind[9] = -2.0
         @test_throws "tied but at most one" build_ctrl(ind, nobs, "c")
-        # two rows off on the same side are a real spread
+        # two rows on the same side are a real spread
         ind[9] = 2.0
         @test build_ctrl(ind, nobs, "c") isa Vector{Float64}
-        # the within-group form needs groups to be within
+        # ctrl_within_group without groups
         @test_throws "no groups were given" fit(
             EvoTreeRegressor(loss=:mse, nrounds=5, max_depth=3, ctrl_lambda=1.0, ctrl_within_group=true);
             x_train=x, y_train=y, ctrl_train=ctrl, verbosity=0)
@@ -352,8 +314,8 @@ end
 
 @testset "within-group penalty" begin
     @testset "gradient matches the per-group definition" begin
-        # six groups on interleaved rows: one of exactly 4 rows, the smallest kept, one too small for
-        # the statistic and one with a constant control, the last two skipped rather than divided by zero
+        # six interleaved groups: one of exactly 4 rows is kept; one of 3 rows and one with a constant
+        # control are skipped
         rng = Xoshiro(71)
         sizes = (9, 12, 4, 3, 10, 8)
         gid = vcat([fill(g, m) for (g, m) in enumerate(sizes)]...)
@@ -367,8 +329,7 @@ end
         cache = GroupedDcorCache(ctrl, build_group_index(gid, n, "g"))
         @test length(cache.caches) == 4
 
-        # an :mse curvature, h = 2w, weighs the penalty by exactly 1. The row starts from a base
-        # gradient, so an assignment in place of an increment would show
+        # an :mse curvature weighs the penalty by 1, added to the base gradient
         hrow, wrow = fill(2.0, n), ones(n)
         base_g = randn(Xoshiro(72), n)
         grow = copy(base_g)
@@ -388,7 +349,7 @@ end
         _penalize_row!(grow3, hrow2, wrow, p, cache, λ)
         @test grow3 ≈ expected .* hrow2 ./ 2 rtol = 1e-10
 
-        # and it is the gradient of the objective it claims, by finite differences
+        # finite differences of the objective
         function F(pp)
             tot = 0.0
             for g in (1, 2, 3, 6)
@@ -405,12 +366,12 @@ end
             @test abs((F(pp) - F(pm)) / (2h) - grow[i]) < 1e-5 * max(1.0, maximum(abs, grow))
         end
 
-        # a second call must not carry anything over from the first
+        # a second call gives the same result
         grow2 = copy(base_g)
         _penalize_row!(grow2, hrow, wrow, p, cache, λ)
         @test grow2 .- base_g == grow
 
-        # nothing to act on at all is an error, not a silent no-op
+        # no usable group is an error
         @test_throws "No group" GroupedDcorCache(ctrl[1:6], build_group_index([1, 1, 1, 2, 2, 2], 6, "g"))
     end
 
@@ -434,9 +395,8 @@ end
     end
 
     @testset "each group weighs by its total weight" begin
-        # weights that vary within and between groups: group g adds λ W_g dcov2(p_g, c_g), W_g the
-        # sum of its weights. y equal to p makes the :mse base gradient exactly 0 and its curvature
-        # exactly 1, so row 1 holds the penalty alone
+        # weights vary within and between groups; group g adds λ W_g dcov2(p_g, c_g). With y = p,
+        # row 1 holds the penalty alone
         rng = Xoshiro(76)
         sizes = (30, 45, 60, 25, 50, 40)
         gid = vcat([fill(g, m) for (g, m) in enumerate(sizes)]...)
@@ -476,8 +436,7 @@ end
         d = sum(sum(w[r]) / sum(w) * dcov2(p[r], z(r)) for r in groups)
         @test dep[1] ≈ d rtol = 1e-8
         @test term ≈ λ * d rtol = 1e-8
-        # unit weights give each group its number of rows, the factor used before weights counted,
-        # so an unweighted fit is unchanged bit for bit
+        # unit weights give W_g the number of rows
         gc = EvoTrees.dcor_cache(params, cb, gi, ones(Float32, n)).caches[1]
         @test gc.Wg == length.(gc.rows)
         before = zeros(n)
@@ -488,10 +447,8 @@ end
     end
 
     @testset "the within-group penalty keeps the group-level relationship" begin
-        # 100 groups of 50 rows, shuffled so a group's rows are not contiguous. The control is a
-        # group-level term plus a row-level one, and the target loads on both, so the pooled
-        # penalty has to destroy a relationship the target legitimately has while the
-        # within-group penalty only removes the dependence within groups
+        # 100 shuffled groups of 50 rows. The control and the target share a group-level term, which
+        # the within-group penalty keeps and the pooled one removes
         rng = Xoshiro(81)
         ngroups, group_size = 100, 50
         nobs = ngroups * group_size
@@ -517,8 +474,6 @@ end
         dep_between(p) = dcor2(groupmean(p), groupmean(ctrl))
         pb, pp, pw = pred(base), pred(pooled), pred(within)
 
-        # measured on Julia 1.10 and 1.12: within-group dependence 0.37 unpenalised, 0.02 pooled and
-        # -0.01 within; group-level dependence 0.97, 0.57 and 0.95
         @test dep_within(pw) < dep_within(pb) / 3
         # the group-level relationship survives the within-group penalty and not the pooled one
         @test dep_between(pw) > 0.85
@@ -530,7 +485,7 @@ end
         @test predict(fit(cfgp(0.0, true); x_train=x, y_train=y, ctrl_train=ctrl, group_train=group,
             verbosity=0), x) == predict(base_g, x)
 
-        # whole-group sampling and the table interface both reach the same code
+        # whole-group sampling and the table interface
         @test fit(EvoTreeRegressor(loss=:mse, nrounds=10, max_depth=3, rowsample=0.5, ctrl_lambda=5.0,
             ctrl_within_group=true); x_train=x, y_train=y, ctrl_train=ctrl, group_train=group,
             verbosity=0) isa EvoTrees.EvoTree
@@ -559,8 +514,8 @@ end
             @test dcor2(Float64.(predict(m, x)[:, k]), ctrl) < dcor2(Float64.(predict(b, x)[:, k]), ctrl) / 2
         end
 
-        # grouped and multi-target together: each output row gets its own within-group increment.
-        # y equal to p makes the :mse base gradient exactly 0, so row k holds the penalty alone
+        # grouped and multi-target: each output row gets its own within-group term. With y = p,
+        # row k holds the penalty alone
         gid = repeat(1:40, inner=50)
         gc = GroupedDcorCache(build_ctrl(ctrl, nobs, "c"), build_group_index(gid, nobs, "g"))
         P2 = Float32.(randn(Xoshiro(92), 2, nobs))
@@ -576,9 +531,8 @@ end
 
     @testset "the location moves and the scale does not" begin
         y = 2 .* x[:, 1] .+ x[:, 2] .+ 0.2 .* randn(rng, nobs)
-        # at the gradient level: only the location rows pick up the penalty, by the exact amount.
-        # y equal to the location makes the base location gradient exactly 0, and the location's
-        # Fisher information 1 / scale^2 weighs the penalty by `h / 2w = exp(-2 * scale_raw) / 2`
+        # only the location rows get the penalty, weighted by `h / 2w = exp(-2 * scale_raw) / 2`. With
+        # y equal to the location, row 1 holds the penalty alone
         params = EvoTreeMLE(loss=:gaussian_mle, ctrl_lambda=1.0)
         c = build_ctrl(ctrl, nobs, "c")
         curv(sraw) = exp.(-2 .* Float64.(sraw)) ./ 2
@@ -606,12 +560,10 @@ end
         mcfg(λ) = EvoTreeMLE(loss=:gaussian_mle, nrounds=40, max_depth=4, eta=0.2, seed=1, ctrl_lambda=λ)
         mb = fit(mcfg(0.0); x_train=x, y_train=y, verbosity=0)
         mp = fit(mcfg(10.0); x_train=x, y_train=y, ctrl_train=ctrl, verbosity=0)
-        # measured on Julia 1.12: 0.66 unpenalised and 0.17 at this weight, the same as :mse, where
-        # without the curvature weighting the fit ran away with a growing scale
         pmp = predict(mp, x)
         @test dcor2(Float64.(pmp[:, 1]), ctrl) < dcor2(Float64.(predict(mb, x)[:, 1]), ctrl) / 2
         @test all(isfinite, pmp) && cor(pmp[:, 1], y) > 0.5
-        # :logistic_mle has the same layout but is not part of this scope
+        # :logistic_mle is not supported
         @test_throws "not for logistic_mle" fit(EvoTreeMLE(loss=:logistic_mle, nrounds=5, max_depth=3,
             ctrl_lambda=1.0); x_train=x, y_train=y, ctrl_train=ctrl, verbosity=0)
     end
@@ -621,7 +573,7 @@ end
     rng = Xoshiro(51)
     nobs = 2_000
     x = randn(rng, nobs, 4)
-    # each control shares its signal with one feature, and the third feature is unrelated to both
+    # each control tracks one feature; the third feature is unrelated to both
     c1 = x[:, 1] .+ 0.3 .* randn(rng, nobs)
     c2 = x[:, 2] .+ 0.3 .* randn(rng, nobs)
     y = 2 .* x[:, 1] .+ x[:, 2] .+ x[:, 3] .+ 0.2 .* randn(rng, nobs)
@@ -631,7 +583,7 @@ end
     cfg(λ; within=false) = EvoTreeRegressor(loss=:mse, nrounds=40, max_depth=4, eta=0.2, seed=1,
         ctrl_lambda=λ, ctrl_within_group=within)
 
-    # y equal to p makes the :mse base gradient exactly 0, so row 1 holds the penalty alone
+    # with y = p, row 1 holds the penalty alone
     p = Float32.(randn(Xoshiro(52), 1, nobs))
     yp = vec(copy(p))
     function penalty(params, ctrl)
@@ -650,7 +602,7 @@ end
             plain = within ? GroupedDcorCache(b1, gi) : DcorCache(b1)
             @test penalty(params, one_ctrl(params, b1)) == penalty(params, plain)
         end
-        # and under a loss whose curvature is not that of :mse, which the sum applies itself
+        # and under a curvature other than that of :mse
         pm = Float32.(vcat(randn(Xoshiro(56), 1, nobs), 0.1f0 .* randn(Xoshiro(57), 1, nobs)))
         function penalty_mle(params, ctrl)
             ∇ = zeros(Float32, 5, nobs)
@@ -705,8 +657,8 @@ end
     end
 
     @testset "a group one control skips gets only the other's term" begin
-        # the second control is flat on the first group, both are flat on the second and the first is
-        # flat on the third, so each of those groups gets the increment of the control it can use
+        # c2 is flat on group 1, both on group 2 and c1 on group 3: each group gets the term of the
+        # control it can use
         f1, f2 = copy(c1), copy(c2)
         f2[1:50] .= 0.7
         f1[51:100] .= 0.7
@@ -722,8 +674,7 @@ end
         @test all(iszero, s[51:100])
         @test s[101:150] == s2[101:150]
         @test count(!iszero, s[151:end]) > 1750
-        # a control no group can use is an error that names it rather than a control silently dropped:
-        # constant within every group but not across them, so it passes as a column
+        # a control no group can use is an error naming it; this one is constant within groups only
         @test_throws "column 2 of `ctrl_train`" fit(cfg(1.0; within=true); x_train=x, y_train=y,
             ctrl_train=hcat(c1, Float64.(gid)), group_train=gid, verbosity=0)
     end
@@ -734,11 +685,9 @@ end
     @testset "both controls lose their dependence" begin
         mb = fit(cfg(10.0); x_train=x, y_train=y, ctrl_train=C, verbosity=0)
         m1 = fit(cfg(10.0); x_train=x, y_train=y, ctrl_train=c1, verbosity=0)
-        # over data seeds 1 to 10 each dependence falls 3.1 to 3.8 times
         @test dep(mb, c1) < dep(base, c1) / 2
         @test dep(mb, c2) < dep(base, c2) / 2
-        # a control left out picks up what the other sheds, as the fit leans on the second feature
-        # instead: 0.27 to 0.32 against 0.11 to 0.14 unpenalised
+        # a control left out gains dependence, as the fit shifts to its feature
         @test dep(m1, c2) > dep(base, c2)
         # the third feature is unrelated to both and survives
         @test cor(predict(mb, x)[:, 1], x[:, 3]) > 0.5
@@ -825,10 +774,8 @@ end
     end
 
     @testset "on the training set it is the training objective" begin
-        # with the training set as eval set, the penalised :mse metric is the weighted mse plus λ times
-        # the weighted sum of each control's unweighted dependence, pooled or within the eval groups,
-        # each kept group weighing by its share of the eval weight; the eval set's first 3 rows form a
-        # group too small to keep
+        # training set as eval set: the metric is the weighted mse plus λ sum_j ω_j dcov2_j, each eval
+        # group weighted by its share of the eval weight; the first 3 rows form a group too small to keep
         λ, ω = 5.0, [1.0, 0.5]
         geval = vcat(fill(41, 3), gid[4:end])
         kept = [r for r in (findall(==(g), geval) for g in unique(geval)) if length(r) >= 4]
@@ -850,7 +797,7 @@ end
             # the bias alone carries no dependence
             @test lg[:ctrl_dependence][1] == [0.0, 0.0]
         end
-        # several outputs average, as the metric averages over them
+        # several outputs are averaged
         Y2 = hcat(y, .-y .+ x[:, 3])
         m = fit(cfg(λ); x_train=x, y_train=Y2, ctrl_train=c1, x_eval=x, y_eval=Y2, ctrl_eval=c1, verbosity=0)
         lg = m.info[:logger]
@@ -858,7 +805,7 @@ end
         b = build_ctrl(c1, nobs, "c")
         @test lg[:ctrl_dependence][end][1] ≈ (dcov2(P[:, 1], b) + dcov2(P[:, 2], b)) / 2 rtol = 1e-6
         @test lg[:metrics][end] - lg[:base_metrics][end] ≈ λ * (dcov2(P[:, 1], b) + dcov2(P[:, 2], b)) / 2 rtol = 1e-6
-        # an offset gives the first prediction a spread, so round 0 already carries a dependence
+        # an offset gives round 0 a dependence
         o = 0.5 .* c1
         m = fit(cfg(λ); x_train=x, y_train=y, offset_train=o, ctrl_train=c1, x_eval=x, y_eval=y, offset_eval=o,
             ctrl_eval=c1, verbosity=0)
@@ -869,8 +816,8 @@ end
     end
 
     @testset "the eval controls are scaled on the eval set" begin
-        # a held-out eval set: the dependence is that of its own standardised controls, so an affine
-        # change of the eval control leaves it unchanged, pooled and within groups
+        # held-out eval controls are standardised on the eval set, so an affine change leaves the
+        # dependence unchanged
         tr, ev = 1:1500, 1501:2000
         for within in (false, true)
             kw = within ? (; group_train=gid[tr], group_eval=gid[ev]) : (;)
@@ -891,12 +838,10 @@ end
     end
 
     @testset "its gradient is the training penalty" begin
-        # sum(w) / m times the derivative of the eval term must equal what update_grads! adds, m being
-        # the metric's multiple of the training objective: 2 for the :poisson deviance, -1 for the
-        # :gaussian_mle log-likelihood. Exact under :mse, :logloss and :poisson; under :gamma and
-        # :tweedie at a calibrated prediction, y = exp(p); under :gaussian_mle where the scale is
-        # constant over the statistic's rows: everywhere when pooled, within each group otherwise.
-        # Unequal groups, the first too small to keep, and unequal row weights
+        # sum(w) / m times the derivative of the eval term equals the training penalty, m being the
+        # metric's multiple of the objective: 2 for :poisson, -1 for :gaussian_mle. Exact for :mse,
+        # :logloss and :poisson, at y = exp(p) for :gamma and :tweedie, and at a scale constant over the
+        # statistic's rows for :gaussian_mle
         n = 400
         g400 = vcat(fill(0, 3), fill(1, 37), fill(2, 120), repeat(3:8, inner=40))
         cb = build_ctrl(c1[1:n], n, "c")
@@ -916,7 +861,7 @@ end
             params = L == EvoTrees.GaussianMLE ?
                      EvoTreeMLE(loss=loss, ctrl_lambda=2.0, ctrl_within_group=within) :
                      EvoTreeRegressor(loss=loss, ctrl_lambda=2.0, ctrl_within_group=within)
-            # the metric a fit uses by default is the one that includes the penalty
+            # the default metric is the one that includes the penalty
             feval = EvoTrees.metric_dict[params.metric]
             @test feval === EvoTrees._own_metric(L)
             p = L == EvoTrees.GaussianMLE ? vcat(p1', (within ? 0.1 .* g400 : fill(0.2, n))') : Matrix(p1')
@@ -930,8 +875,7 @@ end
             ec = EvoTrees.eval_ctrl(params, L, K, EvoTrees.Controls([cb], [1.0], ["c"]), within ? gi : nothing, feval, w)
             @test ec.penalized
             term(q) = EvoTrees.eval_penalty!(ec, q)[2]
-            # rows with no neighbour within 1e-4, so the step never crosses a kink of the statistic; over
-            # 11 seeds the two agree to within 2e-8 of the largest row's gradient
+            # rows with no neighbour within 1e-4, so the step crosses no kink
             h = 1e-7
             for i in (within ? vcat(1, probe) : probe)
                 qp = copy(p); qp[1, i] += h
@@ -983,7 +927,7 @@ end
             @test lg[:metrics] == lg[:base_metrics]
             @test lg[:ctrl_dependence][end][1] > 0
         end
-        # and without a weight the metric is the base one, though the dependence is still logged
+        # a zero weight logs the dependence but not the penalty
         m0 = fit(cfg(0.0); x_train=x, y_train=y, ctrl_train=c1, x_eval=x, y_eval=y, ctrl_eval=c1, verbosity=0)
         @test !m0.info[:logger][:penalized]
         @test m0.info[:logger][:metrics] == m0.info[:logger][:base_metrics]
@@ -1002,8 +946,7 @@ end
         @test 0 < lg[:best_iter]
         @test lg[:nrounds] == lg[:best_iter] + 10 < 300
         @test lg[:best_iter] == lg[:iter][argmin(lg[:metrics])]
-        # the base metric alone would have run on: over data seeds 1 to 5 and the test's own it is
-        # lowest 7 to 10 rounds after the penalised one
+        # the base metric alone would have run longer
         @test lg[:iter][argmin(lg[:base_metrics])] > lg[:best_iter]
     end
 
@@ -1043,7 +986,7 @@ end
             y_eval=y, ctrl_eval=hcat(c1, fill(1.0, nobs)), verbosity=0)
         @test_throws "eval set has no groups" fit(cfg(5.0; within=true); x_train=x, y_train=y, ctrl_train=c1,
             group_train=gid, x_eval=x, y_eval=y, ctrl_eval=c1, verbosity=0)
-        # eval controls without an eval set track nothing, so they warn as `x_eval` alone does
+        # eval controls without an eval set warn as `x_eval` alone does
         @test_logs (:warn, r"both `x_eval` and `y_eval`") fit(cfg(5.0); x_train=x, y_train=y, ctrl_train=c1,
             ctrl_eval=c1, verbosity=0)
     end
