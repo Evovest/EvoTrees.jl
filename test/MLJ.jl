@@ -461,8 +461,7 @@ end
 end
 
 @testset "ctrl_lambda cannot be used through MLJ" begin
-    # MLJ has no way to pass a control variable, so a positive weight must fail rather than
-    # fit silently without the penalty. The same machines fit at a zero weight.
+    # MLJ cannot pass controls, so a positive weight is an error
     Xr, yr = MLJTestInterface.make_regression()
     function fit_error(model)
         try
