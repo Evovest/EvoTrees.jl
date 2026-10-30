@@ -181,5 +181,6 @@ The penalty is available on `EvoTreeRegressor` for `:mse`, `:logloss`, `:poisson
 `:tweedie` and, within groups only, `:pearson`, and on `EvoTreeMLE` for `:gaussian_mle`, where it
 acts on the location. Under losses other than `:mse` its gradient is weighted by the loss's
 curvature, so a given weight has about the same effect. Under `:pearson` the default metric,
-`:pearson`, does not include the penalty; `metric = :pearson_mse`, the loss's objective, does. On GPU the penalty is computed on the host. The MLJ interface cannot pass controls, so
-the penalty is only available through `EvoTrees.fit`.
+`:pearson`, does not include the penalty, while `metric = :pearson_mse`, the loss's objective, does.
+On GPU the penalty is computed on the host. The MLJ interface cannot pass controls, so the penalty
+is only available through `EvoTrees.fit`.

@@ -149,21 +149,17 @@ returns and holds no loss-specific code.
 `2w` as under `:mse`, so group `g` adds `λ W_g ∂dcov2_g/∂p` to the gradient. Groups of one row or
 with a constant target are not scored by the loss, have no curvature and get no penalty. The loss
 does not change when a constant is added to a group's predictions, so a pooled penalty would move
-group levels that nothing holds in place: `:pearson` takes the penalty within groups only. The
+group levels that nothing holds in place, and `:pearson` takes the penalty within groups only. The
 target is standardised within each group, so `λ` does not depend on its scale.
 
-The default metric, `:pearson`, is a correlation with no exchange rate with `λ`, so it is reported
-without the penalty. `:pearson_mse`, the loss's objective per unit weight, is the loss's own metric,
-so with `metric = :pearson_mse` the logged value adds the penalty. An evaluation group with a
-constant target is left out of `:pearson_mse` but its dependence still counts in the penalty.
+The default metric, `:pearson`, has no exchange rate with `λ` and is reported without the penalty.
+`:pearson_mse`, the loss's objective per unit weight, is its own metric, so with
+`metric = :pearson_mse` the logged value adds the penalty. An evaluation group with a constant
+target is left out of `:pearson_mse`, but its dependence still counts in the penalty.
 
-Under a strong penalty, early stopping on `:pearson` keeps the first tree. That tree is fitted
-before the penalty acts, and the correlation falls in later rounds as the penalty removes the
-control's share of the signal. On 100 groups of 50 rows whose control carried a third of each
-group's signal, at `λ = 10`, it stopped at round 1 in 21 of 21 seeds. On `:pearson_mse` it ran 26 to
-62 rounds, to at most 0.11 of round 1's within-group `dcor2`, at a per-group correlation of 0.729 to
-0.793 against 0.845 to 0.875. At `λ = 1`, or with a control unrelated to the target, both metrics
-reached the same per-group correlation within 0.001.
+Under a strong penalty, early stopping on `:pearson` keeps the first tree, which is fitted before
+the penalty acts: the correlation then falls as the penalty removes the control's share of the
+signal. Early stopping on `:pearson_mse` follows the penalised objective instead.
 
 ## GPU
 
