@@ -121,7 +121,7 @@ _pl_err(f) =
     end
 _pl_msg(e) = e isa ErrorException ? e.msg : ""
 
-# 60 dates of 80 to 300 assets, rows grouped by date. y = level_d + vol_d (0.3 f(x) + noise),
+# 60 dates of 80 to 300 rows each, rows grouped by date. y = level_d + vol_d (0.3 f(x) + noise),
 # with level shocks far larger than the spread within a date and vol varying 10x across dates.
 # `dconst` is constant within a date and tracks level_d. Dates 1 to 45 train, 46 to 60 evaluate.
 function _pl_fit_panel(seed; sizes=nothing)
