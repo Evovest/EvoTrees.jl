@@ -1,21 +1,20 @@
 # Decorrelation penalty
 
 `ctrl_lambda` penalises the dependence between a model's predictions and one or more control
-variables. The roles of the inputs are:
+variables. The inputs are:
 
 - `X`: the input features;
 - `Y`: the target;
 - `C`: a control variable whose dependence with the predictions should be reduced. `C` may or may
   not be one of the features.
 
-Dependence is measured by distance covariance, which is zero only under independence, so the
-penalty also removes nonlinear dependence that a correlation does not see. The
+Dependence is measured by distance covariance, which also captures nonlinear dependence. The
 [design notes](../dcov-design.md) describe how the penalty is defined and computed.
 
 ## Data
 
-The target depends on `C` only through its square. `C` is not a feature, but the first feature is a
-noisy measurement of it, so a model can learn that dependence. `Y0` is the part of `Y` that does not
+`Y` depends on `C` only through its square. `C` is not a feature, but the first feature is a noisy
+measurement of it, so a model can learn that dependence. `Y0` is the part of `Y` that does not
 depend on `C`. Rows come in groups of 200, identified by `group`.
 
 ```julia
@@ -37,8 +36,8 @@ train, valid, test = simulate(rng), simulate(rng), simulate(rng)
 
 ## Fitting with the penalty
 
-The control is passed as `ctrl_train`, one value per row. From a table, pass its column name as
-`ctrl_name` instead; the column is not used as a feature unless listed in `feature_names`.
+Pass the control as `ctrl_train`, one value per row, or from a table as the column name
+`ctrl_name`. That column is not used as a feature unless listed in `feature_names`.
 
 ```julia
 config(λ) = EvoTreeRegressor(loss=:mse, nrounds=200, eta=0.05, max_depth=5, ctrl_lambda=λ)
@@ -48,8 +47,7 @@ m1 = EvoTrees.fit(config(30.0); x_train=train.x, y_train=train.y, ctrl_train=tra
 ```
 
 On the test set, compare the Pearson correlation and the squared distance correlation
-(`EvoTrees.dcor2`, near zero under independence) of the predictions with `C`, and their correlation
-with `Y` and with `Y0`:
+(`EvoTrees.dcor2`) of the predictions with `C`, and their correlation with `Y` and `Y0`:
 
 ```julia
 for (name, m) in (("no penalty", m0), ("ctrl_lambda = 30", m1))
@@ -67,9 +65,9 @@ ctrl_lambda = 30  cor(p, C) 0.007  dcor2(p, C) 0.016  cor(p, Y) 0.860  cor(p, Y0
 ![Test predictions against the control, without and with the penalty](../assets/decorrelation-control.png)
 
 Without the penalty the predictions follow the square of `C` (left), yet their Pearson correlation
-with `C` is near zero, so a penalty on the correlation would have nothing to remove. The distance
-correlation sees the dependence, and the penalty removes most of it. The predictions then track
-`Y0` more closely and `Y` less, since part of `Y` comes from `C`.
+with `C` is near zero. The distance correlation captures this dependence, and the penalty removes
+most of it. The predictions then track `Y0` more closely and `Y` less, since part of `Y` comes from
+`C`.
 
 ## Within groups
 
@@ -95,9 +93,8 @@ no penalty      mean dcor2(p, C) within groups 0.084
 within groups   mean dcor2(p, C) within groups 0.016
 ```
 
-Here the groups have no structure of their own, so the result is close to the pooled fit. The two
-forms differ when `C` or `Y` has a group-level component: the pooled penalty also acts on the
-dependence between groups, the within-group penalty only on the dependence within them.
+The groups here have no structure of their own, so the result is close to the pooled fit. The two
+forms differ when `C` or `Y` has a group-level component, which only the pooled penalty acts on.
 
 ## Choosing `ctrl_lambda`
 
@@ -121,10 +118,9 @@ ctrl_lambda   100  mse 1.151  cor(p, C) -0.003  dcor2(p, C) 0.0035
 ctrl_lambda   300  mse 4.265  cor(p, C) +0.159  dcor2(p, C) 0.0229
 ```
 
-Past some `ctrl_lambda * eta`, between 5 and 15 here, each round overshoots and the fit oscillates
-instead of settling, as at 300. A larger weight needs a smaller `eta`. The weight also scales with
-the target: a target 10 times larger needs about 10 times the weight, so standardise `Y` or retune
-it.
+Past some `ctrl_lambda * eta`, between 5 and 15 here, the fit oscillates instead of settling, as at
+300, so a larger weight needs a smaller `eta`. The weight also scales with the target: a target 10
+times larger needs about 10 times the weight.
 
 ## Several controls
 
@@ -150,7 +146,7 @@ C and X4    dcor2(p, C) 0.017  dcor2(p, X4) 0.006
 ```
 
 Penalising `C` alone makes the model lean more on the fourth feature, and the second control limits
-that. The terms are summed, so a dependence that shows only in a combination of controls is not
+that. Since the terms are summed, a dependence that shows only in a combination of controls is not
 penalised.
 
 ## Early stopping
@@ -175,9 +171,9 @@ i = logger[:best_iter] + 1
 best round 281: mse 0.8030, dependence 0.00793, penalised 1.0408
 ```
 
-The penalised value is the mse plus `ctrl_lambda` times the dependence, here `dcov2` of the
-predictions and the standardised control. The logger keeps both parts for every round under
-`:base_metrics` and `:ctrl_dependence`. Other metrics, such as `:mae`, are reported unchanged.
+The penalised value is the mse plus `ctrl_lambda` times the dependence, `dcov2` of the predictions
+and the standardised control. The logger keeps both parts for every round under `:base_metrics` and
+`:ctrl_dependence`. Other metrics, such as `:mae`, are reported unchanged.
 
 ## Other losses and devices
 
