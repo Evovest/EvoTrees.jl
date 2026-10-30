@@ -379,9 +379,8 @@ weighted squared error of each group's centred prediction against its standardis
 over the groups of `group` with at least two rows and a non-constant target, divided by `sum(w)`.
 Writes each row's term to `eval` and returns a scalar.
 
-With `ctrl_lambda > 0` the logged value adds the decorrelation penalty. It is an alternative to
-`:pearson` for early stopping when a strong penalty makes that metric stop too early, since the
-penalty lowers the correlation `:pearson` measures.
+With `ctrl_lambda > 0` the logged value adds the decorrelation penalty. Use it for early stopping
+under a strong penalty, where `:pearson` stops too early.
 """
 function pearson_mse(
     p::AbstractMatrix{T},

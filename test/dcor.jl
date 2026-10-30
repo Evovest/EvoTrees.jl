@@ -994,8 +994,8 @@ end
 
 @testset "loss = :pearson" begin
     zscore(v) = (v .- mean(v)) ./ std(v)
-    # 100 groups of 50 rows, shuffled. Within a group the control is the row-level term `dev`,
-    # which also carries a third of the target's signal within the group
+    # 100 shuffled groups of 50 rows. Within a group the control `dev` carries a third of the
+    # target's signal
     function panel(seed)
         rng = Xoshiro(seed)
         nobs = 100 * 50
@@ -1018,9 +1018,8 @@ end
     end
 
     @testset "the penalty lands on the gradient unchanged" begin
-        # the loss's curvature is 2w, so each kept group adds `λ * W_g` times its gradient, `W_g` its weight
-        # sum. Group 3 is too small for the penalty, and group 1 has a constant target, so the loss gives it
-        # no curvature and no penalty. Over 21 seeds the error was at most 1.1e-7, Float32 rounding
+        # the loss's curvature is 2w, so each kept group adds `λ W_g` times its gradient. Group 3 is too
+        # small for the penalty, and group 1 has a constant target, so it gets no curvature and no penalty
         rng = Xoshiro(91)
         gid = vcat([fill(g, m) for (g, m) in enumerate((9, 12, 3, 10, 8))]...)
         gid = gid[randperm(rng, length(gid))]
@@ -1049,10 +1048,9 @@ end
     end
 
     @testset "metric = :pearson_mse is the training objective" begin
-        # the loss's weighted squared error per unit weight, so its gradient times the total weight is the
-        # loss's gradient row, and with the penalty the penalised eval value's is the training row. A group
-        # of one row and one with a constant target are not scored. Over 21 seeds: value 6.0e-16
-        # relative, gradients within 2.4e-10 and 8.8e-10 of the largest row
+        # the loss's weighted squared error per unit weight: its gradient times the total weight is the
+        # loss's gradient row, and the training row with the penalty. A group of one row and one with a
+        # constant target are not scored
         rng = Xoshiro(96)
         gid = repeat(1:8, inner=40)
         gid[1] = 9
@@ -1086,17 +1084,15 @@ end
         ∇[3, :] .= w
         EvoTrees.update_grads!(∇, p, y, EvoTrees.Pearson, params, gi, EvoTrees.dcor_cache(params, ctrls, gi, w))
         value(q) = metric(q) + EvoTrees.eval_penalty!(ec, q)[2]
-        # rows with no neighbour within 1e-4 in their group, so the step crosses no kink of the statistic
+        # rows with no neighbour within 1e-4 in their group, so the step crosses no kink
         probe = filter(i -> 2 < gid[i] < 9 &&
             minimum(abs(p[i] - p[j]) for j in 1:n if j != i && gid[j] == gid[i]) > 1e-4, 1:n)[1:8]
         @test maximum(abs(∇[1, i] - fd(value, i, 1e-5)) for i in probe) < 1e-6 * maximum(abs, ∇[1, :])
     end
 
     @testset "early stopping" begin
-        # the default metric, the per-group correlation, is reported as it stands. The first tree sees no
-        # penalty and the correlation falls as the penalty sheds the control's share of the signal, so
-        # over 21 seeds it stopped at round 1 every time; `:pearson_mse` ran 26 to 62 rounds, to a
-        # within-group dcor2 at most 0.11 of round 1's
+        # `:pearson` is reported without the penalty and stops at round 1, as the correlation falls once
+        # the penalty acts; `:pearson_mse` follows the penalised objective
         P = panel(2)
         tr, ev = P.group .<= 70, P.group .> 70
         rows = [findall(==(d), P.group[ev]) for d in 71:100]
