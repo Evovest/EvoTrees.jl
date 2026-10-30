@@ -24,7 +24,7 @@ end
             # the sweep sorts on the first argument, so symmetry holds to accumulation error
             @test dcov2(x, y) ≈ dcov2(y, x) rtol = 1e-9
         end
-        # a control on an absolute scale, a timestamp or a price. Every term is a difference, so
+        # a control on an absolute scale, such as a timestamp. Every term is a difference, so
         # an offset must not move the answer, and it does if the sums carry the offset instead of
         # being shifted first. The pair is deliberately DEPENDENT: on independent draws the
         # statistic estimates zero, and a relative tolerance against a near-zero quantity measures
@@ -193,7 +193,7 @@ end
         mt = fit(cfg(10.0), df; target_name="y", ctrl_name="c", verbosity=0)
         # the control is a role, not a feature, so it must not be learned from
         @test mt.info[:feature_names] == [:f1, :f2, :f3, :f4]
-        @test mt.info[:ctrl_name] == :c
+        @test mt.info[:ctrl_names] == [:c]
         @test dcor2(Float64.(predict(mt, df)[:, 1]), Float64.(ctrl)) < d_base / 3
     end
 
@@ -487,55 +487,55 @@ end
         @test penalty(ones(n)) == before
     end
 
-    @testset "a panel keeps its date-level relationship" begin
-        # 100 dates of 50 assets, rows shuffled so a date's rows are not contiguous. The control
-        # is a date-level market term plus a cross-sectional one, and the target loads on both,
-        # so the pooled penalty has to destroy a relationship the target legitimately has while
-        # the within-group penalty only removes the cross-sectional exposure
+    @testset "the within-group penalty keeps the group-level relationship" begin
+        # 100 groups of 50 rows, shuffled so a group's rows are not contiguous. The control is a
+        # group-level term plus a row-level one, and the target loads on both, so the pooled
+        # penalty has to destroy a relationship the target legitimately has while the
+        # within-group penalty only removes the dependence within groups
         rng = Xoshiro(81)
-        ndates, nassets = 100, 50
-        nobs = ndates * nassets
-        date = repeat(1:ndates, inner=nassets)
-        mkt = randn(rng, ndates)[date]
-        cs = randn(rng, nobs)
-        x = hcat(mkt .+ 0.1 .* randn(rng, nobs), cs .+ 0.3 .* randn(rng, nobs), randn(rng, nobs, 2))
-        ctrl = mkt .+ cs
-        y = mkt .+ cs .+ x[:, 3] .+ 0.3 .* randn(rng, nobs)
+        ngroups, group_size = 100, 50
+        nobs = ngroups * group_size
+        group = repeat(1:ngroups, inner=group_size)
+        level = randn(rng, ngroups)[group]
+        dev = randn(rng, nobs)
+        x = hcat(level .+ 0.1 .* randn(rng, nobs), dev .+ 0.3 .* randn(rng, nobs), randn(rng, nobs, 2))
+        ctrl = level .+ dev
+        y = level .+ dev .+ x[:, 3] .+ 0.3 .* randn(rng, nobs)
         perm = randperm(Xoshiro(82), nobs)
-        date, x, ctrl, y = date[perm], x[perm, :], ctrl[perm], y[perm]
+        group, x, ctrl, y = group[perm], x[perm, :], ctrl[perm], y[perm]
 
         cfgp(λ, within) = EvoTreeRegressor(loss=:mse, nrounds=40, max_depth=4, eta=0.2, seed=1,
             ctrl_lambda=λ, ctrl_within_group=within)
         base = fit(cfgp(0.0, false); x_train=x, y_train=y, verbosity=0)
-        pooled = fit(cfgp(20.0, false); x_train=x, y_train=y, ctrl_train=ctrl, group_train=date, verbosity=0)
-        within = fit(cfgp(20.0, true); x_train=x, y_train=y, ctrl_train=ctrl, group_train=date, verbosity=0)
+        pooled = fit(cfgp(20.0, false); x_train=x, y_train=y, ctrl_train=ctrl, group_train=group, verbosity=0)
+        within = fit(cfgp(20.0, true); x_train=x, y_train=y, ctrl_train=ctrl, group_train=group, verbosity=0)
 
-        rows = [findall(==(d), date) for d in 1:ndates]
+        rows = [findall(==(g), group) for g in 1:ngroups]
         pred(m) = Float64.(predict(m, x)[:, 1])
         dep_within(p) = mean(dcor2(p[r], ctrl[r]) for r in rows)
-        datemean(v) = [mean(v[r]) for r in rows]
-        dep_date(p) = dcor2(datemean(p), datemean(ctrl))
+        groupmean(v) = [mean(v[r]) for r in rows]
+        dep_between(p) = dcor2(groupmean(p), groupmean(ctrl))
         pb, pp, pw = pred(base), pred(pooled), pred(within)
 
-        # measured on Julia 1.10 and 1.12: within-date dependence 0.37 unpenalised, 0.02 pooled and
-        # -0.01 within; date-level dependence 0.97, 0.57 and 0.95
+        # measured on Julia 1.10 and 1.12: within-group dependence 0.37 unpenalised, 0.02 pooled and
+        # -0.01 within; group-level dependence 0.97, 0.57 and 0.95
         @test dep_within(pw) < dep_within(pb) / 3
-        # the date-level relationship survives the within-group penalty and not the pooled one
-        @test dep_date(pw) > 0.85
-        @test dep_date(pp) < 0.75
+        # the group-level relationship survives the within-group penalty and not the pooled one
+        @test dep_between(pw) > 0.85
+        @test dep_between(pp) < 0.75
         @test cor(pw, y) > 0.5
 
         # a zero weight leaves the model untouched
-        base_g = fit(cfgp(0.0, false); x_train=x, y_train=y, group_train=date, verbosity=0)
-        @test predict(fit(cfgp(0.0, true); x_train=x, y_train=y, ctrl_train=ctrl, group_train=date,
+        base_g = fit(cfgp(0.0, false); x_train=x, y_train=y, group_train=group, verbosity=0)
+        @test predict(fit(cfgp(0.0, true); x_train=x, y_train=y, ctrl_train=ctrl, group_train=group,
             verbosity=0), x) == predict(base_g, x)
 
         # whole-group sampling and the table interface both reach the same code
         @test fit(EvoTreeRegressor(loss=:mse, nrounds=10, max_depth=3, rowsample=0.5, ctrl_lambda=5.0,
-            ctrl_within_group=true); x_train=x, y_train=y, ctrl_train=ctrl, group_train=date,
+            ctrl_within_group=true); x_train=x, y_train=y, ctrl_train=ctrl, group_train=group,
             verbosity=0) isa EvoTrees.EvoTree
-        df = (f1=x[:, 1], f2=x[:, 2], f3=x[:, 3], f4=x[:, 4], date=date, c=ctrl, y=y)
-        mt = fit(cfgp(20.0, true), df; target_name="y", group_name="date", ctrl_name="c", verbosity=0)
+        df = (f1=x[:, 1], f2=x[:, 2], f3=x[:, 3], f4=x[:, 4], g=group, c=ctrl, y=y)
+        mt = fit(cfgp(20.0, true), df; target_name="y", group_name="g", ctrl_name="c", verbosity=0)
         @test mt.info[:feature_names] == [:f1, :f2, :f3, :f4]
         @test dep_within(Float64.(predict(mt, df)[:, 1])) < dep_within(pb) / 3
     end
@@ -705,8 +705,8 @@ end
     end
 
     @testset "a group one control skips gets only the other's term" begin
-        # the second control is flat on the first date, both are flat on the second and the first is
-        # flat on the third, so each of those dates gets the increment of the control it can use
+        # the second control is flat on the first group, both are flat on the second and the first is
+        # flat on the third, so each of those groups gets the increment of the control it can use
         f1, f2 = copy(c1), copy(c2)
         f2[1:50] .= 0.7
         f1[51:100] .= 0.7
@@ -722,8 +722,8 @@ end
         @test all(iszero, s[51:100])
         @test s[101:150] == s2[101:150]
         @test count(!iszero, s[151:end]) > 1750
-        # a control no date can use is an error that names it rather than a control silently dropped:
-        # constant within every date but not across them, so it passes as a column
+        # a control no group can use is an error that names it rather than a control silently dropped:
+        # constant within every group but not across them, so it passes as a column
         @test_throws "column 2 of `ctrl_train`" fit(cfg(1.0; within=true); x_train=x, y_train=y,
             ctrl_train=hcat(c1, Float64.(gid)), group_train=gid, verbosity=0)
     end
@@ -753,7 +753,7 @@ end
         mt = fit(cfg(10.0), df; target_name="y", ctrl_name=["c1", "c2"], verbosity=0)
         # both controls are roles, not features
         @test mt.info[:feature_names] == [:f1, :f2, :f3, :f4]
-        @test mt.info[:ctrl_name] == [:c1, :c2]
+        @test mt.info[:ctrl_names] == [:c1, :c2]
         pt = Float64.(predict(mt, df)[:, 1])
         @test dcor2(pt, c1) < dep(base, c1) / 2
         @test dcor2(pt, c2) < dep(base, c2) / 2
@@ -764,7 +764,7 @@ end
         ms = fit(cfg(10.0), df; target_name="y", ctrl_name="c1", verbosity=0)
         mv = fit(cfg(10.0), df; target_name="y", ctrl_name=["c1"], verbosity=0)
         @test predict(mv, df) == predict(ms, df)
-        @test mv.info[:ctrl_name] == [:c1]
+        @test mv.info[:ctrl_names] == [:c1]
     end
 
     @testset "rejected inputs" begin
@@ -916,7 +916,7 @@ end
             params = L == EvoTrees.GaussianMLE ?
                      EvoTreeMLE(loss=loss, ctrl_lambda=2.0, ctrl_within_group=within) :
                      EvoTreeRegressor(loss=loss, ctrl_lambda=2.0, ctrl_within_group=within)
-            # the metric a fit uses by default is the one the penalty is priced in
+            # the metric a fit uses by default is the one that includes the penalty
             feval = EvoTrees.metric_dict[params.metric]
             @test feval === EvoTrees._own_metric(L)
             p = L == EvoTrees.GaussianMLE ? vcat(p1', (within ? 0.1 .* g400 : fill(0.2, n))') : Matrix(p1')
@@ -956,7 +956,7 @@ end
         end
     end
 
-    @testset "every admitted loss prices its own metric" begin
+    @testset "every admitted loss adds the penalty to its own metric" begin
         yb = Float64.(y .> 0)
         yp = abs.(y) .+ 0.5
         for (params, yy) in (
