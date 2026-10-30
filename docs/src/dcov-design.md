@@ -55,7 +55,7 @@ of degree two, so `λ` scales with the target: a target 10 times larger needs 10
 `λ W ∂dcov2/∂p_i` to the gradient of row `i` and leaves the Hessian unchanged.
 
 The penalty acts on the full prediction, offset included, in training and in evaluation, since that
-is the prediction that is scored and the one the evaluation metric prices. Under `:mse`, fitting
+is the prediction that is scored and the one the evaluation metric measures. Under `:mse`, fitting
 `y - offset` without an offset penalises the trees' part alone.
 
 ### Curvature weighting

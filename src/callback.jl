@@ -103,7 +103,7 @@ function CallBack(
         for nm in names
             nm in Tables.columnnames(deval) || error(
                 "`deval` has no column `$nm`. The eval set needs the same control columns as the " *
-                "training set, for the eval metric to price the penalty.")
+                "training set, for the eval metric to include the penalty.")
         end
         cols = [build_ctrl(Tables.getcolumn(deval, nm), nobs, "deval"; col="`$nm`", eval=true) for nm in names]
         ctrl = eval_ctrl(params, L, K, Controls(cols, ctrl_weights, ["column `$nm` of `deval`" for nm in names]),
