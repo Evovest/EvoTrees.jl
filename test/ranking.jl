@@ -50,6 +50,32 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         @test ndcg_group([3.0, 2, 1], [0.0, 0, 0], 100) == 1.0
         # Ties in the prediction must not error.
         @test ndcg_group([1.0, 1.0, 1.0], [2.0, 1.0, 0.0], 100) isa Float64
+        # Tied predictions score as their worst case whatever the order of the rows.
+        worst = ndcg_group(-rel, rel, 100)
+        @test worst < 1.0
+        for perm in (1:6, sortperm(rel), sortperm(rel; rev=true), [4, 1, 6, 2, 5, 3])
+            @test ndcg_group(fill(0.5, 6), rel[perm], 100) == worst
+            @test ndcg_group(fill(0.5, 6), rel[perm], 3) == ndcg_group(-rel, rel, 3)
+        end
+        # Only tied rows are reordered by relevance: the worst case is the order 1, 4, 2, 3, 5, 6.
+        part = [2.0, 1, 1, 1, 0, 0]
+        resolved = [2.0, 1.1, 1.0, 1.2, 0.1, 0.0]
+        for perm in ([1, 2, 3, 4, 5, 6], [6, 3, 1, 5, 2, 4])
+            @test ndcg_group(part[perm], rel[perm], 100) == ndcg_group(resolved, rel, 100)
+        end
+        # NaN ranks first and ties with NaN, and -0.0 ties with 0.0: the order 5, 2, 4, 1, 3, 6.
+        pn = [0.5, NaN, 0.5, 1.0, NaN, 0.0]
+        for perm in ([6, 5, 4, 3, 2, 1], [2, 4, 6, 1, 3, 5], [5, 1, 4, 2, 6, 3])
+            @test ndcg_group(pn[perm], rel[perm], 100) == ndcg_group([2.5, 4.1, 2.0, 3.0, 4.2, 1.0], rel, 100)
+        end
+        @test ndcg_group([0.0, -0.0], [2.0, 0.0], 100) == ndcg_group([0.0, 1.0], [2.0, 0.0], 100)
+        # Larger groups, so the sort partitions rather than only insertion sorting.
+        for n in (40, 100)
+            rel_n = Float64.(rand(Xoshiro(n), 0:4, n))
+            for seed in 1:3
+                @test ndcg_group(fill(0.5, n), rel_n[randperm(Xoshiro(seed), n)], 1000) == ndcg_group(-rel_n, rel_n, 1000)
+            end
+        end
 
         # Truncation is bounded by the group size, so k beyond it changes nothing.
         @test ndcg_group(desc, rel, 6) ≈ ndcg_group(desc, rel, 100)
@@ -165,6 +191,78 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         EvoTrees._lambdarank_group!(EvoTrees.LambdaRankScratch(), ∇0,
             reshape(Float32[4, 3, 2, 1], 1, 4), Float32[0, 0, 0, 0], collect(1:4), 10)
         @test all(iszero, ∇0[1:2, :])
+
+        # Permuting a query's rows permutes its gradients and changes nothing else.
+        function lr_grads(sc, rel; k=10)
+            out = zeros(Float32, 3, length(rel))
+            out[3, :] .= 1
+            EvoTrees._lambdarank_group!(EvoTrees.LambdaRankScratch(), out,
+                reshape(Float32.(sc), 1, :), Float32.(rel), collect(1:length(rel)), k)
+            return out[1:2, :]
+        end
+        perms = ([8, 7, 6, 5, 4, 3, 2, 1], [3, 6, 1, 8, 5, 2, 7, 4], [4, 8, 2, 6, 5, 3, 7, 1])
+        rel_t = [4.0, 1, 3, 0, 2, 6, 5, 7]
+        # rows 2 and 6, 3 and 7, 4 and 8 tie on relevance
+        rel_d = [4.0, 1, 3, 0, 2, 1, 3, 0]
+        for rel in (rel_t, rel_d), sc in (zeros(8), [1.0, 1, 0, 0, 2, 2, 1, 0]), k in (10, 3)
+            g = lr_grads(sc, rel; k)
+            @test any(!iszero, g[1, :])
+            for perm in perms
+                @test all(isapprox.(lr_grads(sc[perm], rel[perm]; k), g[:, perm]; atol=1e-4))
+            end
+            # Ties count at their worst, as if the less relevant row scored slightly higher.
+            @test all(isapprox.(lr_grads(sc .- 1e-6 .* rel, rel; k), g; atol=1e-4))
+        end
+        # Rows tied on both score and relevance get the same gradients.
+        g = lr_grads(zeros(8), rel_d)
+        for (i, j) in ((2, 6), (3, 7), (4, 8))
+            @test all(isapprox.(g[:, i], g[:, j]; atol=1e-4))
+        end
+        # Larger groups, so the sort partitions rather than only insertion sorting.
+        for n in (40, 100)
+            rel_n = Float64.(rand(Xoshiro(n), 0:4, n))
+            gn = lr_grads(zeros(n), rel_n)
+            for seed in 1:3
+                perm = randperm(Xoshiro(seed), n)
+                @test all(isapprox.(lr_grads(zeros(n), rel_n[perm]), gn[:, perm]; atol=1e-4))
+            end
+            @test all(isapprox.(lr_grads(-1e-6 .* rel_n, rel_n), gn; atol=1e-4))
+        end
+        # A shared discount gives the mean gradients over all 7! orders of the tied rows.
+        function order_grads(sc, rel, k, o)
+            n = length(rel)
+            rank = invperm(o)
+            ideal = sort(rel; rev=true)
+            maxdcg = sum((2.0^ideal[i] - 1) / log2(i + 1) for i in 1:min(k, n))
+            disc(p) = p <= k ? 1 / log2(p + 1) : 0.0
+            g = zeros(2, n)
+            for a in 1:n, b in 1:n
+                rel[a] > rel[b] || continue
+                δ = abs((2.0^rel[a] - 2.0^rel[b]) * (disc(rank[a]) - disc(rank[b]))) / maxdcg
+                ρ = 1 / (1 + exp(sc[a] - sc[b]))
+                g[1, a] -= ρ * δ; g[1, b] += ρ * δ
+                g[2, a] += ρ * (1 - ρ) * δ; g[2, b] += ρ * (1 - ρ) * δ
+            end
+            g
+        end
+        allperms(v) = length(v) <= 1 ? [v] :
+            [[v[i]; p] for i in eachindex(v) for p in allperms(deleteat!(copy(v), i))]
+        for (sc, rel) in (([0.0, 0, 0, 0, 0, 0, 0], [1.0, 1, 1, 0, 0, 2, 2]),
+                          ([1.0, 0, 1, 0, 0, 1, 0], [2.0, 1, 2, 1, 1, 0, 3])), k in (1, 3, 4, 10)
+            expected = sum(order_grads(sc, rel, k, sortperm(1:7; by=i -> (-sc[i], rel[i], o[i])))
+                           for o in allperms(collect(1:7))) / factorial(7)
+            @test all(isapprox.(lr_grads(sc, rel; k), expected; atol=1e-5))
+        end
+        # Tied NaN scores share a discount too.
+        let g = lr_grads([NaN, NaN, 0, 0, 0, 0], [1.0, 1, 0, 2, 0, 3]; k=1)
+            @test isnan.(g[:, 1]) == isnan.(g[:, 2])
+        end
+        # Skipping the pairs past the cutoff loses nothing, checked against every pair.
+        let n = 60, rel = Float64.(rand(Xoshiro(60), 0:4, n)), sc = Float64.(randn(Xoshiro(61), Float32, n))
+            for k in (1, 10, n - 1, n)
+                @test all(isapprox.(lr_grads(sc, rel; k), order_grads(sc, rel, k, sortperm(-sc)); atol=1e-4))
+            end
+        end
     end
 
     @testset "eval-only grouping" begin
@@ -334,15 +432,29 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
             end
         end
 
+        # Ties break as the metric breaks them, less relevant first.
         function tutorial_ndcg(p, target, k=10)
             k = min(k, length(p))
-            p_order = partialsortperm(p, 1:k; rev=true)
+            p_order = sortperm(collect(zip(-p, target)))[1:k]
             gains = 2 .^ target[p_order] .- 1
             discounts = log2.((1:k) .+ 1)
             dcg = sum(gains ./ discounts)
             y_order = partialsortperm(target, 1:k; rev=true)
             idcg = sum((2 .^ target[y_order] .- 1) ./ discounts)
             return idcg == 0 ? 1.0 : dcg / idcg
+        end
+
+        # Eval rows stored best first must not score 1.0 at round 0, where every prediction ties.
+        let
+            o = sortperm(collect(zip(qid[te], -y[te])))
+            cfg = EvoTreeRegressor(; nrounds=60, max_depth=4, eta=0.1, metric=:ndcg, ndcg_k=10,
+                early_stopping_rounds=10)
+            logger_for(ix) = fit(cfg; x_train=x[tr, :], y_train=y[tr], group_train=qid[tr],
+                x_eval=x[te, :][ix, :], y_eval=y[te][ix], group_eval=qid[te][ix], verbosity=0).info[:logger]
+            lg, lg_sorted = logger_for(1:sum(te)), logger_for(o)
+            @test lg_sorted[:metrics] == lg[:metrics]
+            @test lg_sorted[:best_iter] == lg[:best_iter] > 0
+            @test lg[:metrics][1] < 1
         end
 
         for k in (5, 10, typemax(Int))

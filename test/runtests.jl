@@ -11,6 +11,7 @@ using Test
     @testset "Internal API" begin
         include("core.jl")
         include("predict-leaf-idx.jl")
+        include("shap.jl")
         include("metrics.jl")
         include("oblivious.jl")
         include("tables.jl")
@@ -19,6 +20,7 @@ using Test
         include("multi-target.jl")
         include("ranking.jl")
         include("dcor.jl")
+        include("pearson-loss.jl")
         include("plot.jl")
     end
 

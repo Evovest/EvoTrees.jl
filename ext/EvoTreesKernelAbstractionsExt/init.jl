@@ -104,6 +104,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
             _to_device(backend, group.group),
             zeros(UInt8, ng),
             KernelAbstractions.zeros(backend, UInt8, ng),
+            L == EvoTrees.Pearson ? PearsonHost(backend, y_cpu, Array(w), group) : nothing,
         )
     end
     G = typeof(group_cache)

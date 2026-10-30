@@ -231,3 +231,38 @@ function EvoTrees.update_grads!(
     copyto!(∇, ∇_cpu)
     return nothing
 end
+
+# `:pearson` runs on the host, as `:lambdarank` does. `y`, `w` and the group stats stay on the host
+# from init.
+struct PearsonHost{T,M}
+    p::Matrix{T}
+    ∇::Matrix{T}
+    ∇_gpu::M
+    y::Vector{T}
+    w::Vector{T}
+    stats::Matrix{Float64}
+    scored::Vector{Bool}
+end
+
+function PearsonHost(backend, y::Vector{T}, w::Vector{T}, group) where {T}
+    stats, scored = EvoTrees._pearson_stats(w, y, group)
+    n = length(y)
+    return PearsonHost(zeros(T, 1, n), zeros(T, 2, n), KernelAbstractions.zeros(backend, T, 2, n), y, w, stats, scored)
+end
+
+function EvoTrees.update_grads!(
+    ∇::CuMatrix,
+    p::CuMatrix,
+    y::CuVector,
+    ::Type{EvoTrees.Pearson},
+    params::EvoTrees.EvoTypes,
+    group,
+)
+    isnothing(group) && EvoTrees._pearson_no_group()
+    h = group.host
+    copyto!(h.p, p)
+    EvoTrees._pearson_grads!(h.∇, h.w, h.p, h.y, h.stats, h.scored, group.index)
+    copyto!(h.∇_gpu, h.∇)
+    view(∇, 1:2, :) .= h.∇_gpu
+    return nothing
+end

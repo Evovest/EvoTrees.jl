@@ -4,6 +4,7 @@ abstract type MLE2P <: LossType end # 2-parameters max-likelihood
 
 abstract type MSE <: GradientRegression end
 abstract type LambdaRank <: GradientRegression end
+abstract type Pearson <: GradientRegression end
 abstract type LogLoss <: GradientRegression end
 abstract type Poisson <: GradientRegression end
 abstract type Gamma <: GradientRegression end
@@ -21,6 +22,7 @@ abstract type CredStd <: Cred end
 const _loss2type_dict = Dict(
     :mse => MSE,
     :lambdarank => LambdaRank,
+    :pearson => Pearson,
     :logloss => LogLoss,
     :poisson => Poisson,
     :gamma => Gamma,
@@ -235,7 +237,7 @@ struct LambdaRankScratch
     ideal::Vector{Float64}
     disc::Vector{Float64}
     ord::Vector{Int}
-    rank::Vector{Int}
+    top::Vector{Int}
 end
 LambdaRankScratch() = LambdaRankScratch(Float64[], Float64[], Float64[], Float64[], Int[], Int[])
 
@@ -249,17 +251,33 @@ function _lambdarank_chunk!(∇::Matrix{T}, p::Matrix{T}, y, group, chunk, ndcg_
     return nothing
 end
 
+@inline function _lambdarank_pair!(∇::Matrix{T}, a, b, ga, scores, rel, disc, rows, maxdcg) where {T}
+    @inbounds begin
+        rel[a] > rel[b] || return nothing
+        gb = 2.0^rel[b] - 1
+        delta = abs((ga - gb) * (disc[a] - disc[b])) / maxdcg
+        delta == 0 && return nothing
+        ρ = 1 / (1 + exp(scores[a] - scores[b]))
+        λ = -ρ * delta
+        h = ρ * (1 - ρ) * delta
+        ra, rb = rows[a], rows[b]
+        ∇[1, ra] += T(λ)
+        ∇[1, rb] -= T(λ)
+        ∇[2, ra] += T(h)
+        ∇[2, rb] += T(h)
+    end
+    return nothing
+end
+
 function _lambdarank_group!(buf::LambdaRankScratch, ∇::Matrix{T}, p::Matrix{T}, y, rows, ndcg_k::Int) where {T}
     n = length(rows)
     n < 2 && return nothing
 
     scores, rel, ideal = buf.scores, buf.rel, buf.ideal
-    ord, rank, disc = buf.ord, buf.rank, buf.disc
+    ord, disc = buf.ord, buf.disc
     for v in (scores, rel, ideal, disc)
         resize!(v, n)
     end
-    resize!(ord, n)
-    resize!(rank, n)
     @inbounds for (i, r) in enumerate(rows)
         scores[i] = p[1, r]
         rel[i] = y[r]
@@ -274,30 +292,44 @@ function _lambdarank_group!(buf::LambdaRankScratch, ∇::Matrix{T}, p::Matrix{T}
     end
     maxdcg <= 0 && return nothing   # no relevant document, so no ranking signal
 
-    sortperm!(ord, scores; rev=true, alg=QuickSort)
-    @inbounds for pos in 1:n
-        rank[ord[pos]] = pos
-    end
     # Positions past k get no discount, so a pair wholly below the cutoff yields a zero delta.
-    @inbounds for pos in 1:n
-        disc[pos] = pos <= ndcg_k ? 1 / log2(pos + 1) : 0.0
+    # Rows tied on both score and relevance share the mean discount of their positions.
+    _rank_order!(ord, scores, rel)
+    pos = 1
+    @inbounds while pos <= n
+        stop = pos
+        while stop < n && _ties(scores[ord[stop+1]], scores[ord[pos]]) && rel[ord[stop+1]] == rel[ord[pos]]
+            stop += 1
+        end
+        d = 0.0
+        for j in pos:stop
+            d += j <= ndcg_k ? 1 / log2(j + 1) : 0.0
+        end
+        d /= stop - pos + 1
+        for j in pos:stop
+            disc[ord[j]] = d
+        end
+        pos = stop + 1
     end
 
+    # Skip the zero-delta pairs: a row without a discount only meets the rows with one.
+    top = buf.top
+    empty!(top)
+    if ndcg_k < n
+        @inbounds for i in 1:n
+            disc[i] != 0 && push!(top, i)
+        end
+    end
     @inbounds for a in 1:n
         ga = 2.0^rel[a] - 1
-        for b in 1:n
-            rel[a] > rel[b] || continue
-            gb = 2.0^rel[b] - 1
-            delta = abs((ga - gb) * (disc[rank[a]] - disc[rank[b]])) / maxdcg
-            delta == 0 && continue
-            ρ = 1 / (1 + exp(scores[a] - scores[b]))
-            λ = -ρ * delta
-            h = ρ * (1 - ρ) * delta
-            ra, rb = rows[a], rows[b]
-            ∇[1, ra] += T(λ)
-            ∇[1, rb] -= T(λ)
-            ∇[2, ra] += T(h)
-            ∇[2, rb] += T(h)
+        if disc[a] == 0
+            for b in top
+                _lambdarank_pair!(∇, a, b, ga, scores, rel, disc, rows, maxdcg)
+            end
+        else
+            for b in 1:n
+                _lambdarank_pair!(∇, a, b, ga, scores, rel, disc, rows, maxdcg)
+            end
         end
     end
     return nothing
@@ -327,6 +359,112 @@ _lambdarank_no_group() = error(
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{LambdaRank}, params::EvoTypes, group) where {T}
     isnothing(group) && _lambdarank_no_group()
     _lambdarank_grads!(∇, p, y, group, params.ndcg_k)
+end
+
+# `:pearson`: each group's centred prediction is fitted to its standardised target by weighted
+# squared error. See docs/src/pearson-design.md.
+
+_pearson_no_group() = error(
+    "`loss = :pearson` requires group information, one group per date for example. Pass " *
+    "`group_name` when fitting from a table, or `group_train` when fitting from a matrix."
+)
+
+# `(scored, sw, ybar, sy)` of one group: weight sum, weighted mean and sd of `y`.
+function _pearson_group_stats(w, y, rows)
+    n = length(rows)
+    n < 2 && return (false, 0.0, 0.0, 0.0)
+    sw = swy = 0.0
+    ymin = ymax = y[first(rows)]
+    @inbounds for r in rows
+        wr = Float64(w[r])
+        yr = y[r]
+        sw += wr
+        swy += wr * yr
+        ymin = min(ymin, yr)
+        ymax = max(ymax, yr)
+    end
+    # the Float64 variance of a constant Float32 target can be above 0
+    ymin == ymax && return (false, 0.0, 0.0, 0.0)
+    ybar = swy / sw
+    vy = 0.0
+    @inbounds for r in rows
+        d = y[r] - ybar
+        vy += w[r] * d * d
+    end
+    sy = sqrt(vy / sw)
+    sy > 0 || return (false, 0.0, 0.0, 0.0)
+    return (true, sw, ybar, sy)
+end
+
+function _pearson_stats_chunk!(stats, scored, w, y, group, chunk)
+    for g in chunk
+        ok, sw, ybar, sy = _pearson_group_stats(w, y, group_rows(group, g))
+        scored[g] = ok
+        stats[1, g] = sw
+        stats[2, g] = ybar
+        stats[3, g] = sy
+    end
+    return nothing
+end
+
+function _pearson_stats(w, y, group)
+    ng = ngroups(group)
+    stats = Matrix{Float64}(undef, 3, ng)
+    scored = Vector{Bool}(undef, ng)
+    @threads for chunk in _group_chunks(ng)
+        _pearson_stats_chunk!(stats, scored, w, y, group, chunk)
+    end
+    any(scored) || error(
+        "`loss = :pearson` found no group with at least two rows and a non-constant target, " *
+        "so there is nothing to correlate."
+    )
+    return stats, scored
+end
+
+# g and h of the groups in `chunk` into rows 1 and 2 of `∇`.
+function _pearson_write_chunk!(∇::AbstractMatrix{T}, w, p, y, stats, scored, group, chunk) where {T}
+    for g in chunk
+        rows = group_rows(group, g)
+        if !scored[g]
+            @inbounds for r in rows
+                ∇[1, r] = zero(T)
+                ∇[2, r] = zero(T)
+            end
+            continue
+        end
+        sw, ybar, sy = stats[1, g], stats[2, g], stats[3, g]
+        swp = 0.0
+        @inbounds for r in rows
+            swp += Float64(w[r]) * p[1, r]
+        end
+        pbar = swp / sw
+        @inbounds for r in rows
+            w2 = 2 * w[r]
+            ∇[1, r] = T(w2 * ((p[1, r] - pbar) - (y[r] - ybar) / sy))
+            ∇[2, r] = T(w2)
+        end
+    end
+    return nothing
+end
+
+# Shared by both backends.
+function _pearson_grads!(∇::AbstractMatrix, w, p, y, stats, scored, group)
+    @threads for chunk in _group_chunks(ngroups(group))
+        _pearson_write_chunk!(∇, w, p, y, stats, scored, group, chunk)
+    end
+    return nothing
+end
+
+function _pearson_grads!(∇::AbstractMatrix, p::AbstractMatrix, y::AbstractVector, group)
+    w = view(∇, 3, :)
+    stats, scored = _pearson_stats(w, y, group)
+    return _pearson_grads!(∇, w, p, y, stats, scored, group)
+end
+
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVector, ::Type{Pearson}, params::EvoTypes, group) where {T}
+    isnothing(group) && _pearson_no_group()
+    _pearson_grads!(∇, p, y, group)
+    return nothing
 end
 
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:GradientRegression}
