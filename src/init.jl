@@ -525,7 +525,7 @@ function init(
 
     m.info[:target_names] = _target_names
     m.info[:group_name] = isnothing(group_name) ? nothing : _group_name
-    m.info[:ctrl_name] = isnothing(ctrl_name) ? nothing : ctrl_name isa AbstractVector ? _ctrl_names : _ctrl_names[1]
+    m.info[:ctrl_names] = _ctrl_names
 
     return m, cache
 end

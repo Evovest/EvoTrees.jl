@@ -193,7 +193,7 @@ end
         mt = fit(cfg(10.0), df; target_name="y", ctrl_name="c", verbosity=0)
         # the control is a role, not a feature, so it must not be learned from
         @test mt.info[:feature_names] == [:f1, :f2, :f3, :f4]
-        @test mt.info[:ctrl_name] == :c
+        @test mt.info[:ctrl_names] == [:c]
         @test dcor2(Float64.(predict(mt, df)[:, 1]), Float64.(ctrl)) < d_base / 3
     end
 
@@ -753,7 +753,7 @@ end
         mt = fit(cfg(10.0), df; target_name="y", ctrl_name=["c1", "c2"], verbosity=0)
         # both controls are roles, not features
         @test mt.info[:feature_names] == [:f1, :f2, :f3, :f4]
-        @test mt.info[:ctrl_name] == [:c1, :c2]
+        @test mt.info[:ctrl_names] == [:c1, :c2]
         pt = Float64.(predict(mt, df)[:, 1])
         @test dcor2(pt, c1) < dep(base, c1) / 2
         @test dcor2(pt, c2) < dep(base, c2) / 2
@@ -764,7 +764,7 @@ end
         ms = fit(cfg(10.0), df; target_name="y", ctrl_name="c1", verbosity=0)
         mv = fit(cfg(10.0), df; target_name="y", ctrl_name=["c1"], verbosity=0)
         @test predict(mv, df) == predict(ms, df)
-        @test mv.info[:ctrl_name] == [:c1]
+        @test mv.info[:ctrl_names] == [:c1]
     end
 
     @testset "rejected inputs" begin
