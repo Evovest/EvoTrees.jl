@@ -238,8 +238,9 @@ struct LambdaRankScratch
     ideal::Vector{Float64}
     disc::Vector{Float64}
     ord::Vector{Int}
+    top::Vector{Int}
 end
-LambdaRankScratch() = LambdaRankScratch(Float64[], Float64[], Float64[], Float64[], Int[])
+LambdaRankScratch() = LambdaRankScratch(Float64[], Float64[], Float64[], Float64[], Int[], Int[])
 
 # The chunk body is its own function so the `@threads` closure does not box its captures,
 # which would otherwise make every per-group call a dynamic dispatch.
@@ -247,6 +248,24 @@ function _lambdarank_chunk!(∇::Matrix{T}, p::Matrix{T}, y, group, chunk, ndcg_
     buf = LambdaRankScratch()
     for g in chunk
         _lambdarank_group!(buf, ∇, p, y, group_rows(group, g), ndcg_k)
+    end
+    return nothing
+end
+
+@inline function _lambdarank_pair!(∇::Matrix{T}, a, b, ga, scores, rel, disc, rows, maxdcg) where {T}
+    @inbounds begin
+        rel[a] > rel[b] || return nothing
+        gb = 2.0^rel[b] - 1
+        delta = abs((ga - gb) * (disc[a] - disc[b])) / maxdcg
+        delta == 0 && return nothing
+        ρ = 1 / (1 + exp(scores[a] - scores[b]))
+        λ = -ρ * delta
+        h = ρ * (1 - ρ) * delta
+        ra, rb = rows[a], rows[b]
+        ∇[1, ra] += T(λ)
+        ∇[1, rb] -= T(λ)
+        ∇[2, ra] += T(h)
+        ∇[2, rb] += T(h)
     end
     return nothing
 end
@@ -294,21 +313,24 @@ function _lambdarank_group!(buf::LambdaRankScratch, ∇::Matrix{T}, p::Matrix{T}
         pos = stop + 1
     end
 
+    # Skip the zero-delta pairs: a row without a discount only meets the rows with one.
+    top = buf.top
+    empty!(top)
+    if ndcg_k < n
+        @inbounds for i in 1:n
+            disc[i] != 0 && push!(top, i)
+        end
+    end
     @inbounds for a in 1:n
         ga = 2.0^rel[a] - 1
-        for b in 1:n
-            rel[a] > rel[b] || continue
-            gb = 2.0^rel[b] - 1
-            delta = abs((ga - gb) * (disc[a] - disc[b])) / maxdcg
-            delta == 0 && continue
-            ρ = 1 / (1 + exp(scores[a] - scores[b]))
-            λ = -ρ * delta
-            h = ρ * (1 - ρ) * delta
-            ra, rb = rows[a], rows[b]
-            ∇[1, ra] += T(λ)
-            ∇[1, rb] -= T(λ)
-            ∇[2, ra] += T(h)
-            ∇[2, rb] += T(h)
+        if disc[a] == 0
+            for b in top
+                _lambdarank_pair!(∇, a, b, ga, scores, rel, disc, rows, maxdcg)
+            end
+        else
+            for b in 1:n
+                _lambdarank_pair!(∇, a, b, ga, scores, rel, disc, rows, maxdcg)
+            end
         end
     end
     return nothing
