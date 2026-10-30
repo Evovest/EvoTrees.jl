@@ -1,62 +1,53 @@
+using Random
 using CSV
 using DataFrames
-using StatsBase: sample, tiedrank
-using Statistics
-using Random: seed!
-using EvoTrees
-using EvoTrees: fit
+using Statistics: mean, std
+using StatsBase: tiedrank
 
+using CUDA
+using EvoTrees
 using AWS: AWSCredentials, AWSConfig, @service
 @service S3
+
 aws_creds = AWSCredentials(ENV["AWS_ACCESS_KEY_ID_JDB"], ENV["AWS_SECRET_ACCESS_KEY_JDB"])
 aws_config = AWSConfig(; creds=aws_creds, region="ca-central-1")
 
 path = "share/data/year/year.csv"
-raw = S3.get_object(
-    "jeremiedb",
-    path,
-    Dict("response-content-type" => "application/octet-stream");
-    aws_config,
-)
-df = DataFrame(CSV.File(raw, header=false))
+raw = S3.get_object("jeremiedb", path, Dict("response-content-type" => "application/octet-stream"); aws_config)
+df = DataFrame(CSV.File(raw; header=false))
+df_tot = copy(df)
 
 path = "share/data/year/year-train-idx.txt"
-raw = S3.get_object(
-    "jeremiedb",
-    path,
-    Dict("response-content-type" => "application/octet-stream");
-    aws_config,
-)
-train_idx = DataFrame(CSV.File(raw, header=false))[:, 1] .+ 1
+raw = S3.get_object("jeremiedb", path, Dict("response-content-type" => "application/octet-stream"); aws_config)
+train_idx = DataFrame(CSV.File(raw; header=false))[:, 1] .+ 1
 
 path = "share/data/year/year-eval-idx.txt"
-raw = S3.get_object(
-    "jeremiedb",
-    path,
-    Dict("response-content-type" => "application/octet-stream");
-    aws_config,
-)
-eval_idx = DataFrame(CSV.File(raw, header=false))[:, 1] .+ 1
+raw = S3.get_object("jeremiedb", path, Dict("response-content-type" => "application/octet-stream"); aws_config)
+eval_idx = DataFrame(CSV.File(raw; header=false))[:, 1] .+ 1
 
-X = df[:, 2:end]
-Y_raw = Float64.(df[:, 1])
-Y = (Y_raw .- mean(Y_raw)) ./ std(Y_raw)
+target_name = "y"
+rename!(df_tot, "Column1" => target_name)
+feature_names = setdiff(names(df_tot), ["y", "w"])
+df_tot.w .= 1.0
 
-x_tot, y_tot = X[1:(end-51630), :], Y[1:(end-51630)]
-x_test, y_test = Matrix(X[(end-51630+1):end, :]), Y[(end-51630+1):end]
-x_train, x_eval = Matrix(x_tot[train_idx, :]), Matrix(x_tot[eval_idx, :])
-y_train, y_eval = y_tot[train_idx], y_tot[eval_idx]
+function norm(x::AbstractVector{T}) where {T}
+    return (x .- mean(x)) ./ std(x)
+end
+transform!(df_tot, feature_names .=> norm .=> feature_names)
+
+dtrain = df_tot[train_idx, :];
+deval = df_tot[eval_idx, :];
+dtest = df_tot[(end-51630+1):end, :];
 
 config = EvoTreeRegressor(
-    nrounds=500,
+    nrounds=2000,
     loss=:mae,
     metric=:mse,
     eta=0.1,
     nbins=32,
     min_weight=1,
-    max_depth=7,
-    lambda=0,
-    L2=0,
+    max_depth=8,
+    L2=100,
     gamma=0,
     rowsample=0.5,
     colsample=0.9,
@@ -64,13 +55,15 @@ config = EvoTreeRegressor(
 )
 
 # @time m = fit_evotree(config; x_train, y_train, print_every_n=25);
-@time m = fit(
-    config;
-    x_train,
-    y_train,
-    x_eval,
-    y_eval,
+@time m = EvoTrees.fit(
+    config,
+    dtrain;
+    feature_names,
+    target_name,
+    deval,
     print_every_n=100,
 );
-p_evo = m(x_test);
-mean((p_evo .- y_test) .^ 2) * std(Y_raw)^2
+
+p_test = m(dtest);
+mse_test = mean((p_test .- dtest.y) .^ 2)
+@info "MSE - dtest" mse_test
