@@ -17,6 +17,9 @@
 - `loss=:xendcg`: the XE-NDCG listwise ranking loss (Bruch, WWW 2021), linear in the size of each group. `metric` defaults to `:xendcg`, the same loss on the evaluation groups.
 - `:lambdarank` and `:xendcg` reject a multi-column target, which `:lambdarank` used to fit on the wrong values.
 
+### Pearson loss
+- `loss=:pearson` fits the Pearson correlation between the predictions and the target within each group of `group_name` / `group_train`, so it is only available through `EvoTrees.fit`. `metric` defaults to `:pearson`.
+
 ## v0.18.8
 
 Saved `:gaussian_mle` / `:logistic_mle` models from ≤0.18.7 remain compatible: the unconstrained scale is still `exp(x)`.

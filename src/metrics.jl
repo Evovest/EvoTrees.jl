@@ -218,12 +218,31 @@ function _group_chunks(ng::Int)
     return [((c - 1) * per + 1):min(c * per, ng) for c in 1:nt if (c - 1) * per + 1 <= ng]
 end
 
+@inline _ties(x, y) = x == y || (isnan(x) && isnan(y))
+
+# Highest prediction first, NaN first as in `sortperm`. A tie puts the less relevant row
+# first, so it scores as its worst case whatever the order of the rows.
+@inline function _rank_before(pred, rel, a::Int, b::Int)
+    pa, pb = pred[a], pred[b]
+    _ties(pa, pb) || return isless(pb, pa)
+    return rel[a] < rel[b] || (rel[a] == rel[b] && a < b)
+end
+
+function _rank_order!(ord::Vector{Int}, pred::AbstractVector, rel::AbstractVector)
+    n = length(rel)
+    resize!(ord, n)
+    @inbounds for i in 1:n
+        ord[i] = i
+    end
+    # QuickSort is in place; the default hybrid allocates scratch on every call
+    sort!(ord; alg=QuickSort, lt=(a, b) -> _rank_before(pred, rel, a, b))
+    return ord
+end
+
 function _ndcg_group!(ord::Vector{Int}, ideal::Vector{Float64}, pred::AbstractVector, rel::AbstractVector, k::Int)
     n = length(rel)
     kk = min(k, n)
-    resize!(ord, n)
-    # QuickSort is in place; the default hybrid allocates scratch on every call
-    sortperm!(ord, pred; rev=true, alg=QuickSort)
+    _rank_order!(ord, pred, rel)
     dcg = 0.0
     @inbounds for i in 1:kk
         dcg += (2.0^rel[ord[i]] - 1) / log2(i + 1)
@@ -250,7 +269,7 @@ Requires the group index supplied at fit through `group_name` or `group_eval`. A
 is the mean of its rows' weights, so the default of unit weights leaves every group equally
 weighted. Only that group-level weight enters the score: NDCG is defined from the ranking of a
 group's documents, so the spread of weights within a group is deliberately ignored. Use `:pearson`
-if per-document weights need to count.
+if per-document weights need to count. Tied predictions rank the less relevant document first.
 """
 function ndcg(
     p::AbstractMatrix{T},

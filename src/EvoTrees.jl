@@ -60,6 +60,11 @@ struct EvoTreeLegacyPreV20{L,K}
     info::Dict{Symbol,Any}
 end
 
+"""
+    save(model, path)
+
+Write `model` to `path`, a file path or an `IO` stream, for [`load`](@ref) to read back.
+"""
 function save(model::EvoTree{L,K}, path) where {L,K}
     # stamped so a later layout change has something to branch on rather than guessing from shape
     info = copy(model.info)
@@ -71,7 +76,8 @@ end
 """
     load(path)
 
-Read a model written by [`save`](@ref), including one written before v0.20.
+Read a model written by [`save`](@ref), from a file path or an `IO` stream, including one written
+before v0.20.
 
 BSON rebuilds a struct by field position, so a model from an earlier version puts its `trees` into
 the `bias` field and fails to load. Nothing in the file records which layout it is, so it is read
@@ -85,7 +91,8 @@ function load(path)
         entry[:type][:name] = Any["EvoTrees", "EvoTreeLegacyPreV20"]
         return _upgrade(BSON.raise_recursive(doc, @__MODULE__)[:model])
     end
-    return BSON.load(path, @__MODULE__)[:model]
+    # raised from the one parse, so a stream is read once
+    return BSON.raise_recursive(doc, @__MODULE__)[:model]
 end
 
 _is_pre_v20(entry) =

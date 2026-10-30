@@ -7,13 +7,15 @@ pages = [
     "Models" => "models.md",
     "API" => [
         "Public" => "api.md",
-        "Internals" => "internals.md"
+        "Internals" => "internals.md",
+        "Pearson loss design" => "pearson-design.md"
     ],
     "Tutorials" => [
         "Regression - Boston" => "tutorials/regression-boston.md",
         "Logistic Regression - Titanic" => "tutorials/logistic-regression-titanic.md",
         "Classification - IRIS" => "tutorials/classification-iris.md",
         "Ranking - Yahoo! LTRC" => "tutorials/ranking-LTRC.md",
+        "Pearson loss" => "tutorials/pearson-loss.md",
         "Credibility-based loss" => "tutorials/cred-loss.md",
         "Internal API" => "tutorials/examples-API.md",
         "MLJ API" => "tutorials/examples-MLJ.md",

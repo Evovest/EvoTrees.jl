@@ -190,6 +190,14 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
             K = 1
             y = T.(vec(y_train))
             μ = T[0]
+        elseif L == Pearson
+            # A constant bias does not change a correlation within a group.
+            y_train isa AbstractMatrix && error("`loss = :pearson` takes a single target vector, not a matrix.")
+            K = 1
+            y = T.(y_train)
+            i = findfirst(!isfinite, y)
+            isnothing(i) || error("`loss = :pearson` needs a target that is finite in Float32, got $(y_train[i]) at index $i.")
+            μ = T[0]
         elseif L <: GradientRegression
             if y_train isa AbstractVector
                 K = 1
