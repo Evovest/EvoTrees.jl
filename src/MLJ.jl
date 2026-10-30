@@ -196,7 +196,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:gini`: The normalized Gini between pred and target
   - `:ndcg`: Normalized discounted cumulative gain, computed within each group and averaged over groups, with truncation set by `ndcg_k`. Requires groups and evaluation data, so it is only meaningful through `EvoTrees.fit`: the MLJ interface passes neither, and the metric is simply never evaluated there.
   - `:pearson`: Weighted Pearson correlation between prediction and target, computed within each group and averaged over groups. Requires groups and evaluation data, so like `:ndcg` it is only meaningful through `EvoTrees.fit`.
-  - `:pearson_mse`: The objective of `loss = :pearson` per unit weight, including the decorrelation penalty under that loss with `ctrl_lambda > 0`. Requires groups and evaluation data.
+  - `:pearson_mse`: The objective of `loss = :pearson` per unit weight, including the decorrelation penalty under that loss with `ctrl_lambda > 0`. An alternative to `:pearson` for early stopping when a strong penalty makes it stop too early. Requires groups and evaluation data.
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:               Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
