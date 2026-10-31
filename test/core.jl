@@ -507,6 +507,31 @@ end
         @test all(isfinite, predict(fit(EvoTreeRegressor(loss=:mse, nrounds=5); x_train=xd, y_train=yd, verbosity=0), xd))
     end
 
+    @testset "NaN in a feature" begin
+        # NaN sorts above every number, so it was binned with the largest values. Fit only
+        # failed when the NaN fell in the rows sampled for the bin edges, so above
+        # 1000 * nbins rows it usually trained silently, and predict never checked.
+        xd = rand(200, 3)
+        yd = 2 .* xd[:, 1] .+ 1
+        xn = copy(xd); xn[5, 2] = NaN
+        @test_throws ErrorException fit(EvoTreeRegressor(nrounds=2); x_train=xn, y_train=yd, verbosity=0)
+        @test_throws ErrorException fit(EvoTreeRegressor(nrounds=2), (x1=xn[:, 1], x2=xn[:, 2], x3=xn[:, 3], y=yd);
+            target_name="y", verbosity=0)
+        # more rows than the edge sample holds, whichever rows it draws
+        xl = rand(20_000, 3); yl = 2 .* xl[:, 1] .+ 1
+        xl[12_345, 1] = NaN
+        for seed in 1:3
+            @test_throws ErrorException fit(EvoTreeRegressor(nrounds=2, nbins=8, seed=seed); x_train=xl, y_train=yl, verbosity=0)
+        end
+        m = fit(EvoTreeRegressor(nrounds=5); x_train=xd, y_train=yd, verbosity=0)
+        @test_throws ErrorException fit(EvoTreeRegressor(nrounds=2); x_train=xd, y_train=yd, x_eval=xn, y_eval=yd, verbosity=0)
+        @test_throws ErrorException predict(m, xn)
+        @test_throws ErrorException m(xn)
+        @test_throws ErrorException EvoTrees.predict_leaf_idx(m, xn)
+        # clean data still predicts
+        @test all(isfinite, predict(m, xd))
+    end
+
     @testset "check_args L2 and bagging_size" begin
         # Both used to be accepted unvalidated. A negative `L2` lands in the leaf denominator
         # and takes every prediction to NaN; a `bagging_size` below 1 makes the per-round loop
