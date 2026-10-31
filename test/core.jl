@@ -564,6 +564,23 @@ end
         end
     end
 
+    @testset "a mutated config is checked at fit" begin
+        x, y = rand(Xoshiro(3), 200, 3), rand(Xoshiro(4), 200)
+        for (field, value) in ((:eta, -1.0), (:L2, -50.0), (:lambda, -1.0), (:gamma, -1.0), (:min_weight, -1.0),
+            (:nrounds, -5), (:max_depth, 0), (:nbins, 256), (:bagging_size, 0), (:early_stopping_rounds, -1),
+            (:rowsample, 0.0), (:colsample, 1.5), (:tree_type, :x))
+            config = EvoTreeRegressor(nrounds=2)
+            setproperty!(config, field, value)
+            @test_throws "`$field`" fit(config; x_train=x, y_train=y, verbosity=0)
+            @test_throws "`$field`" fit(config, (x1=x[:, 1], y=y); target_name=:y, verbosity=0)
+        end
+        for T in (EvoTreeClassifier, EvoTreeCount, EvoTreeMLE)
+            config = T(nrounds=2)
+            config.eta = -1.0
+            @test_throws "`eta`" fit(config; x_train=x, y_train=T == EvoTreeClassifier ? rand(1:2, 200) : y, verbosity=0)
+        end
+    end
+
     @testset "eval data validation" begin
         # Training checks its own inputs; the eval path did not, so a short weight vector
         # silently scored a subset of the eval set and reported it as the whole, and a

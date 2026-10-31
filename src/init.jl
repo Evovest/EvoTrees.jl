@@ -370,6 +370,8 @@ function build_ctrls(dtrain, ctrl_name, nobs::Int, ctrl_weights)
 end
 
 function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset, group=nothing, ctrl=nothing)
+    # the config can be mutated after construction, as MLJ tuning does
+    check_args(params)
 
     # binarize data into quantiles
     rng = Xoshiro(params.seed)
