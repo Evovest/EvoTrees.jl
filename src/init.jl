@@ -182,11 +182,13 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
         end
     else
         @assert eltype(y_train) <: Real
-        if L == LambdaRank
+        if L in (LambdaRank, XENDCG)
             # Scores are relative within a query, so a constant bias cancels.
-            @assert minimum(y_train) >= 0 "`:lambdarank` requires non-negative graded relevance."
+            @assert minimum(y_train) >= 0 "`:$(params.loss)` requires non-negative graded relevance."
+            y_train isa AbstractMatrix && size(y_train, 1) > 1 &&
+                error("`:$(params.loss)` takes a single target column, got $(size(y_train, 1)).")
             K = 1
-            y = T.(y_train)
+            y = T.(vec(y_train))
             μ = T[0]
         elseif L == Pearson
             # A constant bias does not change a correlation within a group.

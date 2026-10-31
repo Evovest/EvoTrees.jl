@@ -249,6 +249,35 @@ noise that a regression fit must absorb and a ranking objective can ignore. Wher
 is comparable across queries, regression is already a strong baseline, which is what the
 opening of this tutorial reports.
 
+## Listwise objective: XE-NDCG
+
+`loss=:xendcg` is the listwise loss of Bruch, "An Alternative Cross Entropy Loss for
+Learning-to-Rank" (WWW 2021). Its cost is linear in the size of a query. `metric` defaults to
+`:xendcg`; set `metric=:ndcg` to track NDCG instead.
+
+```julia
+config = EvoTreeRegressor(
+    loss=:xendcg,
+    nrounds=6000,
+    early_stopping_rounds=200,
+    eta=0.02,
+    nbins=64,
+    max_depth=11,
+    rowsample=0.9,
+    colsample=0.9,
+)
+
+m = EvoTrees.fit(
+    config;
+    x_train, y_train, group_train=q_train,
+    x_eval, y_eval, group_eval=q_eval,
+    print_every_n=50,
+);
+```
+
+Relevance must be non-negative. A query's Hessians sum to less than 1, so `L2` regularises more
+strongly than under `:mse`.
+
 ## Logistic regression alternative
 
 The above regression experiment shows a performance competitive with the results outlined in CatBoost's [ranking benchmarks](https://github.com/catboost/benchmarks/blob/master/ranking/Readme.md#4-results). 
