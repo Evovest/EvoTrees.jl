@@ -241,9 +241,14 @@ function check_ctrl(params::EvoTypes, ctrl, ::Type{L}, group) where {L}
               "fitting from a table, or `group_train` alongside `x_train`.")
     end
     # listed explicitly so a new subtype does not inherit the penalty
-    if !isnothing(ctrl) && !(L in (MSE, LogLoss, Poisson, Gamma, Tweedie, GaussianMLE))
+    if !isnothing(ctrl) && !(L in (MSE, LogLoss, Poisson, Gamma, Tweedie, GaussianMLE, Pearson))
         error("The decorrelation penalty is available for :mse, :logloss, :poisson, :gamma, " *
-              ":tweedie and :gaussian_mle, not for $(params.loss).")
+              ":tweedie, :gaussian_mle and :pearson, not for $(params.loss).")
+    end
+    # `:pearson` leaves each group's level free, and a penalty over the whole sample would act on it
+    if !isnothing(ctrl) && L == Pearson && !within
+        error("`loss = :pearson` takes the decorrelation penalty within groups only. " *
+              "Set `ctrl_within_group = true`.")
     end
     return nothing
 end

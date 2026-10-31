@@ -196,6 +196,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:gini`: The normalized Gini between pred and target
   - `:ndcg`: Normalized discounted cumulative gain, computed within each group and averaged over groups, with truncation set by `ndcg_k`. Requires groups and evaluation data, so it is only meaningful through `EvoTrees.fit`: the MLJ interface passes neither, and the metric is simply never evaluated there.
   - `:pearson`: Weighted Pearson correlation between prediction and target, computed within each group and averaged over groups. Requires groups and evaluation data, so like `:ndcg` it is only meaningful through `EvoTrees.fit`.
+  - `:pearson_mse`: The objective of `loss = :pearson` per unit weight, plus the decorrelation penalty when `ctrl_lambda > 0`. Use it for early stopping under a strong penalty, where `:pearson` stops too early. Requires groups and evaluation data.
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:               Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
@@ -206,8 +207,8 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 - `alpha=0.5`:            Loss specific parameter in the [0, 1] range:
                             - `:quantile`: target quantile for the regression.
 - `ndcg_k`:               Truncation rank for `metric = :ndcg` and for the `:lambdarank` objective, that is the `k` of NDCG@k. Must be >= 1. Defaults to no truncation, scoring the full list of each group. Ranking is only available through `EvoTrees.fit`, see `:lambdarank` above.
-- `ctrl_lambda=0.0`:      Weight of the penalty on the distance covariance between the predictions and the control variables. Must be >= 0. Supported for `:mse`, `:logloss`, `:poisson`, `:gamma` and `:tweedie`. Controls are passed to `EvoTrees.fit` (`ctrl_name` or `ctrl_train`), not through MLJ.
-- `ctrl_within_group=false`: Whether to compute the penalty within each group (`group_name` or `group_train`) rather than over all observations.
+- `ctrl_lambda=0.0`:      Weight of the penalty on the distance covariance between the predictions and the control variables. Must be >= 0. Supported for `:mse`, `:logloss`, `:poisson`, `:gamma`, `:tweedie` and `:pearson`. Controls are passed to `EvoTrees.fit` (`ctrl_name` or `ctrl_train`), not through MLJ.
+- `ctrl_within_group=false`: Whether to compute the penalty within each group (`group_name` or `group_train`) rather than over all observations. Must be `true` to penalise `:pearson`.
 - `max_depth=6`:          Maximum number of splits on a leaf path. Must be >= 1. Depth 1 is a split with 2 leaves.
   A complete tree of depth N contains `2^N` terminal leaves and `2^N - 1` split nodes.
   Compute cost is proportional to `2^max_depth`. Typical optimal values are in the 3 to 9 range.

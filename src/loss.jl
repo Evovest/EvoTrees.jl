@@ -214,14 +214,15 @@ _own_metric(::Type{Poisson}) = poisson
 _own_metric(::Type{Gamma}) = gamma
 _own_metric(::Type{Tweedie}) = tweedie
 _own_metric(::Type{GaussianMLE}) = gaussian_mle
+_own_metric(::Type{Pearson}) = pearson_mse
 _own_metric(::Type) = nothing
 
 # Eval penalty: `_dep_coef(L) * dcov2(_dep_transform(L, p), ctrl)`, see docs/src/dcov-design.md.
-_dep_transform(::Type{<:Union{MSE,Gamma,GaussianMLE}}, p) = p
+_dep_transform(::Type{<:Union{MSE,Gamma,GaussianMLE,Pearson}}, p) = p
 _dep_transform(::Type{LogLoss}, p) = sigmoid(p)
 _dep_transform(::Type{Poisson}, p) = exp(p)
 _dep_transform(::Type{Tweedie}, p) = exp((2 - 1.5) * p)   # rho = 1.5, as in the loss and its metric
-_dep_coef(::Type{<:Union{MSE,Poisson,Gamma}}) = 1.0
+_dep_coef(::Type{<:Union{MSE,Poisson,Gamma,Pearson}}) = 1.0
 _dep_coef(::Type{<:Union{LogLoss,GaussianMLE}}) = 0.5
 _dep_coef(::Type{Tweedie}) = 1 / (2 - 1.5)
 
