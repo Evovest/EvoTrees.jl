@@ -8,6 +8,7 @@ pages = [
     "API" => [
         "Public" => "api.md",
         "Internals" => "internals.md",
+        "Decorrelation design" => "dcov-design.md",
         "Pearson loss design" => "pearson-design.md"
     ],
     "Tutorials" => [
@@ -15,6 +16,7 @@ pages = [
         "Logistic Regression - Titanic" => "tutorials/logistic-regression-titanic.md",
         "Classification - IRIS" => "tutorials/classification-iris.md",
         "Ranking - Yahoo! LTRC" => "tutorials/ranking-LTRC.md",
+        "Decorrelation penalty" => "tutorials/decorrelation.md",
         "Pearson loss" => "tutorials/pearson-loss.md",
         "Credibility-based loss" => "tutorials/cred-loss.md",
         "Internal API" => "tutorials/examples-API.md",

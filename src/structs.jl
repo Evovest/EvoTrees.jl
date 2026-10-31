@@ -72,6 +72,7 @@ struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4},G} <: Cac
     feattypes::Vector{Bool}
     monotone_constraints::Vector{Int32}
     group::G
+    ctrl::Union{Nothing,AbstractDcorCache}
 end
 
 # single tree is made of a vectors of length num nodes

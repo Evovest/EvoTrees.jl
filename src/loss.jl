@@ -106,6 +106,125 @@ end
 update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group) where {L} =
     update_grads!(∇, p, y, L, params)
 
+# Base gradients, then the decorrelation penalty on the gradient rows. See docs/src/dcov-design.md.
+function update_grads!(∇, p, y, ::Type{L}, params::EvoTypes, group, ctrl) where {L}
+    update_grads!(∇, p, y, L, params, group)
+    isnothing(ctrl) && return nothing
+    λ = hasproperty(params, :ctrl_lambda) ? params.ctrl_lambda : 0.0
+    λ > 0 || return nothing
+    K = size(p, 1)
+    for k in ctrl_rows(L, K)
+        _penalize_row!(view(∇, k, :), view(∇, K + k, :), view(∇, 2K + 1, :), view(p, k, :), ctrl, λ)
+    end
+    return nothing
+end
+
+# Penalised rows of `∇`: every output, or each location under `MLE2P`. Hessians are `K` rows below,
+# weights in row `2K + 1`.
+ctrl_rows(::Type{<:GradientRegression}, K) = 1:K
+ctrl_rows(::Type{<:MLE2P}, K) = 1:2:K
+
+# Curvature relative to `:mse`, 1 under `:mse`.
+@inline _curvature(h, w) = w > 0 ? h / (2 * w) : zero(h)
+
+_ctrl_grad!(dc::DcorCache, x::AbstractVector) = dcov2_grad!(dc, x)
+
+function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
+    prow::AbstractVector, ctrl::DcorCache, λ) where {T}
+    g = _ctrl_grad!(ctrl, prow)
+    n = length(grow)
+    λw = λ * ctrl.wbar
+    @inbounds for i in 1:n
+        grow[i] += T(λw * n * g[i] * _curvature(hrow[i], wrow[i]))
+    end
+    return nothing
+end
+
+# Penalty gradient of each group, `λ W_g ∂dcov2_g`, into `ctrl.g`, groups in parallel.
+function _grouped_grad!(ctrl::GroupedDcorCache, prow::AbstractVector, λ)
+    @threads for k in eachindex(ctrl.caches)
+        rows = ctrl.rows[k]
+        gk = _ctrl_grad!(ctrl.caches[k], view(prow, rows))
+        λW = λ * ctrl.Wg[k]
+        @inbounds for (j, i) in enumerate(rows)
+            ctrl.g[i] = λW * gk[j]
+        end
+    end
+    return ctrl.g
+end
+
+function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
+    prow::AbstractVector, ctrl::GroupedDcorCache, λ) where {T}
+    _grouped_grad!(ctrl, prow, λ)
+    # rows of skipped groups carry no penalty
+    @inbounds for rows in ctrl.rows, i in rows
+        grow[i] += T(ctrl.g[i] * _curvature(hrow[i], wrow[i]))
+    end
+    return nothing
+end
+
+# Several controls: pooled controls run in parallel, within groups the groups do.
+function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
+    prow::AbstractVector, ctrl::SummedDcorCache{DcorCache}, λ) where {T}
+    caches, ω, acc = ctrl.caches, ctrl.weights, ctrl.acc
+    @threads for k in eachindex(caches)
+        _ctrl_grad!(caches[k], prow)
+    end
+    _sum_controls!(acc, caches, ω, eachindex(acc))
+    n = length(grow)
+    λw = λ * ctrl.wbar
+    @inbounds for i in 1:n
+        grow[i] += T(λw * n * acc[i] * _curvature(hrow[i], wrow[i]))
+    end
+    return nothing
+end
+
+function _penalize_row!(grow::AbstractVector{T}, hrow::AbstractVector, wrow::AbstractVector,
+    prow::AbstractVector, ctrl::SummedDcorCache{GroupedDcorCache}, λ) where {T}
+    caches, ω, acc = ctrl.caches, ctrl.weights, ctrl.acc
+    for c in caches
+        _grouped_grad!(c, prow, λ)
+    end
+    # rows a control skips hold zeros in its gradient
+    _sum_controls!(acc, caches, ω, ctrl.rows)
+    @inbounds for i in ctrl.rows
+        grow[i] += T(acc[i] * _curvature(hrow[i], wrow[i]))
+    end
+    return nothing
+end
+
+function _sum_controls!(acc, caches, ω, rows)
+    g1 = caches[1].g
+    @inbounds for i in rows
+        acc[i] = ω[1] * g1[i]
+    end
+    for k in 2:length(caches)
+        gk = caches[k].g
+        @inbounds for i in rows
+            acc[i] += ω[k] * gk[i]
+        end
+    end
+    return acc
+end
+
+# The metric the eval penalty is added to; other metrics are reported unchanged.
+_own_metric(::Type{MSE}) = mse
+_own_metric(::Type{LogLoss}) = logloss
+_own_metric(::Type{Poisson}) = poisson
+_own_metric(::Type{Gamma}) = gamma
+_own_metric(::Type{Tweedie}) = tweedie
+_own_metric(::Type{GaussianMLE}) = gaussian_mle
+_own_metric(::Type) = nothing
+
+# Eval penalty: `_dep_coef(L) * dcov2(_dep_transform(L, p), ctrl)`, see docs/src/dcov-design.md.
+_dep_transform(::Type{<:Union{MSE,Gamma,GaussianMLE}}, p) = p
+_dep_transform(::Type{LogLoss}, p) = sigmoid(p)
+_dep_transform(::Type{Poisson}, p) = exp(p)
+_dep_transform(::Type{Tweedie}, p) = exp((2 - 1.5) * p)   # rho = 1.5, as in the loss and its metric
+_dep_coef(::Type{<:Union{MSE,Poisson,Gamma}}) = 1.0
+_dep_coef(::Type{<:Union{LogLoss,GaussianMLE}}) = 0.5
+_dep_coef(::Type{Tweedie}) = 1 / (2 - 1.5)
+
 # LambdaRank, per Burges' "From RankNet to LambdaRank to LambdaMART". Pairs within a query
 # contribute a pairwise logistic cost weighted by the NDCG change a swap would cause. The
 # lambdas stay per-document, so K = 1 and the histogram and leaf solver are untouched.

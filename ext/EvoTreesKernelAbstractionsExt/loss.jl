@@ -190,6 +190,30 @@ function EvoTrees.update_grads!(
     return
 end
 
+# The decorrelation penalty runs on the host: the penalised rows are copied over and back.
+function EvoTrees.update_grads!(
+    ∇::CuMatrix,
+    p::CuMatrix,
+    y,
+    ::Type{L},
+    params::EvoTrees.EvoTypes,
+    group,
+    ctrl,
+) where {L}
+    EvoTrees.update_grads!(∇, p, y, L, params, group)
+    isnothing(ctrl) && return nothing
+    lambda = hasproperty(params, :ctrl_lambda) ? params.ctrl_lambda : 0.0
+    lambda > 0 || return nothing
+    K = size(p, 1)
+    wrow = Array(view(∇, 2K + 1, :))
+    for k in EvoTrees.ctrl_rows(L, K)
+        row = Array(view(∇, k, :))
+        EvoTrees._penalize_row!(row, Array(view(∇, K + k, :)), wrow, Array(view(p, k, :)), ctrl, lambda)
+        copyto!(view(∇, k, :), row)
+    end
+    return nothing
+end
+
 # LambdaRank needs each query sorted by score and a pairwise sweep within it. That is a
 # segmented sort plus an irregular inner loop on device, so the arrays are brought to the
 # host and the shared CPU implementation is used.

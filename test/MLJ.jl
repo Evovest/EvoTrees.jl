@@ -459,3 +459,20 @@ end
     mach = machine(EvoTreeClassifier(), X, y)
     @test_throws Exception fit!(mach, verbosity=0)
 end
+
+@testset "ctrl_lambda cannot be used through MLJ" begin
+    # MLJ cannot pass controls, so a positive weight is an error
+    Xr, yr = MLJTestInterface.make_regression()
+    function fit_error(model)
+        try
+            fit!(machine(model, Xr, yr), verbosity=0)
+            return ""
+        catch e
+            return sprint(showerror, e)
+        end
+    end
+    @test fit_error(EvoTreeRegressor(nrounds=5)) == ""
+    @test fit_error(EvoTreeMLE(nrounds=5)) == ""
+    @test occursin("no control variable", fit_error(EvoTreeRegressor(nrounds=5, ctrl_lambda=1.0)))
+    @test occursin("no control variable", fit_error(EvoTreeMLE(nrounds=5, ctrl_lambda=1.0)))
+end
