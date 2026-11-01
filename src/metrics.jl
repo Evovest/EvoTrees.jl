@@ -453,19 +453,19 @@ function pearson(
 end
 
 """
-    pearson_mse(p::AbstractMatrix, y::AbstractVector, w::AbstractVector, eval::AbstractVector; group)
+    pearson_mse(p::AbstractMatrix, y::AbstractVecOrMat, w::AbstractVector, eval::AbstractVector; group)
 
-The objective of `loss = :pearson` per unit weight, for predictions `p` of size `(1, n)`: the
+The objective of `loss = :pearson` per unit weight, for predictions `p` of size `(K, n)`: the
 weighted squared error of each group's centred prediction against its standardised target, summed
-over the groups of `group` with at least two rows and a non-constant target, divided by `sum(w)`.
-Writes each row's term to `eval` and returns a scalar.
+over the groups of `group` with at least two rows and a non-constant target, divided by `sum(w)`,
+and averaged over the `K` target columns. Writes each row's term to `eval` and returns a scalar.
 
 With `ctrl_lambda > 0` the logged value adds the decorrelation penalty. Use it for early stopping
 under a strong penalty, where `:pearson` stops too early.
 """
 function pearson_mse(
     p::AbstractMatrix{T},
-    y::AbstractVector{T},
+    y::AbstractVecOrMat{T},
     w::AbstractVector{T},
     eval::AbstractVector{T};
     group=nothing,
@@ -482,17 +482,23 @@ function pearson_mse(
 end
 
 function _pearson_mse_chunk!(eval::AbstractVector{T}, p, y, w, group, chunk) where {T}
+    K = size(p, 1)
     for g in chunk
         rows = group_rows(group, g)
-        ok, sw, ybar, sy = _pearson_group_stats(w, y, rows)
-        swp = 0.0
         @inbounds for r in rows
-            swp += Float64(w[r]) * p[1, r]
+            eval[r] = zero(T)
         end
-        pbar = swp / sw
-        @inbounds for r in rows
-            e = ok ? (p[1, r] - pbar) - (y[r] - ybar) / sy : 0.0
-            eval[r] = T(w[r] * e * e)
+        for k in 1:K
+            ok, sw, ybar, sy = _pearson_group_stats(w, y, rows, k)
+            swp = 0.0
+            @inbounds for r in rows
+                swp += Float64(w[r]) * p[k, r]
+            end
+            pbar = swp / sw
+            @inbounds for r in rows
+                e = ok ? (p[k, r] - pbar) - (_target(y, k, r) - ybar) / sy : 0.0
+                eval[r] += T(w[r] * e * e / K)
+            end
         end
     end
     return nothing

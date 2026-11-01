@@ -1120,3 +1120,25 @@ end
             x_eval=P.x[ev, :], y_eval=P.y[ev], verbosity=0)
     end
 end
+
+@testset "metric = :pearson_mse with two targets" begin
+    rng = Xoshiro(5)
+    g = repeat(1:30, inner=40)
+    n = length(g)
+    gi = build_group_index(g, n, "g")
+    p, Y, w = randn(rng, Float32, 2, n), randn(rng, Float32, 2, n), 0.5f0 .+ rand(rng, Float32, n)
+    single(k) = EvoTrees.pearson_mse(p[k:k, :], Y[k, :], w, similar(w); group=gi)
+    @test EvoTrees.pearson_mse(p, Y, w, similar(w); group=gi) ≈ (single(1) + single(2)) / 2 rtol = 1e-6
+
+    # a penalised fit with a matrix target stops on it
+    x = randn(rng, Float32, n, 3)
+    c = x[:, 1] .+ 0.3f0 .* randn(rng, Float32, n)
+    yy = hcat(x[:, 1] .+ x[:, 2], x[:, 3]) .+ 0.5f0 .* randn(rng, Float32, n, 2)
+    tr, ev = g .<= 22, g .> 22
+    m = fit(EvoTreeRegressor(loss=:pearson, metric=:pearson_mse, nrounds=10, max_depth=3, seed=1, ctrl_lambda=5.0,
+            ctrl_within_group=true); x_train=x[tr, :], y_train=yy[tr, :], group_train=g[tr], ctrl_train=c[tr],
+        x_eval=x[ev, :], y_eval=yy[ev, :], group_eval=g[ev], ctrl_eval=c[ev], verbosity=0)
+    lg = m.info[:logger]
+    @test lg[:penalized]
+    @test lg[:metrics] ≈ lg[:base_metrics] .+ 5.0 .* first.(lg[:ctrl_dependence]) rtol = 1e-9
+end
