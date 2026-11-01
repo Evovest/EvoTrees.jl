@@ -1,4 +1,5 @@
 function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.GPU}, data, feature_names, y_train, w, offset, group=nothing, ctrl=nothing)
+    EvoTrees.check_args(params)
 
     rng = Xoshiro(params.seed)
     edges, featbins, feattypes = EvoTrees.get_edges(data; feature_names, nbins=params.nbins, rng)
