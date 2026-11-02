@@ -92,6 +92,7 @@ Use `ntree_limit=N` to use the bias plus the first `N` trees (`N = 0` is bias on
 """
 function predict(m::EvoTree, data; ntree_limit=length(m.trees), device=:cpu)
     _device = device_type(device)
+    check_features(data, m.info[:feature_names])
     _predict(m, data, _device; ntree_limit)
 end
 
@@ -176,6 +177,7 @@ function predict_leaf_idx(m::EvoTree, data; ntree_limit=length(m.trees))
     Tables.istable(data) ? data = Tables.columntable(data) : nothing
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
+    check_features(data, m.info[:feature_names])
     x_bin = binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges])
     nobs = size(x_bin, 1)
     leaf_idx = zeros(UInt32, nobs, ntree_limit)
