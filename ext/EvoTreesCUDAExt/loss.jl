@@ -312,7 +312,7 @@ end
 # goes negative for |z| > √ν and get_gain divides by ∑h.
 #
 # ν -> Inf collapses every line onto kernel_gauss_∇!: a -> 1, (ν+1)/(ν+3) -> 1,
-# ν(ν+1)/(ν+u)² -> 1. phase0-parity.jl test 2 is exactly that check.
+# ν(ν+1)/(ν+u)² -> 1. test/studentmle.jl "ν → ∞ collapses onto GaussianMLE" checks the CPU twin.
 # pred[i][1] = μ
 # pred[i][2] = log(σ)
 ################################################################################

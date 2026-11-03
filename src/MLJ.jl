@@ -724,7 +724,7 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
 - `min_weight=8.0`:       Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector. Must be > 0.
 - `rowsample=1.0`:        Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `colsample=1.0`:        Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
-- `nu=4.0`:               Degrees of freedom for the Student-t distribution. Must be > 2 for a valid variance. Only applicable when `loss=:student_mle`.
+- `nu=4.0`:               Degrees of freedom for the Student-t distribution. Must be > 0. Only applicable when `loss=:student_mle`. The second prediction is the t scale σ, not the standard deviation (sd = σ√(ν/(ν-2)), finite only for ν > 2). For ν ≤ 1 the mean is undefined and μ is the location (median).
 - `nbins=64`:             Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   !Experimental feature: note that for MLE regression, constraints may not be enforced systematically.

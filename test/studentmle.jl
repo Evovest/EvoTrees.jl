@@ -164,4 +164,39 @@ using EvoTrees: fit, predict, mle2p_grad_hess, StudentMLE, GaussianMLE, Logistic
         end
     end
 
+    ##########################################################################
+    # 7. ROBUST INIT — median / MAD start (src/init.jl `_student_init`).
+    ##########################################################################
+    @testset "init: median/MAD start ignores outliers and works for ν ≤ 2" begin
+        Random.seed!(11)
+        n = 20_000
+        yo = 3.0 .+ 0.5 .* randn(n)
+        yo[1:200] .= 1e4                     # 1% gross outliers: mean ≈ 103, sd ≈ 1000
+        for ν in (1.0, 2.0, 4.0)
+            m0, ls0 = EvoTrees._student_init(yo, ν)
+            @test abs(m0 - 3.0) < 0.05
+            @test isfinite(ls0)
+        end
+        # MAD / quantile(TDist(ν), 0.75) recovers the t scale on genuine t(4) data
+        chi4 = vec(sum(randn(n, 4) .^ 2; dims=2))
+        yt4 = 0.5 .* randn(n) ./ sqrt.(chi4 ./ 4)
+        _, ls4 = EvoTrees._student_init(yt4, 4.0)
+        @test exp(ls4) ≈ 0.5 rtol = 0.05
+        # ≥ 50% ties → MAD = 0 must fall back, not return log(0) = -Inf
+        _, lz = EvoTrees._student_init(vcat(zeros(800), randn(200)), 4.0)
+        @test isfinite(lz)
+        # Float32 in, Float32 out
+        @test all(v -> v isa Float32, EvoTrees._student_init(Float32.(yt4), 4.0))
+    end
+
+    @testset "fit: ν ≤ 2 accepted (Cauchy), ν ≤ 0 rejected" begin
+        m = fit(EvoTreeMLE(; loss=:student_mle, nu=1.0, nrounds=100, eta=0.05);
+                x_train=x, y_train=y_gauss, verbosity=0)
+        p = predict(m, x)
+        @test all(isfinite, p)
+        @test all(p[:, 2] .> 0)
+        @test cor(p[:, 1], signal) > 0.95
+        @test_throws Exception EvoTreeMLE(; loss=:student_mle, nu=0.0)
+    end
+
 end

@@ -546,7 +546,7 @@ function check_args(args::Dict{Symbol,Any})
     end
     if get(args, :loss, nothing) == :student_mle
         haskey(args, :nu) || error("Missing parameter `nu` for loss :student_mle.")
-        args[:nu] > 2 || error("`nu` must be > 2 (finite variance). Got $(args[:nu]).")
+        args[:nu] > 0 || error("`nu` must be > 0. Got $(args[:nu]).")
     end
     try
         tree_type = string(args[:tree_type])
@@ -587,7 +587,7 @@ function check_args(model::EvoTypes)
     end
     if hasproperty(model, :loss) && model.loss == :student_mle
         hasproperty(model, :nu) || error("Missing parameter `nu` for loss :student_mle.")
-        model.nu > 2 || error("`nu` must be > 2 (finite variance). Got $(model.nu).")
+        model.nu > 0 || error("`nu` must be > 0. Got $(model.nu).")
     end
     try
         tree_type = string(model.tree_type)

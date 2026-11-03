@@ -105,31 +105,21 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, ::Type{<:EvoTrees.GPU}, d
         end
     elseif L == EvoTrees.StudentMLE
         @assert eltype(y_train) <: Real
-        # sample sd -> t scale: sd = σ√(ν/(ν-2))  =>  σ = sd·√((ν-2)/ν). Mirrors src/init.jl.
-        # Reusing the Gaussian init would start log σ too HIGH, and increasingly so as ν falls
-        # (14% at ν=3) - a bias concentrated at exactly the doses the curve is asking about.
-        # T(...) rather than a bare Float64: the Gaussian branch below builds μ from T values
-        # and a Float64 factor would promote the vector.
-        sc = T(sqrt((params.nu - 2) / params.nu))
+        # Robust (median, MAD) start - same helper as src/init.jl. y is still a host array
+        # here (moved to the device further down), so median works as on CPU.
+        ν = EvoTrees._nu(params)
         if y_train isa AbstractVector
             K = 2
             y = T.(y_train)
-            n = length(y)
-            m = sum(y) / n
-            s = sqrt(sum((y .- m) .^ 2) / max(n - 1, 1))
-            μ = [m, log(s * sc)]
+            μ = collect(EvoTrees._student_init(y, ν))
             !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
         else
             Y = size(y_train, 1)
             K = 2 * Y
             y = T.(y_train)
             μ = T[]
-            n_y = size(y, 2)
             for t in 1:Y
-                yt = view(y, t, :)
-                m_t = sum(yt) / n_y
-                s_t = sqrt(sum((yt .- m_t) .^ 2) / max(n_y - 1, 1))
-                push!(μ, m_t, log(s_t * sc))
+                push!(μ, EvoTrees._student_init(view(y, t, :), ν)...)
             end
             !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
         end

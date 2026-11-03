@@ -1,3 +1,21 @@
+# Robust starting point for StudentMLE: (median, log σ0) with σ0 from the MAD.
+# If X ~ μ + σ·t(ν), then MAD(X) = σ·q, q = quantile(TDist(ν), 0.75) (by symmetry), so
+# σ0 = MAD / q. Valid for every ν > 0 (no finite-variance requirement) and insensitive to
+# the outliers the t loss is meant to absorb. q ≈ 0.741 at ν=4, 1 at ν=1, → 0.6745 as ν → ∞.
+# Shared by the CPU and GPU init (y is still a host array at that point on GPU).
+function _student_init(y::AbstractVector{T}, ν) where {T}
+    m = median(y)
+    mad = median(abs.(y .- m))
+    if mad > 0
+        σ0 = mad / Distributions.quantile(Distributions.TDist(ν), 0.75)
+    else
+        # ≥ 50% of targets tied at the median: MAD is 0 and log σ0 would be -Inf.
+        sd = length(y) > 1 ? std(y) : zero(T)
+        σ0 = sd > 0 ? sd : one(T)
+    end
+    return T(m), T(log(σ0))
+end
+
 function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset)
 
     # binarize data into quantiles
@@ -96,12 +114,11 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         end
     elseif L == StudentMLE
         @assert eltype(y_train) <: Real
-        # sample sd -> t scale:  sd = σ√(ν/(ν-2))  =>  σ = sd·√((ν-2)/ν)
-        s = sqrt((params.nu - 2) / params.nu)
+        ν = _nu(params)
         if y_train isa AbstractVector
             K = 2
             y = T.(y_train)
-            μ = [mean(y), log(std(y) * s)]
+            μ = collect(_student_init(y, ν))
             !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
         else
             Y = size(y_train, 1)
@@ -109,8 +126,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
             y = T.(y_train)
             μ = T[]
             for t in 1:Y
-                yt = view(y, t, :)
-                push!(μ, mean(yt), log(std(yt) * s))
+                push!(μ, _student_init(view(y, t, :), ν)...)
             end
             !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
         end
