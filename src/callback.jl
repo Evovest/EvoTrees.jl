@@ -92,7 +92,7 @@ function CallBack(
     end
     
     if params.metric == :student_mle
-        metric_kwargs = (nu = Float64(_nu(params)),)
+        metric_kwargs = merge(metric_kwargs, (nu = Float64(_nu(params)),))
     end
     
     group_eval = nothing
@@ -166,7 +166,7 @@ function CallBack(
         metric_kwargs = (alphas=alphas_eval,)
     end
     if params.metric == :student_mle
-        metric_kwargs = (nu = Float64(_nu(params)),)
+        metric_kwargs = merge(metric_kwargs, (nu = Float64(_nu(params)),))
     end
     gi = isnothing(group_eval) ? nothing : build_group_index(group_eval, nobs, "group_eval")
     isnothing(gi) || (metric_kwargs = merge(metric_kwargs, (group=gi,)))

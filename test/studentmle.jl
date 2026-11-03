@@ -24,10 +24,25 @@ using EvoTrees: fit, predict, mle2p_grad_hess, StudentMLE, GaussianMLE, Logistic
             g_mu, g_ls, hess_mu, hess_ls = mle2p_grad_hess(StudentMLE, μ, ls, y, ν)
             @test g_mu ≈ (nll(μ + h1, ls, y) - nll(μ - h1, ls, y)) / 2h1 rtol = 1e-4 atol = 1e-9
             @test g_ls ≈ (nll(μ, ls + h1, y) - nll(μ, ls - h1, y)) / 2h1 rtol = 1e-4 atol = 1e-9
-            # hess_ls is the observed second derivative; hess_mu is deliberately the
-            # Fisher information, so only hess_ls is expected to match a difference.
-            @test hess_ls ≈ (nll(μ, ls + h2, y) - 2nll(μ, ls, y) + nll(μ, ls - h2, y)) / h2^2 rtol = 1e-2 atol = 1e-6
+            # Both hessians are Fisher information (expected, not observed), so they are
+            # checked against closed forms here and against simulation below.
+            @test hess_mu ≈ exp(-2ls) * (ν + 1) / (ν + 3)
+            @test hess_ls ≈ 2ν / (ν + 3)
         end
+    end
+
+    @testset "kernel: hessians equal the expected observed hessian (Fisher)" begin
+        # E[∂²nll] under y ~ μ + σ t(ν), estimated with exact t(ν) draws from normals.
+        Random.seed!(3)
+        ν = 4.0
+        n = 400_000
+        chi = vec(sum(randn(n, 4) .^ 2; dims=2))
+        z = randn(n) ./ sqrt.(chi ./ ν)
+        obs_mu = mean((ν + 1) .* (ν .- z .^ 2) ./ (ν .+ z .^ 2) .^ 2)
+        obs_ls = mean(2 .* z .^ 2 .* ν .* (ν + 1) ./ (ν .+ z .^ 2) .^ 2)
+        _, _, hess_mu, hess_ls = mle2p_grad_hess(StudentMLE, 0.0, 0.0, 0.0, ν)
+        @test hess_mu ≈ obs_mu rtol = 0.02
+        @test hess_ls ≈ obs_ls rtol = 0.02
     end
 
     @testset "kernel: hessians stay positive (get_gain denominator)" begin

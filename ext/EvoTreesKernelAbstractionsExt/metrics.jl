@@ -84,21 +84,25 @@ EvoTrees.tweedie(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{
 @inline _mle2p_target_count(p, y::AbstractVector) = 1
 @inline _mle2p_target_count(p, y::AbstractMatrix) = size(p, 1) ÷ 2
 
-@kernel function eval_mle2p_kernel!(eval, @Const(p), @Const(y), @Const(w), ::Type{M}) where {M<:EvoTrees.MLE2P}
+@kernel function eval_mle2p_kernel!(eval, @Const(p), @Const(y), @Const(w), ::Type{M}, ν, cst) where {M<:EvoTrees.MLE2P}
     i = @index(Global, Linear)
     @inbounds if i <= length(w)
         Y = _mle2p_target_count(p, y)
         acc = zero(eltype(eval))
         for t in 1:Y
-            acc += EvoTrees._mle2p_metric_value(M, p[2t-1, i], p[2t, i], EvoTrees._target(y, t, i))
+            acc += EvoTrees._mle2p_metric_value(M, p[2t-1, i], p[2t, i], EvoTrees._target(y, t, i), ν, cst)
         end
         eval[i] = w[i] * acc / Y
     end
 end
 
-function _eval_mle2p_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}, ::Type{M}; kwargs...) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
+function _eval_mle2p_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}, ::Type{M}; nu=4.0, kwargs...) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
     backend = get_backend(eval)
-    eval_mle2p_kernel!(backend)(eval, p, y, w, M; ndrange=length(w))
+    # `nu` comes from CallBack's metric_kwargs for :student_mle. `loggamma` has no device
+    # implementation, so the ν-only constant is computed here on the host.
+    ν = T(nu)
+    cst = T(EvoTrees._student_const(nu))
+    eval_mle2p_kernel!(backend)(eval, p, y, w, M, ν, cst; ndrange=length(w))
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
@@ -108,6 +112,9 @@ EvoTrees.gaussian_mle(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVe
 
 EvoTrees.logistic_mle(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}; kwargs...) where {T<:AbstractFloat} =
     _eval_mle2p_metric(p, y, w, eval, EvoTrees.LogisticMLE; kwargs...)
+
+EvoTrees.student_mle(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}; kwargs...) where {T<:AbstractFloat} =
+    _eval_mle2p_metric(p, y, w, eval, EvoTrees.StudentMLE; kwargs...)
 
 ########################
 # mlogloss

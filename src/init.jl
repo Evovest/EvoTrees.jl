@@ -179,7 +179,7 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
             K = 2
             y = T.(y_train)
             μ = collect(_student_init(y, ν))
-            !isnothing(offset) && (offset[:, 2] .= log.(offset[:, 2]))
+            !isnothing(offset) && unconstrain_mle_scale!(offset)
         else
             Y = size(y_train, 1)
             K = 2 * Y
@@ -188,7 +188,7 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
             for t in 1:Y
                 push!(μ, _student_init(view(y, t, :), ν)...)
             end
-            !isnothing(offset) && (offset[:, 2:2:end] .= log.(offset[:, 2:2:end]))
+            !isnothing(offset) && unconstrain_mle_scale!(offset)
         end
     elseif L == MultiQuantile
         @assert eltype(y_train) <: Real
