@@ -1,6 +1,24 @@
 abstract type Device end
 abstract type CPU <: Device end
 abstract type GPU <: Device end
+abstract type CUDADevice <: GPU end
+abstract type ROCmDevice <: GPU end
+abstract type MetalDevice <: GPU end
+
+function device_type(device)
+    name = Symbol(device)
+    name === :cpu && return CPU
+    name in (:gpu, :cuda) && return CUDADevice
+    name in (:rocm, :amd) && return ROCmDevice
+    name === :metal && return MetalDevice
+    throw(ArgumentError("device must be one of :cpu, :gpu, :cuda, :rocm, :amd, or :metal; got :$name"))
+end
+
+function gpu_backend end
+
+# PREFETCH_ROWS: CPU hist. HIST_OBS_CHUNK: GPU hist_kernel! row chunk.
+const PREFETCH_ROWS = 10
+const HIST_OBS_CHUNK = 16
 
 """
     TrainNode{S,V,M}
@@ -11,33 +29,33 @@ mutable struct TrainNode{S,V,M,A}
     gain::Float64
     is::S
     ∑::V
+    ∑L::V
+    ∑R::V
     h::A
-    hL::A
-    hR::A
     gains::M
 end
 
 function TrainNode(nfeats, nbins, K, is)
-    node = TrainNode(
+    TrainNode(
         zero(Float64),
         is,
         zeros(Float64, 2 * K + 1),
-        zeros(Float64, 2 * K + 1, nbins, nfeats),
-        zeros(Float64, 2 * K + 1, nbins, nfeats),
-        zeros(Float64, 2 * K + 1, nbins, nfeats),
-        zeros(nbins, nfeats)
+        zeros(Float64, 2 * K + 1),
+        zeros(Float64, 2 * K + 1),
+        zeros(Float64, 0, 0, 0),
+        zeros(nbins, nfeats),
     )
-    return node
 end
 
 abstract type Cache end
 abstract type CacheCPU <: Cache end
 abstract type CacheGPU <: Cache end
 
-struct CacheBaseCPU{Y,N<:TrainNode} <: CacheCPU
+struct CacheBaseCPU{Y,N<:TrainNode,H<:AbstractArray{<:AbstractFloat,4},G} <: CacheCPU
     rng::Xoshiro
     K::UInt8
     x_bin::Matrix{UInt8}
+    x_bin_T::Matrix{UInt8}
     y::Y
     w::Vector{Float32}
     pred::Matrix{Float32}
@@ -48,10 +66,13 @@ struct CacheBaseCPU{Y,N<:TrainNode} <: CacheCPU
     right::Vector{UInt32}
     js::Vector{UInt32}
     ∇::Matrix{Float32}
+    h∇::H
     feature_names::Vector{Symbol}
     featbins::Vector{UInt8}
     feattypes::Vector{Bool}
     monotone_constraints::Vector{Int32}
+    group::G
+    ctrl::Union{Nothing,AbstractDcorCache}
 end
 
 # single tree is made of a vectors of length num nodes
@@ -75,14 +96,15 @@ function Tree{L,K}(x::Vector) where {L,K}
     )
 end
 
-function Tree{L,K}(depth::Int) where {L,K}
+function Tree{L,K}(max_depth::Int) where {L,K}
+    n = 2^(max_depth + 1) - 1
     Tree{L,K}(
-        zeros(Int, 2^depth - 1),
-        zeros(UInt8, 2^depth - 1),
-        zeros(Float32, 2^depth - 1),
-        zeros(Float32, 2^depth - 1),
-        zeros(Float32, K, 2^depth - 1),
-        zeros(Bool, 2^depth - 1),
+        zeros(Int, n),
+        zeros(UInt8, n),
+        zeros(Float32, n),
+        zeros(Float32, n),
+        zeros(Float32, K, n),
+        zeros(Bool, n),
     )
 end
 
@@ -99,29 +121,51 @@ end
 An `EvoTree` holds the structure of a fitted gradient-boosted tree.
 
 # Fields
-- trees::Vector{Tree{L,K}}
-- info::Dict
+- `bias::Vector{Float32}`: intercept in unconstrained (link) space, length `K`.
+- `trees::Vector{Tree{L,K}}`: boosting trees only. Empty when `nrounds = 0`.
+- `info::Dict`
 
-`EvoTree` acts as a functor to perform inference on input data: 
+`EvoTree` acts as a functor to perform inference on input data:
 ```
 pred = (m::EvoTree; ntree_limit=length(m.trees))(x)
 ```
+`ntree_limit=N` uses the bias plus the first `N` trees (`N = 0` is bias only).
 """
 struct EvoTree{L,K}
     loss_type::Type{L}
     K::UInt8
+    bias::Vector{Float32}
     trees::Vector{Tree{L,K}}
     info::Dict{Symbol,Any}
+    EvoTree{L,K}(loss_type::Type{L}, k::UInt8, bias::Vector{Float32}, trees::Vector{Tree{L,K}}, info::Dict{Symbol,Any}) where {L,K} =
+        new{L,K}(loss_type, k, bias, trees, info)
 end
+
+function EvoTree{L,K}(
+    loss_type::Type{L},
+    k::Integer,
+    bias::AbstractVector,
+    trees::AbstractVector,
+    info::AbstractDict,
+) where {L,K}
+    Int(k) == Int(K) || throw(ArgumentError("K=$k does not match EvoTree{$L,$K}"))
+    length(bias) == Int(K) || throw(ArgumentError("bias length $(length(bias)) != K=$K"))
+    trees_ = trees isa Vector{Tree{L,K}} ? trees : Tree{L,K}[trees...]
+    return EvoTree{L,K}(loss_type, UInt8(K), convert(Vector{Float32}, bias), trees_, convert(Dict{Symbol,Any}, info))
+end
+
+EvoTree{L,K}(loss_type::Type{L}, k::Integer, bias::AbstractVector, info::AbstractDict) where {L,K} =
+    EvoTree{L,K}(loss_type, k, bias, Tree{L,K}[], info)
+
 function (m::EvoTree)(data; ntree_limit=length(m.trees), device=:cpu)
-    @assert Symbol(device) ∈ [:cpu, :gpu]
-    _device = Symbol(device) == :cpu ? CPU : GPU
+    _device = device_type(device)
     return _predict(m, data, _device; ntree_limit)
 end
 
 function Base.show(io::IO, evotree::EvoTree)
     println(io, "$(typeof(evotree))")
-    println(io, " - Contains $(length(evotree.trees)) trees in field `trees` (incl. 1 bias tree).")
+    println(io, " - Bias of length $(length(evotree.bias)) in field `bias`.")
+    println(io, " - Contains $(length(evotree.trees)) trees in field `trees`.")
     println(io, " - Data input has $(length(evotree.info[:feature_names])) features.")
     println(io, " - $(keys(evotree.info)) info accessible in field `info`")
 end

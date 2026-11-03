@@ -121,3 +121,36 @@ end
 
 end
 
+@testset "Matrix - predict column count" begin
+
+    # A matrix carries no names, so it is matched by position. `binarize` sized the bin
+    # matrix from the input while `predict!` indexed it by the model's feature ids under
+    # `@inbounds`, so a short matrix read past the end of the allocation and returned
+    # whatever it found. Training already asserts this invariant at fit; predict did not.
+    seed!(11)
+    x = rand(400, 4)
+    y = 5 .* x[:, 1] .+ 2 .* x[:, 2] .+ 0.1 .* randn(400)
+    m = fit(EvoTreeRegressor(nrounds=10, max_depth=4); x_train=x, y_train=y, verbosity=0)
+
+    for ncol in (1, 2, 3)
+        @test_throws ErrorException predict(m, x[:, 1:ncol])
+    end
+    @test_throws ErrorException predict(m, hcat(x, rand(400)))
+
+    # The correct shape still works, and is unaffected.
+    @test length(predict(m, x)) == 400
+
+    # Eval data goes through the same path, so a mismatched `x_eval` is caught too.
+    @test_throws ErrorException fit(
+        EvoTreeRegressor(nrounds=5, max_depth=3, metric=:mse);
+        x_train=x, y_train=y, x_eval=x[:, 1:3], y_eval=y, verbosity=0)
+
+    # The message names both counts, since the failure is otherwise hard to place.
+    msg = try
+        predict(m, x[:, 1:3])
+        ""
+    catch e
+        sprint(showerror, e)
+    end
+    @test occursin("3 columns", msg) && occursin("4 features", msg)
+end

@@ -16,7 +16,10 @@ mutable struct EvoTreeRegressor <: MMI.Deterministic
     nbins::Int
     alpha::Float64
     alphas::Vector{Float64}
+    ndcg_k::Int
     monotone_constraints::Dict{Int,Int}
+    ctrl_lambda::Float64
+    ctrl_within_group::Bool
     tree_type::Symbol
     seed::Int
     device::Symbol
@@ -43,7 +46,10 @@ function EvoTreeRegressor(; kwargs...)
         :nbins => 64,
         :alpha => 0.5,
         :alphas => [0.1, 0.5, 0.9],
+        :ndcg_k => typemax(Int),
         :monotone_constraints => Dict{Int,Int}(),
+        :ctrl_lambda => 0.0,
+        :ctrl_within_group => false,
         :tree_type => :binary,
         :seed => 123,
         :device => :cpu
@@ -58,7 +64,7 @@ function EvoTreeRegressor(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile, :multiquantile, :cred_std, :cred_var]
+    _loss_list = [:mse, :logloss, :poisson, :gamma, :tweedie, :mae, :quantile, :multiquantile, :cred_std, :cred_var, :lambdarank, :xendcg, :pearson]
     loss = Symbol(args[:loss])
     if loss == :linear
         loss = :mse
@@ -72,10 +78,12 @@ function EvoTreeRegressor(; kwargs...)
         error("Invalid loss. Must be one of: $_loss_list")
     end
 
-    _metric_list = [:mse, :rmse, :mae, :logloss, :poisson, :gamma, :tweedie, :quantile, :multiquantile, :gini]
+    _metric_list = [:mse, :rmse, :mae, :logloss, :poisson, :gamma, :tweedie, :quantile, :multiquantile, :gini, :ndcg, :pearson, :xendcg]
     if isnothing(args[:metric])
         if loss ∈ [:cred_std, :cred_var]
             metric = :mae
+        elseif loss == :lambdarank
+            metric = :ndcg
         else
             metric = loss
         end
@@ -109,7 +117,10 @@ function EvoTreeRegressor(; kwargs...)
         args[:nbins],
         args[:alpha],
         alphas,
+        args[:ndcg_k],
         args[:monotone_constraints],
+        Float64(args[:ctrl_lambda]),
+        Bool(args[:ctrl_within_group]),
         tree_type,
         args[:seed],
         device
@@ -304,6 +315,8 @@ mutable struct EvoTreeMLE <: MMI.Probabilistic
     colsample::Float64
     nbins::Int
     monotone_constraints::Dict{Int,Int}
+    ctrl_lambda::Float64
+    ctrl_within_group::Bool
     tree_type::Symbol
     seed::Int
     device::Symbol
@@ -330,6 +343,8 @@ function EvoTreeMLE(; kwargs...)
         :colsample => 1.0,
         :nbins => 64,
         :monotone_constraints => Dict{Int,Int}(),
+        :ctrl_lambda => 0.0,
+        :ctrl_within_group => false,
         :tree_type => :binary,
         :seed => 123,
         :device => :cpu,
@@ -351,7 +366,7 @@ function EvoTreeMLE(; kwargs...)
         error("Invalid loss. Must be one of: $_loss_list")
     end
 
-    _metric_list = [:gaussian_mle, :logistic_mle, :student_mle]
+    _metric_list = [:gaussian_mle, :logistic_mle, :student_mle, :pearson]
     if isnothing(args[:metric])
         if loss ∈ [:cred_std, :cred_var]
             metric = :mae
@@ -386,6 +401,8 @@ function EvoTreeMLE(; kwargs...)
         args[:colsample],
         args[:nbins],
         args[:monotone_constraints],
+        Float64(args[:ctrl_lambda]),
+        Bool(args[:ctrl_within_group]),
         tree_type,
         args[:seed],
         device,
@@ -528,12 +545,20 @@ function check_args(args::Dict{Symbol,Any})
     check_parameter(Int, args[:nrounds], 0, typemax(Int), :nrounds)
     check_parameter(Int, args[:max_depth], 1, typemax(Int), :max_depth)
     check_parameter(Int, args[:nbins], 2, 255, :nbins)
+    check_parameter(Int, args[:bagging_size], 1, typemax(Int), :bagging_size)
+    check_parameter(Int, args[:early_stopping_rounds], 0, typemax(Int), :early_stopping_rounds)
+    haskey(args, :ndcg_k) && check_parameter(Int, args[:ndcg_k], 1, typemax(Int), :ndcg_k)
 
     # check positive float parameters
+    check_parameter(Float64, args[:L2], zero(Float64), typemax(Float64), :L2)
     check_parameter(Float64, args[:lambda], zero(Float64), typemax(Float64), :lambda)
     check_parameter(Float64, args[:gamma], zero(Float64), typemax(Float64), :gamma)
     check_parameter(Float64, args[:min_weight], zero(Float64), typemax(Float64), :min_weight)
     check_parameter(Float64, args[:early_stopping_tolerance], zero(Float64), typemax(Float64), :early_stopping_tolerance)
+    haskey(args, :ctrl_lambda) && check_parameter(Float64, args[:ctrl_lambda], zero(Float64), floatmax(Float64), :ctrl_lambda)
+    if haskey(args, :ctrl_within_group) && !(args[:ctrl_within_group] isa Bool)
+        error("Invalid value for parameter `ctrl_within_group`: $(args[:ctrl_within_group]). `ctrl_within_group` must be a Bool.")
+    end
 
     # check bounded parameters
     check_parameter(Float64, args[:rowsample], eps(Float64), one(Float64), :rowsample)
@@ -569,12 +594,17 @@ function check_args(model::EvoTypes)
     check_parameter(Int, model.max_depth, 1, typemax(Int), :max_depth)
     check_parameter(Int, model.nrounds, 0, typemax(Int), :nrounds)
     check_parameter(Int, model.nbins, 2, 255, :nbins)
+    check_parameter(Int, model.bagging_size, 1, typemax(Int), :bagging_size)
+    check_parameter(Int, model.early_stopping_rounds, 0, typemax(Int), :early_stopping_rounds)
+    hasproperty(model, :ndcg_k) && check_parameter(Int, model.ndcg_k, 1, typemax(Int), :ndcg_k)
 
     # check positive float parameters
+    check_parameter(Float64, model.L2, zero(Float64), typemax(Float64), :L2)
     check_parameter(Float64, model.lambda, zero(Float64), typemax(Float64), :lambda)
     check_parameter(Float64, model.gamma, zero(Float64), typemax(Float64), :gamma)
     check_parameter(Float64, model.min_weight, zero(Float64), typemax(Float64), :min_weight)
     check_parameter(Float64, model.early_stopping_tolerance, zero(Float64), typemax(Float64), :early_stopping_tolerance)
+    hasproperty(model, :ctrl_lambda) && check_parameter(Float64, model.ctrl_lambda, zero(Float64), floatmax(Float64), :ctrl_lambda)
 
     # check bounded parameters
     check_parameter(Float64, model.rowsample, eps(Float64), one(Float64), :rowsample)

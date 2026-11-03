@@ -116,7 +116,7 @@ The following illustrates a minimal scenario of 2 features, each with only 2 lev
 ```
 
 ```julia
-config = EvoTreeRegressor(loss=:mse, nrounds=1, max_depth=2)
+config = EvoTreeRegressor(loss=:mse, nrounds=1, max_depth=1)
 model_mse = EvoTrees.fit(config, dtrain; target_name="y")
 
 EvoTrees.Tree{EvoTrees.MSE, 1}
@@ -128,7 +128,7 @@ EvoTrees.Tree{EvoTrees.MSE, 1}
 ```
 
 ```julia
-config = EvoTreeRegressor(loss=:cred_std, nrounds=1, max_depth=2)
+config = EvoTreeRegressor(loss=:cred_std, nrounds=1, max_depth=1)
 model_std = EvoTrees.fit(config, dtrain; target_name="y")
 
 EvoTrees.Tree{EvoTrees.CredStd, 1}

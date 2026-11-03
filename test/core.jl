@@ -95,7 +95,7 @@ end
     )
 
     @test length(m_tolerant.trees) < length(m_strict.trees)
-    @test length(m_strict.trees) == params_strict.nrounds + 1
+    @test length(m_strict.trees) == params_strict.nrounds
     @test m_tolerant.info[:logger][:iter_since_best] >= params_tolerant.early_stopping_rounds
     @test m_tolerant.info[:logger][:best_iter] < m_strict.info[:logger][:best_iter]
     @test length(m_default.trees) == length(m_strict.trees)
@@ -332,9 +332,8 @@ end
     @test mse_gain_pct < -0.75
 end
 
-@testset "EvoTreeMLE - Gaussian" begin
-    params1 = EvoTreeMLE(
-        loss=:gaussian_mle,
+@testset "EvoTreeMLE" begin
+    mle_kwargs = (
         nrounds=100,
         nbins=16,
         lambda=0.0,
@@ -346,88 +345,32 @@ end
         colsample=1.0,
         seed=123,
     )
+    configs = [
+        EvoTreeMLE(; loss=:gaussian_mle, mle_kwargs...),
+        EvoTreeMLE(; loss=:logistic_mle, mle_kwargs...),
+        EvoTreeGaussian(; mle_kwargs...),
+    ]
+    @testset "$(nameof(typeof(params1))) $(params1.loss)" for params1 in configs
+        model, cache = EvoTrees.init(params1, x_train, y_train)
+        preds_ini = EvoTrees.predict(model, x_eval)
+        @test size(preds_ini, 2) == 2
+        @test all(>(0), preds_ini[:, 2])
+        mse_error_ini = mean(abs.(preds_ini[:, 1] .- y_eval) .^ 2)
+        model = fit(
+            params1;
+            x_train,
+            y_train,
+            x_eval,
+            y_eval,
+            print_every_n=100
+        )
 
-    model, cache = EvoTrees.init(params1, x_train, y_train)
-    preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
-    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit(
-        params1;
-        x_train,
-        y_train,
-        x_eval,
-        y_eval,
-        print_every_n=100
-    )
-
-    preds = EvoTrees.predict(model, x_eval)[:, 1]
-    mse_error = mean(abs.(preds .- y_eval) .^ 2)
-    mse_gain_pct = mse_error / mse_error_ini - 1
-    @test mse_gain_pct < -0.75
-end
-
-@testset "EvoTreeMLE - Logistic" begin
-    params1 = EvoTreeMLE(
-        loss=:logistic_mle,
-        nrounds=100,
-        nbins=16,
-        lambda=0.0,
-        gamma=0.0,
-        eta=0.1,
-        max_depth=6,
-        min_weight=10.0,
-        rowsample=0.5,
-        colsample=1.0,
-        seed=123,
-    )
-
-    model, cache = EvoTrees.init(params1, x_train, y_train)
-    preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
-    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit(
-        params1;
-        x_train,
-        y_train,
-        x_eval,
-        y_eval,
-        print_every_n=100
-    )
-
-    preds = EvoTrees.predict(model, x_eval)[:, 1]
-    mse_error = mean(abs.(preds .- y_eval) .^ 2)
-    mse_gain_pct = mse_error / mse_error_ini - 1
-    @test mse_gain_pct < -0.75
-end
-
-@testset "EvoTreeGaussian - Gaussian" begin
-    params1 = EvoTreeGaussian(
-        nrounds=100,
-        nbins=16,
-        lambda=0.0,
-        gamma=0.0,
-        eta=0.1,
-        max_depth=6,
-        min_weight=10.0,
-        rowsample=0.5,
-        colsample=1.0,
-        seed=123,
-    )
-
-    model, cache = EvoTrees.init(params1, x_train, y_train)
-    preds_ini = EvoTrees.predict(model, x_eval)[:, 1]
-    mse_error_ini = mean(abs.(preds_ini .- y_eval) .^ 2)
-    model = fit(
-        params1;
-        x_train,
-        y_train,
-        x_eval,
-        y_eval,
-        print_every_n=100
-    )
-
-    preds = EvoTrees.predict(model, x_eval)[:, 1]
-    mse_error = mean(abs.(preds .- y_eval) .^ 2)
-    mse_gain_pct = mse_error / mse_error_ini - 1
-    @test mse_gain_pct < -0.75
+        preds = EvoTrees.predict(model, x_eval)
+        @test all(>(0), preds[:, 2])
+        mse_error = mean(abs.(preds[:, 1] .- y_eval) .^ 2)
+        mse_gain_pct = mse_error / mse_error_ini - 1
+        @test mse_gain_pct < -0.75
+    end
 end
 
 @testset "EvoTrees - Feature Importance" begin
@@ -507,9 +450,11 @@ end
     # Check the implemented parameters on construction
     @testset "check_args all for EvoTreeRegressor" begin
         for (key, vals_to_test) in zip(
-            [:nrounds, :max_depth, :nbins, :lambda, :gamma, :min_weight, :alpha, :rowsample, :colsample, :eta],
+            [:nrounds, :max_depth, :nbins, :lambda, :gamma, :min_weight, :alpha, :rowsample, :colsample, :eta,
+                :L2, :bagging_size, :early_stopping_rounds],
             [[-1, 1.5], [0, 1.5], [1, 256, 100.5], [-eps(Float64)], [-eps(Float64)], [-eps(Float64)],
-                [-0.1, 1.1], [0.0f0, 1.1f0], [0.0, 1.1], [-eps(Float64)]])
+                [-0.1, 1.1], [0.0f0, 1.1f0], [0.0, 1.1], [-eps(Float64)],
+                [-eps(Float64)], [0, -1, 1.5], [-1, 1.5]])
             for val in vals_to_test
                 @test_throws Exception EvoTreeRegressor(; zip([key], [val])...)
             end
@@ -524,6 +469,89 @@ end
         @test check_args(config) === nothing
     end
 
+    @testset "target domain for positive losses" begin
+        # Tweedie went to NaN on every prediction from a single negative target, and Poisson
+        # fit a corrupted model, while only Gamma was checked. Zero is inside Tweedie's and
+        # Poisson's domains and outside Gamma's.
+        xd = rand(200, 3)
+        yd = 2 .* xd[:, 1] .+ 1
+        neg = copy(yd); neg[1] = -1.0
+        zer = copy(yd); zer[1] = 0.0
+        for loss in (:tweedie, :poisson, :gamma)
+            @test_throws ErrorException fit(EvoTreeRegressor(loss=loss, nrounds=2); x_train=xd, y_train=neg, verbosity=0)
+        end
+        for loss in (:tweedie, :poisson)
+            @test fit(EvoTreeRegressor(loss=loss, nrounds=2); x_train=xd, y_train=zer, verbosity=0) isa EvoTrees.EvoTree
+        end
+        @test_throws ErrorException fit(EvoTreeRegressor(loss=:gamma, nrounds=2); x_train=xd, y_train=zer, verbosity=0)
+        # a valid target still trains
+        @test all(isfinite, predict(fit(EvoTreeRegressor(loss=:tweedie, nrounds=5); x_train=xd, y_train=yd, verbosity=0), xd))
+    end
+
+    @testset "non-finite target" begin
+        # A single NaN or Inf reached the initial bias and from there every gradient and leaf,
+        # so the fit reported its full tree count while predicting NaN everywhere. Only Gamma,
+        # Tweedie and Poisson checked their domain, and none of them looked for non-finite.
+        xd = rand(200, 3)
+        yd = 2 .* xd[:, 1] .+ 1
+        for bad in (NaN, Inf, -Inf), loss in (:mse, :poisson, :logloss)
+            y = copy(yd)
+            loss == :logloss && (y = Float64.(yd .> mean(yd)))
+            y[1] = bad
+            @test_throws ErrorException fit(EvoTreeRegressor(loss=loss, nrounds=2); x_train=xd, y_train=y, verbosity=0)
+        end
+        # matrix targets are checked on the same path
+        ym = hcat(yd, yd); ym[3, 2] = NaN
+        @test_throws ErrorException fit(EvoTreeRegressor(loss=:mse, nrounds=2); x_train=xd, y_train=ym, verbosity=0)
+        # a finite target still trains
+        @test all(isfinite, predict(fit(EvoTreeRegressor(loss=:mse, nrounds=5); x_train=xd, y_train=yd, verbosity=0), xd))
+    end
+
+    @testset "check_args L2 and bagging_size" begin
+        # Both used to be accepted unvalidated. A negative `L2` lands in the leaf denominator
+        # and takes every prediction to NaN; a `bagging_size` below 1 makes the per-round loop
+        # an empty range, so no trees are grown and the fit reports success anyway.
+        seed!(7)
+        x = rand(200, 3)
+        y = 2 .* x[:, 1] .+ 0.2 .* randn(200)
+
+        @test_throws Exception EvoTreeRegressor(L2=-100.0)
+        @test_throws Exception EvoTreeRegressor(bagging_size=0)
+        @test_throws Exception EvoTreeRegressor(early_stopping_rounds=-1)
+
+        # `L2` is the sibling of `lambda`, which was already bounded below at zero.
+        @test EvoTreeRegressor(L2=0.0) isa EvoTreeRegressor
+        @test EvoTreeRegressor(bagging_size=1) isa EvoTreeRegressor
+        @test EvoTreeRegressor(early_stopping_rounds=0) isa EvoTreeRegressor
+
+        # Valid values still train, and every round still grows a tree.
+        m = fit(EvoTreeRegressor(nrounds=10, max_depth=3, bagging_size=2, L2=1.0);
+            x_train=x, y_train=y, verbosity=0)
+        @test length(m.trees) == 20
+        @test all(isfinite, predict(m, x))
+
+        # A round adds `bagging_size` trees, each scaled by `1 / bagging_size`, so the eval
+        # callback has to accumulate all of them. Accumulating one leaves the logged metric
+        # describing a fraction of the model, and early stopping then selects on it.
+        for bs in (1, 2, 5)
+            m = fit(EvoTreeRegressor(nrounds=12, max_depth=4, eta=0.3, bagging_size=bs,
+                    metric=:mse, rowsample=0.8);
+                x_train=x, y_train=y, x_eval=x, y_eval=y, verbosity=0)
+            logged = m.info[:logger][:metrics][end]
+            actual = mean((vec(predict(m, x)) .- y) .^ 2)
+            @test logged ≈ actual rtol = 1e-5
+        end
+
+        # Mutating a fitted config is the path MLJ tuning takes, so the second `check_args`
+        # method must reject the same values.
+        config = EvoTreeRegressor(nrounds=5)
+        config.L2 = -1.0
+        @test_throws Exception check_args(config)
+        config = EvoTreeRegressor(nrounds=5)
+        config.bagging_size = 0
+        @test_throws Exception check_args(config)
+    end
+
     # Test all EvoTypes that they have *some* checks in place
     @testset "check_args EvoTypes" begin
         for EvoTreeType in [EvoTreeMLE, EvoTreeGaussian, EvoTreeCount, EvoTreeClassifier, EvoTreeRegressor]
@@ -536,4 +564,222 @@ end
         end
     end
 
+    @testset "eval data validation" begin
+        # Training checks its own inputs; the eval path did not, so a short weight vector
+        # silently scored a subset of the eval set and reported it as the whole, and a
+        # weight vector summing to zero produced a NaN metric.
+        rng = Xoshiro(13)
+        x = rand(rng, 300, 3)
+        y = 2 .* x[:, 1] .+ 0.2 .* randn(rng, 300)
+        cfg = EvoTreeRegressor(nrounds=5, max_depth=3, metric=:mse)
+        base = (x_train=x, y_train=y, x_eval=x, y_eval=y)
+
+        @test_throws ErrorException fit(cfg; base..., w_eval=ones(150), verbosity=0)
+        @test_throws ErrorException fit(cfg; base..., w_eval=ones(600), verbosity=0)
+        @test_throws ErrorException fit(cfg; base..., w_eval=zeros(300), verbosity=0)
+        @test_throws ErrorException fit(cfg; base..., w_eval=fill(-1.0, 300), verbosity=0)
+        @test_throws ErrorException fit(
+            cfg; x_train=x, y_train=y, x_eval=x, y_eval=y[1:150], verbosity=0)
+
+        # Valid eval data is unaffected, weighted or not.
+        m = fit(cfg; base..., verbosity=0)
+        @test isfinite(m.info[:logger][:metrics][end])
+        mw = fit(cfg; base..., w_eval=(0.5 .+ rand(rng, 300)), verbosity=0)
+        @test isfinite(mw.info[:logger][:metrics][end])
+    end
+
+    @testset "classifier target levels" begin
+        rng = Xoshiro(7)
+        x = rand(rng, 40, 3)
+
+        for (y, k) in ((repeat(["a", "b", "c"], 20)[1:40], 3), (repeat(["a", "b"], 20), 2))
+            m = fit(EvoTreeClassifier(nrounds=3); x_train=x, y_train=y)
+            @test m.K == k
+            @test size(predict(m, x)) == (40, k)
+        end
+
+        # A single-level target is not a meaningful classification problem, and is
+        # rejected at fit rather than producing a degenerate model.
+        @test_throws ErrorException fit(
+            EvoTreeClassifier(nrounds=3); x_train=x, y_train=fill("a", 40)
+        )
+        @test_throws ErrorException fit(
+            EvoTreeClassifier(nrounds=3); x_train=x,
+            y_train=categorical(fill("a", 40), levels=["a"]),
+        )
+
+        # An unsupported target eltype used to be reported with `@error`, which logs but
+        # does not throw, so execution continued to `length(target_levels)` with
+        # `target_levels` still `nothing` and the user saw a `MethodError` instead.
+        @test_throws ErrorException fit(
+            EvoTreeClassifier(nrounds=3); x_train=x, y_train=rand(40)
+        )
+    end
+
+    @testset "empty subsample" begin
+        rng = Xoshiro(11)
+        x = rand(rng, 40, 3)
+        y = 2 .* x[:, 1] .+ 0.2 .* randn(rng, 40)
+
+        # `cond` is `round(UInt8, 255 * rowsample)`, so a rowsample below 0.00196 keeps
+        # only mask bytes equal to zero, roughly 1 in 256 rows. On small data the draw
+        # comes up empty, which must be reported rather than silently producing a model
+        # that predicts the bias for every row.
+        @test_throws ErrorException fit(
+            EvoTreeRegressor(nrounds=5, max_depth=3, rowsample=0.001, min_weight=0.0, seed=1);
+            x_train=x, y_train=y, verbosity=0
+        )
+
+        # A normal rowsample is unaffected.
+        m = fit(
+            EvoTreeRegressor(nrounds=10, max_depth=3, rowsample=0.5, seed=1);
+            x_train=x, y_train=y, verbosity=0
+        )
+        @test all(isfinite, predict(m, x))
+    end
+
+    @testset "importance with no splits" begin
+        rng = Xoshiro(11)
+        x = rand(rng, 300, 4)
+        y = rand(rng, 300)
+
+        # A model with no split anywhere has zero total gain. Normalising by that total
+        # would give NaN for every feature, so the zeros are returned as they are.
+        for config in (
+            EvoTreeRegressor(nrounds=0),
+            EvoTreeRegressor(nrounds=5, max_depth=4, gamma=1e9),
+        )
+            m = fit(config; x_train=x, y_train=y)
+            imp = EvoTrees.importance(m)
+            @test !any(isnan(v) for (_, v) in imp)
+            @test all(v == 0 for (_, v) in imp)
+            @test length(imp) == 4
+        end
+
+        # A model that does split still normalises to one.
+        m = fit(EvoTreeRegressor(nrounds=20, max_depth=4); x_train=x, y_train=y)
+        imp = EvoTrees.importance(m)
+        @test sum(v for (_, v) in imp) ≈ 1
+        @test issorted([v for (_, v) in imp]; rev=true)
+
+        # Ordering is stable across calls, and duplicate names are not collapsed.
+        @test first.(EvoTrees.importance(m)) == first.(EvoTrees.importance(m))
+        @test length(EvoTrees.importance(m; feature_names=[:a, :a, :b, :c])) == 4
+    end
+
+    @testset "gamma target support" begin
+        rng = Xoshiro(21)
+        x = rand(rng, 200, 3)
+        ypos = 1.0 .+ rand(rng, 200)
+
+        m = fit(EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ypos)
+        @test length(m.trees) == 5
+
+        for bad in (0.0, -1.0)
+            y = copy(ypos)
+            y[7] = bad
+            @test_throws ErrorException fit(
+                EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=y
+            )
+        end
+
+        ymat = hcat(ypos, ypos .+ 1)
+        m = fit(EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ymat)
+        @test length(m.trees) == 5
+        ymat[5, 2] = 0.0
+        @test_throws ErrorException fit(
+            EvoTreeRegressor(loss=:gamma, nrounds=5); x_train=x, y_train=ymat
+        )
+
+        yzero = copy(ypos)
+        yzero[7] = 0.0
+        for loss in (:poisson, :tweedie)
+            m = fit(EvoTreeRegressor(loss=loss, nrounds=5); x_train=x, y_train=yzero)
+            @test length(m.trees) == 5
+        end
+    end
+
+end
+
+@testset "bias distinct from trees" begin
+    seed!(3)
+    x = rand(200, 3)
+    y = 2 .* x[:, 1] .+ 0.2 .* randn(200)
+
+    m0 = fit(EvoTreeRegressor(nrounds=0); x_train=x, y_train=y, verbosity=0)
+    @test isempty(m0.trees)
+    @test length(m0.bias) == 1
+    @test predict(m0, x) ≈ fill(m0.bias[1], size(x, 1))
+    @test predict(m0, x; ntree_limit=0) == predict(m0, x)
+    # Matrix-API eval callback starts from bias, matching the table constructor.
+    cb0 = EvoTrees.CallBack(EvoTreeRegressor(nrounds=0), m0, x, y, EvoTrees.CPU)
+    @test cb0.p[1, :] ≈ fill(m0.bias[1], size(x, 1))
+
+    m = fit(EvoTreeRegressor(nrounds=5, max_depth=3); x_train=x, y_train=y, verbosity=0)
+    @test length(m.trees) == 5
+    @test predict(m, x; ntree_limit=0) ≈ predict(m0, x)
+
+    info = Dict{Symbol,Any}(:feature_names => [:x], :edges => [[0.5]], :feattypes => [true])
+    constructed = EvoTree{EvoTrees.MSE,1}(EvoTrees.MSE, 1, [0.5], info)
+    @test constructed.bias == Float32[0.5]
+    @test isempty(constructed.trees)
+
+    path = joinpath(tempdir(), "evotrees-bias-test.bson")
+    EvoTrees.save(m, path)
+    loaded = EvoTrees.load(path)
+    @test loaded.bias == m.bias
+    @test length(loaded.trees) == length(m.trees)
+    @test predict(loaded, x) == predict(m, x)
+@testset "save and load" begin
+    x = rand(Xoshiro(1), 500, 4)
+    y = x[:, 1] .+ rand(Xoshiro(2), 500)
+    m = fit(EvoTreeRegressor(nrounds=10, max_depth=3, seed=1); x_train=x, y_train=y, verbosity=0)
+    path = joinpath(mktempdir(), "m.bson")
+    EvoTrees.save(m, path)
+    back = EvoTrees.load(path)
+    @test predict(back, x) == predict(m, x)
+    @test back.bias == m.bias
+    @test length(back.trees) == length(m.trees)
+    # what `save` writes now carries the version, so a later layout change has a key to read
+    @test haskey(back.info, :save_version)
+
+    # `save` writes to an IO stream as well as a path, so `load` reads one back
+    io = IOBuffer()
+    EvoTrees.save(m, io)
+    seekstart(io)
+    @test predict(EvoTrees.load(io), x) == predict(m, x)
+    open(f -> EvoTrees.save(m, f), path, "w")
+    @test predict(open(EvoTrees.load, path), x) == predict(m, x)
+
+    # Before v0.20 the intercept was a leading single-leaf tree and there was no `bias` field.
+    # BSON rebuilds a struct by position, so such a model puts its trees into `bias` and fails to
+    # load. The shape test and the upgrade are exercised directly rather than through a binary
+    # fixture; the whole path was checked against a file written by the registered v0.19.0.
+    lead = EvoTrees.Tree{EvoTrees.MSE,1}(zeros(Int, 1), zeros(UInt8, 1), zeros(Float32, 1),
+        zeros(Float32, 1), reshape(copy(m.bias), :, 1), zeros(Bool, 1))
+    legacy = EvoTrees.EvoTreeLegacyPreV20{EvoTrees.MSE,1}(
+        EvoTrees.MSE, m.K, vcat([lead], m.trees), copy(m.info))
+    upgraded = EvoTrees._upgrade(legacy)
+    @test upgraded isa EvoTrees.EvoTree
+    @test upgraded.bias == m.bias
+    @test length(upgraded.trees) == length(m.trees)
+    @test predict(upgraded, x) == predict(m, x)
+
+    # the old layout is recognised by its field count and type name, the new one is not
+    typedoc = Dict(:tag => "datatype", :name => Any["EvoTrees", "EvoTree"], :params => Any[])
+    @test EvoTrees._is_pre_v20(Dict(:tag => "struct", :type => typedoc, :data => Any[1, 2, 3, 4]))
+    @test !EvoTrees._is_pre_v20(Dict(:tag => "struct", :type => typedoc, :data => Any[1, 2, 3, 4, 5]))
+    @test !EvoTrees._is_pre_v20(Dict(:tag => "struct",
+        :type => Dict(:tag => "datatype", :name => Any["Other", "Thing"], :params => Any[]),
+        :data => Any[1, 2, 3, 4]))
+    @test !EvoTrees._is_pre_v20(nothing)
+end
+
+end
+
+@testset "eval is train reuses x_bin" begin
+    params = EvoTreeRegressor(loss=:mse, nrounds=10, seed=123)
+    m_reuse = fit(params; x_train, y_train, x_eval=x_train, y_eval=y_train, verbosity=0)
+    m_copy = fit(params; x_train, y_train, x_eval=copy(x_train), y_eval=copy(y_train), verbosity=0)
+    @test EvoTrees.predict(m_reuse, x_train) == EvoTrees.predict(m_copy, x_train)
 end

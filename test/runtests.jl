@@ -10,12 +10,19 @@ using Test
 
     @testset "Internal API" begin
         include("core.jl")
+        include("predict-leaf-idx.jl")
+        include("shap.jl")
+        include("metrics.jl")
         include("oblivious.jl")
         include("tables.jl")
         include("monotonic.jl")
         include("missings.jl")
         include("multi-target.jl")
         include("studentmle.jl")
+        include("ranking.jl")
+        include("dcor.jl")
+        include("pearson-loss.jl")
+        include("plot.jl")
     end
 
     @testset "MLJ" begin

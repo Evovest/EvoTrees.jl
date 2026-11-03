@@ -10,6 +10,7 @@ EvoTrees.fit
 
 ```@docs
 EvoTrees.predict
+EvoTrees.predict_leaf_idx
 ```
 
 ## SHAP
@@ -22,4 +23,10 @@ EvoTrees.shap
 
 ```@docs
 EvoTrees.importance
+```
+
+## Plot
+
+```@docs
+EvoTrees.treeplot
 ```

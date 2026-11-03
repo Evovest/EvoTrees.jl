@@ -1,4 +1,40 @@
-struct CallBack{B,P,Y,C,D,K}
+_raw_level(x) = x isa CategoricalValue ? CategoricalArrays.unwrap(x) : x
+
+"""
+    eval_levelcode(y_eval, target_levels)
+
+Encode `y_eval` against the class levels the model was trained on, rather than against the
+levels present in `y_eval` itself. An eval set that is missing a training class, or that
+orders its own levels differently, would otherwise be scored against the wrong prediction
+columns.
+"""
+function eval_levelcode(y_eval, target_levels)
+    idx = indexin(y_eval, target_levels)
+    if any(isnothing, idx)
+        unseen = unique(_raw_level.(y_eval[findall(isnothing, idx)]))
+        error("`y_eval` contains levels absent from `y_train`: $(unseen). " *
+              "Training levels are $(_raw_level.(target_levels)).")
+    end
+    return UInt32.(idx)
+end
+
+# Mirrors the assertion training makes on its own inputs in `src/init.jl`. Eval data was
+# accepted unchecked, so a short weight vector silently scored a subset of the eval set and a
+# weight vector summing to zero produced a NaN or Inf metric.
+function check_eval_data(y, w, nobs)
+    size(y, ndims(y)) == nobs || error(
+        "`y_eval` has $(size(y, ndims(y))) observations but the evaluation features have " *
+        "$(nobs). They must match."
+    )
+    length(w) == nobs || error(
+        "`w_eval` has length $(length(w)) but the evaluation features have $(nobs) " *
+        "observations. Each row needs exactly one weight."
+    )
+    minimum(w) > 0 || error("`w_eval` must be strictly positive.")
+    return nothing
+end
+
+struct CallBack{B,P,Y,C,D,K,R}
     feval::Function
     x_bin::B
     p::P
@@ -7,6 +43,7 @@ struct CallBack{B,P,Y,C,D,K}
     eval::C
     feattypes::D
     metric_kwargs::K
+    ctrl::R
 end
 
 function CallBack(
@@ -16,39 +53,38 @@ function CallBack(
     device::Type{<:Device};
     target_name,
     weight_name=nothing,
-    offset_name=nothing) where {L,K}
+    offset_name=nothing,
+    group_name=nothing,
+    ctrl_name=nothing,
+    ctrl_weights=nothing,
+    x_bin=nothing) where {L,K}
 
     T = Float32
     _weight_name = isnothing(weight_name) ? Symbol("") : Symbol(weight_name)
     _offset_name = isnothing(offset_name) ? Symbol("") : Symbol(offset_name)
     _target_names = target_name isa AbstractVector ? Symbol.(target_name) : [Symbol(target_name)]
 
-    x_bin = binarize(deval; feature_names=m.info[:feature_names], edges=m.info[:edges])
+    if isnothing(x_bin)
+        x_bin = binarize(device, deval; feature_names=m.info[:feature_names], edges=m.info[:edges])
+    end
     nobs = length(Tables.getcolumn(deval, 1))
     p = zeros(T, K, nobs)
+    p .= m.bias
 
     y_eval = length(_target_names) == 1 ?
         Tables.getcolumn(deval, _target_names[1]) :
         permutedims(reduce(hcat, [Tables.getcolumn(deval, t) for t in _target_names]))
 
     if L == MLogLoss
-        if eltype(y_eval) <: CategoricalValue
-            levels = CategoricalArrays.levels(y_eval)
-            μ = zeros(T, K)
-            y = UInt32.(CategoricalArrays.levelcode.(y_eval))
-        else
-            levels = sort(unique(y_eval))
-            yc = CategoricalVector(y_eval, levels=levels)
-            μ = zeros(T, K)
-            y = UInt32.(CategoricalArrays.levelcode.(yc))
-        end
+        y = eval_levelcode(y_eval, m.info[:target_levels])
     else
         y = T.(y_eval)
     end
     feval = metric_dict[params.metric]
     V = device_array_type(device)
     w = isnothing(weight_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(deval, _weight_name))
-    metric_kwargs = (;)
+    check_eval_data(y, w, nobs)
+    metric_kwargs = hasproperty(params, :alpha) ? (alpha=T(params.alpha),) : (;)
     if params.metric == :multiquantile
         alphas_eval = T.(params.alphas)
         device <: GPU && (alphas_eval = V{T}(alphas_eval))
@@ -59,17 +95,37 @@ function CallBack(
         metric_kwargs = (nu = Float64(_nu(params)),)
     end
     
+    group_eval = nothing
+    if !isnothing(group_name)
+        group_eval = build_group_index(Tables.getcolumn(deval, Symbol(group_name)), nobs, "group_name")
+        metric_kwargs = merge(metric_kwargs, (group=group_eval,))
+    end
+    hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
+
+    ctrl = nothing
+    if !isnothing(ctrl_name)
+        names = ctrl_name isa AbstractVector ? Symbol.(ctrl_name) : [Symbol(ctrl_name)]
+        for nm in names
+            nm in Tables.columnnames(deval) || error(
+                "`deval` has no column `$nm`. The eval set needs the same control columns as the " *
+                "training set, for the eval metric to include the penalty.")
+        end
+        cols = [build_ctrl(Tables.getcolumn(deval, nm), nobs, "deval"; col="`$nm`", eval=true) for nm in names]
+        ctrl = eval_ctrl(params, L, K, Controls(cols, ctrl_weights, ["column `$nm` of `deval`" for nm in names]),
+            group_eval, feval, w)
+    end
+
     offset = !isnothing(offset_name) ? T.(Tables.getcolumn(deval, _offset_name)) : nothing
     if !isnothing(offset)
         L == LogLoss && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
         L == MLogLoss && (offset .= log.(offset))
-        L in [GaussianMLE, LogisticMLE, StudentMLE] && (offset[:, 2] .= log.(offset[:, 2]))
+        L in [GaussianMLE, LogisticMLE, StudentMLE] && unconstrain_mle_scale!(offset)
         offset = T.(offset)
         p .+= offset'
     end
 
-    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs)
+    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs, ctrl)
 end
 
 function CallBack(
@@ -79,30 +135,31 @@ function CallBack(
     y_eval,
     device::Type{<:Device};
     w_eval=nothing,
-    offset_eval=nothing) where {L,K}
+    offset_eval=nothing,
+    group_eval=nothing,
+    ctrl_eval=nothing,
+    ctrl_weights=nothing,
+    x_bin=nothing) where {L,K}
 
     T = Float32
-    x_bin = binarize(x_eval; feature_names=m.info[:feature_names], edges=m.info[:edges])
-    p = zeros(T, K, size(x_eval, 1))
+    nobs = size(x_eval, 1)
+    if isnothing(x_bin)
+        x_bin = binarize(device, x_eval; feature_names=m.info[:feature_names], edges=m.info[:edges])
+    end
+    p = zeros(T, K, nobs)
+    p .= m.bias
+    y_eval = orient_matrix_target(y_eval, nobs)
 
     if L == MLogLoss
-        if eltype(y_eval) <: CategoricalValue
-            levels = CategoricalArrays.levels(y_eval)
-            μ = zeros(T, K)
-            y = UInt32.(CategoricalArrays.levelcode.(y_eval))
-        else
-            levels = sort(unique(y_eval))
-            yc = CategoricalVector(y_eval, levels=levels)
-            μ = zeros(T, K)
-            y = UInt32.(CategoricalArrays.levelcode.(yc))
-        end
+        y = eval_levelcode(y_eval, m.info[:target_levels])
     else
         y = T.(y_eval)
     end
     feval = metric_dict[params.metric]
     V = device_array_type(device)
-    w = isnothing(w_eval) ? device_ones(device, T, size(x_eval, 1)) : V{T}(w_eval)
-    metric_kwargs = (;)
+    w = isnothing(w_eval) ? device_ones(device, T, nobs) : V{T}(w_eval)
+    check_eval_data(y, w, nobs)
+    metric_kwargs = hasproperty(params, :alpha) ? (alpha=T(params.alpha),) : (;)
     if params.metric == :multiquantile
         alphas_eval = T.(params.alphas)
         device <: GPU && (alphas_eval = V{T}(alphas_eval))
@@ -111,27 +168,56 @@ function CallBack(
     if params.metric == :student_mle
         metric_kwargs = (nu = Float64(_nu(params)),)
     end
+    gi = isnothing(group_eval) ? nothing : build_group_index(group_eval, nobs, "group_eval")
+    isnothing(gi) || (metric_kwargs = merge(metric_kwargs, (group=gi,)))
+    hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
+
+    ctrl = nothing
+    if !isnothing(ctrl_eval)
+        ce = build_ctrls(ctrl_eval, nobs, nothing; argname="ctrl_eval", eval=true)
+        length(ce.cols) == length(ctrl_weights) || error(
+            "`ctrl_eval` has $(length(ce.cols)) controls but `ctrl_train` has $(length(ctrl_weights)). " *
+            "Pass the same controls for both sets, in the same order.")
+        ctrl = eval_ctrl(params, L, K, Controls(ce.cols, ctrl_weights, ce.labels), gi, feval, w)
+    end
+
     offset = !isnothing(offset_eval) ? T.(offset_eval) : nothing
     if !isnothing(offset)
         L == LogLoss && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
         L == MLogLoss && (offset .= log.(offset))
-        L in [GaussianMLE, LogisticMLE, StudentMLE] && (offset[:, 2] .= log.(offset[:, 2]))
+        L in [GaussianMLE, LogisticMLE, StudentMLE] && unconstrain_mle_scale!(offset)
         offset = T.(offset)
         p .+= offset'
     end
 
-    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs)
+    return CallBack(feval, convert(V, x_bin), convert(V, p), convert(V, y), w, similar(w), convert(V, m.info[:feattypes]), metric_kwargs, ctrl)
 end
 
-function (cb::CallBack)(logger, iter, tree)
-    predict!(cb.p, tree, cb.x_bin, cb.feattypes)
+function (cb::CallBack)(logger, iter)
     metric = cb.feval(cb.p, cb.y, cb.w, cb.eval; cb.metric_kwargs...)
-    update_logger!(logger, iter, metric)
+    if isnothing(cb.ctrl)
+        update_logger!(logger, iter, metric)
+    else
+        dep, term = eval_penalty!(cb.ctrl, cb.p)
+        value = cb.ctrl.penalized ? metric + term : metric
+        update_logger!(logger, iter, value; base=metric, dep=copy(dep))
+    end
     return nothing
 end
 
-function init_logger(; metric, maximise, early_stopping_rounds, early_stopping_tolerance=0.0)
+# `trees` is every tree added by the round being logged. With `bagging_size > 1` a round adds
+# that many, each scaled by `1 / bagging_size`, so accumulating only one leaves the eval
+# prediction at a fraction of the model the round actually produced.
+function (cb::CallBack)(logger, iter, trees)
+    for tree in trees
+        predict!(cb.p, tree, cb.x_bin, cb.feattypes)
+    end
+    return cb(logger, iter)
+end
+
+# With controls the logger also keeps `:base_metrics`, `:ctrl_dependence` and `:penalized`.
+function init_logger(; metric, maximise, early_stopping_rounds, early_stopping_tolerance=0.0, ctrl=nothing)
     logger = Dict(
         :name => String(metric),
         :maximise => maximise,
@@ -144,13 +230,20 @@ function init_logger(; metric, maximise, early_stopping_rounds, early_stopping_t
         :best_iter => 0,
         :best_metric => 0.0,
     )
+    if !isnothing(ctrl)
+        logger[:base_metrics] = Float64[]
+        logger[:ctrl_dependence] = Vector{Float64}[]
+        logger[:penalized] = ctrl.penalized
+    end
     return logger
 end
 
-function update_logger!(logger, iter, metric)
+function update_logger!(logger, iter, metric; base=nothing, dep=nothing)
     logger[:nrounds] = iter
     push!(logger[:iter], iter)
     push!(logger[:metrics], metric)
+    isnothing(base) || push!(logger[:base_metrics], base)
+    isnothing(dep) || push!(logger[:ctrl_dependence], dep)
     if iter == 0
         logger[:best_metric] = metric
     else

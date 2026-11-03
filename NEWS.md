@@ -1,6 +1,75 @@
 # NEWS
 
+## v0.20.0
+
+### Decorrelation penalty
+- `ctrl_lambda` penalises the dependence between the predictions and one or more control variables, measured by distance covariance, which also captures nonlinear dependence. Pass the controls to `EvoTrees.fit` with `ctrl_name` on a table or `ctrl_train` alongside `x_train`, and their relative weights with `ctrl_weights`.
+- `ctrl_within_group = true` computes the penalty within each group of `group_name` / `group_train`.
+- Available for `:mse`, `:logloss`, `:poisson`, `:gamma`, `:tweedie` and `:gaussian_mle` (on the location), on CPU and GPU.
+- With evaluation data, the loss's own metric includes the penalty, so early stopping follows the penalised objective. The evaluation data then needs the same controls.
+- `ctrl_lambda` scales with the target. Past some `ctrl_lambda * eta` the fit oscillates between rounds, so a larger weight needs a smaller `eta`.
+
+```julia
+config = EvoTreeRegressor(; loss=:mse, ctrl_lambda=10.0, ctrl_within_group=true)
+m = fit(config, dtrain; target_name="y", group_name="group", ctrl_name=["c1", "c2"])
+```
+
+### Model structure
+- The intercept is stored on `EvoTree` as `bias::Vector{Float32}` (unconstrained / link space). `trees` holds only boosting rounds, so `length(m.trees) == nrounds * bagging_size` (and is empty when `nrounds = 0`).
+- `predict` always applies `bias`, then the first `ntree_limit` trees. `ntree_limit=0` is bias only.
+- `treeplot` defaults to `n=1` (the first learned tree).
+- `max_depth` is the maximum number of splits on a leaf path (`1` is a split with 2 leaves).
+
+### Plotting
+- Tree plots now use a **Makie recipe** instead of Plots.jl / RecipesBase. Load a backend (`CairoMakie` or `GLMakie`) and call `treeplot(model)` or `plot(model, 1)`.
+- `RecipesBase` and `NetworkLayout` are no longer dependencies. Layout is computed in EvoTrees; the recipe is a package extension loaded with Makie.
+- Split labels show the comparison (`≤` for numeric/ordered features, `=` for unordered categoricals). Multi-output leaves show every predicted parameter.
+
+### XE-NDCG ranking loss
+- `loss=:xendcg`: the XE-NDCG listwise ranking loss (Bruch, WWW 2021), linear in the size of each group. `metric` defaults to `:xendcg`, the same loss on the evaluation groups.
+- `:lambdarank` and `:xendcg` reject a multi-column target, which `:lambdarank` used to fit on the wrong values.
+
+### Pearson loss
+- `loss=:pearson` fits the Pearson correlation between the predictions and the target within each group of `group_name` / `group_train`, so it is only available through `EvoTrees.fit`. `metric` defaults to `:pearson`.
+
+## v0.18.8
+
+Saved `:gaussian_mle` / `:logistic_mle` models from ≤0.18.7 remain compatible: the unconstrained scale is still `exp(x)`.
+
+### Behavioral changes
+- **Multiclass Hessian.** `:mlogloss` now uses the softmax diagonal `p(1-p)`. Retraining a classifier can yield different trees; already-saved models still predict as before.
+- **Invalid input now errors** instead of logging and continuing. In particular: a single-level classification target, a non-positive target under `:gamma`, an empty row subsample, and `L2` / `bagging_size` / `early_stopping_rounds` outside their valid ranges.
+- **Classification eval labels** are encoded against the training levels. `y_eval` must only contain classes seen in `y_train`; a different level order no longer silently scores the wrong prediction columns.
+- **MLJ `update`** continues an existing fit only when `nrounds` is the sole hyper-parameter change (and is not reduced). Any other change triggers a full refit.
+
+### MLE losses: Fisher information
+- `:gaussian_mle` and `:logistic_mle` now take Newton steps with the **Fisher information** (expected Hessian) rather than the observed Hessian. The Fisher matrix is diagonal and positive definite for these location-scale families, which stabilizes split finding and leaf weights.
+- The unconstrained scale parameter remains `exp(x)`. `predict` still returns the positive scale (`σ` / `s`). User-facing offsets remain the positive scale and are mapped internally with `log`.
+
+### Multi-target regression
+- Several losses can now be fit jointly on a vector of targets, with shared tree structure and a vector-valued leaf. Pass a matrix `y_train` of size `(nobs, n_targets)`, matching `x_train`'s `(nobs, nfeats)`, or `target_name=["y1", "y2", ...]` on a table.
+- Supported: `:mse`, `:logloss`, `:poisson`, `:gamma`, `:tweedie`, `:mae`, `:quantile`, `:cred_std`, `:cred_var`, `:gaussian_mle`, `:logistic_mle`. Not supported: `:mlogloss`, `:multiquantile`.
+- Predictions are `(nobs, n_targets)`. MLE losses return `(nobs, 2 * n_targets)` with interleaved location and positive scale per target.
+
+```julia
+config = EvoTreeRegressor(; loss=:mse, nrounds=200)
+m = fit(config, dtrain; target_name=["y", "y2"])
+pred = m(dtrain)  # size (nobs, 2)
+```
+
+### GPU: KernelAbstractions, AMD and Metal
+- GPU training is fully on `KernelAbstractions.jl`, sharing loss, metric and split-scan math with the CPU path. Oblivious trees (`tree_type=:oblivious`) are supported on GPU.
+- New backends besides NVIDIA/CUDA: AMD/ROCm (`AMDGPU.jl`) and Apple Metal (`Metal.jl`). Load the corresponding package, then set `device` on the learner.
+- `device` accepts `:cpu`, `:gpu` / `:cuda` (NVIDIA), `:rocm` / `:amd`, and `:metal`. `:gpu` remains an alias for CUDA.
+
+### Other
+- `early_stopping_tolerance`: eval metric must improve by more than this value to reset the early-stopping counter (default `0.0`).
+- `EvoTrees.predict_leaf_idx(m, data)`: leaf index of each observation in each tree (`Matrix{UInt32}` of size `(nobs, ntrees)`).
+- Quantile eval metric now uses the model's `alpha`. `:logistic_mle` and `:gini` eval metrics match their intended definitions.
+- `importance` returns zeros when a model has no splits.
+
 ## v0.18
+
 
 ## Refactor of GPU training backend
 - Computations are now done through `KernelAbstractions.jl` instead of CUDA specific kernels. Objective is to eventually have full support for AMD / ROCm in addition to current NVIDIA / CUDA devices.

@@ -155,9 +155,14 @@ features_gain = EvoTrees.importance(m)
 
 ## Plot
 
-Plot a model *ith* tree (first *actual* tree is #2 as 1st *tree* is reserved to set the model's bias):
+Plot a model's *ith* tree. Plotting uses a [Makie](https://docs.makie.org) recipe and requires a backend such as CairoMakie or GLMakie:
 
 ```julia
+using CairoMakie
+treeplot(m)       # first boosting tree
+treeplot(m, 2)
+# equivalently, once a backend is loaded:
+plot(m)
 plot(m, 2)
 ```
 

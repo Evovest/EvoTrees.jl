@@ -18,8 +18,8 @@ x_bool = rand(Bool, nobs)
 is = collect(1:nobs)
 i_sample = sample(is, nobs, replace=false)
 train_size = 0.8
-i_train = i_sample[1:floor(Int, train_size * nobs)]
-i_eval = i_sample[floor(Int, train_size * nobs)+1:end]
+i_train = i_sample[1:floor(Int, train_size*nobs)]
+i_eval = i_sample[(floor(Int, train_size*nobs)+1):end]
 
 # target var
 y_tot = sin.(x_num) .* 0.5 .+ 0.5
@@ -38,7 +38,7 @@ config = EvoTreeRegressor(
     min_weight=1.0,
     rowsample=0.5,
     colsample=1.0,
-    rng=123,
+    seed=123,
 )
 
 @testset "Tables - NTuples" begin
@@ -72,6 +72,15 @@ config = EvoTreeRegressor(
     mse_gain_pct = mse_error / mse_error_ini - 1
     @test mse_gain_pct < -0.75
 
+end
+
+@testset "Tables - eval is train reuses x_bin" begin
+    dtrain = (x1=x_num[i_train], y=y_tot[i_train])
+    dtrain_copy = (x1=copy(dtrain.x1), y=copy(dtrain.y))
+    config_small = EvoTreeRegressor(loss=:mse, nrounds=10, seed=123, nbins=16)
+    m_reuse = fit(config_small, dtrain; target_name, deval=dtrain, verbosity=0)
+    m_copy = fit(config_small, dtrain; target_name, deval=dtrain_copy, verbosity=0)
+    @test EvoTrees.predict(m_reuse, dtrain) == EvoTrees.predict(m_copy, dtrain)
 end
 
 @testset "Tables - DataFrames" begin

@@ -6,12 +6,14 @@ Given a instantiate
 function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where {L,K}
 
     # compute gradients
-    update_grads!(cache.∇, cache.pred, cache.y, L, params)
+    update_grads!(cache.∇, cache.pred, cache.y, L, params, cache.group, cache.ctrl)
 
     for _ in 1:params.bagging_size
 
         # subsample rows
-        cache.nodes[1].is = subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, cache.rng)
+        cache.nodes[1].is = isnothing(cache.group) ?
+                            subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, cache.rng) :
+                            subsample(cache.left, cache.is, cache.mask_cond, params.rowsample, cache.rng, cache.group)
         # subsample cols
         sample!(cache.rng, UInt32(1):UInt32(length(cache.feattypes)), cache.js, replace=false, ordered=true)
 
@@ -21,6 +23,7 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
         grow!(
             tree,
             cache.nodes,
+            cache.h∇,
             params,
             cache.∇,
             cache.js,
@@ -28,8 +31,9 @@ function grow_evotree!(m::EvoTree{L,K}, cache::CacheCPU, params::EvoTypes) where
             cache.left,
             cache.right,
             cache.x_bin,
+            cache.x_bin_T,
             cache.feattypes,
-            cache.monotone_constraints
+            cache.monotone_constraints,
         )
         push!(m.trees, tree)
         predict!(cache.pred, tree, cache.x_bin, cache.feattypes)
@@ -43,6 +47,7 @@ end
 function grow_tree!(
     tree::Tree{L,K},
     nodes::Vector{N},
+    h∇,
     params::EvoTypes,
     ∇::Matrix,
     js,
@@ -50,13 +55,14 @@ function grow_tree!(
     left,
     right,
     x_bin,
+    x_bin_T,
     feattypes::Vector{Bool},
-    monotone_constraints
+    monotone_constraints,
 ) where {L,K,N}
 
     # initialize
     n_current = [1]
-    depth = 1
+    depth = 0
 
     # initialize summary stats
     nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
@@ -78,20 +84,13 @@ function grow_tree!(
             end
         else
             # look for best split for each node
-            @threads for n ∈ n_current[1:2:end]
-                update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
-            end
-            @threads for n ∈ n_current[2:2:end]
-                if n % 2 == 0
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                else
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                end
-            end
+            build_nodes = view(n_current, 1:2:lastindex(n_current))
+            update_hist!(nodes, build_nodes, ∇, x_bin_T, js, Val(2K + 1))
+            subtract_hist!(h∇, view(n_current, 2:2:lastindex(n_current)), js)
             sort!(n_current)
             @threads for n ∈ n_current
                 tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
-                best_gain, best_feat, best_bin = get_best_split(L, nodes[n], js, params, feattypes, monotone_constraints)
+                best_gain, best_feat, best_bin = get_best_split(L, h∇, nodes[n], n, js, params, feattypes, monotone_constraints)
                 if best_bin != 0
                     tree.gain[n] = best_gain
                     tree.cond_bin[n] = best_bin
@@ -120,8 +119,8 @@ function grow_tree!(
                     offset += length(nodes[n].is)
 
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
+                    _child_sums!(nodes[n<<1].∑, h∇, best_feat, best_bin, n, feattypes[best_feat])
+                    @views nodes[n<<1+1].∑ .= nodes[n].∑ .- nodes[n<<1].∑
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
@@ -150,6 +149,7 @@ end
 function grow_otree!(
     tree::Tree{L,K},
     nodes::Vector{N},
+    h∇,
     params::EvoTypes,
     ∇::Matrix,
     js,
@@ -157,13 +157,14 @@ function grow_otree!(
     left,
     right,
     x_bin,
+    x_bin_T,
     feattypes::Vector{Bool},
-    monotone_constraints
+    monotone_constraints,
 ) where {L,K,N}
 
     # initialize
     n_current = [1]
-    depth = 1
+    depth = 0
 
     # initialize summary stats
     nodes[1].∑ .= dropdims(sum(Float64, view(∇, :, nodes[1].is), dims=2), dims=2)
@@ -184,24 +185,17 @@ function grow_otree!(
             end
         else
             # look for best split for each node
-            @threads for n ∈ n_current[1:2:end]
-                update_hist!(L, nodes[n].h, ∇, x_bin, nodes[n].is, js)
-            end
-            @threads for n ∈ n_current[2:2:end]
-                if n % 2 == 0
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n+1].h[:, :, js]
-                else
-                    @views nodes[n].h[:, :, js] .= nodes[n>>1].h[:, :, js] .- nodes[n-1].h[:, :, js]
-                end
-            end
+            build_nodes = view(n_current, 1:2:lastindex(n_current))
+            update_hist!(nodes, build_nodes, ∇, x_bin_T, js, Val(2K + 1))
+            subtract_hist!(h∇, view(n_current, 2:2:lastindex(n_current)), js)
             sort!(n_current)
             @threads for n ∈ n_current
                 tree.w[n] = last(nodes[n].∑) # set training weights reaching the node
-                update_gains!(L, nodes[n], js, params, feattypes, monotone_constraints)
+                update_gains!(L, h∇, nodes[n], n, js, params, feattypes, monotone_constraints)
             end
 
             # initialize gains for node 1 in which all gains of a given depth will be accumulated
-            if depth > 1
+            if depth > 0
                 view(nodes[1].gains, :, js) .= 0
             end
             gain = 0
@@ -223,8 +217,11 @@ function grow_otree!(
             best_bin = best[2][1]
             best_feat = js[best[2][2]]
             if best_gain > params.gamma
+                # `best_gain` is summed over every node of the depth, and `importance` adds
+                # `tree.gain` once per split node, so each node stores its equal share
+                share = best_gain / length(n_current)
                 for n in n_current
-                    tree.gain[n] = best_gain
+                    tree.gain[n] = share
                     tree.cond_bin[n] = best_bin
                     tree.feat[n] = best_feat
                     tree.split[n] = best_bin != 0
@@ -243,8 +240,8 @@ function grow_otree!(
                     offset += length(nodes[n].is)
 
                     nodes[n<<1].is, nodes[n<<1+1].is = _left, _right
-                    nodes[n<<1].∑ .= nodes[n].hL[:, best_bin, best_feat]
-                    nodes[n<<1+1].∑ .= nodes[n].hR[:, best_bin, best_feat]
+                    _child_sums!(nodes[n<<1].∑, h∇, best_feat, best_bin, n, feattypes[best_feat])
+                    @views nodes[n<<1+1].∑ .= nodes[n].∑ .- nodes[n<<1].∑
 
                     if length(_right) >= length(_left)
                         push!(n_next, n << 1)
@@ -271,6 +268,9 @@ function grow_otree!(
 end
 
 # A no-op on the CPU, but on the GPU we perform garbage collection
+# The trees appended by the round just grown. `grow_evotree!` pushes `bagging_size` of them.
+_round_trees(m, n) = view(m.trees, (lastindex(m.trees)-n+1):lastindex(m.trees))
+
 post_fit_gc(::Type{<:CPU}) = nothing
 
 """
@@ -281,6 +281,10 @@ post_fit_gc(::Type{<:CPU}) = nothing
         feature_names=nothing,
         weight_name=nothing,
         offset_name=nothing,
+        group_name=nothing,
+        eval_group_name=group_name,
+        ctrl_name=nothing,
+        ctrl_weights=nothing,
         deval=nothing,
         print_every_n=9999,
         verbosity=1
@@ -303,6 +307,10 @@ Main training function. Performs model fitting given configuration `params`, `dt
 - `feature_names = nothing`: the names `dtrain` variables to use as features. If not provided, it deafults to all variables that aren't one of `target`, `weight` or `offset``.
 - `weight_name = nothing`: name of the variable containing weights. If `nothing`, common weights on one will be used.
 - `offset_name = nothing`: name of the offset variable.
+- `group_name = nothing`: name of the variable identifying the group (query) each row belongs to, for ranking, `:pearson` or `ctrl_within_group`. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
+- `eval_group_name = group_name`: name of the group variable in `deval`, defaulting to `group_name`. A group-aware metric such as `:ndcg` or `:pearson` requires it, as does `ctrl_within_group`. Set it on its own to evaluate over groups while training with the usual per-row sampling.
+- `ctrl_name = nothing`: name of the control variable, or a vector of names, whose dependence with the predictions is penalised by `ctrl_lambda`. Not used as a feature unless listed in `feature_names`. Must also be in `deval`, and the loss's own eval metric then includes the penalty.
+- `ctrl_weights = nothing`: weight of each control in `ctrl_name`. Defaults to 1 for each.
 - `deval`: A Tables compatible evaluation data containing features and target variables. 
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -314,23 +322,30 @@ function fit(
     feature_names=nothing,
     weight_name=nothing,
     offset_name=nothing,
+    group_name=nothing,
+    eval_group_name=group_name,
+    ctrl_name=nothing,
+    ctrl_weights=nothing,
     deval=nothing,
     print_every_n=9999,
     verbosity=1,
 )
 
     @assert Tables.istable(dtrain) "fit(params, dtrain) only accepts Tables compatible input for `dtrain` (ex: named tuples, DataFrames...)"
+    _eval_is_train = deval === dtrain
     dtrain = Tables.columntable(dtrain)
-    _device = params.device == :gpu ? GPU : CPU
-    m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name)
+    _device = device_type(params.device)
+    m, cache = init(params, dtrain, _device; target_name, feature_names, weight_name, offset_name, group_name, ctrl_name, ctrl_weights)
 
     # initialize callback and logger if deval is provided
     if !isnothing(deval)
         deval = Tables.columntable(deval)
-        cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name)
-        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
-        cb(logger, 0, m.trees[end])
-        (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
+        cb = CallBack(params, m, deval, _device; target_name, weight_name, offset_name,
+            group_name=eval_group_name, ctrl_name, ctrl_weights=_ctrl_weights(cache),
+            x_bin=_eval_is_train ? cache.x_bin : nothing)
+        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance, cb.ctrl)
+        cb(logger, 0)
+        (verbosity > 0) && _info_round("initialization", logger)
     else
         logger, cb = nothing, nothing
     end
@@ -338,9 +353,9 @@ function fit(
     for i = 1:params.nrounds
         grow_evotree!(m, cache, params)
         if !isnothing(logger)
-            cb(logger, i, m.trees[end])
+            cb(logger, i, _round_trees(m, params.bagging_size))
             if i % print_every_n == 0 && verbosity > 0
-                @info "iter $i" metric = logger[:metrics][end]
+                _info_round("iter $i", logger)
             end
             (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
         end
@@ -363,6 +378,11 @@ end
         y_eval=nothing, 
         w_eval=nothing, 
         offset_eval=nothing,
+        group_train=nothing,
+        group_eval=nothing,
+        ctrl_train=nothing,
+        ctrl_eval=nothing,
+        ctrl_weights=nothing,
         feature_names=nothing,
         early_stopping_rounds=9999,
         print_every_n=9999,
@@ -382,13 +402,18 @@ Main training function. Performs model fitting given configuration `params`, `x_
 # Keyword arguments
 
 - `x_train::Matrix`: training data of size `[#observations, #features]`. 
-- `y_train::VecOrMat`: vector or matrix of train targets of length `#observations` or size `(#targets, #observations)`.
+- `y_train::VecOrMat`: vector or matrix of train targets of length `#observations` or size `(#observations, #targets)`.
 - `w_train::Vector`: vector of train weights of length `#observations`. If `nothing`, a vector of ones is assumed.
 - `offset_train::VecOrMat`: offset for the training data. Should match the size of the predictions.
 - `x_eval::Matrix`: evaluation data of size `[#observations, #features]`. 
-- `y_eval::VecOrMat`: vector or matrix of evaluation targets of length `#observations` or size `(#targets, #observations)`.
+- `y_eval::VecOrMat`: vector or matrix of evaluation targets of length `#observations` or size `(#observations, #targets)`.
 - `w_eval::Vector`: vector of evaluation weights of length `#observations`. Defaults to `nothing` (assumes a vector of 1s).
 - `offset_eval::VecOrMat`: evaluation data offset. Should match the size of the predictions.
+- `group_train::Vector`: group (query) id of each training row, for ranking tasks, `:pearson` or `ctrl_within_group`. Rows sharing an id form one group. Ids need not be contiguous, sorted, or numeric. Supplying groups makes `rowsample` sample whole groups rather than individual rows.
+- `group_eval::Vector`: group id of each evaluation row. Required by `metric = :ndcg` and `metric = :pearson`, and by `ctrl_within_group`.
+- `ctrl_train::VecOrMat`: control variable of length `#observations`, or matrix of size `(#observations, #controls)`, whose dependence with the predictions is penalised by `ctrl_lambda`.
+- `ctrl_eval::VecOrMat`: evaluation controls, with the same columns as `ctrl_train`. Required when `ctrl_train` and evaluation data are given. The loss's own metric then includes the penalty.
+- `ctrl_weights::Vector`: weight of each column of `ctrl_train`. Defaults to 1 for each.
 - `feature_names = nothing`: the names of the `x_train` features. If provided, should be a vector of string with `length(feature_names) = size(x_train, 2)`.
 - `print_every_n`: sets at which frequency logging info should be printed. 
 - `verbosity`: set to 1 to print logging info during training.
@@ -403,26 +428,38 @@ function fit(
     y_eval=nothing,
     w_eval=nothing,
     offset_eval=nothing,
+    group_train=nothing,
+    group_eval=nothing,
+    ctrl_train=nothing,
+    ctrl_eval=nothing,
+    ctrl_weights=nothing,
     feature_names=nothing,
     print_every_n=9999,
     verbosity=1
 )
 
-    _device = params.device == :gpu ? GPU : CPU
-    m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train)
+    !isnothing(ctrl_eval) && isnothing(ctrl_train) &&
+        error("`ctrl_eval` was given without `ctrl_train`.")
+    _device = device_type(params.device)
+    m, cache = init(params, x_train, y_train, _device; feature_names, w_train, offset_train, group_train, ctrl_train, ctrl_weights)
 
     # initialize callback and logger if tracking eval data
     metric = params.metric
     logging_flag = !isnothing(x_eval) && !isnothing(y_eval)
-    any_flag = !isnothing(x_eval) || !isnothing(y_eval)
+    any_flag = !isnothing(x_eval) || !isnothing(y_eval) || !isnothing(ctrl_eval)
     if !logging_flag && any_flag
         @warn "To track eval metric in logger, both `x_eval` and `y_eval` must be provided."
     end
+    if logging_flag && !isnothing(ctrl_train) && isnothing(ctrl_eval)
+        error("Controls were given for training but not for the eval set. Pass `ctrl_eval` alongside " *
+              "`x_eval`, with the same controls as `ctrl_train`.")
+    end
     if logging_flag
-        cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval)
-        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance)
-        cb(logger, 0, m.trees[end])
-        (verbosity > 0) && @info "initialization" metric = logger[:metrics][end]
+        cb = CallBack(params, m, x_eval, y_eval, _device; w_eval, offset_eval, group_eval,
+            ctrl_eval, ctrl_weights=_ctrl_weights(cache), x_bin=x_eval === x_train ? cache.x_bin : nothing)
+        logger = init_logger(; metric=params.metric, maximise=is_maximise(cb.feval), params.early_stopping_rounds, params.early_stopping_tolerance, cb.ctrl)
+        cb(logger, 0)
+        (verbosity > 0) && _info_round("initialization", logger)
     else
         logger, cb = nothing, nothing
     end
@@ -430,9 +467,9 @@ function fit(
     for i = 1:params.nrounds
         grow_evotree!(m, cache, params)
         if !isnothing(logger)
-            cb(logger, i, m.trees[end])
+            cb(logger, i, _round_trees(m, params.bagging_size))
             if i % print_every_n == 0 && verbosity > 0
-                @info "iter $i" metric = logger[:metrics][end]
+                _info_round("iter $i", logger)
             end
             (logger[:iter_since_best] >= logger[:early_stopping_rounds]) && break
         end
@@ -442,4 +479,15 @@ function fit(
 
     return m
 
+end
+
+_ctrl_weights(cache) = isnothing(cache.ctrl) ? nothing : cache.ctrl.weights
+
+function _info_round(msg, logger)
+    if haskey(logger, :base_metrics)
+        @info msg metric = logger[:metrics][end] base_metric = logger[:base_metrics][end] ctrl_dependence =
+            logger[:ctrl_dependence][end]
+    else
+        @info msg metric = logger[:metrics][end]
+    end
 end

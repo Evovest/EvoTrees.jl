@@ -1,16 +1,19 @@
 function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, params::EvoTrees.EvoTypes) where {L,K}
 
-    EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, L, params)
+    EvoTrees.update_grads!(cache.∇, cache.pred, cache.y, L, params, cache.group, cache.ctrl)
 
     for _ in 1:params.bagging_size
-        is = EvoTrees.subsample(cache.is_full, cache.mask_cpu, cache.mask_gpu, params.rowsample, cache.rng)
+        is = isnothing(cache.group) ?
+             EvoTrees.subsample(cache.is_full, cache.mask_cpu, cache.mask_gpu, params.rowsample, cache.rng) :
+             EvoTrees.subsample(cache.is_full, cache.mask_cpu, cache.mask_gpu, params.rowsample, cache.rng, cache.group)
 
         js_cpu = Vector{eltype(cache.js)}(undef, length(cache.js))
         EvoTrees.sample!(cache.rng, cache.js_, js_cpu, replace=false, ordered=true)
         copyto!(cache.js, js_cpu)
 
         tree = EvoTrees.Tree{L,K}(params.max_depth)
-        grow_tree!(tree, params, cache, is)
+        grow! = params.tree_type == :oblivious ? grow_otree! : grow_tree!
+        grow!(tree, params, cache, is, js_cpu)
         push!(m.trees, tree)
         EvoTrees.predict!(cache.pred, tree, cache.x_bin, cache.feattypes_gpu)
     end
@@ -20,11 +23,9 @@ function EvoTrees.grow_evotree!(m::EvoTree{L,K}, cache::EvoTrees.CacheGPU, param
 end
 
 """
-	grow_otree!(tree, params, cache, is)
+	grow_otree!(tree, params, cache, is, js_cpu)
 
-Grow an oblivious tree on GPU.
-
-GPU oblivious-tree growth is not implemented yet; falls back to `grow_tree!` and emits a warning.
+Grow an oblivious tree on GPU (one shared split per depth).
 
 Mutates:
 - `tree`: the resulting tree structure and leaf predictions
@@ -35,15 +36,96 @@ function grow_otree!(
     params::EvoTrees.EvoTypes,
     cache::EvoTrees.CacheGPU,
     is::CuVector,
+    js_cpu::AbstractVector,
 ) where {L,K}
-    @warn "Oblivious tree GPU implementation not yet available, using standard tree" maxlog = 1
-    grow_tree!(tree, params, cache, is)
+    grow_tree!(tree, params, cache, is, js_cpu, Val(true))
 end
 
 """
-	grow_tree!(tree, params, cache, is)
+	_select_binary_split!(cache, backend, L, params, active_nodes, n_feats, n_active)
+
+Best split per active node into `best_gain` / `best_bin` / `best_feat`.
+"""
+function _select_binary_split!(
+    cache::EvoTrees.CacheGPU, backend, ::Type{L}, params::EvoTrees.EvoTypes,
+    active_nodes, n_feats::Integer, n_active::Integer,
+) where {L}
+    gains = view(cache.gains_per_feat_gpu, 1:n_feats, 1:n_active)
+    bins = view(cache.bins_per_feat_gpu, 1:n_feats, 1:n_active)
+
+    find_best_split_parallel_kernel!(backend)(
+        L, gains, bins,
+        cache.h∇, cache.nodes_sum_gpu, active_nodes,
+        cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
+        params.lambda, params.L2, params.min_weight,
+        cache.K, n_feats, cache.split_sums_temp_gpu;
+        ndrange=n_active * n_feats,
+    )
+
+    reduce_best_split_kernel!(backend)(
+        view(cache.best_gain_gpu, 1:n_active),
+        view(cache.best_bin_gpu, 1:n_active),
+        view(cache.best_feat_gpu, 1:n_active),
+        gains, bins, cache.js, n_feats;
+        ndrange=n_active,
+    )
+    return nothing
+end
+
+"""
+	_select_obliv_split!(cache, backend, L, params, active_nodes, n_feats, n_active, js_cpu)
+
+One shared split for the depth, broadcast into every active-node `best_*` slot.
+`js_cpu` is the host copy of `cache.js` for this tree.
+"""
+function _select_obliv_split!(
+    cache::EvoTrees.CacheGPU, backend, ::Type{L}, params::EvoTrees.EvoTypes,
+    active_nodes, n_feats::Integer, n_active::Integer, js_cpu,
+) where {L}
+    gains = view(cache.obliv_gains_gpu, :, 1:n_feats)
+    counts = view(cache.obliv_count_gpu, :, 1:n_feats)
+    gains .= 0
+    counts .= 0
+
+    accumulate_obliv_gains_kernel!(backend)(
+        L, gains, counts,
+        cache.h∇, cache.nodes_sum_gpu, active_nodes,
+        cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
+        params.lambda, params.L2, params.min_weight,
+        cache.K, n_feats, cache.split_sums_temp_gpu;
+        ndrange=n_active * n_feats,
+    )
+
+    # nbins × n_feats is small; host findmax is simpler than a device reduce.
+    g_host = Array(gains)
+    c_host = Array(counts)
+    @inbounds for i in eachindex(g_host)
+        c_host[i] == Int32(n_active) || (g_host[i] = -Inf)
+    end
+
+    best_gain, idx = findmax(g_host)
+    best_bin = Int32(idx[1])
+    best_feat = Int32(js_cpu[idx[2]])
+    if !isfinite(best_gain)
+        best_gain, best_bin, best_feat = -Inf, Int32(0), Int32(0)
+    end
+
+    broadcast_obliv_split_kernel!(backend)(
+        view(cache.best_gain_gpu, 1:n_active),
+        view(cache.best_bin_gpu, 1:n_active),
+        view(cache.best_feat_gpu, 1:n_active),
+        Float64(best_gain), best_bin, best_feat;
+        ndrange=n_active,
+    )
+    return nothing
+end
+
+"""
+	grow_tree!(tree, params, cache, is, js_cpu)
+	grow_tree!(tree, params, cache, is, js_cpu, ::Val{oblivious})
 
 Grow a binary decision tree on GPU, level-by-level (breadth-first).
+Pass `Val(true)` for oblivious (shared split per depth).
 
 Mutates:
 - `tree`: split structure and leaf predictions (copied back from GPU buffers)
@@ -54,7 +136,19 @@ function grow_tree!(
     params::EvoTrees.EvoTypes,
     cache::EvoTrees.CacheGPU,
     is::CuVector,
+    js_cpu::AbstractVector,
 ) where {L,K}
+    grow_tree!(tree, params, cache, is, js_cpu, Val(false))
+end
+
+function grow_tree!(
+    tree::EvoTrees.Tree{L,K},
+    params::EvoTrees.EvoTypes,
+    cache::EvoTrees.CacheGPU,
+    is::CuVector,
+    js_cpu::AbstractVector,
+    ::Val{OBLIVIOUS},
+) where {L,K,OBLIVIOUS}
 
     backend = KernelAbstractions.get_backend(cache.x_bin)
 
@@ -83,54 +177,27 @@ function grow_tree!(
     n_feats = length(cache.js)
 
     # Root node processing
-    if params.max_depth == 1
-        reduce_root_sums_kernel!(backend)(
-            cache.nodes_sum_gpu, ∇_gpu, is;
-            ndrange=length(is),
-        )
-        KernelAbstractions.synchronize(backend)
-        n_active = 0
+    EvoTrees.update_hist!(
+        cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
+        view(cache.anodes_gpu, 1:1), cache.K, cache.target_mask_buf, backend,
+    )
+
+    compute_nodes_sum_kernel!(backend)(
+        cache.nodes_sum_gpu, cache.h∇, view(cache.anodes_gpu, 1:1), cache.js, cache.K;
+        ndrange=(2 * cache.K + 1),
+    )
+    KernelAbstractions.synchronize(backend)
+
+    if OBLIVIOUS
+        _select_obliv_split!(cache, backend, L, params, view(cache.anodes_gpu, 1:1), n_feats, 1, js_cpu)
     else
-        update_hist_gpu!(
-            cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
-            view(cache.anodes_gpu, 1:1), cache.K, cache.target_mask_buf, backend,
-        )
-
-        compute_nodes_sum_kernel!(backend)(
-            cache.nodes_sum_gpu, cache.h∇, view(cache.anodes_gpu, 1:1), cache.js, cache.K;
-            ndrange=(2 * cache.K + 1),
-        )
-        KernelAbstractions.synchronize(backend)
-
-        find_best_split_parallel_kernel!(backend)(
-            L,
-            view(cache.gains_per_feat_gpu, 1:n_feats, 1:1),
-            view(cache.bins_per_feat_gpu, 1:n_feats, 1:1),
-            cache.h∇, cache.nodes_sum_gpu,
-            view(cache.anodes_gpu, 1:1),
-            cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
-            params.lambda, params.L2, params.min_weight,
-            cache.K, n_feats, cache.split_sums_temp_gpu;
-            ndrange=n_feats,
-        )
-        KernelAbstractions.synchronize(backend)
-
-        reduce_best_split_kernel!(backend)(
-            view(cache.best_gain_gpu, 1:1),
-            view(cache.best_bin_gpu, 1:1),
-            view(cache.best_feat_gpu, 1:1),
-            view(cache.gains_per_feat_gpu, 1:n_feats, 1:1),
-            view(cache.bins_per_feat_gpu, 1:n_feats, 1:1),
-            cache.js, n_feats;
-            ndrange=1,
-        )
-        KernelAbstractions.synchronize(backend)
-
-        n_active = 1
+        _select_binary_split!(cache, backend, L, params, view(cache.anodes_gpu, 1:1), n_feats, 1)
     end
 
+    n_active = 1
+
     # Main loop: build tree level by level
-    for depth in 1:(params.max_depth-1)
+    for depth in 1:params.max_depth
         iszero(n_active) && break
 
         view(cache.n_next_active_gpu, 1:1) .= 0
@@ -143,17 +210,10 @@ function grow_tree!(
             cache.build_count .= 0
             cache.subtract_count .= 0
 
-            cache.node_counts_gpu .= 0
-            count_nodes_kernel!(backend)(
-                cache.node_counts_gpu, cache.nidx, is;
-                ndrange=length(is)
-            )
-            KernelAbstractions.synchronize(backend)
-
             separate_nodes_kernel!(backend)(
                 cache.build_nodes_gpu, cache.build_count,
                 cache.subtract_nodes_gpu, cache.subtract_count,
-                active_nodes, cache.node_counts_gpu;
+                active_nodes, cache.nodes_sum_gpu;
                 ndrange=n_active
             )
             KernelAbstractions.synchronize(backend)
@@ -163,7 +223,7 @@ function grow_tree!(
 
             # Build histograms for smaller children
             if build_count_val > 0
-                update_hist_gpu!(
+                EvoTrees.update_hist!(
                     cache.h∇, ∇_gpu, cache.x_bin, cache.nidx, cache.js, is,
                     view(cache.build_nodes_gpu, 1:build_count_val),
                     cache.K, cache.target_mask_buf, backend,
@@ -171,14 +231,8 @@ function grow_tree!(
             end
 
             # Compute larger children via subtraction
-            if subtract_count_val > 0
-                subtract_hist_kernel!(backend)(
-                    cache.h∇,
-                    view(cache.subtract_nodes_gpu, 1:subtract_count_val);
-                    ndrange=subtract_count_val * size(cache.h∇, 1) * size(cache.h∇, 2) * size(cache.h∇, 3),
-                )
-                KernelAbstractions.synchronize(backend)
-            end
+            subtract_count_val > 0 && EvoTrees.subtract_hist!(
+                cache.h∇, view(cache.subtract_nodes_gpu, 1:subtract_count_val), cache.js)
 
             compute_nodes_sum_kernel!(backend)(
                 cache.nodes_sum_gpu, cache.h∇, active_nodes, cache.js, cache.K;
@@ -186,29 +240,11 @@ function grow_tree!(
             )
             KernelAbstractions.synchronize(backend)
 
-            find_best_split_parallel_kernel!(backend)(
-                L,
-                view(cache.gains_per_feat_gpu, 1:n_feats, 1:n_active),
-                view(cache.bins_per_feat_gpu, 1:n_feats, 1:n_active),
-                cache.h∇, cache.nodes_sum_gpu,
-                active_nodes,
-                cache.js, cache.feattypes_gpu, cache.monotone_constraints_gpu,
-                params.lambda, params.L2, params.min_weight,
-                cache.K, n_feats, cache.split_sums_temp_gpu;
-                ndrange=n_active * n_feats,
-            )
-            KernelAbstractions.synchronize(backend)
-
-            reduce_best_split_kernel!(backend)(
-                view(cache.best_gain_gpu, 1:n_active),
-                view(cache.best_bin_gpu, 1:n_active),
-                view(cache.best_feat_gpu, 1:n_active),
-                view(cache.gains_per_feat_gpu, 1:n_feats, 1:n_active),
-                view(cache.bins_per_feat_gpu, 1:n_feats, 1:n_active),
-                cache.js, n_feats;
-                ndrange=n_active,
-            )
-            KernelAbstractions.synchronize(backend)
+            if OBLIVIOUS
+                _select_obliv_split!(cache, backend, L, params, active_nodes, n_feats, n_active, js_cpu)
+            else
+                _select_binary_split!(cache, backend, L, params, active_nodes, n_feats, n_active)
+            end
         end
 
         # Apply splits
@@ -226,7 +262,7 @@ function grow_tree!(
         )
         KernelAbstractions.synchronize(backend)
 
-        n_active = Array(cache.n_next_active_gpu)[1]
+        n_active = Int(Array(cache.n_next_active_gpu)[1])
         if n_active > 0
             copyto!(view(cache.anodes_gpu, 1:n_active), view(cache.n_next_gpu, 1:n_active))
         end
@@ -247,6 +283,18 @@ function grow_tree!(
     copyto!(tree.feat, cache.tree_feat_gpu)
     copyto!(tree.cond_bin, cache.tree_cond_bin_gpu)
     copyto!(tree.gain, cache.tree_gain_gpu)
+    # An oblivious depth broadcasts its summed gain into every node, and `importance` adds
+    # `tree.gain` once per split node, so each node keeps its depth's share. This is done here
+    # rather than in the kernel because the gamma check reads the undivided value there.
+    if OBLIVIOUS
+        lo = 1
+        while lo <= length(tree.gain)
+            hi = min(2lo - 1, length(tree.gain))
+            m = count(view(tree.split, lo:hi))
+            m > 1 && (view(tree.gain, lo:hi) ./= m)
+            lo <<= 1
+        end
+    end
     copyto!(tree.w, view(cache.nodes_sum_gpu, size(cache.nodes_sum_gpu, 1), 1:length(tree.w)))
 
     leaf_nodes = findall(!, tree.split)
@@ -301,7 +349,7 @@ end
 Apply the chosen best split for each active node and create its children.
 
 For each active node `node = active_nodes[n_idx]`, if `best_gain[n_idx] > gamma`
-and we are below `max_depth`, mark the node as split and:
+and `depth <= max_depth`, mark the node as split and:
 - Write split metadata (`tree_split`, `tree_feat`, `tree_cond_bin`, `tree_gain`)
 - Compute left-child gradient totals from histograms (`h∇`) and write them into `nodes_sum`
 - Compute right-child totals as `parent - left` (also into `nodes_sum`)
@@ -321,7 +369,7 @@ Mutates:
     n_idx = @index(Global)
     node = active_nodes[n_idx]
 
-    @inbounds if depth < max_depth && best_gain[n_idx] > gamma
+    @inbounds if depth <= max_depth && best_gain[n_idx] > gamma
         tree_split[node] = true
         tree_cond_bin[node] = best_bin[n_idx]
         tree_feat[node] = best_feat[n_idx]

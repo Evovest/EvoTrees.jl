@@ -140,8 +140,8 @@ Y = rand(UInt8, size(X, 1))
 # train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace=false)
 train_size = 0.8
-𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
-𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
+𝑖_train = 𝑖_sample[1:floor(Int, train_size*size(𝑖, 1))]
+𝑖_eval = 𝑖_sample[(floor(Int, train_size*size(𝑖, 1))+1):end]
 
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
@@ -187,8 +187,8 @@ Y = rand(size(X, 1))
 # train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace=false)
 train_size = 0.8
-𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
-𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
+𝑖_train = 𝑖_sample[1:floor(Int, train_size*size(𝑖, 1))]
+𝑖_eval = 𝑖_sample[(floor(Int, train_size*size(𝑖, 1))+1):end]
 
 X_train, X_eval = X[𝑖_train, :], X[𝑖_eval, :]
 Y_train, Y_eval = Y[𝑖_train], Y[𝑖_eval]
@@ -238,8 +238,8 @@ Y = rand(size(X, 1))
 # train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace=false)
 train_size = 0.8
-𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
-𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
+𝑖_train = 𝑖_sample[1:floor(Int, train_size*size(𝑖, 1))]
+𝑖_eval = 𝑖_sample[(floor(Int, train_size*size(𝑖, 1))+1):end]
 
 x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
 y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
@@ -294,6 +294,49 @@ f, c, r = MLJBase.fit(model, 2, data...);
 model.lambda = 0.1
 MLJBase.update(model, 2, f, c, data...);
 
+@testset "update cold restart" begin
+
+    seed = 123
+    # Use a local RNG: the suite seeds the global RNG in core.jl, so drawing from it
+    # here would shift the stream for every test that follows.
+    rng = Xoshiro(42)
+    X = MLJBase.table(rand(rng, 200, 3))
+    y = rand(rng, 200)
+
+    # Changing any hyperparameter other than `nrounds` invalidates the trees already
+    # grown, so `update` must discard them and refit rather than continue boosting.
+    model = EvoTreeRegressor(; nrounds=10, eta=0.05, max_depth=3, seed)
+    data = MLJBase.reformat(model, X, y)
+    f, c, _ = MLJBase.fit(model, 0, data...)
+    p_stale = MLJBase.predict(model, f, X)
+
+    model2 = EvoTreeRegressor(; nrounds=10, eta=0.9, max_depth=6, seed)
+    f2, c2, _ = MLJBase.update(model2, 0, f, c, data...)
+    p_update = MLJBase.predict(model2, f2, X)
+
+    f3, _, _ = MLJBase.fit(model2, 0, data...)
+    p_fresh = MLJBase.predict(model2, f3, X)
+
+    @test !all(p_update .≈ p_stale)
+    @test all(p_update .≈ p_fresh)
+
+    # Reducing `nrounds` below the number of trees already grown also requires a refit.
+    model3 = EvoTreeRegressor(; nrounds=4, eta=0.05, max_depth=3, seed)
+    f4, _, _ = MLJBase.update(model3, 0, f, c, data...)
+    @test f4.info[:nrounds] == 4
+
+    # Increasing `nrounds` alone is the one case that may continue from the existing
+    # ensemble, and doing so must agree with a fit from scratch.
+    model4 = EvoTreeRegressor(; nrounds=25, eta=0.05, max_depth=3, seed)
+    f5, _, _ = MLJBase.update(model4, 0, f, c, data...)
+    f6, _, _ = MLJBase.fit(model4, 0, data...)
+    @test f5.info[:nrounds] == 25
+    @test all(
+        MLJBase.predict(model4, f5, X) .≈
+        MLJBase.predict(model4, f6, X),
+    )
+end
+
 
 ############################
 # Feature Importances
@@ -345,8 +388,8 @@ W = rand(size(X, 1)) .+ 0.1
 # train-eval split
 𝑖_sample = sample(𝑖, size(𝑖, 1), replace=false)
 train_size = 0.8
-𝑖_train = 𝑖_sample[1:floor(Int, train_size * size(𝑖, 1))]
-𝑖_eval = 𝑖_sample[floor(Int, train_size * size(𝑖, 1))+1:end]
+𝑖_train = 𝑖_sample[1:floor(Int, train_size*size(𝑖, 1))]
+𝑖_eval = 𝑖_sample[(floor(Int, train_size*size(𝑖, 1))+1):end]
 
 x_train, x_eval = X[𝑖_train, :], X[𝑖_eval, :]
 y_train, y_eval = Y[𝑖_train], Y[𝑖_eval]
@@ -403,9 +446,33 @@ end
 ##################################################
 @testset "MLJ - supported ordered factor predictions" begin
     X = (; x=rand(10))
-    y = coerce(rand("ab", 10), OrderedFactor)
+    y = coerce(repeat(["a", "b"], 5), OrderedFactor)
     model = EvoTreeClassifier()
     mach = machine(model, X, y) |> fit!
     yhat = predict(mach, X)
     @assert isordered(yhat)
+end
+
+@testset "MLJ - single-class target" begin
+    X = (; x=rand(Xoshiro(11), 10))
+    y = coerce(fill("a", 10), OrderedFactor)
+    mach = machine(EvoTreeClassifier(), X, y)
+    @test_throws Exception fit!(mach, verbosity=0)
+end
+
+@testset "ctrl_lambda cannot be used through MLJ" begin
+    # MLJ cannot pass controls, so a positive weight is an error
+    Xr, yr = MLJTestInterface.make_regression()
+    function fit_error(model)
+        try
+            fit!(machine(model, Xr, yr), verbosity=0)
+            return ""
+        catch e
+            return sprint(showerror, e)
+        end
+    end
+    @test fit_error(EvoTreeRegressor(nrounds=5)) == ""
+    @test fit_error(EvoTreeMLE(nrounds=5)) == ""
+    @test occursin("no control variable", fit_error(EvoTreeRegressor(nrounds=5, ctrl_lambda=1.0)))
+    @test occursin("no control variable", fit_error(EvoTreeMLE(nrounds=5, ctrl_lambda=1.0)))
 end
