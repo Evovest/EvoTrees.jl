@@ -75,6 +75,12 @@ function predict(::EvoTreeMLE, fitresult::EvoTree{L,K}, A) where {L<:LogisticMLE
   return [Distributions.Logistic(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
+function predict(m::EvoTreeMLE, fitresult::EvoTree{L,K}, A) where {L<:StudentMLE,K}
+  pred = predict(fitresult, A)
+  ν = fitresult.info[:nu]
+  return [pred[i,1] + pred[i,2] * Distributions.TDist(ν) for i in axes(pred, 1)]
+end
+
 function feature_importances(m::EvoTypes, fitresult, report)
   fi_pairs = importance(fitresult, feature_names=report[:features])
   return fi_pairs
@@ -705,6 +711,7 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
 - `loss=:gaussian`:       Loss to be be minimized during training. One of:
   - `:gaussian_mle`
   - `:logistic_mle`
+  - `:student_mle`
 - `nrounds=100`:          Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
@@ -717,6 +724,7 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
 - `min_weight=8.0`:       Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector. Must be > 0.
 - `rowsample=1.0`:        Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
 - `colsample=1.0`:        Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
+- `nu=4.0`:               Degrees of freedom for the Student-t distribution. Must be > 2 for a valid variance. Only applicable when `loss=:student_mle`.
 - `nbins=64`:             Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `monotone_constraints=Dict{Int, Int}()`: Specify monotonic constraints using a dict where the key is the feature index and the value the applicable constraint (-1=decreasing, 0=none, 1=increasing). 
   !Experimental feature: note that for MLE regression, constraints may not be enforced systematically.
