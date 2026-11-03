@@ -716,15 +716,9 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
         @inbounds for t in 1:Y
             gb = 2 * (t - 1)
             hb = 2 * Y + 2 * (t - 1)
-<<<<<<< HEAD
-            μ = p[2t-1, i]
-            ls = p[2t, i]
-            g1, g2, h1, h2 = mle2p_grad_hess(L, μ, ls, _target(y, t, i), ν)
-=======
             loc = p[2t-1, i]
             scale_raw = p[2t, i]
-            g1, g2, h1, h2 = mle2p_grad_hess(L, loc, scale_raw, _target(y, t, i))
->>>>>>> origin
+            g1, g2, h1, h2 = mle2p_grad_hess(L, loc, scale_raw, _target(y, t, i), ν)
             ∇[gb+1, i] = g1 * w
             ∇[gb+2, i] = g2 * w
             ∇[hb+1, i] = h1 * w
