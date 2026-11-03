@@ -16,7 +16,6 @@ function _student_init(y::AbstractVector{T}, ν) where {T}
     return T(m), T(log(σ0))
 end
 
-function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, w, offset)
 """
     orient_matrix_target(y, nobs)
 
