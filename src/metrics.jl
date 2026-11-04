@@ -95,7 +95,7 @@ end
 end
 
 _student_const(ν) = loggamma((ν + 1) / 2) - loggamma(ν / 2) - 0.5 * log(ν * π)
-# `cst` = _student_const(ν), computed once per call in _eval_mle2p_metric (same as the CUDA ext).
+# `cst` = _student_const(ν), computed once per call in _eval_mle2p_metric (same as the KernelAbstractions ext).
 @inline function _mle2p_metric_value(::Type{StudentMLE}, μ, ls, yt, ν, cst)
     u = (yt - μ)^2 * exp(-2 * ls)
     return cst - ls - (ν + 1) / 2 * log1p(u / ν)
@@ -114,7 +114,8 @@ function _eval_mle2p_metric(
 ) where {T,M<:MLE2P}
     Y = size(p, 1) ÷ 2
     ν = T(nu)
-    cst = T(_student_const(nu))
+    # loggamma only matters for StudentMLE; M is a type parameter, so this branch folds away.
+    cst = M == StudentMLE ? T(_student_const(nu)) : zero(T)
     @threads for i in eachindex(w)
         acc = zero(T)
         @inbounds for t in 1:Y

@@ -101,7 +101,7 @@ function _eval_mle2p_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w
     # `nu` comes from CallBack's metric_kwargs for :student_mle. `loggamma` has no device
     # implementation, so the ν-only constant is computed here on the host.
     ν = T(nu)
-    cst = T(EvoTrees._student_const(nu))
+    cst = M == EvoTrees.StudentMLE ? T(EvoTrees._student_const(nu)) : zero(T)
     eval_mle2p_kernel!(backend)(eval, p, y, w, M, ν, cst; ndrange=length(w))
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
