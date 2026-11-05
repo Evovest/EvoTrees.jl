@@ -11,9 +11,29 @@ _device = :cpu
 tree_type = :binary
 assets = joinpath(@__DIR__, "docs", "src", "assets", "student-mle")
 
-# goal: student-mle's σ is not really the standard deviation. 
-# student-mle's mu and sigma can be pull far off by extreme values, the median and MAD can't. 
+# 
+"""
+Degree of freedom (ν): 
+    - A shape parameter that controls the weight of the tails. 
+    - As ν increases, the t-distribution approaches a standard Normal distribution. 
+    - For small values of ν, the tails are heavier (fatter)
 
+Location parameter (μ): 
+    - Shifts the peak (center) of the distribution along the horizontal axis (comparable to the mean).
+    - Equal to mean when v > 1
+    - Doesnot equal to mean when v = 1
+
+Scale parameter (σ): 
+    - student-mle's σ is not really the standard deviation. 
+    - Variance = ν / (ν - 2) * σ^2, for ν > 2
+
+Because of the heavy tails, student-mle's mu and sigma can be pull far off by extreme values, the median and MAD can't. Thats 
+why median and MAD were suggested as robust alternatives to mean and standard deviation for initializing the Student-t parameters.
+
+MAD: The Median Absolute Deviation
+    - Defined as median(|y - median(y)|)
+    - Robust to outliers, unlike the standard deviation
+"""
 ###############################
 # Switchable Student init
 #   Overrides EvoTrees._student_init (used by init for StudentMLE on CPU and GPU).
