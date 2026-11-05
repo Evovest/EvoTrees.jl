@@ -114,7 +114,6 @@ function _eval_mle2p_metric(
 ) where {T,M<:MLE2P}
     Y = size(p, 1) ÷ 2
     ν = T(nu)
-    # loggamma only matters for StudentMLE; M is a type parameter, so this branch folds away.
     cst = M == StudentMLE ? T(_student_const(nu)) : zero(T)
     @threads for i in eachindex(w)
         acc = zero(T)
