@@ -1,15 +1,15 @@
 # create plots for student-mle experiments
 # https://github.com/Evovest/EvoTrees.jl/blob/main/experiments/readme_plots.jl
 # https://github.com/Evovest/EvoTrees.jl/blob/main/experiments/readme_plots-multi-target.jl
+using DataFrames
+using CairoMakie
 
 using Statistics
 using Random
 using Distributions
-using DataFrames
 using StatsBase: corspearman
 using EvoTrees
 using EvoTrees: fit, predict
-using CairoMakie
 
 _device = :cpu
 tree_type = :binary
@@ -65,6 +65,7 @@ q_family(D) = (μ, s, p) -> μ .+ s .* quantile(D, p)
 
 model_specs = [
     (label="gaussian_mle", ctor=EvoTreeMLE, kw=(loss=:gaussian_mle,), q=q_family(Normal())),
+    (label="logistic_mle", ctor=EvoTreeMLE, kw=(loss=:logistic_mle,), q=q_family(Logistic())),
     [(label="student_mle ν=$ν", ctor=EvoTreeMLE, kw=(loss=:student_mle, nu=ν), q=q_family(TDist(ν)))
      for ν in (3.0, 5.0, 10.0)]...,
 ]
@@ -149,7 +150,7 @@ for sc in scenarios
     end
 
     lines!(ax1, x_grid, μ_fn.(x_grid); color=:black, linewidth=2, label="true μ")
-    for (lbl, color) in (("gaussian_mle", "darkred"), ("student_mle ν=3.0", "darkgreen"))
+    for (lbl, color) in (("gaussian_mle", "darkred"), ("student_mle ν=3.0", "darkgreen"), ("logistic_mle", "darkblue"))
         m, nt, _ = fitted[(sc.name, lbl)]
         p = predict(m, X_grid; device=_device, ntree_limit=nt)
         lines!(ax1, x_grid, p isa AbstractVector ? p : p[:, 1]; color, linewidth=1.5, label=lbl)
@@ -159,7 +160,7 @@ for sc in scenarios
         lines!(ax2, x_grid, μ_fn.(x_grid) .+ σ_fn.(x_grid) .* quantile(sc.ε, p_);
             color=:black, linewidth=2, label=p_ == 0.1 ? "truth" : nothing)
     end
-    for (lbl, color) in (("gaussian_mle", "darkred"), ("student_mle ν=3.0", "darkgreen"))
+    for (lbl, color) in (("gaussian_mle", "darkred"), ("student_mle ν=3.0", "darkgreen"), ("logistic_mle", "darkblue"))
         m, nt, spec = fitted[(sc.name, lbl)]
         p = predict(m, X_grid; device=_device, ntree_limit=nt)
         for p_ in (0.1, 0.9)
