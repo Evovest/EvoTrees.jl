@@ -160,8 +160,6 @@ function EvoTrees.update_grads!(
     ::Type{L}, params::EvoTrees.EvoTypes;
 ) where {L<:EvoTrees.MLE2P}
     backend = get_backend(∇)
-    # Loss-specific parameters (ν for StudentMLE, none otherwise), in eltype(p), not Float64:
-    # a Float64 in a Float32 kernel promotes every expression, and Metal has no Float64.
     args = EvoTrees._loss_args(L, params, eltype(p))
     kernel_mle2p_∇!(backend)(∇, p, y, L, args; ndrange=size(p, 2))
     KernelAbstractions.synchronize(backend)
