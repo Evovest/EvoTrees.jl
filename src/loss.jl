@@ -673,21 +673,10 @@ end
     return (g_loc, g_scale, h_loc, h_scale)
 end
 
-# StudentT (location-scale, ν fixed) - https://en.wikipedia.org/wiki/Student%27s_t-distribution
-# Robust-likelihood use, the weight (ν+1)/(ν+d²) and the ν=4 default:
-#   Lange, Little & Taylor (1989), "Robust Statistical Modeling Using the t Distribution",
-#   JASA 84(408), 881-896. https://www.tandfonline.com/doi/abs/10.1080/01621459.1989.10478852
-# -log f = const + ls + (ν+1)/2 * log(1 + d²/(ν σ²)),  d = μ - y,  σ = exp(ls)
-# Both second-order terms are FISHER information, like GaussianMLE and LogisticMLE above:
-#   h_μ  = (ν+1)/((ν+3)σ²). The observed one, inv*(ν+1)*(ν-u)/(ν+u)², turns negative for
-#          |z| > √ν, and get_gain divides by ∑h + λ∑w + L2.
-#   h_ls = 2ν/(ν+3). The observed one, 2uν(ν+1)/(ν+u)², → 0 both as u → 0 and u → ∞, so a
-#          leaf of near-perfect fits (or of outliers) takes an almost unbounded log σ step.
-# Location and scale are orthogonal for the t, so the Fisher matrix is diagonal.
-# Both → the Gaussian's (1/σ², 2) as ν → ∞.
-# ν → ∞ collapses every line below onto GaussianMLE — the cheapest check on this kernel.
-# pred[i][1] = μ
-# pred[i][2] = log(σ)
+# StudentT(loc, scale, ν fixed) — https://en.wikipedia.org/wiki/Student%27s_t-distribution
+# Robust regression with the t likelihood and the ν = 4 default: Lange, Little & Taylor (1989),
+# JASA 84(408), 881-896. https://www.tandfonline.com/doi/abs/10.1080/01621459.1989.10478852
+# Fisher information is required here: the observed Hessian is negative for |z| > √ν.
 @inline function mle2p_grad_hess(::Type{StudentMLE}, μ, ls, yt, ν)
     inv = exp(-2 * ls)          # 1/σ²
     d = μ - yt

@@ -92,7 +92,7 @@ function CallBack(
     end
     
     if params.metric == :student_mle
-        metric_kwargs = merge(metric_kwargs, (nu = Float64(_nu(params)),))
+        metric_kwargs = merge(metric_kwargs, (nu = _nu(params),))
     end
     
     group_eval = nothing
