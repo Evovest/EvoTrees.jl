@@ -98,7 +98,7 @@ end
 
 function _eval_mle2p_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}, ::Type{M}; kwargs...) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
     backend = get_backend(eval)
-    args = EvoTrees._metric_args(M, T; kwargs...)   # built on the host (`loggamma` has no device version)
+    args = EvoTrees._metric_args(M, T; kwargs...)
     eval_mle2p_kernel!(backend)(eval, p, y, w, M, args; ndrange=length(w))
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)

@@ -1,8 +1,12 @@
-# Robust starting point for StudentMLE: (median, log σ0) with σ0 from the MAD.
-# If X ~ μ + σ·t(ν), then MAD(X) = σ·q, q = quantile(TDist(ν), 0.75) (by symmetry), so
-# σ0 = MAD / q. Valid for every ν > 0 (no finite-variance requirement) and insensitive to
-# the outliers the t loss is meant to absorb. q ≈ 0.741 at ν=4, 1 at ν=1, → 0.6745 as ν → ∞.
-# Shared by the CPU and GPU init (y is still a host array at that point on GPU).
+"""
+    _student_init(y, ν)
+
+Robust starting point for StudentMLE: (median, log σ0) with σ0 from the MAD.
+If X ~ μ + σ·t(ν), then MAD(X) = σ·q, q = quantile(TDist(ν), 0.75) (by symmetry), so
+σ0 = MAD / q. Valid for every ν > 0 (no finite-variance requirement) and insensitive to
+the outliers the t loss is meant to absorb. q ≈ 0.741 at ν=4, 1 at ν=1, → 0.6745 as ν → ∞.
+Shared by the CPU and GPU init (y is still a host array at that point on GPU).
+"""
 function _student_init(y::AbstractVector{T}, ν) where {T}
     m = median(y)
     mad = median(abs.(y .- m))
@@ -460,7 +464,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         :featbins => featbins,
         :feattypes => feattypes,
     )
-    merge!(info, pairs(_loss_params(L, params)))   # loss hyperparameters, e.g. :nu for StudentMLE
+    merge!(info, pairs(_loss_params(L, params)))
 
     # `h∇` is indexed by splittable node; `TrainNode` also exists for leaves (∑ / pred).
     n_hist = 2^params.max_depth - 1

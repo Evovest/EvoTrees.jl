@@ -700,7 +700,7 @@ end
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:MLE2P}
     Y = size(p, 1) ÷ 2
     w_row = 4 * Y + 1
-    args = _loss_args(L, params, T)   # hoisted: loop-invariant, and T keeps the kernel in Float32
+    args = _loss_args(L, params, T)
     @threads for i in axes(p, 2)
         @inbounds w = ∇[w_row, i]
         @inbounds for t in 1:Y
