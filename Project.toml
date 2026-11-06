@@ -6,7 +6,6 @@ authors = ["jeremiedb <jeremie.db@evovest.com>"]
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
 CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
-DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 MLJModelInterface = "e80e1ace-859a-464e-9ed9-23947d8ae3ea"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -41,11 +40,11 @@ DataFrames = "1.8.2"
 Distributions = "0.24, 0.25"
 GPUArraysCore = "0.2.0"
 KernelAbstractions = "0.9, 0.10"
-Makie = "0.24"
 MLJModelInterface = "1.2.1"
-SpecialFunctions = "2"
+Makie = "0.24"
 Metal = "1.10.3"
 Random = "<0.0.1, 1"
+SpecialFunctions = "2"
 Statistics = "1"
 StatsBase = "0.32, 0.33, 0.34"
 Tables = "1.9"
@@ -63,4 +62,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 docs = ["Documenter"]
-test = ["Atomix", "CUDA", "DataFrames", "GPUArraysCore", "KernelAbstractions", "Test", "MLJBase", "MLJTestInterface"]
+test = ["Atomix", "CUDA", "DataFrames", "KernelAbstractions", "Test", "MLJBase", "MLJTestInterface"]
