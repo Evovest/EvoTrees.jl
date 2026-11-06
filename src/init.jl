@@ -173,7 +173,7 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
         end
     elseif L == StudentMLE
         @assert eltype(y_train) <: Real
-        ν = _nu(params)
+        ν = params.nu
         if y_train isa AbstractVector
             K = 2
             y = T.(y_train)
@@ -459,8 +459,8 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         :edges => edges,
         :featbins => featbins,
         :feattypes => feattypes,
-        :nu => _nu(params),
     )
+    merge!(info, pairs(_loss_params(L, params)))   # loss hyperparameters, e.g. :nu for StudentMLE
 
     # `h∇` is indexed by splittable node; `TrainNode` also exists for leaves (∑ / pred).
     n_hist = 2^params.max_depth - 1

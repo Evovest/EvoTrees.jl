@@ -45,8 +45,8 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
         :edges => edges,
         :featbins => featbins,
         :feattypes => feattypes,
-        :nu => EvoTrees._nu(params),
     )
+    merge!(info, pairs(EvoTrees._loss_params(L, params)))   # loss hyperparameters, e.g. :nu for StudentMLE
 
     nodes = [EvoTrees.TrainNode(nfeats, params.nbins, K, view(zeros(UInt32, 0), 1:0)) for _ in 1:(2^(params.max_depth + 1) - 1)]
     m = EvoTree{L,K}(L, K, μ, info)

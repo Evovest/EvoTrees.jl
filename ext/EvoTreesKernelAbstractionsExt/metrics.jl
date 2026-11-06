@@ -84,25 +84,22 @@ EvoTrees.tweedie(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{
 @inline _mle2p_target_count(p, y::AbstractVector) = 1
 @inline _mle2p_target_count(p, y::AbstractMatrix) = size(p, 1) ÷ 2
 
-@kernel function eval_mle2p_kernel!(eval, @Const(p), @Const(y), @Const(w), ::Type{M}, ν, cst) where {M<:EvoTrees.MLE2P}
+@kernel function eval_mle2p_kernel!(eval, @Const(p), @Const(y), @Const(w), ::Type{M}, args) where {M<:EvoTrees.MLE2P}
     i = @index(Global, Linear)
     @inbounds if i <= length(w)
         Y = _mle2p_target_count(p, y)
         acc = zero(eltype(eval))
         for t in 1:Y
-            acc += EvoTrees._mle2p_metric_value(M, p[2t-1, i], p[2t, i], EvoTrees._target(y, t, i), ν, cst)
+            acc += EvoTrees._mle2p_metric_value(M, p[2t-1, i], p[2t, i], EvoTrees._target(y, t, i), args...)
         end
         eval[i] = w[i] * acc / Y
     end
 end
 
-function _eval_mle2p_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}, ::Type{M}; nu=4.0, kwargs...) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
+function _eval_mle2p_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}, ::Type{M}; kwargs...) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
     backend = get_backend(eval)
-    # `nu` comes from CallBack's metric_kwargs for :student_mle. `loggamma` has no device
-    # implementation, so the ν-only constant is computed here on the host.
-    ν = T(nu)
-    cst = M == EvoTrees.StudentMLE ? T(EvoTrees._student_const(nu)) : zero(T)
-    eval_mle2p_kernel!(backend)(eval, p, y, w, M, ν, cst; ndrange=length(w))
+    args = EvoTrees._metric_args(M, T; kwargs...)   # built on the host (`loggamma` has no device version)
+    eval_mle2p_kernel!(backend)(eval, p, y, w, M, args; ndrange=length(w))
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end

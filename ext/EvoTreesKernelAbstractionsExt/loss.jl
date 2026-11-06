@@ -137,7 +137,7 @@ end
 # which gives gb == 0, hb == 2 and w == ∇[5, i] -- the layout the previous
 # dedicated single-target kernels wrote by hand.
 ################################################################################
-@kernel function kernel_mle2p_∇!(∇, @Const(p), @Const(y), ::Type{L}, ν) where {L<:EvoTrees.MLE2P}
+@kernel function kernel_mle2p_∇!(∇, @Const(p), @Const(y), ::Type{L}, args) where {L<:EvoTrees.MLE2P}
     i = @index(Global, Linear)
     @inbounds if i <= size(p, 2)
         Y = size(p, 1) ÷ 2
@@ -146,7 +146,7 @@ end
             gb = 2 * (t - 1)
             hb = 2 * Y + 2 * (t - 1)
             g1, g2, h1, h2 = EvoTrees.mle2p_grad_hess(
-                L, p[2t-1, i], p[2t, i], EvoTrees._target(y, t, i), ν
+                L, p[2t-1, i], p[2t, i], EvoTrees._target(y, t, i), args...
             )
             ∇[gb+1, i] = g1 * w
             ∇[gb+2, i] = g2 * w
@@ -160,10 +160,10 @@ function EvoTrees.update_grads!(
     ::Type{L}, params::EvoTrees.EvoTypes;
 ) where {L<:EvoTrees.MLE2P}
     backend = get_backend(∇)
-    # ν is only read by StudentMLE (Gaussian/Logistic ignore it). eltype(p), not Float64:
+    # Loss-specific parameters (ν for StudentMLE, none otherwise), in eltype(p), not Float64:
     # a Float64 in a Float32 kernel promotes every expression, and Metal has no Float64.
-    ν = eltype(p)(EvoTrees._nu(params))
-    kernel_mle2p_∇!(backend)(∇, p, y, L, ν; ndrange=size(p, 2))
+    args = EvoTrees._loss_args(L, params, eltype(p))
+    kernel_mle2p_∇!(backend)(∇, p, y, L, args; ndrange=size(p, 2))
     KernelAbstractions.synchronize(backend)
     return
 end

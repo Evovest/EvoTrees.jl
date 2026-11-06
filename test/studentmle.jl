@@ -86,13 +86,18 @@ using EvoTrees: fit, predict, mle2p_grad_hess, StudentMLE, GaussianMLE, Logistic
         @test issorted(scores[argmax(scores):end]; rev = true)
     end
 
-    @testset "kernel: existing MLE losses still resolve (5-arg forwarders)" begin
-        # Regression guard: update_grads! now always passes ν, so the 4-arg-only
-        # methods would MethodError on every gaussian_mle / logistic_mle fit.
-        @test mle2p_grad_hess(GaussianMLE, 0.1, -0.3, 0.4, 4.0) ==
-              mle2p_grad_hess(GaussianMLE, 0.1, -0.3, 0.4)
-        @test mle2p_grad_hess(LogisticMLE, 0.1, -0.3, 0.4, 4.0) ==
-              mle2p_grad_hess(LogisticMLE, 0.1, -0.3, 0.4)
+    @testset "kernel: ν is only passed to StudentMLE" begin
+        # Gaussian / Logistic get no extra arguments, in the gradient or in the metric.
+        params = EvoTreeMLE(; loss=:student_mle, nu=5.0)
+        @test EvoTrees._loss_params(GaussianMLE, params) == (;)
+        @test EvoTrees._loss_params(StudentMLE, params) == (nu=5.0,)
+        @test EvoTrees._loss_args(GaussianMLE, params, Float32) == ()
+        @test EvoTrees._loss_args(LogisticMLE, params, Float32) == ()
+        @test EvoTrees._loss_args(StudentMLE, params, Float32) === (5.0f0,)
+        @test EvoTrees._metric_args(GaussianMLE, Float64; nu=5.0) == ()
+        @test EvoTrees._metric_args(LogisticMLE, Float64; nu=5.0) == ()
+        @test EvoTrees._metric_args(StudentMLE, Float64; nu=5.0) ==
+              (5.0, EvoTrees._student_const(5.0))
     end
 
     ##########################################################################
@@ -176,6 +181,7 @@ using EvoTrees: fit, predict, mle2p_grad_hess, StudentMLE, GaussianMLE, Logistic
             @test size(p, 2) == 2
             @test all(p[:, 2] .> 0)
             @test cor(p[:, 1], signal) > 0.95
+            @test !haskey(m.info, :nu)        # ν is only stored for student_mle
         end
     end
 
