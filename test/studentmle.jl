@@ -218,6 +218,8 @@ using EvoTrees: fit, predict, mle2p_grad_hess, StudentMLE, GaussianMLE, Logistic
         @test all(p[:, 2] .> 0)
         @test cor(p[:, 1], signal) > 0.95
         @test_throws Exception EvoTreeMLE(; loss=:student_mle, nu=0.0)
+        # ν is validated whenever it is set, not only for the student loss (it also feeds the metric)
+        @test_throws Exception EvoTreeMLE(; loss=:gaussian_mle, metric=:student_mle, nu=-1.0)
     end
 
 end

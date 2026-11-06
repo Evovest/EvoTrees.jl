@@ -556,6 +556,7 @@ function check_args(args::Dict{Symbol,Any})
     check_parameter(Float64, args[:min_weight], zero(Float64), typemax(Float64), :min_weight)
     check_parameter(Float64, args[:early_stopping_tolerance], zero(Float64), typemax(Float64), :early_stopping_tolerance)
     haskey(args, :ctrl_lambda) && check_parameter(Float64, args[:ctrl_lambda], zero(Float64), floatmax(Float64), :ctrl_lambda)
+    haskey(args, :nu) && check_parameter(Float64, args[:nu], eps(Float64), typemax(Float64), :nu)
     if haskey(args, :ctrl_within_group) && !(args[:ctrl_within_group] isa Bool)
         error("Invalid value for parameter `ctrl_within_group`: $(args[:ctrl_within_group]). `ctrl_within_group` must be a Bool.")
     end
@@ -568,10 +569,6 @@ function check_args(args::Dict{Symbol,Any})
     if get(args, :loss, nothing) == :multiquantile
         haskey(args, :alphas) || error("Missing parameter `alphas` for loss :multiquantile.")
         check_alphas(args[:alphas])
-    end
-    if get(args, :loss, nothing) == :student_mle
-        haskey(args, :nu) || error("Missing parameter `nu` for loss :student_mle.")
-        args[:nu] > 0 || error("`nu` must be > 0. Got $(args[:nu]).")
     end
     try
         tree_type = string(args[:tree_type])
@@ -605,6 +602,7 @@ function check_args(model::EvoTypes)
     check_parameter(Float64, model.min_weight, zero(Float64), typemax(Float64), :min_weight)
     check_parameter(Float64, model.early_stopping_tolerance, zero(Float64), typemax(Float64), :early_stopping_tolerance)
     hasproperty(model, :ctrl_lambda) && check_parameter(Float64, model.ctrl_lambda, zero(Float64), floatmax(Float64), :ctrl_lambda)
+    hasproperty(model, :nu) && check_parameter(Float64, model.nu, eps(Float64), typemax(Float64), :nu)
 
     # check bounded parameters
     check_parameter(Float64, model.rowsample, eps(Float64), one(Float64), :rowsample)
@@ -614,10 +612,6 @@ function check_args(model::EvoTypes)
     if hasproperty(model, :loss) && model.loss == :multiquantile
         hasproperty(model, :alphas) || error("Missing parameter `alphas` for loss :multiquantile.")
         check_alphas(model.alphas)
-    end
-    if hasproperty(model, :loss) && model.loss == :student_mle
-        hasproperty(model, :nu) || error("Missing parameter `nu` for loss :student_mle.")
-        model.nu > 0 || error("`nu` must be > 0. Got $(model.nu).")
     end
     try
         tree_type = string(model.tree_type)
