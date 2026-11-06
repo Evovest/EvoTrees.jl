@@ -676,7 +676,6 @@ end
 # StudentT(loc, scale, ν fixed) — https://en.wikipedia.org/wiki/Student%27s_t-distribution
 # Robust regression with the t likelihood and the ν = 4 default: Lange, Little & Taylor (1989),
 # JASA 84(408), 881-896. https://www.tandfonline.com/doi/abs/10.1080/01621459.1989.10478852
-# Fisher information is required here: the observed Hessian is negative for |z| > √ν.
 @inline function mle2p_grad_hess(::Type{StudentMLE}, μ, ls, yt, ν)
     inv = exp(-2 * ls)          # 1/σ²
     d = μ - yt
