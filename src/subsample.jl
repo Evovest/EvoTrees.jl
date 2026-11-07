@@ -49,8 +49,12 @@ Returns a view of selected row ids, ordered by group.
 function subsample(left::AbstractVector, is::AbstractVector, mask_cond::AbstractVector{UInt8}, rowsample::AbstractFloat, rng, gi::GroupIndex)
     ng = ngroups(gi)
     mask = view(mask_cond, 1:ng)
-    Random.rand!(rng, mask)
     cond = round(UInt8, 255 * rowsample)
+    Random.rand!(rng, mask)
+    # redraw a draw that selects no group
+    while all(>(cond), mask)
+        Random.rand!(rng, mask)
+    end
     count = 0
     @inbounds for g in 1:ng
         if mask[g] <= cond
@@ -60,7 +64,6 @@ function subsample(left::AbstractVector, is::AbstractVector, mask_cond::Abstract
             end
         end
     end
-    count == 0 && error("no subsample group - choose larger rowsample")
     return view(is, 1:count)
 end
 

@@ -12,8 +12,9 @@ end
 function EvoTrees.subsample(is_full::CuVector, mask_cpu::Vector, mask_gpu::CuVector, rowsample::AbstractFloat, rng, g::GroupCacheGPU)
     cond = round(UInt8, 255 * rowsample)
     rand!(rng, g.mask_cpu)
+    while all(>(cond), g.mask_cpu)
+        rand!(rng, g.mask_cpu)
+    end
     copyto!(g.mask_gpu, g.mask_cpu)
-    is = is_full[g.mask_gpu[g.group_gpu].<=cond]
-    length(is) == 0 && error("no subsample group - choose larger rowsample")
-    return is
+    return is_full[g.mask_gpu[g.group_gpu].<=cond]
 end
