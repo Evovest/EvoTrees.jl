@@ -430,7 +430,9 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
     n_nodes = 2^(params.max_depth + 1) - 1
     nbins = params.nbins
     h∇ = zeros(Float64, 2 * K + 1, nbins, nfeats, n_hist)
-    nodes = [TrainNode(zero(Float64), view(is, 1:0), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), view(h∇, :, :, :, min(n, n_hist)), zeros(nbins, nfeats)) for n = 1:n_nodes]
+    # `gains` is only read by the oblivious grower, on splittable nodes.
+    n_gains = params.tree_type == :oblivious ? n_hist : 0
+    nodes = [TrainNode(zero(Float64), view(is, 1:0), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), zeros(Float64, 2 * K + 1), view(h∇, :, :, :, min(n, n_hist)), n <= n_gains ? zeros(nbins, nfeats) : zeros(0, 0)) for n = 1:n_nodes]
     m = EvoTree{L,K}(L, K, μ, info)
 
     # build cache
