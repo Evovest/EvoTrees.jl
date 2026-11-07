@@ -48,6 +48,22 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
         @test gini_norm(p_tied[o], y[o]) ≈ gini_norm(p_tied, y)
         @test gini_norm(p_tied[reverse(o)], y[reverse(o)]) ≈ gini_norm(p_tied, y)
         @test abs(gini_norm(fill(0.5, nobs), y[o])) < 1e-10
+
+        # Against the definition, with ties in both predictions and targets.
+        function gini_ref(p, y)
+            n = length(y)
+            _y = y .- minimum(y)
+            y_sort = [mean(_y[p .== p[i]]) for i in sortperm(p)]
+            return sum((1:n) ./ n^2 .- cumsum(y_sort) ./ sum(_y) ./ n)
+        end
+        rng = Xoshiro(1)
+        y_t = rand(rng, 0:9, 500)
+        p_t = round.(y_t .+ 3 .* randn(rng, 500))
+        for T in (Float32, Float64)
+            p_T, y_T = T.(p_t), T.(y_t)
+            @test gini_raw(p_T, y_T) ≈ gini_ref(p_t, y_t) atol = 1e-10
+            @test gini_norm(p_T, y_T) ≈ gini_ref(p_t, y_t) / gini_ref(y_t, y_t) atol = 1e-10
+        end
     end
 
     @testset "gini as eval metric" begin

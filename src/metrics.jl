@@ -438,37 +438,44 @@ function pearson(
 end
 
 function gini_raw(p::AbstractVector, y::AbstractVector)
-    _y = y .- minimum(y)
-    if length(_y) < 2
-        return 0.0
-    end
-    random = cumsum(ones(length(p)) ./ length(p)^2)
-    idx = sortperm(p)
-    y_sort = _mean_ties!(float(_y[idx]), view(p, idx))
-    y_cum = cumsum(y_sort) ./ sum(_y) ./ length(p)
-    gini = sum(Float64, random .- y_cum)
-    return gini
-end
-
-# Set the targets of each run of tied predictions to their mean.
-function _mean_ties!(y_sort, p_sort)
-    i = firstindex(y_sort)
-    while i <= lastindex(y_sort)
-        j = i
-        while j < lastindex(y_sort) && p_sort[j+1] == p_sort[i]
+    # With `s` the sum of `y .- minimum(y)` and `a` the same sum weighted by the rank of each
+    # prediction, the gini is `a / (s n) - (n + 1) / 2n`. Tied predictions share their mean rank.
+    n = length(p)
+    n < 2 && return 0.0
+    ymin = Float64(minimum(y))
+    py = sort!(collect(zip(p, y)); by=first)
+    s, a, i = 0.0, 0.0, 1
+    while i <= n
+        v, sy, j = py[i][1], py[i][2] - ymin, i
+        while j < n && py[j+1][1] == v
             j += 1
+            sy += py[j][2] - ymin
         end
-        j > i && (y_sort[i:j] .= mean(view(y_sort, i:j)))
+        s += sy
+        a += sy * (i + j) / 2
         i = j + 1
     end
-    return y_sort
+    return a / (s * n) - (n + 1) / 2n
+end
+
+# `gini_raw(y, y)` from the sorted targets.
+function gini_max(y::AbstractVector)
+    n = length(y)
+    ys = sort(y)
+    ymin = Float64(ys[1])
+    s, a = 0.0, 0.0
+    for (k, v) in enumerate(ys)
+        s += v - ymin
+        a += k * (v - ymin)
+    end
+    return a / (s * n) - (n + 1) / 2n
 end
 
 function gini_norm(p::AbstractVector, y::AbstractVector)
     if length(y) < 2
         return 0.0
     end
-    return gini_raw(p, y) / gini_raw(y, y)
+    return gini_raw(p, y) / gini_max(y)
 end
 
 function gini(
