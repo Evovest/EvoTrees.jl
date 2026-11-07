@@ -173,3 +173,10 @@ end
     sse(p) = sum(abs2, y .- p)
     @test sum(tree.gain[tree.split]) ≈ sse(fill(mean(y), n)) - sse(mo(x)) rtol = 1e-4
 end
+
+@testset "split gains matrices only for oblivious split nodes" begin
+    _, cache = EvoTrees.init(EvoTreeRegressor(max_depth=4), x_train, y_train)
+    @test all(isempty(n.gains) for n in cache.nodes)
+    _, cache = EvoTrees.init(EvoTreeRegressor(tree_type=:oblivious, max_depth=4), x_train, y_train)
+    @test count(!isempty(n.gains) for n in cache.nodes) == 2^4 - 1
+end

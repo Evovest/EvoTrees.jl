@@ -35,7 +35,7 @@ mutable struct TrainNode{S,V,M,A}
     gains::M
 end
 
-function TrainNode(nfeats, nbins, K, is)
+function TrainNode(K, is)
     TrainNode(
         zero(Float64),
         is,
@@ -43,7 +43,7 @@ function TrainNode(nfeats, nbins, K, is)
         zeros(Float64, 2 * K + 1),
         zeros(Float64, 2 * K + 1),
         zeros(Float64, 0, 0, 0),
-        zeros(nbins, nfeats),
+        zeros(Float64, 0, 0),
     )
 end
 
