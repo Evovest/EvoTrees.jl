@@ -41,6 +41,13 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
         @test gini_norm(p_noisy, y) > gini_norm(y .+ 1.0 .* randn(nobs), y)
 
         @test gini_norm([1.0], [1.0]) == 0.0
+
+        # Tied predictions do not depend on row order.
+        p_tied = round.(p_noisy, digits=1)
+        o = sortperm(y)
+        @test gini_norm(p_tied[o], y[o]) ≈ gini_norm(p_tied, y)
+        @test gini_norm(p_tied[reverse(o)], y[reverse(o)]) ≈ gini_norm(p_tied, y)
+        @test abs(gini_norm(fill(0.5, nobs), y[o])) < 1e-10
     end
 
     @testset "gini as eval metric" begin
@@ -64,6 +71,13 @@ using EvoTrees: fit, predict, gini_raw, gini_norm
 
         p = predict(m, x)
         @test gini_norm(p, y) > 0.8
+
+        # Eval rows sorted by target: the constant first prediction scores 0, not 1.
+        o = sortperm(y)
+        config = EvoTreeRegressor(nrounds=20, eta=0.2, metric=:gini, early_stopping_rounds=5)
+        m = fit(config; x_train=x, y_train=y, x_eval=x[o, :], y_eval=y[o], print_every_n=1_000)
+        @test abs(m.info[:logger][:metrics][1]) < 1e-4
+        @test m.info[:logger][:best_iter] > 0
     end
 
     @testset "quantile metric alpha" begin
