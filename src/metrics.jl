@@ -93,6 +93,18 @@ end
     az = abs(z)
     return -log(scale) - az - 2 * log1p(exp(-az))
 end
+@inline function _mle2p_metric_value(::Type{StudentMLE}, μ, ls, yt, ν, cst)
+    u = (yt - μ)^2 * exp(-2 * ls)
+    return cst - ls - (ν + 1) / 2 * log1p(u / ν)
+end
+
+_student_const(ν) = loggamma((ν + 1) / 2) - loggamma(ν / 2) - 0.5 * log(ν * π)
+
+# Extra metric parameters, built once per call from the metric kwargs and splatted after `y`
+# in the per-observation function. None by default; StudentMLE takes (ν, cst), with
+# cst = _student_const(ν) computed on the host (`loggamma` has no device implementation).
+@inline _metric_args(::Type{M}, ::Type{T}; kwargs...) where {M,T} = ()
+@inline _metric_args(::Type{StudentMLE}, ::Type{T}; nu, kwargs...) where {T} = (T(nu), T(_student_const(nu)))
 
 function _eval_mle2p_metric(
     p::AbstractMatrix{T},
@@ -103,10 +115,11 @@ function _eval_mle2p_metric(
     kwargs...
 ) where {T,M<:MLE2P}
     Y = size(p, 1) ÷ 2
+    args = _metric_args(M, T; kwargs...)
     @threads for i in eachindex(w)
         acc = zero(T)
         @inbounds for t in 1:Y
-            acc += _mle2p_metric_value(M, p[2t-1, i], p[2t, i], _target(y, t, i))
+            acc += _mle2p_metric_value(M, p[2t-1, i], p[2t, i], _target(y, t, i), args...)
         end
         eval[i] = w[i] * acc / Y
     end
@@ -117,6 +130,8 @@ gaussian_mle(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T},
     _eval_mle2p_metric(p, y, w, eval, GaussianMLE; kwargs...)
 logistic_mle(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T}, eval::AbstractVector{T}; kwargs...) where {T} =
     _eval_mle2p_metric(p, y, w, eval, LogisticMLE; kwargs...)
+student_mle(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T}, eval::AbstractVector{T}; kwargs...) where {T} =
+    _eval_mle2p_metric(p, y, w, eval, StudentMLE; kwargs...)
 
 function multiquantile(
     p::AbstractMatrix{T},
@@ -485,6 +500,7 @@ const metric_dict = Dict(
     :quantile => wmae,
     :multiquantile => multiquantile,
     :gini => gini,
+    :student_mle => student_mle,
     :ndcg => ndcg,
     :xendcg => xendcg,
     :pearson => pearson,
@@ -503,6 +519,7 @@ is_maximise(::typeof(logistic_mle)) = true
 is_maximise(::typeof(wmae)) = false
 is_maximise(::typeof(multiquantile)) = false
 is_maximise(::typeof(gini)) = true
+is_maximise(::typeof(student_mle)) = true
 is_maximise(::typeof(ndcg)) = true
 is_maximise(::typeof(xendcg)) = false
 is_maximise(::typeof(pearson)) = true
