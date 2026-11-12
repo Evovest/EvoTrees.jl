@@ -1,4 +1,26 @@
 """
+    _student_init(y, ν)
+
+Robust starting point for StudentMLE: (median, log σ0) with σ0 from the MAD.
+If X ~ μ + σ·t(ν), then MAD(X) = σ·q, q = quantile(TDist(ν), 0.75) (by symmetry), so
+σ0 = MAD / q. Valid for every ν > 0 (no finite-variance requirement) and insensitive to
+the outliers the t loss is meant to absorb. q ≈ 0.741 at ν=4, 1 at ν=1, → 0.6745 as ν → ∞.
+Shared by the CPU and GPU init (y is still a host array at that point on GPU).
+"""
+function _student_init(y::AbstractVector{T}, ν) where {T}
+    m = median(y)
+    mad = median(abs.(y .- m))
+    if mad > 0
+        σ0 = mad / Distributions.quantile(Distributions.TDist(ν), 0.75)
+    else
+        # ≥ 50% of targets tied at the median: MAD is 0 and log σ0 would be -Inf.
+        sd = length(y) > 1 ? std(y) : zero(T)
+        σ0 = sd > 0 ? sd : one(T)
+    end
+    return T(m), T(log(σ0))
+end
+
+"""
     orient_matrix_target(y, nobs)
 
 Bring a matrix target to the internal layout `(n_targets, nobs)`.
@@ -153,6 +175,24 @@ function _init_target(::Type{L}, y_train, params, offset, ::Type{T}) where {L,T}
             end
             !isnothing(offset) && unconstrain_mle_scale!(offset)
         end
+    elseif L == StudentMLE
+        @assert eltype(y_train) <: Real
+        ν = params.nu
+        if y_train isa AbstractVector
+            K = 2
+            y = T.(y_train)
+            μ = collect(_student_init(y, ν))
+            !isnothing(offset) && unconstrain_mle_scale!(offset)
+        else
+            Y = size(y_train, 1)
+            K = 2 * Y
+            y = T.(y_train)
+            μ = T[]
+            for t in 1:Y
+                push!(μ, _student_init(view(y, t, :), ν)...)
+            end
+            !isnothing(offset) && unconstrain_mle_scale!(offset)
+        end
     elseif L == MultiQuantile
         @assert eltype(y_train) <: Real
         K = length(params.alphas)
@@ -242,9 +282,14 @@ function check_ctrl(params::EvoTypes, ctrl, ::Type{L}, group) where {L}
               "fitting from a table, or `group_train` alongside `x_train`.")
     end
     # listed explicitly so a new subtype does not inherit the penalty
-    if !isnothing(ctrl) && !(L in (MSE, LogLoss, Poisson, Gamma, Tweedie, GaussianMLE))
+    if !isnothing(ctrl) && !(L in (MSE, LogLoss, Poisson, Gamma, Tweedie, GaussianMLE, Pearson))
         error("The decorrelation penalty is available for :mse, :logloss, :poisson, :gamma, " *
-              ":tweedie and :gaussian_mle, not for $(params.loss).")
+              ":tweedie, :gaussian_mle and :pearson, not for $(params.loss).")
+    end
+    # `:pearson` leaves each group's level free, and a penalty over the whole sample would act on it
+    if !isnothing(ctrl) && L == Pearson && !within
+        error("`loss = :pearson` takes the decorrelation penalty within groups only. " *
+              "Set `ctrl_within_group = true`.")
     end
     return nothing
 end
@@ -423,6 +468,7 @@ function init_core(params::EvoTypes, ::Type{CPU}, data, feature_names, y_train, 
         :featbins => featbins,
         :feattypes => feattypes,
     )
+    merge!(info, pairs(_loss_params(L, params)))
 
     # `h∇` is indexed by splittable node; `TrainNode` also exists for leaves (∑ / pred).
     n_hist = 2^params.max_depth - 1

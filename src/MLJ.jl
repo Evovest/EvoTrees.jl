@@ -86,6 +86,12 @@ function predict(::EvoTreeMLE, fitresult::EvoTree{L,K}, A) where {L<:LogisticMLE
   return [Distributions.Logistic(pred[i, 1], pred[i, 2]) for i in axes(pred, 1)]
 end
 
+function predict(m::EvoTreeMLE, fitresult::EvoTree{L,K}, A) where {L<:StudentMLE,K}
+  pred = predict(fitresult, A)
+  ν = fitresult.info[:nu]
+  return [pred[i,1] + pred[i,2] * Distributions.TDist(ν) for i in axes(pred, 1)]
+end
+
 function feature_importances(m::EvoTypes, fitresult, report)
   fi_pairs = importance(fitresult, feature_names=report[:features])
   return fi_pairs
@@ -197,6 +203,7 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
   - `:gini`: The normalized Gini between pred and target
   - `:ndcg`: Normalized discounted cumulative gain, computed within each group and averaged over groups, with truncation set by `ndcg_k`. Requires groups and evaluation data, so it is only meaningful through `EvoTrees.fit`: the MLJ interface passes neither, and the metric is simply never evaluated there.
   - `:pearson`: Weighted Pearson correlation between prediction and target, computed within each group and averaged over groups. Requires groups and evaluation data, so like `:ndcg` it is only meaningful through `EvoTrees.fit`.
+  - `:pearson_mse`: The objective of `loss = :pearson` per unit weight, plus the decorrelation penalty when `ctrl_lambda > 0`. Use it for early stopping under a strong penalty, where `:pearson` stops too early. Requires groups and evaluation data.
   - `:xendcg`: The `:xendcg` loss, averaged over groups. Requires groups, so like `:ndcg` it is only meaningful through `EvoTrees.fit`.
 - `early_stopping_rounds::Integer`: number of consecutive rounds without metric improvement after which fitting in stopped. 
 - `nrounds=100`:           Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
@@ -208,8 +215,8 @@ A model type for constructing a EvoTreeRegressor, based on [EvoTrees.jl](https:/
 - `alpha=0.5`:            Loss specific parameter in the [0, 1] range:
                             - `:quantile`: target quantile for the regression.
 - `ndcg_k`:               Truncation rank for `metric = :ndcg` and for the `:lambdarank` objective, that is the `k` of NDCG@k. Must be >= 1. Defaults to no truncation, scoring the full list of each group. Ranking is only available through `EvoTrees.fit`, see `:lambdarank` above.
-- `ctrl_lambda=0.0`:      Weight of the penalty on the distance covariance between the predictions and the control variables. Must be >= 0. Supported for `:mse`, `:logloss`, `:poisson`, `:gamma` and `:tweedie`. Controls are passed to `EvoTrees.fit` (`ctrl_name` or `ctrl_train`), not through MLJ.
-- `ctrl_within_group=false`: Whether to compute the penalty within each group (`group_name` or `group_train`) rather than over all observations.
+- `ctrl_lambda=0.0`:      Weight of the penalty on the distance covariance between the predictions and the control variables. Must be >= 0. Supported for `:mse`, `:logloss`, `:poisson`, `:gamma`, `:tweedie` and `:pearson`. Controls are passed to `EvoTrees.fit` (`ctrl_name` or `ctrl_train`), not through MLJ.
+- `ctrl_within_group=false`: Whether to compute the penalty within each group (`group_name` or `group_train`) rather than over all observations. Must be `true` to penalise `:pearson`.
 - `max_depth=6`:          Maximum number of splits on a leaf path. Must be >= 1. Depth 1 is a split with 2 leaves.
   A complete tree of depth N contains `2^N` terminal leaves and `2^N - 1` split nodes.
   Compute cost is proportional to `2^max_depth`. Typical optimal values are in the 3 to 9 range.
@@ -725,6 +732,7 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
 - `loss=:gaussian`:       Loss to be be minimized during training. One of:
   - `:gaussian_mle`
   - `:logistic_mle`
+  - `:student_mle`
 - `nrounds=100`:          Number of rounds. It corresponds to the number of trees that will be sequentially stacked. Must be >= 1.
 - `eta=0.1`:              Learning rate. Each tree raw predictions are scaled by `eta` prior to be added to the stack of predictions. Must be > 0.
   A lower `eta` results in slower learning, requiring a higher `nrounds` but typically improves model performance.  
@@ -737,6 +745,7 @@ EvoTreeMLE performs maximum likelihood estimation. Assumed distribution is speci
 - `min_weight=8.0`:       Minimum weight needed in a node to perform a split. Matches the number of observations by default or the sum of weights as provided by the `weights` vector. Must be > 0.
 - `rowsample=1.0`:        Proportion of rows that are sampled at each iteration to build the tree. Should be in `]0, 1]`. When groups are supplied, whole groups are sampled rather than individual rows, so a group is never split across the sampled and unsampled sets.
 - `colsample=1.0`:        Proportion of columns / features that are sampled at each iteration to build the tree. Should be in `]0, 1]`.
+- `nu=4.0`:               Degrees of freedom for the Student-t distribution. Must be > 0. Only applicable when `loss=:student_mle`. The second prediction is the t scale σ, not the standard deviation (sd = σ√(ν/(ν-2)), finite only for ν > 2). For ν ≤ 1 the mean is undefined and μ is the location (median).
 - `nbins=64`:             Number of bins into which each feature is quantized. Buckets are defined based on quantiles, hence resulting in equal weight bins. Should be between 2 and 255.
 - `ctrl_lambda=0.0`:      Weight of the penalty on the distance covariance between the predicted location and the control variables. Must be >= 0. Supported for `:gaussian_mle`. Controls are passed to `EvoTrees.fit` (`ctrl_name` or `ctrl_train`), not through MLJ.
 - `ctrl_within_group=false`: Whether to compute the penalty within each group (`group_name` or `group_train`) rather than over all observations.

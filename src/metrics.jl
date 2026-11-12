@@ -93,6 +93,18 @@ end
     az = abs(z)
     return -log(scale) - az - 2 * log1p(exp(-az))
 end
+@inline function _mle2p_metric_value(::Type{StudentMLE}, μ, ls, yt, ν, cst)
+    u = (yt - μ)^2 * exp(-2 * ls)
+    return cst - ls - (ν + 1) / 2 * log1p(u / ν)
+end
+
+_student_const(ν) = loggamma((ν + 1) / 2) - loggamma(ν / 2) - 0.5 * log(ν * π)
+
+# Extra metric parameters, built once per call from the metric kwargs and splatted after `y`
+# in the per-observation function. None by default; StudentMLE takes (ν, cst), with
+# cst = _student_const(ν) computed on the host (`loggamma` has no device implementation).
+@inline _metric_args(::Type{M}, ::Type{T}; kwargs...) where {M,T} = ()
+@inline _metric_args(::Type{StudentMLE}, ::Type{T}; nu, kwargs...) where {T} = (T(nu), T(_student_const(nu)))
 
 function _eval_mle2p_metric(
     p::AbstractMatrix{T},
@@ -103,10 +115,11 @@ function _eval_mle2p_metric(
     kwargs...
 ) where {T,M<:MLE2P}
     Y = size(p, 1) ÷ 2
+    args = _metric_args(M, T; kwargs...)
     @threads for i in eachindex(w)
         acc = zero(T)
         @inbounds for t in 1:Y
-            acc += _mle2p_metric_value(M, p[2t-1, i], p[2t, i], _target(y, t, i))
+            acc += _mle2p_metric_value(M, p[2t-1, i], p[2t, i], _target(y, t, i), args...)
         end
         eval[i] = w[i] * acc / Y
     end
@@ -117,6 +130,8 @@ gaussian_mle(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T},
     _eval_mle2p_metric(p, y, w, eval, GaussianMLE; kwargs...)
 logistic_mle(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T}, eval::AbstractVector{T}; kwargs...) where {T} =
     _eval_mle2p_metric(p, y, w, eval, LogisticMLE; kwargs...)
+student_mle(p::AbstractMatrix{T}, y::AbstractVecOrMat{T}, w::AbstractVector{T}, eval::AbstractVector{T}; kwargs...) where {T} =
+    _eval_mle2p_metric(p, y, w, eval, StudentMLE; kwargs...)
 
 function multiquantile(
     p::AbstractMatrix{T},
@@ -437,6 +452,52 @@ function pearson(
     return sum(scores .* weights) / sw
 end
 
+"""
+    pearson_mse(p::AbstractMatrix, y::AbstractVector, w::AbstractVector, eval::AbstractVector; group)
+
+The objective of `loss = :pearson` per unit weight, for predictions `p` of size `(1, n)`: the
+weighted squared error of each group's centred prediction against its standardised target, summed
+over the groups of `group` with at least two rows and a non-constant target, divided by `sum(w)`.
+Writes each row's term to `eval` and returns a scalar.
+
+With `ctrl_lambda > 0` the logged value adds the decorrelation penalty. Use it for early stopping
+under a strong penalty, where `:pearson` stops too early.
+"""
+function pearson_mse(
+    p::AbstractMatrix{T},
+    y::AbstractVector{T},
+    w::AbstractVector{T},
+    eval::AbstractVector{T};
+    group=nothing,
+    kwargs...
+) where {T}
+    isnothing(group) && error(
+        "`metric = :pearson_mse` requires group information. Pass `group_name` or `eval_group_name` " *
+        "when fitting from a table, or `group_eval` alongside `x_eval` when fitting from a matrix."
+    )
+    @threads for chunk in _group_chunks(ngroups(group))
+        _pearson_mse_chunk!(eval, p, y, w, group, chunk)
+    end
+    return sum(Float64, eval) / sum(Float64, w)
+end
+
+function _pearson_mse_chunk!(eval::AbstractVector{T}, p, y, w, group, chunk) where {T}
+    for g in chunk
+        rows = group_rows(group, g)
+        ok, sw, ybar, sy = _pearson_group_stats(w, y, rows)
+        swp = 0.0
+        @inbounds for r in rows
+            swp += Float64(w[r]) * p[1, r]
+        end
+        pbar = swp / sw
+        @inbounds for r in rows
+            e = ok ? (p[1, r] - pbar) - (y[r] - ybar) / sy : 0.0
+            eval[r] = T(w[r] * e * e)
+        end
+    end
+    return nothing
+end
+
 function gini_raw(p::AbstractVector, y::AbstractVector)
     _y = y .- minimum(y)
     if length(_y) < 2
@@ -485,9 +546,11 @@ const metric_dict = Dict(
     :quantile => wmae,
     :multiquantile => multiquantile,
     :gini => gini,
+    :student_mle => student_mle,
     :ndcg => ndcg,
     :xendcg => xendcg,
     :pearson => pearson,
+    :pearson_mse => pearson_mse,
 )
 
 is_maximise(::typeof(mse)) = false
@@ -503,6 +566,8 @@ is_maximise(::typeof(logistic_mle)) = true
 is_maximise(::typeof(wmae)) = false
 is_maximise(::typeof(multiquantile)) = false
 is_maximise(::typeof(gini)) = true
+is_maximise(::typeof(student_mle)) = true
 is_maximise(::typeof(ndcg)) = true
 is_maximise(::typeof(xendcg)) = false
 is_maximise(::typeof(pearson)) = true
+is_maximise(::typeof(pearson_mse)) = false

@@ -84,13 +84,13 @@ EvoTrees.tweedie(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{
 @inline _mle2p_target_count(p, y::AbstractVector) = 1
 @inline _mle2p_target_count(p, y::AbstractMatrix) = size(p, 1) ÷ 2
 
-@kernel function eval_mle2p_kernel!(eval, @Const(p), @Const(y), @Const(w), ::Type{M}) where {M<:EvoTrees.MLE2P}
+@kernel function eval_mle2p_kernel!(eval, @Const(p), @Const(y), @Const(w), ::Type{M}, args) where {M<:EvoTrees.MLE2P}
     i = @index(Global, Linear)
     @inbounds if i <= length(w)
         Y = _mle2p_target_count(p, y)
         acc = zero(eltype(eval))
         for t in 1:Y
-            acc += EvoTrees._mle2p_metric_value(M, p[2t-1, i], p[2t, i], EvoTrees._target(y, t, i))
+            acc += EvoTrees._mle2p_metric_value(M, p[2t-1, i], p[2t, i], EvoTrees._target(y, t, i), args...)
         end
         eval[i] = w[i] * acc / Y
     end
@@ -98,7 +98,8 @@ end
 
 function _eval_mle2p_metric(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}, ::Type{M}; kwargs...) where {T<:AbstractFloat,M<:EvoTrees.MLE2P}
     backend = get_backend(eval)
-    eval_mle2p_kernel!(backend)(eval, p, y, w, M; ndrange=length(w))
+    args = EvoTrees._metric_args(M, T; kwargs...)
+    eval_mle2p_kernel!(backend)(eval, p, y, w, M, args; ndrange=length(w))
     KernelAbstractions.synchronize(backend)
     return sum(eval) / sum(w)
 end
@@ -108,6 +109,9 @@ EvoTrees.gaussian_mle(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVe
 
 EvoTrees.logistic_mle(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}; kwargs...) where {T<:AbstractFloat} =
     _eval_mle2p_metric(p, y, w, eval, EvoTrees.LogisticMLE; kwargs...)
+
+EvoTrees.student_mle(p::CuMatrix{T}, y::Union{CuVector{T},CuMatrix{T}}, w::CuVector{T}, eval::CuVector{T}; kwargs...) where {T<:AbstractFloat} =
+    _eval_mle2p_metric(p, y, w, eval, EvoTrees.StudentMLE; kwargs...)
 
 ########################
 # mlogloss
@@ -188,4 +192,11 @@ function EvoTrees.pearson(
     y_cpu = Array(y)
     w_cpu = Array(w)
     return EvoTrees.pearson(p_cpu, y_cpu, w_cpu, similar(w_cpu, 0); group)
+end
+
+# scored on the host, as `pearson` is
+function EvoTrees.pearson_mse(p::CuMatrix{T}, y::CuVector, w::CuVector{T}, eval::CuVector{T};
+    group=nothing, kwargs...) where {T<:AbstractFloat}
+    w_cpu = Array(w)
+    return EvoTrees.pearson_mse(Array(p), Array(y), w_cpu, similar(w_cpu); group)
 end

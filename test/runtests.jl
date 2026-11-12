@@ -18,6 +18,7 @@ using Test
         include("monotonic.jl")
         include("missings.jl")
         include("multi-target.jl")
+        include("studentmle.jl")
         include("ranking.jl")
         include("dcor.jl")
         include("pearson-loss.jl")
