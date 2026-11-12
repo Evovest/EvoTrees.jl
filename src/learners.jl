@@ -320,6 +320,7 @@ mutable struct EvoTreeMLE <: MMI.Probabilistic
     tree_type::Symbol
     seed::Int
     device::Symbol
+    nu::Float64
 end
 
 function EvoTreeMLE(; kwargs...)
@@ -346,7 +347,8 @@ function EvoTreeMLE(; kwargs...)
         :ctrl_within_group => false,
         :tree_type => :binary,
         :seed => 123,
-        :device => :cpu
+        :device => :cpu,
+        :nu => 4.0
     )
 
     args_ignored = setdiff(keys(kwargs), keys(args))
@@ -358,13 +360,13 @@ function EvoTreeMLE(; kwargs...)
         args[arg] = kwargs[arg]
     end
 
-    _loss_list = [:gaussian_mle, :logistic_mle]
+    _loss_list = [:gaussian_mle, :logistic_mle, :student_mle]
     loss = Symbol(args[:loss])
     if loss ∉ _loss_list
         error("Invalid loss. Must be one of: $_loss_list")
     end
 
-    _metric_list = [:gaussian_mle, :logistic_mle, :pearson]
+    _metric_list = [:gaussian_mle, :logistic_mle, :student_mle, :pearson]
     if isnothing(args[:metric])
         if loss ∈ [:cred_std, :cred_var]
             metric = :mae
@@ -403,7 +405,8 @@ function EvoTreeMLE(; kwargs...)
         Bool(args[:ctrl_within_group]),
         tree_type,
         args[:seed],
-        device
+        device,
+        args[:nu]
     )
 
     return model
@@ -553,6 +556,7 @@ function check_args(args::Dict{Symbol,Any})
     check_parameter(Float64, args[:min_weight], zero(Float64), typemax(Float64), :min_weight)
     check_parameter(Float64, args[:early_stopping_tolerance], zero(Float64), typemax(Float64), :early_stopping_tolerance)
     haskey(args, :ctrl_lambda) && check_parameter(Float64, args[:ctrl_lambda], zero(Float64), floatmax(Float64), :ctrl_lambda)
+    haskey(args, :nu) && check_parameter(Float64, args[:nu], eps(Float64), typemax(Float64), :nu)
     if haskey(args, :ctrl_within_group) && !(args[:ctrl_within_group] isa Bool)
         error("Invalid value for parameter `ctrl_within_group`: $(args[:ctrl_within_group]). `ctrl_within_group` must be a Bool.")
     end
@@ -566,7 +570,6 @@ function check_args(args::Dict{Symbol,Any})
         haskey(args, :alphas) || error("Missing parameter `alphas` for loss :multiquantile.")
         check_alphas(args[:alphas])
     end
-
     try
         tree_type = string(args[:tree_type])
         @assert tree_type ∈ ["binary", "oblivious"]
@@ -599,6 +602,7 @@ function check_args(model::EvoTypes)
     check_parameter(Float64, model.min_weight, zero(Float64), typemax(Float64), :min_weight)
     check_parameter(Float64, model.early_stopping_tolerance, zero(Float64), typemax(Float64), :early_stopping_tolerance)
     hasproperty(model, :ctrl_lambda) && check_parameter(Float64, model.ctrl_lambda, zero(Float64), floatmax(Float64), :ctrl_lambda)
+    hasproperty(model, :nu) && check_parameter(Float64, model.nu, eps(Float64), typemax(Float64), :nu)
 
     # check bounded parameters
     check_parameter(Float64, model.rowsample, eps(Float64), one(Float64), :rowsample)
@@ -609,7 +613,6 @@ function check_args(model::EvoTypes)
         hasproperty(model, :alphas) || error("Missing parameter `alphas` for loss :multiquantile.")
         check_alphas(model.alphas)
     end
-
     try
         tree_type = string(model.tree_type)
         @assert tree_type ∈ ["binary", "oblivious"]

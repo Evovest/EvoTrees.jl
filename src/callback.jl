@@ -90,6 +90,9 @@ function CallBack(
         device <: GPU && (alphas_eval = V{T}(alphas_eval))
         metric_kwargs = (alphas=alphas_eval,)
     end
+    
+    hasproperty(params, :nu) && (metric_kwargs = merge(metric_kwargs, (nu=params.nu,)))
+    
     group_eval = nothing
     if !isnothing(group_name)
         group_eval = build_group_index(Tables.getcolumn(deval, Symbol(group_name)), nobs, "group_name")
@@ -115,7 +118,7 @@ function CallBack(
         L == LogLoss && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
         L == MLogLoss && (offset .= log.(offset))
-        L in [GaussianMLE, LogisticMLE] && unconstrain_mle_scale!(offset)
+        L <: MLE2P && unconstrain_mle_scale!(offset)
         offset = T.(offset)
         p .+= offset'
     end
@@ -160,6 +163,7 @@ function CallBack(
         device <: GPU && (alphas_eval = V{T}(alphas_eval))
         metric_kwargs = (alphas=alphas_eval,)
     end
+    hasproperty(params, :nu) && (metric_kwargs = merge(metric_kwargs, (nu=params.nu,)))
     gi = isnothing(group_eval) ? nothing : build_group_index(group_eval, nobs, "group_eval")
     isnothing(gi) || (metric_kwargs = merge(metric_kwargs, (group=gi,)))
     hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
@@ -178,7 +182,7 @@ function CallBack(
         L == LogLoss && (offset .= logit.(offset))
         L in [Poisson, Gamma, Tweedie] && (offset .= log.(offset))
         L == MLogLoss && (offset .= log.(offset))
-        L in [GaussianMLE, LogisticMLE] && unconstrain_mle_scale!(offset)
+        L <: MLE2P && unconstrain_mle_scale!(offset)
         offset = T.(offset)
         p .+= offset'
     end

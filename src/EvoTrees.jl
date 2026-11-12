@@ -20,6 +20,7 @@ using Tables
 using CategoricalArrays
 using Tables
 using BSON
+using SpecialFunctions: loggamma
 
 using MLJModelInterface
 import MLJModelInterface as MMI

@@ -13,6 +13,7 @@ abstract type Tweedie <: GradientRegression end
 abstract type MLogLoss <: LossType end
 abstract type GaussianMLE <: MLE2P end
 abstract type LogisticMLE <: MLE2P end
+abstract type StudentMLE  <: MLE2P end 
 abstract type Quantile <: LossType end
 abstract type MultiQuantile <: Quantile end
 abstract type MAE <: LossType end
@@ -32,6 +33,7 @@ const _loss2type_dict = Dict(
     :mlogloss => MLogLoss,
     :gaussian_mle => GaussianMLE,
     :logistic_mle => LogisticMLE,
+    :student_mle  => StudentMLE,
     :quantile => Quantile,
     :multiquantile => MultiQuantile,
     :mae => MAE,
@@ -672,9 +674,34 @@ end
     return (g_loc, g_scale, h_loc, h_scale)
 end
 
+# StudentT(loc, scale, ν fixed) — https://en.wikipedia.org/wiki/Student%27s_t-distribution
+# Robust regression with the t likelihood and the ν = 4 default: Lange, Little & Taylor (1989),
+# JASA 84(408), 881-896. https://www.tandfonline.com/doi/abs/10.1080/01621459.1989.10478852
+@inline function mle2p_grad_hess(::Type{StudentMLE}, μ, ls, yt, ν)
+    inv = exp(-2 * ls)    
+    d = μ - yt
+    u = d^2 * inv              
+    a = (ν + 1) / (ν + u)  
+    return (
+        d * inv * a,                   
+        1 - u * a,                   
+        inv * (ν + 1) / (ν + 3),        
+        2 * ν / (ν + 3),                
+    )
+end
+
+# Loss hyperparameters read from the learner, as a NamedTuple. None by default; StudentMLE has ν.
+# Single source for both the gradient arguments below and what is stored in the model's `info`.
+@inline _loss_params(::Type{L}, params) where {L} = (;)
+@inline _loss_params(::Type{StudentMLE}, params) = (nu=params.nu,)
+
+# The same values in the gradient eltype T, splatted after `y` in the per-observation function.
+@inline _loss_args(::Type{L}, params, ::Type{T}) where {L,T} = map(T, values(_loss_params(L, params)))
+
 function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{L}, params::EvoTypes) where {T,L<:MLE2P}
     Y = size(p, 1) ÷ 2
     w_row = 4 * Y + 1
+    args = _loss_args(L, params, T)
     @threads for i in axes(p, 2)
         @inbounds w = ∇[w_row, i]
         @inbounds for t in 1:Y
@@ -682,7 +709,7 @@ function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type
             hb = 2 * Y + 2 * (t - 1)
             loc = p[2t-1, i]
             scale_raw = p[2t, i]
-            g1, g2, h1, h2 = mle2p_grad_hess(L, loc, scale_raw, _target(y, t, i))
+            g1, g2, h1, h2 = mle2p_grad_hess(L, loc, scale_raw, _target(y, t, i), args...)
             ∇[gb+1, i] = g1 * w
             ∇[gb+2, i] = g2 * w
             ∇[hb+1, i] = h1 * w
