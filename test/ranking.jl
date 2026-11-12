@@ -107,6 +107,15 @@ using EvoTrees: fit, predict, build_group_index, ngroups, group_rows, subsample,
         is, left, mask = zeros(UInt32, n), zeros(UInt32, n), zeros(UInt8, n)
         sel = subsample(left, is, mask, 1.0, Xoshiro(1), gi)
         @test length(sel) == n
+
+        # A draw that selects no group is redrawn rather than ending the fit.
+        @test all(1:200) do seed
+            !isempty(subsample(left, is, mask, 0.002, Xoshiro(seed), gi))
+        end
+        x = randn(rng, n, 3)
+        y = x[:, 1] .+ randn(rng, n)
+        m = fit(EvoTreeRegressor(nrounds=50, rowsample=0.02); x_train=x, y_train=y, group_train=qid)
+        @test m.info[:nrounds] == 50
     end
 
     @testset "loss reaches the group index" begin
