@@ -67,6 +67,7 @@ derivative. The penalty term per control, in the units of the loss's own metric,
 | `:gamma`        | `λ dcov2(p, c)`                                       | at a calibrated fit     |
 | `:tweedie`      | `λ / (2 - ρ) * dcov2(exp((2 - ρ) p), c)`, `ρ = 1.5`   | at a calibrated fit     |
 | `:gaussian_mle` | `λ / 2 * mean(σ^-2) * dcov2(μ, c)`                    | at a constant scale `σ` |
+| `:pearson`      | `λ dcov2(p, c)`, within groups only                   | on the groups it scores |
 
 Under `:gaussian_mle` only the location `μ` is penalised. In the code `φ` is `_dep_transform` and
 the coefficient `_dep_coef`.
@@ -141,6 +142,24 @@ exchange rate with `λ` and are reported unchanged.
 The logger also keeps `:base_metrics`, the metric without the penalty, and `:ctrl_dependence`, each
 control's `dcov2(φ(p), c_j)` before `λ` and the weights. The callback adds what `eval_penalty!`
 returns and holds no loss-specific code.
+
+## `:pearson`
+
+`loss = :pearson` fits each group's centred prediction to its standardised target, with curvature
+`2w` as under `:mse`, so group `g` adds `λ W_g ∂dcov2_g/∂p` to the gradient. Groups of one row or
+with a constant target are not scored by the loss, have no curvature and get no penalty. The loss
+does not change when a constant is added to a group's predictions, so a pooled penalty would move
+group levels that nothing holds in place, and `:pearson` takes the penalty within groups only. The
+target is standardised within each group, so `λ` does not depend on its scale.
+
+The default metric, `:pearson`, has no exchange rate with `λ` and is reported without the penalty.
+`:pearson_mse`, the loss's objective per unit weight, is its own metric, so with
+`metric = :pearson_mse` the logged value adds the penalty. An evaluation group with a constant
+target is left out of `:pearson_mse`, but its dependence still counts in the penalty.
+
+Under a strong penalty, early stopping on `:pearson` keeps the first tree, which is fitted before
+the penalty acts: the correlation then falls as the penalty removes the control's share of the
+signal. Early stopping on `:pearson_mse` follows the penalised objective instead.
 
 ## GPU
 
