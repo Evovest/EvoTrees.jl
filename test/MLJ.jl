@@ -476,3 +476,10 @@ end
     @test occursin("no control variable", fit_error(EvoTreeRegressor(nrounds=5, ctrl_lambda=1.0)))
     @test occursin("no control variable", fit_error(EvoTreeMLE(nrounds=5, ctrl_lambda=1.0)))
 end
+
+@testset "a mutated model is checked at fit" begin
+    Xr, yr = MLJTestInterface.make_regression()
+    model = EvoTreeRegressor(nrounds=5)
+    model.eta = -1.0
+    @test_throws "`eta`" fit!(machine(model, Xr, yr), verbosity=0)
+end
