@@ -30,7 +30,7 @@ m = fit(config, dtrain; target_name="y", group_name="group", ctrl_name=["c1", "c
 - `:lambdarank` and `:xendcg` reject a multi-column target, which `:lambdarank` used to fit on the wrong values.
 
 ### Pearson loss
-- `loss=:pearson` fits the Pearson correlation between the predictions and the target within each group of `group_name` / `group_train`, so it is only available through `EvoTrees.fit`. `metric` defaults to `:pearson`.
+- `loss=:pearson` fits the Pearson correlation between the predictions and the target within each group of `group_name` / `group_train`, so it is only available through `EvoTrees.fit`. `metric` defaults to `:pearson`. A matrix target fits one output per column.
 - `loss=:pearson` takes the decorrelation penalty within groups (`ctrl_within_group=true`). The default metric `:pearson` does not include the penalty; `metric=:pearson_mse`, the loss's objective, does.
 
 ## v0.18.8

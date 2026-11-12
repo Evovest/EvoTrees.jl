@@ -374,15 +374,15 @@ _pearson_no_group() = error(
     "`group_name` when fitting from a table, or `group_train` when fitting from a matrix."
 )
 
-# `(scored, sw, ybar, sy)` of one group: weight sum, weighted mean and sd of `y`.
-function _pearson_group_stats(w, y, rows)
+# `(scored, sw, ybar, sy)` of target `k` in one group: weight sum, weighted mean and sd.
+function _pearson_group_stats(w, y, rows, k)
     n = length(rows)
     n < 2 && return (false, 0.0, 0.0, 0.0)
     sw = swy = 0.0
-    ymin = ymax = y[first(rows)]
+    ymin = ymax = _target(y, k, first(rows))
     @inbounds for r in rows
         wr = Float64(w[r])
-        yr = y[r]
+        yr = _target(y, k, r)
         sw += wr
         swy += wr * yr
         ymin = min(ymin, yr)
@@ -393,7 +393,7 @@ function _pearson_group_stats(w, y, rows)
     ybar = swy / sw
     vy = 0.0
     @inbounds for r in rows
-        d = y[r] - ybar
+        d = _target(y, k, r) - ybar
         vy += w[r] * d * d
     end
     sy = sqrt(vy / sw)
@@ -401,72 +401,83 @@ function _pearson_group_stats(w, y, rows)
     return (true, sw, ybar, sy)
 end
 
-function _pearson_stats_chunk!(stats, scored, w, y, group, chunk)
+_pearson_group_stats(w, y::AbstractVector, rows) = _pearson_group_stats(w, y, rows, 1)
+
+function _pearson_stats_chunk!(stats, scored, w, y, group, chunk, k)
     for g in chunk
-        ok, sw, ybar, sy = _pearson_group_stats(w, y, group_rows(group, g))
-        scored[g] = ok
-        stats[1, g] = sw
-        stats[2, g] = ybar
-        stats[3, g] = sy
+        ok, sw, ybar, sy = _pearson_group_stats(w, y, group_rows(group, g), k)
+        scored[g, k] = ok
+        stats[1, g, k] = sw
+        stats[2, g, k] = ybar
+        stats[3, g, k] = sy
     end
     return nothing
 end
 
+# stats[:, g, k] and scored[g, k] are group g's stats for target k.
 function _pearson_stats(w, y, group)
     ng = ngroups(group)
-    stats = Matrix{Float64}(undef, 3, ng)
-    scored = Vector{Bool}(undef, ng)
-    @threads for chunk in _group_chunks(ng)
-        _pearson_stats_chunk!(stats, scored, w, y, group, chunk)
+    K = y isa AbstractVector ? 1 : size(y, 1)
+    stats = Array{Float64}(undef, 3, ng, K)
+    scored = Matrix{Bool}(undef, ng, K)
+    chunks = _group_chunks(ng)
+    for k in 1:K
+        @threads for chunk in chunks
+            _pearson_stats_chunk!(stats, scored, w, y, group, chunk, k)
+        end
+        any(view(scored, :, k)) || error(
+            "`loss = :pearson` found no group with at least two rows and a non-constant target" *
+            (K > 1 ? " in column $k" : "") * ", so there is nothing to correlate."
+        )
     end
-    any(scored) || error(
-        "`loss = :pearson` found no group with at least two rows and a non-constant target, " *
-        "so there is nothing to correlate."
-    )
     return stats, scored
 end
 
-# g and h of the groups in `chunk` into rows 1 and 2 of `∇`.
-function _pearson_write_chunk!(∇::AbstractMatrix{T}, w, p, y, stats, scored, group, chunk) where {T}
+# g and h of output `k` for the groups in `chunk` into rows `k` and `K + k` of `∇`.
+function _pearson_write_chunk!(∇::AbstractMatrix{T}, w, p, y, stats, scored, group, chunk, k) where {T}
+    K = size(p, 1)
     for g in chunk
         rows = group_rows(group, g)
-        if !scored[g]
+        if !scored[g, k]
             @inbounds for r in rows
-                ∇[1, r] = zero(T)
-                ∇[2, r] = zero(T)
+                ∇[k, r] = zero(T)
+                ∇[K+k, r] = zero(T)
             end
             continue
         end
-        sw, ybar, sy = stats[1, g], stats[2, g], stats[3, g]
+        sw, ybar, sy = stats[1, g, k], stats[2, g, k], stats[3, g, k]
         swp = 0.0
         @inbounds for r in rows
-            swp += Float64(w[r]) * p[1, r]
+            swp += Float64(w[r]) * p[k, r]
         end
         pbar = swp / sw
         @inbounds for r in rows
             w2 = 2 * w[r]
-            ∇[1, r] = T(w2 * ((p[1, r] - pbar) - (y[r] - ybar) / sy))
-            ∇[2, r] = T(w2)
+            ∇[k, r] = T(w2 * ((p[k, r] - pbar) - (_target(y, k, r) - ybar) / sy))
+            ∇[K+k, r] = T(w2)
         end
     end
     return nothing
 end
 
-# Shared by both backends.
+# Shared by both backends. Output `k` fits target `k` on its own.
 function _pearson_grads!(∇::AbstractMatrix, w, p, y, stats, scored, group)
-    @threads for chunk in _group_chunks(ngroups(group))
-        _pearson_write_chunk!(∇, w, p, y, stats, scored, group, chunk)
+    chunks = _group_chunks(ngroups(group))
+    for k in axes(p, 1)
+        @threads for chunk in chunks
+            _pearson_write_chunk!(∇, w, p, y, stats, scored, group, chunk, k)
+        end
     end
     return nothing
 end
 
-function _pearson_grads!(∇::AbstractMatrix, p::AbstractMatrix, y::AbstractVector, group)
-    w = view(∇, 3, :)
+function _pearson_grads!(∇::AbstractMatrix, p::AbstractMatrix, y::AbstractVecOrMat, group)
+    w = view(∇, 2 * size(p, 1) + 1, :)
     stats, scored = _pearson_stats(w, y, group)
     return _pearson_grads!(∇, w, p, y, stats, scored, group)
 end
 
-function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVector, ::Type{Pearson}, params::EvoTypes, group) where {T}
+function update_grads!(∇::Matrix{T}, p::Matrix{T}, y::AbstractVecOrMat, ::Type{Pearson}, params::EvoTypes, group) where {T}
     isnothing(group) && _pearson_no_group()
     _pearson_grads!(∇, p, y, group)
     return nothing

@@ -13,6 +13,7 @@ const F5_PLATEAU_MARGIN = 0.09        # F5 best in-sample metric over the iter-1
 const F5_MSE_MARGIN = 0.0025          # F5 best eval metric over raw :mse's best eval metric
 const F7_RTOL = 1e-6                  # F7 table and matrix APIs (norm isapprox; expected equal)
 const F9_RTOL = 3e-5                  # F9 continuation from an offset (norm isapprox)
+const F10_METRIC_ATOL = 5e-6          # F10 logged metric against the hand-computed one
 
 # `isapprox` on arrays compares norms, `norm(a - b) <= rtol * max(norm(a), norm(b))`, so a
 # tolerance on it bounds the whole vector, not each entry. It is used where some entries can be
@@ -262,6 +263,12 @@ _pl_fit_eval(cfg, P; kw...) = _pl_fit(cfg, P; x_eval=P.x[P.ev, :], y_eval=P.y[P.
         e = _pl_err(() -> EvoTrees._pearson_grads!(∇, zeros(1, 4), Float32[1, 2, 2, 2], gi))
         @test e isa ErrorException
         @test occursin("`loss = :pearson`", _pl_msg(e)) && occursin("nothing to correlate", _pl_msg(e))
+        # with several targets, the column with nothing to correlate is named
+        ∇2 = zeros(5, 4)
+        ∇2[5, :] .= 1
+        e = _pl_err(() -> EvoTrees._pearson_grads!(∇2, zeros(2, 4), Float32[1 2 3 4; 1 2 2 2], gi))
+        @test e isa ErrorException
+        @test occursin("in column 2", _pl_msg(e)) && occursin("nothing to correlate", _pl_msg(e))
 
         params = EvoTreeRegressor(; loss=:pearson, nrounds=1)
         e = _pl_err(() -> EvoTrees.update_grads!(zeros(3, 4), zeros(1, 4), Float32[1, 2, 3, 4],
@@ -302,14 +309,14 @@ _pl_fit_eval(cfg, P; kw...) = _pl_fit(cfg, P; x_eval=P.x[P.ev, :], y_eval=P.y[P.
         ref[3, :] .= U.w
         P = reshape(U.p, 1, :)
         ng = ngroups(U.gi)
-        stats = zeros(3, ng)
-        scored = zeros(Bool, ng)
+        stats = zeros(3, ng, 1)
+        scored = zeros(Bool, ng, 1)
         w = view(ref, 3, :)
         for g in 1:ng
-            EvoTrees._pearson_stats_chunk!(stats, scored, w, U.y, U.gi, g:g)
+            EvoTrees._pearson_stats_chunk!(stats, scored, w, U.y, U.gi, g:g, 1)
         end
         for g in 1:ng
-            EvoTrees._pearson_write_chunk!(ref, w, P, U.y, stats, scored, U.gi, g:g)
+            EvoTrees._pearson_write_chunk!(ref, w, P, U.y, stats, scored, U.gi, g:g, 1)
         end
         @test ∇ == ref
     end
@@ -383,6 +390,39 @@ _pl_fit_eval(cfg, P; kw...) = _pl_fit(cfg, P; x_eval=P.x[P.ev, :], y_eval=P.y[P.
             EvoTrees.update_grads!(∇d, p[:, rows], y[rows], EvoTrees.Pearson, params, build_group_index(date[rows]))
             @test ∇d == ∇[:, rows]
         end
+    end
+
+    @testset "U13 each target column gets the single-target gradient" begin
+        # Column 2 is constant on date 4 rather than date 3, so the unscored dates differ by
+        # column. Every entry starts as NaN, so the zeros on unscored dates must be written.
+        U = _pl_unit_panel()
+        rng = Xoshiro(13)
+        y2 = Float32.((10 .^ (2 .* rand(rng, U.D) .- 1))[U.date] .* randn(rng, U.N))
+        y2[U.date.==4] .= -0.3f0
+        Y = permutedims(hcat(U.y, y2))
+        P = permutedims(hcat(U.p, 3 .* randn(rng, U.N)))
+        for T in (Float64, Float32)
+            ∇ = fill(T(NaN), 5, U.N)
+            ∇[5, :] .= U.w
+            EvoTrees._pearson_grads!(∇, T.(P), Y, U.gi)
+            for k in 1:2
+                ∇k = _pl_grads(P[k, :], Y[k, :], U.w, U.gi; T)
+                @test ∇[k, :] == ∇k[1, :]
+                @test ∇[2+k, :] == ∇k[2, :]
+            end
+            for (k, dead) in ((1, in((1, 3)).(U.date)), (2, in((1, 4)).(U.date)))
+                @test all(==(0), ∇[[k, 2 + k], dead])
+                @test all(>(0), ∇[2+k, .!dead])
+            end
+            # the GPU path holds w and the stats apart and writes to its own 2K-row buffer
+            w = ∇[5, :]
+            stats, scored = EvoTrees._pearson_stats(w, Y, U.gi)
+            ∇h = fill(T(NaN), 4, U.N)
+            EvoTrees._pearson_grads!(∇h, w, T.(P), Y, stats, scored, U.gi)
+            @test ∇h == ∇[1:4, :]
+        end
+        # a one-column matrix target is the vector target
+        @test _pl_grads(U.p, reshape(U.y, 1, :), U.w, U.gi) == _pl_grads(U.p, U.y, U.w, U.gi)
     end
 
     @testset "F1 defaults" begin
@@ -505,10 +545,6 @@ _pl_fit_eval(cfg, P; kw...) = _pl_fit(cfg, P; x_eval=P.x[P.ev, :], y_eval=P.y[P.
         @test e isa ErrorException
         @test occursin("`loss = :pearson` requires group information", _pl_msg(e))
 
-        e = _pl_err(() -> fit(cfg; x_train=xtr, y_train=hcat(ytr, ytr), group_train=dtr, verbosity=0))
-        @test e isa ErrorException
-        @test occursin("`loss = :pearson` takes a single target vector", _pl_msg(e))
-
         # every date constant
         e = _pl_err(() -> fit(cfg; x_train=xtr, y_train=Float64.(dtr), group_train=dtr, verbosity=0))
         @test e isa ErrorException
@@ -561,6 +597,34 @@ _pl_fit_eval(cfg, P; kw...) = _pl_fit(cfg, P; x_eval=P.x[P.ev, :], y_eval=P.y[P.
         # norm isapprox
         @test predict(m, xtr) ≈ predict(m1, xtr) .+ predict(m2, xtr) rtol = F9_RTOL
         @test predict(m, xev) ≈ predict(m1, xev) .+ predict(m2, xev) rtol = F9_RTOL
+    end
+
+    @testset "F10 two targets" begin
+        # The second target follows x3 on its own per-date level and scale.
+        P = _pl_fit_panel(21)
+        rng = Xoshiro(21)
+        y2 = (40 .* randn(rng, 60))[P.date] .+ (10 .^ rand(rng, 60))[P.date] .*
+             (0.3 .* P.x[:, 3] .+ randn(rng, length(P.date)))
+        Y = hcat(P.y, y2)
+        xev, Yev, dev = P.x[P.ev, :], Y[P.ev, :], P.date[P.ev]
+        cfg = EvoTreeRegressor(; loss=:pearson, nrounds=300, max_depth=4, eta=0.1, early_stopping_rounds=10)
+        fit2(ytr, yev) = fit(cfg; x_train=P.x[P.tr, :], y_train=ytr, group_train=P.date[P.tr],
+            x_eval=xev, y_eval=yev, group_eval=dev, verbosity=0)
+        m = fit2(Y[P.tr, :], Yev)
+        lg = m.info[:logger]
+        @test m.bias == [0f0, 0f0]
+        # stopped early, 10 rounds after the best
+        @test lg[:best_iter] > 1
+        @test length(lg[:metrics]) == lg[:best_iter] + 11 < 301
+        # the metric takes each date's mean over targets of each target's correlation
+        pev = predict(m, xev; ntree_limit=lg[:best_iter])
+        r = [mean(cor(pev[dev.==d, k], Yev[dev.==d, k]) for k in 1:2) for d in unique(dev)]
+        @test abs(lg[:best_metric] - mean(r)) < F10_METRIC_ATOL
+        # a one-column matrix target is the vector fit
+        m1 = fit2(P.y[P.tr], P.y[P.ev])
+        mm = fit2(P.y[P.tr, :], P.y[P.ev, :])
+        @test predict(mm, xev) == predict(m1, xev)
+        @test mm.info[:logger][:metrics] == m1.info[:logger][:metrics]
     end
 
 end
