@@ -117,6 +117,17 @@ end
 end
 
 
+@testset "Tables - predict in blocks of rows" begin
+    B = EvoTrees.PREDICT_BLOCK_ROWS
+    n = B * Threads.nthreads() + 3
+    df = DataFrame(x_num=rand(Xoshiro(6), n), x_bool=rand(Xoshiro(7), Bool, n),
+        x_cat=categorical(rand(Xoshiro(8), lvls, n), levels=lvls))
+    df.y = df.x_num .+ df.x_bool .+ (df.x_cat .== "b") .+ 0.1 .* randn(Xoshiro(9), n)
+    model = fit(EvoTreeRegressor(nrounds=10, max_depth=4), df; target_name="y", verbosity=0)
+    p = EvoTrees.predict(model, df)
+    @test all(p[i] == EvoTrees.predict(model, df[i:i, :])[1] for i in (1, B, B + 1, n))
+end
+
 @testset "Tables - num/bool/cat" begin
 
     y_tot = sin.(x_num) .* 0.5 .+ 0.5

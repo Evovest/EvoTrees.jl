@@ -117,6 +117,95 @@ function apply_prediction_link!(pred, ::Type{L}) where {L}
     return pred
 end
 
+"""
+    PREDICT_BLOCK_ROWS
+
+Most rows that `predict` bins and scores at once. Each block is binned on its own and goes
+through every tree while its bins are still in cache, so the input is never binned as a whole.
+"""
+const PREDICT_BLOCK_ROWS = 2048
+
+_nobs(data::AbstractMatrix) = size(data, 1)
+_nobs(data) = length(Tables.getcolumn(data, 1))
+
+_rows(data::AbstractMatrix, rows) = view(data, rows, :)
+_rows(data, rows) = map(col -> view(col, rows), data)
+
+# Where `binarize!` reads each block from. A table's features are grouped by column type, each
+# group's block passed as a Dict of views refilled in place: `binarize!` looks columns up by name,
+# which on a NamedTuple of views copies it whole each time. Edges are narrowed to a concrete type
+# (a table model stores them as `Vector{Any}`) so `binarize!` does not dispatch per column.
+_bin_source(X::AbstractMatrix, feature_names, edges) = (; X, feature_names, edges=identity.(edges))
+function _bin_source(data, feature_names, edges)
+    cols = [Tables.getcolumn(data, name) for name in feature_names]
+    return map(unique(typeof.(cols))) do C
+        js = findall(col -> col isa C, cols)
+        (; js, names=feature_names[js], edges=identity.(edges[js]), cols=Vector{C}(cols[js]))
+    end
+end
+
+_bin_buffers(::NamedTuple) = nothing
+_bin_buffers(groups) = [Dict(name => view(col, 1:0) for (name, col) in zip(g.names, g.cols)) for g in groups]
+
+_bin_block!(x_bin, src::NamedTuple, ::Nothing, rows) =
+    binarize!(view(x_bin, 1:length(rows), :), view(src.X, rows, :); src.feature_names, src.edges)
+function _bin_block!(x_bin, groups, bufs, rows)
+    for (g, buf) in zip(groups, bufs)
+        _bin_group!(x_bin, g, buf, rows)
+    end
+end
+function _bin_group!(x_bin, g, buf, rows)
+    for (name, col) in zip(g.names, g.cols)
+        buf[name] = view(col, rows)
+    end
+    binarize!(view(x_bin, 1:length(rows), g.js), buf; feature_names=g.names, edges=g.edges)
+end
+
+# Bias plus the first `ntree_limit` trees for one block, written to `pred[rows, :]`. The block's
+# bins and scores are the first `length(rows)` rows of `x_bin` and columns of `p`.
+function _predict_block!(pred, p::Matrix{T}, m::EvoTree{L,K}, x_bin::Matrix{UInt8}, rows, feattypes::Vector{Bool}, ntree_limit) where {T,L,K}
+    n = length(rows)
+    pv = view(p, :, 1:n)
+    pv .= m.bias
+    for j in 1:ntree_limit
+        tree = m.trees[j]
+        for i in 1:n
+            _predict_row!(p, tree, x_bin, feattypes, i)
+        end
+    end
+    apply_prediction_link!(pv, L)
+    pred[rows, :] .= transpose(pv)
+    return nothing
+end
+
+# Blocks of PREDICT_THREAD_MIN to PREDICT_BLOCK_ROWS rows, one per thread when the batch allows.
+# Each task takes a run of blocks and reuses its buffers across them.
+function _predict_blocks!(pred::Matrix{T}, m::EvoTree{L,K}, data, feature_names, edges, feattypes, ntree_limit) where {T,L,K}
+    nobs = size(pred, 1)
+    bs = clamp(cld(nobs, nthreads()), PREDICT_THREAD_MIN, PREDICT_BLOCK_ROWS)
+    nblocks = cld(nobs, bs)
+    if nblocks <= 1
+        _predict_block!(pred, Matrix{T}(undef, K, nobs), m, binarize(data; feature_names, edges), 1:nobs, feattypes, ntree_limit)
+        return nothing
+    end
+    # bad input fails here, once, rather than in every task
+    binarize(_rows(data, 1:0); feature_names, edges)
+    src = _bin_source(data, feature_names, edges)
+    ntasks = min(nthreads(), nblocks)
+    per = cld(nblocks, ntasks)
+    @threads for t in 1:ntasks
+        x_bin = Matrix{UInt8}(undef, bs, length(feature_names))
+        p = Matrix{T}(undef, K, bs)
+        bufs = _bin_buffers(src)
+        for b in (t-1)*per+1:min(t * per, nblocks)
+            rows = (b-1)*bs+1:min(b * bs, nobs)
+            _bin_block!(x_bin, src, bufs, rows)
+            _predict_block!(pred, p, m, x_bin, rows, feattypes, ntree_limit)
+        end
+    end
+    return nothing
+end
+
 function _predict(
     m::EvoTree{L,K},
     data,
@@ -126,16 +215,9 @@ function _predict(
     Tables.istable(data) ? data = Tables.columntable(data) : nothing
     ntrees = length(m.trees)
     ntree_limit > ntrees && error("ntree_limit is larger than number of trees $ntrees.")
-    x_bin = binarize(data; feature_names=m.info[:feature_names], edges=m.info[:edges])
-    nobs = size(x_bin, 1)
-    pred = zeros(Float32, K, nobs)
-    pred .= m.bias
-    for i = 1:ntree_limit
-        predict!(pred, m.trees[i], x_bin, m.info[:feattypes])
-    end
-    apply_prediction_link!(pred, L)
-    pred = K == 1 ? vec(Array(pred')) : Array(pred')
-    return pred
+    pred = Matrix{Float32}(undef, _nobs(data), K)
+    _predict_blocks!(pred, m, data, m.info[:feature_names], m.info[:edges], m.info[:feattypes], ntree_limit)
+    return K == 1 ? vec(pred) : pred
 end
 
 function predict_leaf_idx!(
