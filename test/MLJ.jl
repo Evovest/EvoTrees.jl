@@ -326,15 +326,45 @@ MLJBase.update(model, 2, f, c, data...);
     @test f4.info[:nrounds] == 4
 
     # Increasing `nrounds` alone is the one case that may continue from the existing
-    # ensemble, and doing so must agree with a fit from scratch.
+    # ensemble, and doing so must agree with a fit from scratch. The refits above released
+    # the cache in `c`, so continue from a new fit.
+    f, c, _ = MLJBase.fit(model, 0, data...)
     model4 = EvoTreeRegressor(; nrounds=25, eta=0.05, max_depth=3, seed)
     f5, _, _ = MLJBase.update(model4, 0, f, c, data...)
     f6, _, _ = MLJBase.fit(model4, 0, data...)
+    @test f5 === f
     @test f5.info[:nrounds] == 25
     @test all(
         MLJBase.predict(model4, f5, X) .≈
         MLJBase.predict(model4, f6, X),
     )
+end
+
+@testset "update releases the training cache before a cold refit" begin
+    rng = Xoshiro(7)
+    X = MLJBase.table(rand(rng, 200, 3))
+    y = rand(rng, 200)
+    model = EvoTreeRegressor(; nrounds=10, eta=0.05, max_depth=3, seed=123)
+    mach = machine(model, X, y)
+    fit!(mach, verbosity=0)
+    c = mach.cache
+
+    # The machine keeps its cache during the refit, so `update` empties it first. A refit
+    # that fails leaves the machine with its previous fit and an empty cache.
+    model.ctrl_lambda = 1.0
+    @test_throws Exception fit!(mach, verbosity=0)
+    @test mach.cache === c
+    @test isnothing(c.core[])
+
+    # Growing `nrounds` alone would continue the fit, but with no cache it refits.
+    model.ctrl_lambda = 0.0
+    model.nrounds = 20
+    fit!(mach, verbosity=0)
+    @test !isnothing(mach.cache.core[])
+    @test mach.fitresult.info[:nrounds] == 20
+    mach2 = machine(deepcopy(model), X, y)
+    fit!(mach2, verbosity=0)
+    @test all(predict(mach, X) .≈ predict(mach2, X))
 end
 
 
