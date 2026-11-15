@@ -174,6 +174,12 @@ function EvoTrees.xendcg(
     return EvoTrees.xendcg(Array(p), Array(y), w_cpu, similar(w_cpu, 0); group)
 end
 
+# As for `ndcg` above, scored on the host.
+function EvoTrees.gini(p::CuMatrix{T}, y::CuVector{T}, w::CuVector{T}, eval::CuVector{T}; kwargs...) where {T<:AbstractFloat}
+    w_cpu = Array(w)
+    return EvoTrees.gini(Array(p), Array(y), w_cpu, similar(w_cpu, 0))
+end
+
 # Same reasoning as `ndcg` above: a per-group correlation reads its rows individually, so the
 # arrays are brought to the host rather than scalar-indexed on device.
 function EvoTrees.pearson(

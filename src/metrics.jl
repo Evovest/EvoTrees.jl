@@ -499,22 +499,44 @@ function _pearson_mse_chunk!(eval::AbstractVector{T}, p, y, w, group, chunk) whe
 end
 
 function gini_raw(p::AbstractVector, y::AbstractVector)
-    _y = y .- minimum(y)
-    if length(_y) < 2
-        return 0.0
+    # With `s` the sum of `y .- minimum(y)` and `a` the same sum weighted by the rank of each
+    # prediction, the gini is `a / (s n) - (n + 1) / 2n`. Tied predictions share their mean rank.
+    n = length(p)
+    n < 2 && return 0.0
+    ymin = Float64(minimum(y))
+    py = sort!(collect(zip(p, y)); by=first)
+    s, a, i = 0.0, 0.0, 1
+    while i <= n
+        v, sy, j = py[i][1], py[i][2] - ymin, i
+        while j < n && py[j+1][1] == v
+            j += 1
+            sy += py[j][2] - ymin
+        end
+        s += sy
+        a += sy * (i + j) / 2
+        i = j + 1
     end
-    random = cumsum(ones(length(p)) ./ length(p)^2)
-    y_sort = _y[sortperm(p)]
-    y_cum = cumsum(y_sort) ./ sum(_y) ./ length(p)
-    gini = sum(Float64, random .- y_cum)
-    return gini
+    return a / (s * n) - (n + 1) / 2n
+end
+
+# `gini_raw(y, y)` from the sorted targets.
+function gini_max(y::AbstractVector)
+    n = length(y)
+    ys = sort(y)
+    ymin = Float64(ys[1])
+    s, a = 0.0, 0.0
+    for (k, v) in enumerate(ys)
+        s += v - ymin
+        a += k * (v - ymin)
+    end
+    return a / (s * n) - (n + 1) / 2n
 end
 
 function gini_norm(p::AbstractVector, y::AbstractVector)
     if length(y) < 2
         return 0.0
     end
-    return gini_raw(p, y) / gini_raw(y, y)
+    return gini_raw(p, y) / gini_max(y)
 end
 
 function gini(
