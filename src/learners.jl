@@ -505,6 +505,13 @@ const EvoTypes = Union{
     EvoTreeMLE,
 }
 
+# Parameters a learner passes to the eval metric, typed for the eval data on device array type `V`.
+# Kept with the learners so the callback holds no loss specific fields.
+_metric_params(params::EvoTreeRegressor, ::Type{T}, V) where {T} =
+    (alpha=T(params.alpha), alphas=V{T}(params.alphas), ndcg_k=params.ndcg_k)
+_metric_params(params::EvoTreeMLE, ::Type{T}, V) where {T} = (nu=params.nu,)
+_metric_params(::EvoTypes, ::Type{T}, V) where {T} = (;)
+
 """
     check_parameter(::Type{<:T}, value, min_value::Real, max_value::Real, label::Symbol) where {T<:Number}
 
