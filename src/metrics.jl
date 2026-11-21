@@ -504,10 +504,25 @@ function gini_raw(p::AbstractVector, y::AbstractVector)
         return 0.0
     end
     random = cumsum(ones(length(p)) ./ length(p)^2)
-    y_sort = _y[sortperm(p)]
+    idx = sortperm(p)
+    y_sort = _mean_ties!(float(_y[idx]), view(p, idx))
     y_cum = cumsum(y_sort) ./ sum(_y) ./ length(p)
     gini = sum(Float64, random .- y_cum)
     return gini
+end
+
+# Set the targets of each run of tied predictions to their mean.
+function _mean_ties!(y_sort, p_sort)
+    i = firstindex(y_sort)
+    while i <= lastindex(y_sort)
+        j = i
+        while j < lastindex(y_sort) && p_sort[j+1] == p_sort[i]
+            j += 1
+        end
+        j > i && (y_sort[i:j] .= mean(view(y_sort, i:j)))
+        i = j + 1
+    end
+    return y_sort
 end
 
 function gini_norm(p::AbstractVector, y::AbstractVector)
