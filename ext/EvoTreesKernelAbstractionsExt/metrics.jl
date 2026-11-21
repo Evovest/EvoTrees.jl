@@ -201,7 +201,7 @@ function EvoTrees.pearson(
 end
 
 # scored on the host, as `pearson` is
-function EvoTrees.pearson_mse(p::CuMatrix{T}, y::CuVector, w::CuVector{T}, eval::CuVector{T};
+function EvoTrees.pearson_mse(p::CuMatrix{T}, y::Union{CuVector,CuMatrix}, w::CuVector{T}, eval::CuVector{T};
     group=nothing, kwargs...) where {T<:AbstractFloat}
     w_cpu = Array(w)
     return EvoTrees.pearson_mse(Array(p), Array(y), w_cpu, similar(w_cpu); group)
