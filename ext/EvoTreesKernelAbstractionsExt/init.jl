@@ -48,7 +48,7 @@ function EvoTrees.init_core(params::EvoTrees.EvoTypes, device::Type{<:EvoTrees.G
     )
     merge!(info, pairs(EvoTrees._loss_params(L, params)))
 
-    nodes = [EvoTrees.TrainNode(nfeats, params.nbins, K, view(zeros(UInt32, 0), 1:0)) for _ in 1:(2^(params.max_depth + 1) - 1)]
+    nodes = [EvoTrees.TrainNode(K, view(zeros(UInt32, 0), 1:0)) for _ in 1:(2^(params.max_depth + 1) - 1)]
     m = EvoTree{L,K}(L, K, μ, info)
 
     cond_feats = zeros(UInt32, 2^params.max_depth - 1)
