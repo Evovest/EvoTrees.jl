@@ -783,3 +783,21 @@ end
     m_copy = fit(params; x_train, y_train, x_eval=copy(x_train), y_eval=copy(y_train), verbosity=0)
     @test EvoTrees.predict(m_reuse, x_train) == EvoTrees.predict(m_copy, x_train)
 end
+
+@testset "predict in blocks of rows" begin
+    B = EvoTrees.PREDICT_BLOCK_ROWS
+    nobs = B * Threads.nthreads() + 3
+    x = rand(Xoshiro(4), nobs, 3)
+    y = x[:, 1] .+ x[:, 2] .^ 2 .+ 0.1 .* randn(Xoshiro(5), nobs)
+    models = [
+        fit(EvoTreeRegressor(nrounds=10, max_depth=4); x_train=x, y_train=y, verbosity=0),
+        fit(EvoTreeMLE(nrounds=10, max_depth=4); x_train=x, y_train=y, verbosity=0),
+        fit(EvoTreeClassifier(nrounds=10, max_depth=4); x_train=x, y_train=round.(Int, 2 .* y), verbosity=0),
+    ]
+    # the rows on either side of each block edge score as they do alone
+    rows = [1; vec([k * B + d for d in 0:1, k in 1:nobs÷B]); nobs]
+    for m in models
+        p = predict(m, x)
+        @test all(p[i, :] == vec(predict(m, x[i:i, :])) for i in rows)
+    end
+end

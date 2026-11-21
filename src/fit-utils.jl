@@ -64,22 +64,28 @@ end
 
 Transform feature data into a UInt8 binarized matrix.
 """
-function binarize(X::AbstractMatrix; feature_names, edges)
+binarize(X::AbstractMatrix; feature_names, edges) = binarize!(zeros(UInt8, size(X)), X; feature_names, edges)
+binarize(df; feature_names, edges) =
+    binarize!(zeros(UInt8, length(Tables.getcolumn(df, 1)), length(feature_names)), df; feature_names, edges)
+
+"""
+    binarize!(x_bin, data; feature_names, edges)
+
+Bin `data`, a matrix or a table, into `x_bin`, which has one row per row of `data`.
+"""
+function binarize!(x_bin::AbstractMatrix{UInt8}, X::AbstractMatrix; feature_names, edges)
     size(X, 2) == length(feature_names) || error(
         "Data has $(size(X, 2)) columns but the model was trained on " *
         "$(length(feature_names)) features. A matrix is matched by position, so it must " *
         "carry the same features, in the same order, as the training data."
     )
-    x_bin = zeros(UInt8, size(X))
     @threads for j in axes(X, 2)
         x_bin[:, j] .= searchsortedfirst.(Ref(edges[j]), view(X, :, j))
     end
     return x_bin
 end
 
-function binarize(df; feature_names, edges)
-    nobs = length(Tables.getcolumn(df, 1))
-    x_bin = zeros(UInt8, nobs, length(feature_names))
+function binarize!(x_bin::AbstractMatrix{UInt8}, df; feature_names, edges)
     @threads for j in eachindex(feature_names)
         col = Tables.getcolumn(df, feature_names[j])
         if eltype(col) <: Bool
