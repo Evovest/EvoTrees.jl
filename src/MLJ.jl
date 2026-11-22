@@ -14,7 +14,8 @@ function MMI.fit(model::EvoTypes, verbosity::Int, A, y, w=nothing)
     grow_evotree!(fitresult, core, model)
   end
   report = (features=core.feature_names,)
-  return fitresult, (core=core, model=deepcopy(model)), report
+  # `core` sits behind a `Ref` so that `MMI.update` can release it before a cold refit.
+  return fitresult, (core=Ref{Union{Nothing,typeof(core)}}(core), model=deepcopy(model)), report
 end
 
 """
@@ -26,9 +27,12 @@ Boosting can only append trees to an existing ensemble, so continuing is valid o
 requested model differs from the fitted one in `nrounds` alone, and `nrounds` has not been
 reduced below the number of trees already grown. Any other hyperparameter change requires a
 cold restart, since the trees already fitted were grown under the previous values.
+It also needs the training cache, which a cold restart releases first, so a restart that
+failed leaves the next `update` to restart as well.
 """
 function okay_to_continue(model, fitresult, cache)
-  return MMI.is_same_except(model, cache.model, :nrounds) &&
+  return !isnothing(cache.core[]) &&
+         MMI.is_same_except(model, cache.model, :nrounds) &&
          model.nrounds >= fitresult.info[:nrounds]
 end
 
@@ -45,12 +49,16 @@ function MMI.update(
   w=nothing,
 )
   if okay_to_continue(model, fitresult, cache)
+    core = cache.core[]
     while fitresult.info[:nrounds] < model.nrounds
-      grow_evotree!(fitresult, cache.core, model)
+      grow_evotree!(fitresult, core, model)
     end
     cache = (core=cache.core, model=deepcopy(model))
-    report = (features=cache.core.feature_names,)
+    report = (features=core.feature_names,)
   else
+    # The caller holds `cache` until this returns: drop the old training cache before
+    # building the new one.
+    cache.core[] = nothing
     fitresult, cache, report = MMI.fit(model, verbosity, A, y, w)
   end
   return fitresult, cache, report
