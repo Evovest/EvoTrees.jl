@@ -84,21 +84,13 @@ function CallBack(
     V = device_array_type(device)
     w = isnothing(weight_name) ? device_ones(device, T, nobs) : V{T}(Tables.getcolumn(deval, _weight_name))
     check_eval_data(y, w, nobs)
-    metric_kwargs = hasproperty(params, :alpha) ? (alpha=T(params.alpha),) : (;)
-    if params.metric == :multiquantile
-        alphas_eval = T.(params.alphas)
-        device <: GPU && (alphas_eval = V{T}(alphas_eval))
-        metric_kwargs = (alphas=alphas_eval,)
-    end
-    
-    hasproperty(params, :nu) && (metric_kwargs = merge(metric_kwargs, (nu=params.nu,)))
-    
+    metric_kwargs = _metric_params(params, T, V)
+
     group_eval = nothing
     if !isnothing(group_name)
         group_eval = build_group_index(Tables.getcolumn(deval, Symbol(group_name)), nobs, "group_name")
         metric_kwargs = merge(metric_kwargs, (group=group_eval,))
     end
-    hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
 
     ctrl = nothing
     if !isnothing(ctrl_name)
@@ -157,16 +149,9 @@ function CallBack(
     V = device_array_type(device)
     w = isnothing(w_eval) ? device_ones(device, T, nobs) : V{T}(w_eval)
     check_eval_data(y, w, nobs)
-    metric_kwargs = hasproperty(params, :alpha) ? (alpha=T(params.alpha),) : (;)
-    if params.metric == :multiquantile
-        alphas_eval = T.(params.alphas)
-        device <: GPU && (alphas_eval = V{T}(alphas_eval))
-        metric_kwargs = (alphas=alphas_eval,)
-    end
-    hasproperty(params, :nu) && (metric_kwargs = merge(metric_kwargs, (nu=params.nu,)))
+    metric_kwargs = _metric_params(params, T, V)
     gi = isnothing(group_eval) ? nothing : build_group_index(group_eval, nobs, "group_eval")
     isnothing(gi) || (metric_kwargs = merge(metric_kwargs, (group=gi,)))
-    hasproperty(params, :ndcg_k) && (metric_kwargs = merge(metric_kwargs, (ndcg_k=params.ndcg_k,)))
 
     ctrl = nothing
     if !isnothing(ctrl_eval)
