@@ -1,6 +1,6 @@
 name = "EvoTrees"
 uuid = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
-version = "0.20.0"
+version = "0.20.1"
 authors = ["jeremiedb <jeremie.db@evovest.com>"]
 
 [deps]
